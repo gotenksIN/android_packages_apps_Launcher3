@@ -52,7 +52,6 @@ import androidx.core.content.res.ResourcesCompat;
 
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.icons.DotRenderer;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.model.DeviceGridState;
 import com.android.launcher3.provider.RestoreDbTask;
 import com.android.launcher3.testing.shared.ResourceUtils;
@@ -490,7 +489,7 @@ public class InvariantDeviceProfile implements OnSharedPreferenceChangeListener 
 
         // Re-init grid
         String gridName = getCurrentGridName(context);
-        initGrid(context, LauncherPrefs.getPrefs(context).getString(KEY_IDP_GRID_NAME, gridName));
+        initGrid(context, gridName);
 
         boolean modelPropsChanged = !Arrays.equals(oldState, toModelState());
         for (OnIDPChangeListener listener : mChangeListeners) {
