@@ -30,7 +30,10 @@ import static com.android.launcher3.tapl.TestHelpers.getOverviewPackageName;
 import static com.android.launcher3.testing.shared.TestProtocol.NORMAL_STATE_ORDINAL;
 import static com.android.launcher3.testing.shared.TestProtocol.REQUEST_GET_SPLIT_SELECTION_ACTIVE;
 import static com.android.launcher3.testing.shared.TestProtocol.REQUEST_NUM_ALL_APPS_COLUMNS;
+import static com.android.launcher3.testing.shared.TestProtocol.SUCCESSFUL_GESTURE_MISMATCH_EVENTS;
+import static com.android.launcher3.testing.shared.TestProtocol.TEST_DRAG_APP_ICON_TO_MULTIPLE_WORKSPACES_FAILURE;
 import static com.android.launcher3.testing.shared.TestProtocol.TEST_INFO_RESPONSE_FIELD;
+import static com.android.launcher3.testing.shared.TestProtocol.testLogD;
 
 import android.app.ActivityManager;
 import android.app.Instrumentation;
@@ -94,7 +97,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -199,8 +201,6 @@ public final class LauncherInstrumentation {
     private Function<Long, String> mSystemHealthSupplier;
 
     private boolean mIgnoreTaskbarVisibility = false;
-
-    private Consumer<ContainerType> mOnSettledStateAction;
 
     private LogEventChecker mEventChecker;
 
@@ -655,10 +655,6 @@ public final class LauncherInstrumentation {
         this.mSystemHealthSupplier = supplier;
     }
 
-    public void setOnSettledStateAction(Consumer<ContainerType> onSettledStateAction) {
-        mOnSettledStateAction = onSettledStateAction;
-    }
-
     public void onTestStart() {
         mTestStartTime = System.currentTimeMillis();
     }
@@ -868,8 +864,6 @@ public final class LauncherInstrumentation {
         log("verifyContainerType: " + containerType);
 
         final UiObject2 container = verifyVisibleObjects(containerType);
-
-        if (mOnSettledStateAction != null) mOnSettledStateAction.accept(containerType);
 
         return container;
     }
@@ -1172,7 +1166,11 @@ public final class LauncherInstrumentation {
                 log("Hierarchy before clicking home:");
                 dumpViewHierarchy();
                 action = "clicking home button";
-
+                Log.d(TEST_DRAG_APP_ICON_TO_MULTIPLE_WORKSPACES_FAILURE,
+                        "LauncherInstrumentation.goHome: isThreeFingerTrackpadGesture: "
+                                + isThreeFingerTrackpadGesture
+                                + "getNavigationModel() == NavigationModel.ZERO_BUTTON: " + (
+                                getNavigationModel() == NavigationModel.ZERO_BUTTON));
                 runToState(
                         getHomeButton()::click,
                         NORMAL_STATE_ORDINAL,
@@ -1216,7 +1214,8 @@ public final class LauncherInstrumentation {
             waitForNavigationUiObject("back").click();
         }
         if (launcherVisible) {
-            if (getContext().getApplicationInfo().isOnBackInvokedCallbackEnabled()) {
+            if (InstrumentationRegistry.getTargetContext().getApplicationInfo()
+                    .isOnBackInvokedCallbackEnabled()) {
                 expectEvent(TestProtocol.SEQUENCE_MAIN, EVENT_ON_BACK_INVOKED);
             } else {
                 expectEvent(TestProtocol.SEQUENCE_MAIN, EVENT_KEY_BACK_DOWN);
@@ -1518,6 +1517,8 @@ public final class LauncherInstrumentation {
 
     @NonNull
     UiObject2 waitForLauncherObject(String resName) {
+        Log.d(TEST_DRAG_APP_ICON_TO_MULTIPLE_WORKSPACES_FAILURE,
+                "LauncherInstrumentation.waitForLauncherObject");
         return waitForObjectBySelector(getLauncherObjectSelector(resName));
     }
 
@@ -1547,12 +1548,16 @@ public final class LauncherInstrumentation {
 
     @NonNull
     List<UiObject2> waitForObjectsBySelector(BySelector selector) {
+        Log.d(TEST_DRAG_APP_ICON_TO_MULTIPLE_WORKSPACES_FAILURE,
+                "LauncherInstrumentation.waitForObjectsBySelector");
         final List<UiObject2> objects = mDevice.wait(Until.findObjects(selector), WAIT_TIME_MS);
         assertNotNull("Can't find any view in Launcher, selector: " + selector, objects);
         return objects;
     }
 
     private UiObject2 waitForObjectBySelector(BySelector selector) {
+        Log.d(TEST_DRAG_APP_ICON_TO_MULTIPLE_WORKSPACES_FAILURE,
+                "LauncherInstrumentation.waitForObjectBySelector");
         final UiObject2 object = mDevice.wait(Until.findObject(selector), WAIT_TIME_MS);
         assertNotNull("Can't find a view in Launcher, selector: " + selector, object);
         return object;
@@ -1595,6 +1600,9 @@ public final class LauncherInstrumentation {
 
     void runToState(Runnable command, int expectedState, boolean requireEvent, String actionName) {
         if (requireEvent) {
+            Log.d(TEST_DRAG_APP_ICON_TO_MULTIPLE_WORKSPACES_FAILURE,
+                    "LauncherInstrumentation.runToState: command: " + command + " expectedState: "
+                            + expectedState + " actionName: " + actionName + "requireEvent: true");
             runToState(command, expectedState, actionName);
         } else {
             command.run();
@@ -1944,6 +1952,10 @@ public final class LauncherInstrumentation {
                 TestProtocol.TEST_INFO_RESPONSE_FIELD);
     }
 
+    boolean isAppPairsEnabled() {
+        return getTestInfo(TestProtocol.REQUEST_FLAG_ENABLE_APP_PAIRS).getBoolean(
+                TestProtocol.TEST_INFO_RESPONSE_FIELD);
+    }
     public void sendPointer(long downTime, long currentTime, int action, Point point,
             GestureScope gestureScope) {
         sendPointer(downTime, currentTime, action, point, gestureScope,
@@ -1972,11 +1984,15 @@ public final class LauncherInstrumentation {
                     mPointerCount = 1;
                     pointerCount = mPointerCount;
                 }
+                Log.d(TEST_DRAG_APP_ICON_TO_MULTIPLE_WORKSPACES_FAILURE,
+                        "LauncherInstrumentation.sendPointer: ACTION_DOWN");
                 break;
             case MotionEvent.ACTION_UP:
                 if (hasTIS && gestureScope == GestureScope.EXPECT_PILFER) {
                     expectEvent(TestProtocol.SEQUENCE_PILFER, EVENT_PILFER_POINTERS);
                 }
+                Log.d(TEST_DRAG_APP_ICON_TO_MULTIPLE_WORKSPACES_FAILURE,
+                        "LauncherInstrumentation.sendPointer: ACTION_UP");
                 break;
             case MotionEvent.ACTION_POINTER_DOWN:
                 mPointerCount++;
@@ -2241,6 +2257,11 @@ public final class LauncherInstrumentation {
                 .getBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD);
     }
 
+    public boolean isImeDocked() {
+        return getTestInfo(TestProtocol.REQUEST_TASKBAR_IME_DOCKED).getBoolean(
+                TestProtocol.TEST_INFO_RESPONSE_FIELD);
+    }
+
     /** Enables transient taskbar for testing purposes only. */
     public void enableTransientTaskbar(boolean enable) {
         getTestInfo(enable
@@ -2312,9 +2333,13 @@ public final class LauncherInstrumentation {
             }
 
             if (mEventChecker != null) {
+                testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS, "eventsCheck: mEventChecker exists");
                 mEventChecker = null;
                 if (mCheckEventsForSuccessfulGestures) {
                     final String message = eventChecker.verify(WAIT_TIME_MS, true);
+                    testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS,
+                            "mCheckEventsForSuccessfulGestures = true | eventsCheck: message="
+                                    + message);
                     if (message != null) {
                         dumpDiagnostics(message);
                         checkForAnomaly();

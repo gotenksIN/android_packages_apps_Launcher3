@@ -199,7 +199,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -243,6 +243,8 @@ public class QuickstepLauncher extends Launcher {
     private SafeCloseable mViewCapture;
 
     private boolean mEnableWidgetDepth;
+
+    private boolean mIsPredictiveBackToHomeInProgress;
 
     private HomeTransitionController mHomeTransitionController;
 
@@ -513,6 +515,7 @@ public class QuickstepLauncher extends Launcher {
             mAppTransitionManager.onActivityDestroyed();
         }
         mAppTransitionManager = null;
+        mIsPredictiveBackToHomeInProgress = false;
 
         if (mUnfoldTransitionProgressProvider != null) {
             SystemUiProxy.INSTANCE.get(this).setUnfoldAnimationListener(null);
@@ -595,9 +598,10 @@ public class QuickstepLauncher extends Launcher {
 
         ArrayList<TouchController> list = new ArrayList<>();
         list.add(getDragController());
-        Consumer<AnimatorSet> splitAnimator = animatorSet ->
+        BiConsumer<AnimatorSet, Long> splitAnimator = (animatorSet, duration) ->
                 animatorSet.play(mSplitSelectStateController.getSplitAnimationController()
-                        .createPlaceholderDismissAnim(this, LAUNCHER_SPLIT_SELECTION_EXIT_HOME));
+                        .createPlaceholderDismissAnim(this, LAUNCHER_SPLIT_SELECTION_EXIT_HOME,
+                                duration));
         switch (mode) {
             case NO_BUTTON:
                 list.add(new NoButtonQuickSwitchTouchController(this));
@@ -646,10 +650,13 @@ public class QuickstepLauncher extends Launcher {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+        // Back dispatcher is registered in {@link BaseActivity#onCreate}. For predictive back to
+        // work, we must opt-in BEFORE registering back dispatcher. So we need to call
+        // setEnableOnBackInvokedCallback() before super.onCreate()
         if (Utilities.ATLEAST_U && enablePredictiveBackGesture()) {
             getApplicationInfo().setEnableOnBackInvokedCallback(true);
         }
+        super.onCreate(savedInstanceState);
         if (savedInstanceState != null) {
             mPendingSplitSelectInfo = ObjectWrapper.unwrap(
                     savedInstanceState.getIBinder(PENDING_SPLIT_SELECT_INFO));
@@ -973,6 +980,7 @@ public class QuickstepLauncher extends Launcher {
         if (taskbarManager != null) {
             taskbarManager.setActivity(this);
         }
+        mTISBindHelper.setPredictiveBackToHomeInProgress(mIsPredictiveBackToHomeInProgress);
     }
 
     @Override
@@ -1277,6 +1285,14 @@ public class QuickstepLauncher extends Launcher {
         mPendingSplitSelectInfo = null;
     }
 
+    /**
+     * Sets flag whether a predictive back-to-home animation is in progress
+     */
+    public void setPredictiveBackToHomeInProgress(boolean isInProgress) {
+        mIsPredictiveBackToHomeInProgress = isInProgress;
+        mTISBindHelper.setPredictiveBackToHomeInProgress(isInProgress);
+    }
+
     @Override
     public boolean areFreeformTasksVisible() {
         if (mDesktopVisibilityController != null) {
@@ -1345,6 +1361,11 @@ public class QuickstepLauncher extends Launcher {
     @Override
     public boolean hasBubbles() {
         return (mTaskbarUIController != null && mTaskbarUIController.hasBubbles());
+    }
+
+    @NonNull
+    public TISBindHelper getTISBindHelper() {
+        return mTISBindHelper;
     }
 
     private static final class LauncherTaskViewController extends
