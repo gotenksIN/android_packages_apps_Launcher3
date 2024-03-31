@@ -222,6 +222,7 @@ public class IconCache extends BaseIconCache {
      * Updates {@param application} only if a valid entry is found.
      */
     public synchronized void updateTitleAndIcon(AppInfo application) {
+        boolean preferPackageIcon = application.isArchived();
         CacheEntry entry = cacheLocked(application.componentName,
                 application.user, () -> null, mLauncherActivityInfoCachingLogic,
                 false, application.usingLowResIcon());
@@ -229,13 +230,12 @@ public class IconCache extends BaseIconCache {
             return;
         }
 
-        boolean preferPackageIcon = application.isArchived();
         if (preferPackageIcon) {
             String packageName = application.getTargetPackage();
             CacheEntry packageEntry =
                     cacheLocked(new ComponentName(packageName, packageName + EMPTY_CLASS_NAME),
                             application.user, () -> null, mLauncherActivityInfoCachingLogic,
-                            false, application.usingLowResIcon());
+                            true, application.usingLowResIcon());
             applyPackageEntry(packageEntry, application, entry);
         } else {
             applyCacheEntry(entry, application);
@@ -469,17 +469,22 @@ public class IconCache extends BaseIconCache {
                         duplicateIconRequestsMap.get(cn);
 
                 if (cn != null) {
-                    CacheEntry entry = cacheLocked(
-                            cn,
-                            /* user = */ sectionKey.first,
-                            () -> duplicateIconRequests.get(0).launcherActivityInfo,
-                            mLauncherActivityInfoCachingLogic,
-                            c,
-                            /* usePackageIcon= */ false,
-                            /* useLowResIcons = */ sectionKey.second);
+                    if (duplicateIconRequests != null) {
+                        CacheEntry entry = cacheLocked(
+                                cn,
+                                /* user = */ sectionKey.first,
+                                () -> duplicateIconRequests.get(0).launcherActivityInfo,
+                                mLauncherActivityInfoCachingLogic,
+                                c,
+                                /* usePackageIcon= */ false,
+                                /* useLowResIcons = */ sectionKey.second);
 
-                    for (IconRequestInfo<T> iconRequest : duplicateIconRequests) {
-                        applyCacheEntry(entry, iconRequest.itemInfo);
+                        for (IconRequestInfo<T> iconRequest : duplicateIconRequests) {
+                            applyCacheEntry(entry, iconRequest.itemInfo);
+                        }
+                    } else {
+                        Log.e(TAG, "Found entry in icon database but no main activity "
+                                + "entry for cn: " + cn);
                     }
                 }
             }

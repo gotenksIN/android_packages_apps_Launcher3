@@ -75,6 +75,7 @@ public class PortraitPagedViewHandler extends DefaultPagedViewHandler implements
     public <T> T getSecondaryValue(T x, T y) {
         return y;
     }
+
     @Override
     public boolean isLayoutNaturalToLauncher() {
         return true;
@@ -207,6 +208,12 @@ public class PortraitPagedViewHandler extends DefaultPagedViewHandler implements
         return (deviceProfile.isLandscape && !deviceProfile.isTablet
                 ? thumbnailView.getMeasuredHeight()
                 : thumbnailView.getMeasuredWidth()) - (2 * padding);
+    }
+
+    @Override
+    public int getTaskMenuHeight(float taskInsetMargin, DeviceProfile deviceProfile,
+            float taskMenuX, float taskMenuY) {
+        return (int) (deviceProfile.availableHeightPx - taskInsetMargin - taskMenuY);
     }
 
     @Override
@@ -789,7 +796,7 @@ public class PortraitPagedViewHandler extends DefaultPagedViewHandler implements
     }
 
     @Override
-    public Float getFloatingTaskPrimaryTranslation(View floatingTask, DeviceProfile dp) {
+    public float getFloatingTaskPrimaryTranslation(View floatingTask, DeviceProfile dp) {
         return dp.isLeftRightSplit
                 ? floatingTask.getTranslationX()
                 : floatingTask.getTranslationY();

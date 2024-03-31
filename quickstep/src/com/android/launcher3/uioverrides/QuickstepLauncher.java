@@ -21,6 +21,7 @@ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_OPTIMIZE_MEAS
 import static android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED;
 
 import static com.android.app.animation.Interpolators.EMPHASIZED;
+import static com.android.internal.jank.Cuj.CUJ_LAUNCHER_LAUNCH_APP_PAIR_FROM_WORKSPACE;
 import static com.android.launcher3.Flags.enablePredictiveBackGesture;
 import static com.android.launcher3.Flags.enableUnfoldStateAnimation;
 import static com.android.launcher3.LauncherConstants.SavedInstanceKeys.PENDING_SPLIT_SELECT_INFO;
@@ -38,8 +39,8 @@ import static com.android.launcher3.LauncherState.OVERVIEW_MODAL_TASK;
 import static com.android.launcher3.LauncherState.OVERVIEW_SPLIT_SELECT;
 import static com.android.launcher3.compat.AccessibilityManagerCompat.sendCustomAccessibilityEvent;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_APP_LAUNCH_TAP;
-import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_SPLIT_SELECTION_EXIT_INTERRUPTED;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_SPLIT_SELECTION_EXIT_HOME;
+import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_SPLIT_SELECTION_EXIT_INTERRUPTED;
 import static com.android.launcher3.model.data.ItemInfo.NO_MATCHING_ID;
 import static com.android.launcher3.popup.QuickstepSystemShortcut.getSplitSelectShortcutByPosition;
 import static com.android.launcher3.popup.SystemShortcut.APP_INFO;
@@ -60,7 +61,7 @@ import static com.android.launcher3.util.DisplayController.CHANGE_NAVIGATION_MOD
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.quickstep.util.SplitAnimationTimings.TABLET_HOME_TO_SPLIT;
-import static com.android.quickstep.views.DesktopTaskView.isDesktopModeSupported;
+import static com.android.window.flags.Flags.enableDesktopWindowingMode;
 import static com.android.systemui.shared.system.ActivityManagerWrapper.CLOSE_SYSTEM_WINDOWS_REASON_HOME_KEY;
 import static com.android.wm.shell.common.split.SplitScreenConstants.SNAP_TO_50_50;
 
@@ -104,6 +105,7 @@ import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Flags;
 import com.android.launcher3.HomeTransitionController;
+import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherSettings.Favorites;
 import com.android.launcher3.LauncherState;
@@ -256,7 +258,7 @@ public class QuickstepLauncher extends Launcher {
                         getDepthController(), getStatsLogManager(),
                         systemUiProxy, RecentsModel.INSTANCE.get(this),
                         () -> onStateBack());
-        if (isDesktopModeSupported()) {
+        if (enableDesktopWindowingMode()) {
             mDesktopRecentsTransitionController = new DesktopRecentsTransitionController(
                     getStateManager(), systemUiProxy, getIApplicationThread(),
                     getDepthController());
@@ -282,7 +284,7 @@ public class QuickstepLauncher extends Launcher {
         mTISBindHelper = new TISBindHelper(this, this::onTISConnected);
         mDepthController = new DepthController(this);
         mDesktopVisibilityController = new DesktopVisibilityController(this);
-        if (isDesktopModeSupported()) {
+        if (enableDesktopWindowingMode()) {
             mDesktopVisibilityController.registerSystemUiListener();
             mSplitSelectStateController.initSplitFromDesktopController(this);
         }
@@ -665,6 +667,14 @@ public class QuickstepLauncher extends Launcher {
     }
 
     @Override
+    protected boolean initDeviceProfile(InvariantDeviceProfile idp) {
+        final boolean ret = super.initDeviceProfile(idp);
+        mDeviceProfile.isPredictiveBackSwipe =
+                getApplicationInfo().isOnBackInvokedCallbackEnabled();
+        return ret;
+    }
+
+    @Override
     public void startSplitSelection(SplitSelectSource splitSelectSource) {
         RecentsView recentsView = getOverviewPanel();
         // Check if there is already an instance of this app running, if so, initiate the split
@@ -937,7 +947,7 @@ public class QuickstepLauncher extends Launcher {
 
     @Override
     public void setResumed() {
-        if (isDesktopModeSupported()) {
+        if (enableDesktopWindowingMode()) {
             DesktopVisibilityController controller = mDesktopVisibilityController;
             if (controller != null && controller.areFreeformTasksVisible()
                     && !controller.isRecentsGestureInProgress()) {
@@ -1337,7 +1347,8 @@ public class QuickstepLauncher extends Launcher {
      * Launches two apps as an app pair.
      */
     public void launchAppPair(AppPairIcon appPairIcon) {
-        mSplitSelectStateController.getAppPairsController().launchAppPair(appPairIcon);
+        mSplitSelectStateController.getAppPairsController().launchAppPair(appPairIcon,
+                CUJ_LAUNCHER_LAUNCH_APP_PAIR_FROM_WORKSPACE);
     }
 
     public boolean canStartHomeSafely() {

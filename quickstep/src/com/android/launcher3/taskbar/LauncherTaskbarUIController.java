@@ -21,7 +21,7 @@ import static com.android.launcher3.statemanager.BaseState.FLAG_NON_INTERACTIVE;
 import static com.android.launcher3.taskbar.TaskbarEduTooltipControllerKt.TOOLTIP_STEP_FEATURES;
 import static com.android.launcher3.taskbar.TaskbarLauncherStateController.FLAG_VISIBLE;
 import static com.android.quickstep.TaskAnimationManager.ENABLE_SHELL_TRANSITIONS;
-import static com.android.quickstep.views.DesktopTaskView.isDesktopModeSupported;
+import static com.android.window.flags.Flags.enableDesktopWindowingMode;
 
 import android.animation.Animator;
 import android.animation.AnimatorSet;
@@ -191,7 +191,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
                         ? TRANSIENT_TASKBAR_TRANSITION_DURATION
                         : (!isVisible
                                 ? QuickstepTransitionManager.TASKBAR_TO_APP_DURATION
-                                : QuickstepTransitionManager.TASKBAR_TO_HOME_DURATION));
+                                : QuickstepTransitionManager.getTaskbarToHomeDuration()));
     }
 
     @Nullable
@@ -209,7 +209,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
         DesktopVisibilityController desktopController =
                 LauncherActivityInterface.INSTANCE.getDesktopVisibilityController();
         final boolean onDesktop =
-                isDesktopModeSupported()
+                enableDesktopWindowingMode()
                         && desktopController != null
                         && desktopController.areFreeformTasksVisible();
         if (onDesktop) {
@@ -411,6 +411,13 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     @Override
     protected boolean isInOverview() {
         return mTaskbarLauncherStateController.isInOverview();
+    }
+
+    @Override
+    protected boolean canToggleHomeAllApps() {
+        return mLauncher.isResumed()
+                && !mTaskbarLauncherStateController.isInOverview()
+                && !mLauncher.areFreeformTasksVisible();
     }
 
     @Override

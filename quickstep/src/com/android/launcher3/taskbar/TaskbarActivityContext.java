@@ -17,6 +17,7 @@ package com.android.launcher3.taskbar;
 
 import static android.content.pm.PackageManager.FEATURE_PC;
 import static android.os.Trace.TRACE_TAG_APP;
+import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
 import static android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
@@ -529,52 +530,26 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     /**
      * Creates {@link WindowManager.LayoutParams} for Taskbar, and also sets LP.paramsForRotation
-     * for taskbar showing as navigation bar
+     * for taskbar
      */
     private WindowManager.LayoutParams createAllWindowParams() {
         final int windowType =
                 ENABLE_TASKBAR_NAVBAR_UNIFICATION ? TYPE_NAVIGATION_BAR : TYPE_NAVIGATION_BAR_PANEL;
         WindowManager.LayoutParams windowLayoutParams =
                 createDefaultWindowLayoutParams(windowType, TaskbarActivityContext.WINDOW_TITLE);
-        if (!isPhoneButtonNavMode()) {
-            return windowLayoutParams;
-        }
 
-        // Provide WM layout params for all rotations to cache, see NavigationBar#getBarLayoutParams
-        int width = WindowManager.LayoutParams.MATCH_PARENT;
-        int height = WindowManager.LayoutParams.MATCH_PARENT;
-        int gravity = Gravity.BOTTOM;
         windowLayoutParams.paramsForRotation = new WindowManager.LayoutParams[4];
         for (int rot = Surface.ROTATION_0; rot <= Surface.ROTATION_270; rot++) {
             WindowManager.LayoutParams lp =
                     createDefaultWindowLayoutParams(windowType,
                             TaskbarActivityContext.WINDOW_TITLE);
-            switch (rot) {
-                case Surface.ROTATION_0, Surface.ROTATION_180 -> {
-                    // Defaults are fine
-                    width = WindowManager.LayoutParams.MATCH_PARENT;
-                    height = mLastRequestedNonFullscreenSize;
-                    gravity = Gravity.BOTTOM;
-                }
-                case Surface.ROTATION_90 -> {
-                    width = mLastRequestedNonFullscreenSize;
-                    height = WindowManager.LayoutParams.MATCH_PARENT;
-                    gravity = Gravity.END;
-                }
-                case Surface.ROTATION_270 -> {
-                    width = mLastRequestedNonFullscreenSize;
-                    height = WindowManager.LayoutParams.MATCH_PARENT;
-                    gravity = Gravity.START;
-                }
-
+            if (isPhoneButtonNavMode()) {
+                populatePhoneButtonNavModeWindowLayoutParams(rot, lp);
             }
-            lp.width = width;
-            lp.height = height;
-            lp.gravity = gravity;
             windowLayoutParams.paramsForRotation[rot] = lp;
         }
 
-        // Override current layout params
+        // Override with current layout params
         WindowManager.LayoutParams currentParams =
                 windowLayoutParams.paramsForRotation[getDisplay().getRotation()];
         windowLayoutParams.width = currentParams.width;
@@ -582,6 +557,32 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         windowLayoutParams.gravity = currentParams.gravity;
 
         return windowLayoutParams;
+    }
+
+    /**
+     * Update {@link WindowManager.LayoutParams} with values specific to phone and 3 button
+     * navigation users
+     */
+    private void populatePhoneButtonNavModeWindowLayoutParams(int rot,
+            WindowManager.LayoutParams lp) {
+        lp.width = WindowManager.LayoutParams.MATCH_PARENT;
+        lp.height = WindowManager.LayoutParams.MATCH_PARENT;
+        lp.gravity = Gravity.BOTTOM;
+
+        // Override with per-rotation specific values
+        switch (rot) {
+            case Surface.ROTATION_0, Surface.ROTATION_180 -> {
+                lp.height = mLastRequestedNonFullscreenSize;
+            }
+            case Surface.ROTATION_90 -> {
+                lp.width = mLastRequestedNonFullscreenSize;
+                lp.gravity = Gravity.END;
+            }
+            case Surface.ROTATION_270 -> {
+                lp.width = mLastRequestedNonFullscreenSize;
+                lp.gravity = Gravity.START;
+            }
+        }
     }
 
     public void onConfigurationChanged(@Config int configChanges) {
@@ -944,8 +945,14 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         }
         if (landscapePhoneButtonNav) {
             mWindowLayoutParams.width = size;
+            for (int rot = Surface.ROTATION_0; rot <= Surface.ROTATION_270; rot++) {
+                mWindowLayoutParams.paramsForRotation[rot].width = size;
+            }
         } else {
             mWindowLayoutParams.height = size;
+            for (int rot = Surface.ROTATION_0; rot <= Surface.ROTATION_270; rot++) {
+                mWindowLayoutParams.paramsForRotation[rot].height = size;
+            }
         }
         mControllers.taskbarInsetsController.onTaskbarOrBubblebarWindowHeightOrInsetsChanged();
         notifyUpdateLayoutParams();
@@ -1208,7 +1215,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                     .handleAppPairLaunchInApp((AppPairIcon) launchingIconView, itemInfos);
         } else {
             // Tapped a single app, nothing complicated here.
-            startItemInfoActivity(itemInfos.get(0));
+            startItemInfoActivity(itemInfos.get(0), null /*foundTask*/);
         }
     }
 
@@ -1247,21 +1254,39 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                     if (findExactPairMatch) {
                         // We did not find the app pair we were looking for, so launch one.
                         recents.getSplitSelectController().getAppPairsController().launchAppPair(
-                                (AppPairIcon) launchingIconView);
+                                (AppPairIcon) launchingIconView, -1 /*cuj*/);
                     } else {
-                        startItemInfoActivity(itemInfos.get(0));
+                        startItemInfoActivity(itemInfos.get(0), foundTask);
                     }
                 }
         );
     }
 
-    private void startItemInfoActivity(ItemInfo info) {
+    /**
+     * Starts an activity with the information provided by the "info" param. However, if
+     * taskInRecents is present, it will prioritize re-launching an existing instance via
+     * {@link ActivityManagerWrapper#startActivityFromRecents(int, ActivityOptions)}
+     */
+    private void startItemInfoActivity(ItemInfo info, @Nullable Task taskInRecents) {
         Intent intent = new Intent(info.getIntent())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
             TestLogging.recordEvent(TestProtocol.SEQUENCE_MAIN, "start: taskbarAppIcon");
             if (info.user.equals(Process.myUserHandle())) {
                 // TODO(b/216683257): Use startActivityForResult for search results that require it.
+                if (taskInRecents != null) {
+                    // Re launch instance from recents
+                    ActivityOptionsWrapper opts = getActivityLaunchOptions(null, info);
+                    opts.options.setLaunchDisplayId(
+                            getDisplay() == null ? DEFAULT_DISPLAY : getDisplay().getDisplayId());
+                    if (ActivityManagerWrapper.getInstance()
+                            .startActivityFromRecents(taskInRecents.key, opts.options)) {
+                        mControllers.uiController.getRecentsView()
+                                .addSideTaskLaunchCallback(opts.onEndCallback);
+                        return;
+                    }
+                }
+
                 startActivity(intent);
             } else {
                 getSystemService(LauncherApps.class).startMainActivity(
@@ -1320,8 +1345,12 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      * Called when we want to unstash taskbar when user performs swipes up gesture.
      */
     public void onSwipeToUnstashTaskbar() {
-        VibratorWrapper.INSTANCE.get(this).vibrateForTaskbarUnstash();
+        boolean wasStashed = mControllers.taskbarStashController.isStashed();
         mControllers.taskbarStashController.updateAndAnimateTransientTaskbar(/* stash= */ false);
+        boolean isStashed = mControllers.taskbarStashController.isStashed();
+        if (isStashed != wasStashed) {
+            VibratorWrapper.INSTANCE.get(this).vibrateForTaskbarUnstash();
+        }
         mControllers.taskbarEduTooltipController.hide();
     }
 
@@ -1550,5 +1579,14 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     @VisibleForTesting
     public float getStashedTaskbarScale() {
         return mControllers.stashedHandleViewController.getStashedHandleHintScale().value;
+    }
+
+    /** Closes the KeyboardQuickSwitchView without an animation if open. */
+    public void closeKeyboardQuickSwitchView() {
+        mControllers.keyboardQuickSwitchController.closeQuickSwitchView(false);
+    }
+
+    boolean canToggleHomeAllApps() {
+        return mControllers.uiController.canToggleHomeAllApps();
     }
 }
