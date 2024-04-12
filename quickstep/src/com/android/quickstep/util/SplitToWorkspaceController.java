@@ -16,9 +16,7 @@
 
 package com.android.quickstep.util;
 
-import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APP_PAIR;
 import static com.android.launcher3.util.Executors.MODEL_EXECUTOR;
-import static com.android.window.flags.Flags.enableDesktopWindowingMode;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -44,7 +42,7 @@ import com.android.launcher3.anim.PendingAnimation;
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.icons.BitmapInfo;
 import com.android.launcher3.icons.IconCache;
-import com.android.launcher3.model.data.FolderInfo;
+import com.android.launcher3.model.data.AppPairInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.PackageItemInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
@@ -126,7 +124,7 @@ public class SplitToWorkspaceController {
             intent = appInfo.intent;
             user = appInfo.user;
             bitmapInfo = appInfo.bitmap;
-        } else if (tag instanceof FolderInfo fi && fi.itemType == ITEM_TYPE_APP_PAIR) {
+        } else if (tag instanceof AppPairInfo) {
             // Prompt the user to select something else by wiggling the instructions view
             mController.getSplitInstructionsView().goBoing();
             return true;
@@ -198,8 +196,6 @@ public class SplitToWorkspaceController {
     }
 
     private boolean shouldIgnoreSecondSplitLaunch() {
-        return (!FeatureFlags.enableSplitContextually()
-                && !enableDesktopWindowingMode())
-                || !mController.isSplitSelectActive();
+        return !FeatureFlags.enableSplitContextually() || !mController.isSplitSelectActive();
     }
 }

@@ -74,7 +74,7 @@ public class WidgetsTwoPaneSheet extends WidgetsFullSheet {
     private ScrollView mRightPaneScrollView;
     private WidgetsListTableViewHolderBinder mWidgetsListTableViewHolderBinder;
 
-    private boolean mOldIsBackSwipeProgressing;
+    private boolean mOldIsSwipeToDismissInProgress;
     private int mActivePage = -1;
     private PackageUserKey mSelectedHeader;
 
@@ -154,14 +154,14 @@ public class WidgetsTwoPaneSheet extends WidgetsFullSheet {
     }
 
     @Override
-    protected void onScaleProgressChanged() {
-        super.onScaleProgressChanged();
-        boolean isBackSwipeProgressing = mSlideInViewScale.value > 0;
-        if (isBackSwipeProgressing == mOldIsBackSwipeProgressing) {
+    protected void onUserSwipeToDismissProgressChanged() {
+        super.onUserSwipeToDismissProgressChanged();
+        boolean isSwipeToDismissInProgress = mSwipeToDismissProgress.value > 0;
+        if (isSwipeToDismissInProgress == mOldIsSwipeToDismissInProgress) {
             return;
         }
-        mOldIsBackSwipeProgressing = isBackSwipeProgressing;
-        if (isBackSwipeProgressing) {
+        mOldIsSwipeToDismissInProgress = isSwipeToDismissInProgress;
+        if (isSwipeToDismissInProgress) {
             modifyAttributesOnViewTree(mPrimaryWidgetListView, (ViewParent) mContent,
                     CLIP_CHILDREN_FALSE_MODIFIER);
             modifyAttributesOnViewTree(mRightPaneScrollView,  (ViewParent) mContent,
@@ -276,8 +276,15 @@ public class WidgetsTwoPaneSheet extends WidgetsFullSheet {
 
     @Override
     @Px
-    protected float getRecommendationSectionHeightRatio() {
-        return RECOMMENDATION_SECTION_HEIGHT_RATIO_TWO_PANE;
+    protected float getMaxAvailableHeightForRecommendations() {
+        if (mRecommendedWidgetsCount > 0) {
+            // If widgets were already selected for display, we show them all on orientation change
+            // in a two pane picker
+            return Float.MAX_VALUE;
+        }
+
+        return (mDeviceProfile.heightPx - mDeviceProfile.bottomSheetTopPadding)
+                * RECOMMENDATION_SECTION_HEIGHT_RATIO_TWO_PANE;
     }
 
     @Override

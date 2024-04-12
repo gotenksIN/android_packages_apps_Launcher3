@@ -27,6 +27,7 @@ import android.view.View;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.android.launcher3.R;
 import com.android.launcher3.anim.AnimatedFloat;
@@ -34,6 +35,7 @@ import com.android.launcher3.taskbar.TaskbarActivityContext;
 import com.android.launcher3.taskbar.TaskbarControllers;
 import com.android.launcher3.taskbar.TaskbarInsetsController;
 import com.android.launcher3.taskbar.TaskbarStashController;
+import com.android.launcher3.taskbar.bubbles.animation.BubbleBarViewAnimator;
 import com.android.launcher3.util.MultiPropertyFactory;
 import com.android.launcher3.util.MultiValueAlpha;
 import com.android.quickstep.SystemUiProxy;
@@ -81,6 +83,13 @@ public class BubbleBarViewController {
     private boolean mHiddenForNoBubbles = true;
     private boolean mShouldShowEducation;
 
+    private BubbleBarViewAnimator mBubbleBarViewAnimator;
+
+    @Nullable
+    private BubbleBarBoundsChangeListener mBoundsChangeListener;
+
+    private final Rect mPreviousBubbleBarBounds = new Rect();
+
     public BubbleBarViewController(TaskbarActivityContext activity, BubbleBarView barView) {
         mActivity = activity;
         mBarView = barView;
@@ -110,9 +119,19 @@ public class BubbleBarViewController {
         mBubbleBarClickListener = v -> onBubbleBarClicked();
         mBubbleDragController.setupBubbleBarView(mBarView);
         mBarView.setOnClickListener(mBubbleBarClickListener);
-        mBarView.addOnLayoutChangeListener((view, i, i1, i2, i3, i4, i5, i6, i7) ->
-                mTaskbarInsetsController.onTaskbarOrBubblebarWindowHeightOrInsetsChanged()
-        );
+        mBarView.addOnLayoutChangeListener(
+                (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+                    mTaskbarInsetsController.onTaskbarOrBubblebarWindowHeightOrInsetsChanged();
+                    Rect bubbleBarBounds = mBarView.getBubbleBarBounds();
+                    if (!bubbleBarBounds.equals(mPreviousBubbleBarBounds)) {
+                        mPreviousBubbleBarBounds.set(bubbleBarBounds);
+                        if (mBoundsChangeListener != null) {
+                            mBoundsChangeListener.onBoundsChanged(bubbleBarBounds);
+                        }
+                    }
+                });
+
+        mBubbleBarViewAnimator = new BubbleBarViewAnimator(mBarView, mBubbleStashController);
     }
 
     private void onBubbleClicked(View v) {
@@ -310,12 +329,23 @@ public class BubbleBarViewController {
     /**
      * Adds the provided bubble to the bubble bar.
      */
-    public void addBubble(BubbleBarItem b) {
+    public void addBubble(BubbleBarItem b, boolean isExpanding, boolean suppressAnimation) {
         if (b != null) {
             mBarView.addView(b.getView(), 0,
                     new FrameLayout.LayoutParams(mIconSize, mIconSize, Gravity.LEFT));
             b.getView().setOnClickListener(mBubbleClickListener);
             mBubbleDragController.setupBubbleView(b.getView());
+
+            if (suppressAnimation) {
+                return;
+            }
+
+            boolean isStashedOrGone =
+                    mBubbleStashController.isStashed() || mBarView.getVisibility() != VISIBLE;
+            // don't animate the new bubble if we're auto expanding from stashed
+            if (b instanceof BubbleBarBubble && isStashedOrGone && !isExpanding) {
+                mBubbleBarViewAnimator.animateBubbleInForStashed((BubbleBarBubble) b);
+            }
         } else {
             Log.w(TAG, "addBubble, bubble was null!");
         }
@@ -414,5 +444,20 @@ public class BubbleBarViewController {
      */
     public void onDismissAllBubblesWhileDragging() {
         mSystemUiProxy.removeAllBubbles();
+    }
+
+    /**
+     * Set listener to be notified when bubble bar bounds have changed
+     */
+    public void setBoundsChangeListener(@Nullable BubbleBarBoundsChangeListener listener) {
+        mBoundsChangeListener = listener;
+    }
+
+    /**
+     * Listener to receive updates about bubble bar bounds changing
+     */
+    public interface BubbleBarBoundsChangeListener {
+        /** Called when bounds have changed */
+        void onBoundsChanged(Rect newBounds);
     }
 }

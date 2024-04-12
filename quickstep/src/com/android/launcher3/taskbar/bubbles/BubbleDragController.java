@@ -28,7 +28,7 @@ import androidx.annotation.Nullable;
 import com.android.launcher3.taskbar.TaskbarActivityContext;
 
 /**
- * Controls bubble bar drag to dismiss interaction.
+ * Controls bubble bar drag interactions.
  * Interacts with {@link BubbleDismissController}, used by {@link BubbleBarViewController}.
  * Supported interactions:
  * - Drag a single bubble view into dismiss target to remove it.
@@ -39,6 +39,7 @@ public class BubbleDragController {
     private final TaskbarActivityContext mActivity;
     private BubbleBarViewController mBubbleBarViewController;
     private BubbleDismissController mBubbleDismissController;
+    private BubbleBarPinController mBubbleBarPinController;
 
     public BubbleDragController(TaskbarActivityContext activity) {
         mActivity = activity;
@@ -52,6 +53,11 @@ public class BubbleDragController {
     public void init(@NonNull BubbleControllers bubbleControllers) {
         mBubbleBarViewController = bubbleControllers.bubbleBarViewController;
         mBubbleDismissController = bubbleControllers.bubbleDismissController;
+        mBubbleBarPinController = bubbleControllers.bubbleBarPinController;
+        mBubbleBarPinController.setListener(
+                bubbleControllers.bubbleBarController::updateBubbleBarLocation);
+        mBubbleDismissController.setListener(
+                stuck -> mBubbleBarPinController.setDropTargetHidden(stuck));
     }
 
     /**
@@ -89,6 +95,7 @@ public class BubbleDragController {
     public void setupBubbleBarView(@NonNull BubbleBarView bubbleBarView) {
         PointF initialRelativePivot = new PointF();
         bubbleBarView.setOnTouchListener(new BubbleTouchListener() {
+
             @Override
             protected boolean onTouchDown(@NonNull View view, @NonNull MotionEvent event) {
                 if (bubbleBarView.isExpanded()) return false;
@@ -102,12 +109,38 @@ public class BubbleDragController {
                 // By default the bubble bar view pivot is in bottom right corner, while dragging
                 // it should be centered in order to align it with the dismiss target view
                 bubbleBarView.setRelativePivot(/* x = */ 0.5f, /* y = */ 0.5f);
+                bubbleBarView.setIsDragging(true);
+                mBubbleBarPinController.onDragStart(
+                        bubbleBarView.getBubbleBarLocation().isOnLeft(bubbleBarView.isLayoutRtl()));
+            }
+
+            @Override
+            protected void onDragUpdate(float x, float y) {
+                mBubbleBarPinController.onDragUpdate(x, y);
+            }
+
+            @Override
+            protected void onDragRelease() {
+                mBubbleBarPinController.onDragEnd();
+            }
+
+            @Override
+            protected void onDragDismiss() {
+                mBubbleBarPinController.onDragEnd();
             }
 
             @Override
             void onDragEnd() {
                 // Restoring the initial pivot for the bubble bar view
                 bubbleBarView.setRelativePivot(initialRelativePivot.x, initialRelativePivot.y);
+                bubbleBarView.setIsDragging(false);
+            }
+
+            @Override
+            protected PointF getRestingPosition() {
+                PointF restingPosition = super.getRestingPosition();
+                bubbleBarView.adjustRelativeRestingPosition(restingPosition);
+                return restingPosition;
             }
         });
     }
@@ -170,6 +203,13 @@ public class BubbleDragController {
         abstract void onDragStart();
 
         /**
+         * Called when bubble is dragged to new coordinates.
+         * Not called while bubble is stuck to the dismiss target.
+         */
+        protected void onDragUpdate(float x, float y) {
+        }
+
+        /**
          * Called when the dragging interaction has ended and all the animations have completed
          */
         abstract void onDragEnd();
@@ -186,6 +226,13 @@ public class BubbleDragController {
          * dismissed with animation
          */
         protected void onDragDismiss() {
+        }
+
+        /**
+         * Get the resting position of the view when drag is released
+         */
+        protected PointF getRestingPosition() {
+            return mViewInitialPosition;
         }
 
         @Override
@@ -232,8 +279,10 @@ public class BubbleDragController {
          * @param event the motion event
          */
         protected void onTouchMove(@NonNull View view, @NonNull MotionEvent event) {
-            final float dx = event.getRawX() - mTouchDownLocation.x;
-            final float dy = event.getRawY() - mTouchDownLocation.y;
+            float rawX = event.getRawX();
+            float rawY = event.getRawY();
+            final float dx = rawX - mTouchDownLocation.x;
+            final float dy = rawY - mTouchDownLocation.y;
             switch (mState) {
                 case TOUCHED:
                     final boolean movedOut = Math.hypot(dx, dy) > mTouchSlop;
@@ -244,7 +293,7 @@ public class BubbleDragController {
                     }
                     break;
                 case DRAGGING:
-                    drag(view, event, dx, dy);
+                    drag(view, event, dx, dy, rawX, rawY);
                     break;
             }
         }
@@ -293,10 +342,12 @@ public class BubbleDragController {
             mBubbleDismissController.showDismissView();
         }
 
-        private void drag(@NonNull View view, @NonNull MotionEvent event, float dx, float dy) {
+        private void drag(@NonNull View view, @NonNull MotionEvent event, float dx, float dy,
+                float x, float y) {
             if (mBubbleDismissController.handleTouchEvent(event)) return;
             view.setTranslationX(mViewInitialPosition.x + dx);
             view.setTranslationY(mViewInitialPosition.y + dy);
+            onDragUpdate(x, y);
         }
 
         private void stopDragging(@NonNull View view, @NonNull MotionEvent event) {
@@ -311,7 +362,7 @@ public class BubbleDragController {
                 mAnimator.animateDismiss(mViewInitialPosition, onComplete);
             } else {
                 onDragRelease();
-                mAnimator.animateToInitialState(mViewInitialPosition, getCurrentVelocity(),
+                mAnimator.animateToInitialState(getRestingPosition(), getCurrentVelocity(),
                         onComplete);
             }
             mBubbleDismissController.hideDismissView();

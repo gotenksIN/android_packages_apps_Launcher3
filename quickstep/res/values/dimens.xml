@@ -98,6 +98,8 @@
     <dimen name="default_task_dismiss_drag_velocity_grid_focus_task">5dp</dimen>
 
     <dimen name="recents_clear_all_deadzone_vertical_margin">70dp</dimen>
+    <dimen name="recents_clear_all_outline_radius">24dp</dimen>
+    <dimen name="recents_clear_all_outline_padding">2dp</dimen>
 
     <!-- The speed in dp/s at which the user needs to be scrolling in recents such that we start
              loading full resolution screenshots. -->
@@ -397,6 +399,7 @@
     <dimen name="taskbar_edu_features_tooltip_width_with_one_feature">412dp</dimen>
     <dimen name="taskbar_edu_features_tooltip_width_with_two_features">428dp</dimen>
     <dimen name="taskbar_edu_features_tooltip_width_with_three_features">624dp</dimen>
+    <dimen name="taskbar_edu_circle_to_search_subtitle_text_size">12sp</dimen>
 
     <!--- Taskbar Pinning -->
     <dimen name="taskbar_pinning_popup_menu_width">300dp</dimen>
@@ -417,6 +420,7 @@
     <!-- Container size with pointer included: bubblebar_size + bubblebar_pointer_size -->
     <dimen name="bubblebar_size_with_pointer">80dp</dimen>
     <dimen name="bubblebar_elevation">1dp</dimen>
+    <dimen name="bubblebar_drag_elevation">2dp</dimen>
     <dimen name="bubblebar_hotseat_adjustment_threshold">90dp</dimen>
 
     <dimen name="bubblebar_icon_size">50dp</dimen>
@@ -432,6 +436,11 @@
     <dimen name="bubblebar_dismiss_target_icon_size">24dp</dimen>
     <dimen name="bubblebar_dismiss_target_bottom_margin">50dp</dimen>
     <dimen name="bubblebar_dismiss_floating_gradient_height">548dp</dimen>
+    <dimen name="bubblebar_dismiss_zone_width">192dp</dimen>
+    <dimen name="bubblebar_dismiss_zone_height">242dp</dimen>
+
+    <!-- Bubble bar drop target -->
+    <dimen name="bubblebar_drop_target_corner_radius">36dp</dimen>
 
     <!-- Launcher splash screen -->
     <!-- Note: keep this value in sync with the WindowManager/Shell dimens.xml -->

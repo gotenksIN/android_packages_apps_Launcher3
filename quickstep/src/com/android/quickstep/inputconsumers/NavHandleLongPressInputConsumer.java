@@ -27,13 +27,14 @@ import android.view.MotionEvent;
 import android.view.ViewConfiguration;
 
 import com.android.launcher3.Utilities;
-import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.util.DisplayController;
+import com.android.quickstep.DeviceConfigWrapper;
 import com.android.quickstep.InputConsumer;
 import com.android.quickstep.NavHandle;
 import com.android.quickstep.RecentsAnimationDeviceState;
 import com.android.quickstep.TopTaskTracker;
+import com.android.quickstep.util.AssistStateManager;
 import com.android.systemui.shared.system.InputMonitorCompat;
 
 /**
@@ -63,9 +64,10 @@ public class NavHandleLongPressInputConsumer extends DelegateInputConsumer {
             NavHandle navHandle) {
         super(delegate, inputMonitor);
         mScreenWidth = DisplayController.INSTANCE.get(context).getInfo().currentSize.x;
-        mDeepPressEnabled = FeatureFlags.ENABLE_LPNH_DEEP_PRESS.get();
-        if (FeatureFlags.CUSTOM_LPNH_THRESHOLDS.get()) {
-            mLongPressTimeout = FeatureFlags.LPNH_TIMEOUT_MS.get();
+        mDeepPressEnabled = DeviceConfigWrapper.get().getEnableLpnhDeepPress();
+        AssistStateManager assistStateManager = AssistStateManager.INSTANCE.get(context);
+        if (assistStateManager.getLPNHDurationMillis().isPresent()) {
+            mLongPressTimeout = assistStateManager.getLPNHDurationMillis().get().intValue();
         } else {
             mLongPressTimeout = ViewConfiguration.getLongPressTimeout();
         }
@@ -179,8 +181,9 @@ public class NavHandleLongPressInputConsumer extends DelegateInputConsumer {
 
     private boolean isInNavBarHorizontalArea(float x) {
         float areaFromMiddle = mNavHandleWidth / 2.0f;
-        if (FeatureFlags.CUSTOM_LPNH_THRESHOLDS.get()) {
-            areaFromMiddle += Utilities.dpToPx(FeatureFlags.LPNH_EXTRA_TOUCH_WIDTH_DP.get());
+        if (DeviceConfigWrapper.get().getCustomLpnhThresholds()) {
+            areaFromMiddle += Utilities.dpToPx(
+                    DeviceConfigWrapper.get().getLpnhExtraTouchWidthDp());
         }
         int minAccessibleSize = Utilities.dpToPx(24);  // Half of 48dp because this is per side.
         if (areaFromMiddle < minAccessibleSize) {

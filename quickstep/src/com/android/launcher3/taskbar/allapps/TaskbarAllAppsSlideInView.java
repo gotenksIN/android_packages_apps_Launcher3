@@ -35,7 +35,6 @@ import androidx.annotation.Nullable;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Insettable;
 import com.android.launcher3.R;
-import com.android.launcher3.allapps.AllAppsRecyclerView;
 import com.android.launcher3.anim.AnimatorListeners;
 import com.android.launcher3.anim.PendingAnimation;
 import com.android.launcher3.config.FeatureFlags;
@@ -97,7 +96,7 @@ public class TaskbarAllAppsSlideInView extends AbstractSlideInView<TaskbarOverla
         mAllAppsCallbacks.onAllAppsTransitionStart(true);
         if (!animate) {
             mAllAppsCallbacks.onAllAppsTransitionEnd(true);
-            mTranslationShift = TRANSLATION_SHIFT_OPENED;
+            setTranslationShift(TRANSLATION_SHIFT_OPENED);
             return;
         }
 
@@ -208,15 +207,10 @@ public class TaskbarAllAppsSlideInView extends AbstractSlideInView<TaskbarOverla
     }
 
     @Override
-    protected void onScaleProgressChanged() {
-        super.onScaleProgressChanged();
-        mAppsView.setClipChildren(!mIsBackProgressing);
-        mAppsView.getAppsRecyclerViewContainer().setClipChildren(!mIsBackProgressing);
-        AllAppsRecyclerView rv = mAppsView.getActiveRecyclerView();
-        if (rv != null && rv.getScrollbar() != null) {
-            rv.getScrollbar().setVisibility(
-                    mIsBackProgressing ? INVISIBLE : VISIBLE);
-        }
+    protected void onUserSwipeToDismissProgressChanged() {
+        super.onUserSwipeToDismissProgressChanged();
+        mAppsView.setClipChildren(!mIsDismissInProgress);
+        mAppsView.getAppsRecyclerViewContainer().setClipChildren(!mIsDismissInProgress);
     }
 
     @Override
@@ -270,7 +264,7 @@ public class TaskbarAllAppsSlideInView extends AbstractSlideInView<TaskbarOverla
         if (mAllAppsCallbacks.handleSearchBackInvoked()) {
             // We need to scale back taskbar all apps if we navigate back within search inside all
             // apps
-            animateSlideInViewToNoScale();
+            animateSwipeToDismissProgressToStart();
         } else {
             super.onBackInvoked();
         }

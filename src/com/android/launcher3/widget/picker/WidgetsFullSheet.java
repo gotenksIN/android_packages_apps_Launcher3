@@ -17,7 +17,6 @@ package com.android.launcher3.widget.picker;
 
 import static com.android.launcher3.Flags.enableCategorizedWidgetSuggestions;
 import static com.android.launcher3.Flags.enableUnfoldedTwoPanePicker;
-import static com.android.launcher3.LauncherAnimUtils.VIEW_TRANSLATE_Y;
 import static com.android.launcher3.LauncherPrefs.WIDGETS_EDUCATION_DIALOG_SEEN;
 import static com.android.launcher3.allapps.ActivityAllAppsContainerView.AdapterHolder.SEARCH;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_WIDGETSTRAY_SEARCHED;
@@ -27,7 +26,6 @@ import android.animation.Animator;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Rect;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.os.Process;
@@ -47,12 +45,9 @@ import android.view.animation.Interpolator;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.window.BackEvent;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.Px;
-import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.RecyclerView;
@@ -552,6 +547,14 @@ public class WidgetsFullSheet extends BaseWidgetSheet
     public void exitSearchMode() {
         if (!mIsInSearchMode) return;
         onSearchResults(new ArrayList<>());
+        WidgetsRecyclerView searchRecyclerView = mAdapters.get(
+                AdapterHolder.SEARCH).mWidgetsRecyclerView;
+        // Remove all views when exiting the search mode; this prevents animating from stale results
+        // to new ones the next time we enter search mode. By the time recycler view is hidden,
+        // layout may not have happened to clear up existing results. So, instead of waiting for it
+        // to happen, we clear the views here.
+        searchRecyclerView.swapAdapter(
+                searchRecyclerView.getAdapter(), /*removeAndRecycleExistingViews=*/ true);
         setViewVisibilityBasedOnSearch(/*isInSearchMode=*/ false);
         if (mHasWorkProfile) {
             mViewPager.snapToPage(AdapterHolder.PRIMARY);
@@ -630,29 +633,21 @@ public class WidgetsFullSheet extends BaseWidgetSheet
     }
 
     @Px
-    private float getMaxAvailableHeightForRecommendations() {
+    protected float getMaxAvailableHeightForRecommendations() {
         // There isn't enough space to show recommendations in landscape orientation on phones with
         // a full sheet design. Tablets use a two pane picker.
-        if (!isTwoPane() && mDeviceProfile.isLandscape) {
+        if (mDeviceProfile.isLandscape) {
             return 0f;
         }
 
         return (mDeviceProfile.heightPx - mDeviceProfile.bottomSheetTopPadding)
-                * getRecommendationSectionHeightRatio();
+                * RECOMMENDATION_TABLE_HEIGHT_RATIO;
     }
 
     /** b/209579563: "Widgets" header should be focused first. */
     @Override
     protected View getAccessibilityInitialFocusView() {
         return mHeaderTitle;
-    }
-
-    /**
-     * Ratio of recommendations section with respect to bottom sheet's height on scale of 0 to 1.
-     */
-    @Px
-    protected float getRecommendationSectionHeightRatio() {
-        return RECOMMENDATION_TABLE_HEIGHT_RATIO;
     }
 
     private void open(boolean animate) {
@@ -730,6 +725,7 @@ public class WidgetsFullSheet extends BaseWidgetSheet
         // picker and calls save/restore hierarchy state. We save the state of recommendations
         // across those updates.
         bundle.putInt(RECOMMENDATIONS_SAVED_STATE_KEY, mRecommendationsCurrentPage);
+        mWidgetRecommendationsView.saveState(bundle);
         SparseArray<Parcelable> superState = new SparseArray<>();
         super.saveHierarchyState(superState);
         bundle.putSparseParcelableArray(SUPER_SAVED_STATE_KEY, superState);
@@ -741,6 +737,7 @@ public class WidgetsFullSheet extends BaseWidgetSheet
         Bundle state = (Bundle) sparseArray.get(0);
         mRecommendationsCurrentPage = state.getInt(
                 RECOMMENDATIONS_SAVED_STATE_KEY, /*defaultValue=*/0);
+        mWidgetRecommendationsView.restoreState(state);
         super.restoreHierarchyState(state.getSparseParcelableArray(SUPER_SAVED_STATE_KEY));
     }
 
@@ -810,8 +807,7 @@ public class WidgetsFullSheet extends BaseWidgetSheet
     @Override
     public void addHintCloseAnim(
             float distanceToMove, Interpolator interpolator, PendingAnimation target) {
-        target.setFloat(getRecyclerView(), VIEW_TRANSLATE_Y, -distanceToMove, interpolator);
-        target.setViewAlpha(getRecyclerView(), 0.5f, interpolator);
+        target.addAnimatedFloat(mSwipeToDismissProgress, 0f, 1f, interpolator);
     }
 
     @Override
@@ -904,21 +900,10 @@ public class WidgetsFullSheet extends BaseWidgetSheet
     }
 
     @Override
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    public void onBackProgressed(@NonNull BackEvent backEvent) {
-        super.onBackProgressed(backEvent);
-        // In two pane picker, scroll bar is always hidden.
-        if (!isTwoPane()) {
-            mFastScroller.setVisibility(
-                    backEvent.getProgress() > 0 ? View.INVISIBLE : View.VISIBLE);
-        }
-    }
-
-    @Override
     public void onBackInvoked() {
         if (mIsInSearchMode) {
             mSearchBar.reset();
-            animateSlideInViewToNoScale();
+            animateSwipeToDismissProgressToStart();
         } else {
             super.onBackInvoked();
         }

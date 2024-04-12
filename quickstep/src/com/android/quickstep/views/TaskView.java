@@ -135,8 +135,6 @@ import java.util.stream.Stream;
 public class TaskView extends FrameLayout implements Reusable {
 
     private static final String TAG = TaskView.class.getSimpleName();
-    private static final boolean DEBUG = false;
-
     public static final int FLAG_UPDATE_ICON = 1;
     public static final int FLAG_UPDATE_THUMBNAIL = FLAG_UPDATE_ICON << 1;
     public static final int FLAG_UPDATE_CORNER_RADIUS = FLAG_UPDATE_THUMBNAIL << 1;
@@ -184,7 +182,7 @@ public class TaskView extends FrameLayout implements Reusable {
             Collections.singletonList(new Rect());
 
     public static final FloatProperty<TaskView> FOCUS_TRANSITION =
-            new FloatProperty<TaskView>("focusTransition") {
+            new FloatProperty<>("focusTransition") {
                 @Override
                 public void setValue(TaskView taskView, float v) {
                     taskView.setIconsAndBannersTransitionProgress(v, false /* invert */);
@@ -197,7 +195,7 @@ public class TaskView extends FrameLayout implements Reusable {
             };
 
     private static final FloatProperty<TaskView> SPLIT_SELECT_TRANSLATION_X =
-            new FloatProperty<TaskView>("splitSelectTranslationX") {
+            new FloatProperty<>("splitSelectTranslationX") {
                 @Override
                 public void setValue(TaskView taskView, float v) {
                     taskView.setSplitSelectTranslationX(v);
@@ -210,7 +208,7 @@ public class TaskView extends FrameLayout implements Reusable {
             };
 
     private static final FloatProperty<TaskView> SPLIT_SELECT_TRANSLATION_Y =
-            new FloatProperty<TaskView>("splitSelectTranslationY") {
+            new FloatProperty<>("splitSelectTranslationY") {
                 @Override
                 public void setValue(TaskView taskView, float v) {
                     taskView.setSplitSelectTranslationY(v);
@@ -223,7 +221,7 @@ public class TaskView extends FrameLayout implements Reusable {
             };
 
     private static final FloatProperty<TaskView> DISMISS_TRANSLATION_X =
-            new FloatProperty<TaskView>("dismissTranslationX") {
+            new FloatProperty<>("dismissTranslationX") {
                 @Override
                 public void setValue(TaskView taskView, float v) {
                     taskView.setDismissTranslationX(v);
@@ -236,7 +234,7 @@ public class TaskView extends FrameLayout implements Reusable {
             };
 
     private static final FloatProperty<TaskView> DISMISS_TRANSLATION_Y =
-            new FloatProperty<TaskView>("dismissTranslationY") {
+            new FloatProperty<>("dismissTranslationY") {
                 @Override
                 public void setValue(TaskView taskView, float v) {
                     taskView.setDismissTranslationY(v);
@@ -249,7 +247,7 @@ public class TaskView extends FrameLayout implements Reusable {
             };
 
     private static final FloatProperty<TaskView> TASK_OFFSET_TRANSLATION_X =
-            new FloatProperty<TaskView>("taskOffsetTranslationX") {
+            new FloatProperty<>("taskOffsetTranslationX") {
                 @Override
                 public void setValue(TaskView taskView, float v) {
                     taskView.setTaskOffsetTranslationX(v);
@@ -262,7 +260,7 @@ public class TaskView extends FrameLayout implements Reusable {
             };
 
     private static final FloatProperty<TaskView> TASK_OFFSET_TRANSLATION_Y =
-            new FloatProperty<TaskView>("taskOffsetTranslationY") {
+            new FloatProperty<>("taskOffsetTranslationY") {
                 @Override
                 public void setValue(TaskView taskView, float v) {
                     taskView.setTaskOffsetTranslationY(v);
@@ -275,7 +273,7 @@ public class TaskView extends FrameLayout implements Reusable {
             };
 
     private static final FloatProperty<TaskView> TASK_RESISTANCE_TRANSLATION_X =
-            new FloatProperty<TaskView>("taskResistanceTranslationX") {
+            new FloatProperty<>("taskResistanceTranslationX") {
                 @Override
                 public void setValue(TaskView taskView, float v) {
                     taskView.setTaskResistanceTranslationX(v);
@@ -288,7 +286,7 @@ public class TaskView extends FrameLayout implements Reusable {
             };
 
     private static final FloatProperty<TaskView> TASK_RESISTANCE_TRANSLATION_Y =
-            new FloatProperty<TaskView>("taskResistanceTranslationY") {
+            new FloatProperty<>("taskResistanceTranslationY") {
                 @Override
                 public void setValue(TaskView taskView, float v) {
                     taskView.setTaskResistanceTranslationY(v);
@@ -301,7 +299,7 @@ public class TaskView extends FrameLayout implements Reusable {
             };
 
     public static final FloatProperty<TaskView> GRID_END_TRANSLATION_X =
-            new FloatProperty<TaskView>("gridEndTranslationX") {
+            new FloatProperty<>("gridEndTranslationX") {
                 @Override
                 public void setValue(TaskView taskView, float v) {
                     taskView.setGridEndTranslationX(v);
@@ -314,7 +312,7 @@ public class TaskView extends FrameLayout implements Reusable {
             };
 
     public static final FloatProperty<TaskView> SNAPSHOT_SCALE =
-            new FloatProperty<TaskView>("snapshotScale") {
+            new FloatProperty<>("snapshotScale") {
                 @Override
                 public void setValue(TaskView taskView, float v) {
                     taskView.setSnapshotScale(v);
@@ -425,7 +423,8 @@ public class TaskView extends FrameLayout implements Reusable {
         mCurrentFullscreenParams = new FullscreenDrawParams(context);
         mDigitalWellBeingToast = new DigitalWellBeingToast(mActivity, this);
 
-        boolean keyboardFocusHighlightEnabled = FeatureFlags.ENABLE_KEYBOARD_QUICK_SWITCH.get();
+        boolean keyboardFocusHighlightEnabled = FeatureFlags.ENABLE_KEYBOARD_QUICK_SWITCH.get()
+                || Flags.enableFocusOutline();
         boolean cursorHoverStatesEnabled = enableCursorHoverStates();
 
         setWillNotDraw(!keyboardFocusHighlightEnabled && !cursorHoverStatesEnabled);
@@ -602,10 +601,7 @@ public class TaskView extends FrameLayout implements Reusable {
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
             computeAndSetIconTouchDelegate(mIconView, mIconCenterCoords, mIconTouchDelegate);
         }
-        if (mIconTouchDelegate != null && mIconTouchDelegate.onTouchEvent(event)) {
-            return true;
-        }
-        return false;
+        return mIconTouchDelegate != null && mIconTouchDelegate.onTouchEvent(event);
     }
 
     protected void computeAndSetIconTouchDelegate(TaskViewIcon view, float[] tempCenterCoords,
@@ -647,12 +643,10 @@ public class TaskView extends FrameLayout implements Reusable {
 
     /**
      * Updates this task view to the given {@param task}.
-     *
-     * TODO(b/142282126) Re-evaluate if we need to pass in isMultiWindowMode after
-     *   that issue is fixed
      */
     public void bind(Task task, RecentsOrientedState orientedState) {
         cancelPendingLoadTasks();
+        testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS, "TaskView.bind: task=" + task);
         mTask = task;
         mTaskIdContainer[0] = mTask.key.id;
         mTaskIdAttributeContainer[0] = new TaskIdAttributeContainer(task, mSnapshotView, mIconView,
@@ -860,8 +854,11 @@ public class TaskView extends FrameLayout implements Reusable {
      */
     @Nullable
     public RunnableList launchTaskAnimated() {
+        testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS,
+                "TaskView.launchTaskAnimated: mTask=" + mTask);
         if (mTask != null) {
-            testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS, "TaskView.launchTaskAnimated");
+            testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS,
+                    "TaskView.launchTaskAnimated: startActivityFromRecentsAsync");
             TestLogging.recordEvent(
                     TestProtocol.SEQUENCE_MAIN, "startActivityFromRecentsAsync", mTask);
             ActivityOptionsWrapper opts =  mActivity.getActivityLaunchOptions(this, null);
@@ -909,8 +906,10 @@ public class TaskView extends FrameLayout implements Reusable {
      * Starts the task associated with this view without any animation
      */
     public void launchTask(@NonNull Consumer<Boolean> callback, boolean isQuickswitch) {
+        testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS, "TaskView.launchTask: mTask=" + mTask);
         if (mTask != null) {
-            testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS, "TaskView.launchTaskAnimated");
+            testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS,
+                    "TaskView.launchTask: startActivityFromRecentsAsync");
             TestLogging.recordEvent(
                     TestProtocol.SEQUENCE_MAIN, "startActivityFromRecentsAsync", mTask);
 
@@ -978,6 +977,9 @@ public class TaskView extends FrameLayout implements Reusable {
     public RunnableList launchTasks() {
         RecentsView recentsView = getRecentsView();
         RemoteTargetHandle[] remoteTargetHandles = recentsView.mRemoteTargetHandles;
+        testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS,
+                "TaskView.launchTasks: isRunningTask=" + isRunningTask() + ", "
+                        + "remoteTargetHandles == null?" + (remoteTargetHandles == null));
         if (isRunningTask() && remoteTargetHandles != null) {
             if (!mIsClickableAsLiveTile) {
                 Log.e(TAG, "TaskView is not clickable as a live tile; returning to home.");
@@ -1004,6 +1006,8 @@ public class TaskView extends FrameLayout implements Reusable {
             if (targets == null) {
                 // If the recents animation is cancelled somehow between the parent if block and
                 // here, try to launch the task as a non live tile task.
+                testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS,
+                        "TaskView.launchTasks: recents animation is cancelled");
                 RunnableList runnableList = launchTaskAnimated();
                 if (runnableList == null) {
                     Log.e(TAG, "Recents animation cancelled and cannot launch task as non-live tile"
@@ -1024,6 +1028,8 @@ public class TaskView extends FrameLayout implements Reusable {
                 @Override
                 public void onAnimationEnd(Animator animator) {
                     if (mTask != null && mTask.key.displayId != getRootViewDisplayId()) {
+                        testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS,
+                                "TaskView.launchTasks: onAnimationEnd");
                         launchTaskAnimated();
                     }
                     mIsClickableAsLiveTile = true;
@@ -1583,19 +1589,6 @@ public class TaskView extends FrameLayout implements Reusable {
 
     public void setEndQuickswitchCuj(boolean endQuickswitchCuj) {
         mEndQuickswitchCuj = endQuickswitchCuj;
-    }
-
-    private int getExpectedViewHeight(View view) {
-        int expectedHeight;
-        int h = view.getLayoutParams().height;
-        if (h > 0) {
-            expectedHeight = h;
-        } else {
-            int m = MeasureSpec.makeMeasureSpec(MeasureSpec.EXACTLY - 1, MeasureSpec.AT_MOST);
-            view.measure(m, m);
-            expectedHeight = view.getMeasuredHeight();
-        }
-        return expectedHeight;
     }
 
     @Override

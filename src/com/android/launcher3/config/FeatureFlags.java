@@ -17,14 +17,6 @@
 package com.android.launcher3.config;
 
 import static com.android.launcher3.BuildConfig.WIDGET_ON_FIRST_SCREEN;
-import static com.android.launcher3.LauncherPrefs.LONG_PRESS_NAV_HANDLE_EXTRA_TOUCH_WIDTH_DP;
-import static com.android.launcher3.LauncherPrefs.LONG_PRESS_NAV_HANDLE_HAPTIC_HINT_DELAY;
-import static com.android.launcher3.LauncherPrefs.LONG_PRESS_NAV_HANDLE_HAPTIC_HINT_END_SCALE_PERCENT;
-import static com.android.launcher3.LauncherPrefs.LONG_PRESS_NAV_HANDLE_HAPTIC_HINT_ITERATIONS;
-import static com.android.launcher3.LauncherPrefs.LONG_PRESS_NAV_HANDLE_HAPTIC_HINT_SCALE_EXPONENT;
-import static com.android.launcher3.LauncherPrefs.LONG_PRESS_NAV_HANDLE_HAPTIC_HINT_START_SCALE_PERCENT;
-import static com.android.launcher3.LauncherPrefs.LONG_PRESS_NAV_HANDLE_SLOP_PERCENTAGE;
-import static com.android.launcher3.LauncherPrefs.LONG_PRESS_NAV_HANDLE_TIMEOUT_MS;
 import static com.android.launcher3.config.FeatureFlags.FlagState.DISABLED;
 import static com.android.launcher3.config.FeatureFlags.FlagState.ENABLED;
 import static com.android.launcher3.config.FeatureFlags.FlagState.TEAMFOOD;
@@ -33,16 +25,13 @@ import static com.android.launcher3.uioverrides.flags.FlagsFactory.getReleaseFla
 import static com.android.wm.shell.Flags.enableTaskbarNavbarUnification;
 
 import android.content.res.Resources;
-import android.view.ViewConfiguration;
 
 import androidx.annotation.VisibleForTesting;
 
 import com.android.launcher3.BuildConfig;
 import com.android.launcher3.Flags;
-import com.android.launcher3.uioverrides.flags.FlagsFactory;
 
 import java.util.function.Predicate;
-import java.util.function.ToIntFunction;
 
 /**
  * Defines a set of flags used to control various launcher behaviors.
@@ -53,8 +42,6 @@ public final class FeatureFlags {
 
     @VisibleForTesting
     public static Predicate<BooleanFlag> sBooleanReader = f -> f.mCurrentValue;
-    @VisibleForTesting
-    public static ToIntFunction<IntFlag> sIntReader = f -> f.mCurrentValue;
 
     private FeatureFlags() { }
 
@@ -130,34 +117,6 @@ public final class FeatureFlags {
     public static final BooleanFlag ENABLE_ALL_APPS_FROM_OVERVIEW =
             getDebugFlag(275132633, "ENABLE_ALL_APPS_FROM_OVERVIEW", DISABLED,
                     "Allow entering All Apps from Overview (e.g. long swipe up from app)");
-
-    public static final BooleanFlag CUSTOM_LPNH_THRESHOLDS =
-            getReleaseFlag(301680992, "CUSTOM_LPNH_THRESHOLDS", DISABLED,
-                    "Add dev options to customize the LPNH trigger slop and milliseconds");
-
-    public static final BooleanFlag ANIMATE_LPNH =
-            getReleaseFlag(308693847, "ANIMATE_LPNH", TEAMFOOD,
-                    "Animates navbar when long pressing");
-
-    public static final BooleanFlag SHRINK_NAV_HANDLE_ON_PRESS =
-            getReleaseFlag(314158312, "SHRINK_NAV_HANDLE_ON_PRESS", DISABLED,
-                    "Shrinks navbar when long pressing if ANIMATE_LPNH is enabled");
-
-    public static final IntFlag LPNH_SLOP_PERCENTAGE =
-            FlagsFactory.getIntFlag(301680992, "LPNH_SLOP_PERCENTAGE", 100,
-                    "Controls touch slop percentage for lpnh",
-                    LONG_PRESS_NAV_HANDLE_SLOP_PERCENTAGE);
-
-    public static final IntFlag LPNH_EXTRA_TOUCH_WIDTH_DP =
-            FlagsFactory.getIntFlag(301680992, "LPNH_EXTRA_TOUCH_WIDTH_DP", 0,
-                    "Controls extra dp on the nav bar sides to trigger LPNH."
-                            + " Can be negative for a smaller touch region.",
-                    LONG_PRESS_NAV_HANDLE_EXTRA_TOUCH_WIDTH_DP);
-
-    public static final IntFlag LPNH_TIMEOUT_MS =
-            FlagsFactory.getIntFlag(301680992, "LPNH_TIMEOUT_MS",
-                    ViewConfiguration.getLongPressTimeout(),
-                    "Controls lpnh timeout in milliseconds", LONG_PRESS_NAV_HANDLE_TIMEOUT_MS);
 
     public static final BooleanFlag ENABLE_SHOW_KEYBOARD_OPTION_IN_ALL_APPS = getReleaseFlag(
             270394468, "ENABLE_SHOW_KEYBOARD_OPTION_IN_ALL_APPS", ENABLED,
@@ -289,49 +248,6 @@ public final class FeatureFlags {
             "INJECT_FALLBACK_APP_CORPUS_RESULTS", DISABLED,
             "Inject fallback app corpus result when AiAi fails to return it.");
 
-    public static final BooleanFlag ENABLE_LONG_PRESS_NAV_HANDLE =
-            getReleaseFlag(299682306, "ENABLE_LONG_PRESS_NAV_HANDLE", ENABLED,
-                    "Enables long pressing on the bottom bar nav handle to trigger events.");
-
-    public static final BooleanFlag ENABLE_SEARCH_HAPTIC_HINT =
-            getReleaseFlag(314005131, "ENABLE_SEARCH_HAPTIC_HINT", ENABLED,
-                    "Enables haptic hint while long pressing on the bottom bar nav handle.");
-
-    public static final BooleanFlag ENABLE_SEARCH_HAPTIC_COMMIT =
-            getReleaseFlag(314005577, "ENABLE_SEARCH_HAPTIC_COMMIT", ENABLED,
-                    "Enables haptic hint at end of long pressing on the bottom bar nav handle.");
-
-    public static final IntFlag LPNH_HAPTIC_HINT_START_SCALE_PERCENT =
-            FlagsFactory.getIntFlag(309972570,
-                    "LPNH_HAPTIC_HINT_START_SCALE_PERCENT", 0,
-                    "Haptic hint start scale.",
-                    LONG_PRESS_NAV_HANDLE_HAPTIC_HINT_START_SCALE_PERCENT);
-
-    public static final IntFlag LPNH_HAPTIC_HINT_END_SCALE_PERCENT =
-            FlagsFactory.getIntFlag(309972570,
-                    "LPNH_HAPTIC_HINT_END_SCALE_PERCENT", 100,
-                    "Haptic hint end scale.", LONG_PRESS_NAV_HANDLE_HAPTIC_HINT_END_SCALE_PERCENT);
-
-    public static final IntFlag LPNH_HAPTIC_HINT_SCALE_EXPONENT =
-            FlagsFactory.getIntFlag(309972570,
-                    "LPNH_HAPTIC_HINT_SCALE_EXPONENT", 1,
-                    "Haptic hint scale exponent.",
-                    LONG_PRESS_NAV_HANDLE_HAPTIC_HINT_SCALE_EXPONENT);
-
-    public static final IntFlag LPNH_HAPTIC_HINT_ITERATIONS =
-            FlagsFactory.getIntFlag(309972570, "LPNH_HAPTIC_HINT_ITERATIONS",
-                    50,
-                    "Haptic hint number of iterations.",
-                    LONG_PRESS_NAV_HANDLE_HAPTIC_HINT_ITERATIONS);
-
-    public static final BooleanFlag ENABLE_LPNH_DEEP_PRESS =
-            getReleaseFlag(310952290, "ENABLE_LPNH_DEEP_PRESS", ENABLED,
-                    "Long press of nav handle is instantly triggered if deep press is detected.");
-
-    public static final IntFlag LPNH_HAPTIC_HINT_DELAY =
-            FlagsFactory.getIntFlag(309972570, "LPNH_HAPTIC_HINT_DELAY", 0,
-                    "Delay before haptic hint starts.", LONG_PRESS_NAV_HANDLE_HAPTIC_HINT_DELAY);
-
     // TODO(Block 17): Clean up flags
     // Aconfig migration complete for ENABLE_TASKBAR_PINNING.
     private static final BooleanFlag ENABLE_TASKBAR_PINNING = getDebugFlag(296231746,
@@ -396,11 +312,6 @@ public final class FeatureFlags {
             "Enables starting the unfold animation preemptively when unfolding, without"
                     + "waiting for SystemUI and then merging the SystemUI progress whenever we "
                     + "start receiving the events");
-
-    // TODO(Block 24): Clean up flags
-    public static final BooleanFlag ENABLE_NEW_MIGRATION_LOGIC = getDebugFlag(270393455,
-            "ENABLE_NEW_MIGRATION_LOGIC", ENABLED,
-            "Enable the new grid migration logic, keeping pages when src < dest");
 
     // TODO(Block 25): Clean up flags
     public static final BooleanFlag ENABLE_NEW_GESTURE_NAV_TUTORIAL = getDebugFlag(270396257,
@@ -509,22 +420,6 @@ public final class FeatureFlags {
 
         public boolean get() {
             return sBooleanReader.test(this);
-        }
-    }
-
-    /**
-     * Class representing an integer flag
-     */
-    public static class IntFlag {
-
-        private final int mCurrentValue;
-
-        public IntFlag(int currentValue) {
-            mCurrentValue = currentValue;
-        }
-
-        public int get() {
-            return sIntReader.applyAsInt(this);
         }
     }
 

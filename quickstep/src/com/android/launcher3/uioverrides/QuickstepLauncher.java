@@ -61,8 +61,8 @@ import static com.android.launcher3.util.DisplayController.CHANGE_NAVIGATION_MOD
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.quickstep.util.SplitAnimationTimings.TABLET_HOME_TO_SPLIT;
-import static com.android.window.flags.Flags.enableDesktopWindowingMode;
 import static com.android.systemui.shared.system.ActivityManagerWrapper.CLOSE_SYSTEM_WINDOWS_REASON_HOME_KEY;
+import static com.android.window.flags.Flags.enableDesktopWindowingMode;
 import static com.android.wm.shell.common.split.SplitScreenConstants.SNAP_TO_50_50;
 
 import android.animation.Animator;
@@ -104,7 +104,6 @@ import com.android.app.viewcapture.SettingsAwareViewCapture;
 import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Flags;
-import com.android.launcher3.HomeTransitionController;
 import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherSettings.Favorites;
@@ -216,7 +215,7 @@ public class QuickstepLauncher extends Launcher {
     private FixedContainerItems mAllAppsPredictions;
     private HotseatPredictionController mHotseatPredictionController;
     private DepthController mDepthController;
-    private DesktopVisibilityController mDesktopVisibilityController;
+    private @Nullable DesktopVisibilityController mDesktopVisibilityController;
     private QuickstepTransitionManager mAppTransitionManager;
     private OverviewActionsView mActionsView;
     private TISBindHelper mTISBindHelper;
@@ -243,8 +242,6 @@ public class QuickstepLauncher extends Launcher {
     private boolean mEnableWidgetDepth;
 
     private boolean mIsPredictiveBackToHomeInProgress;
-
-    private HomeTransitionController mHomeTransitionController;
 
     @Override
     protected void setupViews() {
@@ -276,15 +273,10 @@ public class QuickstepLauncher extends Launcher {
         mAppTransitionManager.registerRemoteAnimations();
         mAppTransitionManager.registerRemoteTransitions();
 
-        if (FeatureFlags.enableHomeTransitionListener()) {
-            mHomeTransitionController = new HomeTransitionController();
-            mHomeTransitionController.registerHomeTransitionListener(this);
-        }
-
         mTISBindHelper = new TISBindHelper(this, this::onTISConnected);
         mDepthController = new DepthController(this);
-        mDesktopVisibilityController = new DesktopVisibilityController(this);
         if (enableDesktopWindowingMode()) {
+            mDesktopVisibilityController = new DesktopVisibilityController(this);
             mDesktopVisibilityController.registerSystemUiListener();
             mSplitSelectStateController.initSplitFromDesktopController(this);
         }
@@ -520,10 +512,6 @@ public class QuickstepLauncher extends Launcher {
 
         if (mLauncherUnfoldAnimationController != null) {
             mLauncherUnfoldAnimationController.onDestroy();
-        }
-
-        if (mHomeTransitionController != null) {
-            mHomeTransitionController.unregisterHomeTransitionListener();
         }
 
         if (mDesktopVisibilityController != null) {
@@ -947,15 +935,13 @@ public class QuickstepLauncher extends Launcher {
 
     @Override
     public void setResumed() {
-        if (enableDesktopWindowingMode()) {
-            DesktopVisibilityController controller = mDesktopVisibilityController;
-            if (controller != null && controller.areFreeformTasksVisible()
-                    && !controller.isRecentsGestureInProgress()) {
-                // Return early to skip setting activity to appear as resumed
-                // TODO(b/255649902): shouldn't be needed when we have a separate launcher state
-                //  for desktop that we can use to control other parts of launcher
-                return;
-            }
+        if (mDesktopVisibilityController != null
+                && mDesktopVisibilityController.areFreeformTasksVisible()
+                && !mDesktopVisibilityController.isRecentsGestureInProgress()) {
+            // Return early to skip setting activity to appear as resumed
+            // TODO(b/255649902): shouldn't be needed when we have a separate launcher state
+            //  for desktop that we can use to control other parts of launcher
+            return;
         }
         super.setResumed();
     }
@@ -1089,6 +1075,7 @@ public class QuickstepLauncher extends Launcher {
         return mDepthController;
     }
 
+    @Nullable
     public DesktopVisibilityController getDesktopVisibilityController() {
         return mDesktopVisibilityController;
     }
@@ -1413,6 +1400,10 @@ public class QuickstepLauncher extends Launcher {
         if (mHotseatPredictionController != null) {
             mHotseatPredictionController.dump(prefix, writer);
         }
+        PredictionRowView<?> predictionRowView =
+                getAppsView().getFloatingHeaderView().findFixedRowByType(
+                        PredictionRowView.class);
+        predictionRowView.dump(prefix, writer);
     }
 
     @Override

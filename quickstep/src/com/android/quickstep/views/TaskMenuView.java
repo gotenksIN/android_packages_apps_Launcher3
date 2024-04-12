@@ -140,9 +140,14 @@ public class TaskMenuView extends AbstractFloatingView {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int maxMenuHeight = calculateMaxHeight();
-        if (MeasureSpec.getSize(heightMeasureSpec) > maxMenuHeight) {
-            heightMeasureSpec = MeasureSpec.makeMeasureSpec(maxMenuHeight, MeasureSpec.AT_MOST);
+        if (!(enableOverviewIconMenu()
+                && ((RecentsView) mActivity.getOverviewPanel()).isOnGridBottomRow(mTaskView))) {
+            // TODO(b/326952853): Cap menu height for grid bottom row in a way that doesn't break
+            // additionalTranslationY.
+            int maxMenuHeight = calculateMaxHeight();
+            if (MeasureSpec.getSize(heightMeasureSpec) > maxMenuHeight) {
+                heightMeasureSpec = MeasureSpec.makeMeasureSpec(maxMenuHeight, MeasureSpec.AT_MOST);
+            }
         }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
@@ -301,6 +306,7 @@ public class TaskMenuView extends AbstractFloatingView {
 
     private void animateOpenOrClosed(boolean closing) {
         if (mOpenCloseAnimator != null && mOpenCloseAnimator.isRunning()) {
+            testLogD(TEST_TAPL_OVERVIEW_ACTIONS_MENU_FAILURE, "getting canceled");
             mOpenCloseAnimator.cancel();
         }
         mOpenCloseAnimator = new AnimatorSet();
@@ -357,11 +363,14 @@ public class TaskMenuView extends AbstractFloatingView {
                     iconAppChip.getMenuTranslationX(),
                     MULTI_PROPERTY_VALUE, closing ? 0 : -additionalTranslationX);
             menuTranslationXAnim.setInterpolator(EMPHASIZED);
+            testLogD(TEST_TAPL_OVERVIEW_ACTIONS_MENU_FAILURE,
+                    "TaskMenuView.java.animateOpenOrClosed: running translation animations");
 
             mOpenCloseAnimator.playTogether(translationYAnim, translationXAnim,
                     menuTranslationXAnim, menuTranslationYAnim);
         }
-
+        testLogD(TEST_TAPL_OVERVIEW_ACTIONS_MENU_FAILURE,
+                "TaskMenuView.java.animateOpenOrClosed: running animation 2");
         mOpenCloseAnimator.playTogether(mRevealAnimator,
                 ObjectAnimator.ofFloat(
                         mTaskContainer.getThumbnailView(), DIM_ALPHA,
@@ -379,6 +388,13 @@ public class TaskMenuView extends AbstractFloatingView {
             }
 
             @Override
+            public void onAnimationCancel(Animator animation) {
+                super.onAnimationCancel(animation);
+                testLogD(TEST_TAPL_OVERVIEW_ACTIONS_MENU_FAILURE,
+                        "TaskMenuView.java.animateOpenOrClosed: onAnimationCancel");
+            }
+
+            @Override
             public void onAnimationSuccess(Animator animator) {
                 testLogD(TEST_TAPL_OVERVIEW_ACTIONS_MENU_FAILURE,
                         "TaskMenuView.java.animateOpenOrClosed: onAnimationSuccess");
@@ -392,6 +408,7 @@ public class TaskMenuView extends AbstractFloatingView {
     }
 
     private void closeComplete() {
+        testLogD(TEST_TAPL_OVERVIEW_ACTIONS_MENU_FAILURE, "TaskMenuView.java.closeComplete");
         mIsOpen = false;
         mActivity.getDragLayer().removeView(this);
         mRevealAnimator = null;

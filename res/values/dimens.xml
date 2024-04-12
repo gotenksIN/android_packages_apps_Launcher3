@@ -183,7 +183,6 @@
     <dimen name="widget_cell_add_button_height">48dp</dimen>
     <dimen name="widget_cell_add_button_start_padding">8dp</dimen>
     <dimen name="widget_cell_add_button_end_padding">16dp</dimen>
-    <dimen name="widget_cell_add_button_vertical_padding">10dp</dimen>
 
     <dimen name="widget_tabs_button_horizontal_padding">4dp</dimen>
     <dimen name="widget_tabs_horizontal_padding">16dp</dimen>
@@ -277,7 +276,6 @@
 
     <!-- Sizes for managed profile badges -->
     <dimen name="profile_badge_size">24dp</dimen>
-    <dimen name="profile_badge_margin">5dp</dimen>
     <dimen name="profile_badge_minimum_top">2dp</dimen>
 
     <!-- Shadows and outlines -->
@@ -492,12 +490,13 @@
     <dimen name="ps_header_image_height">48dp</dimen>
     <dimen name="ps_header_text_height">24dp</dimen>
     <dimen name="ps_header_layout_margin">16dp</dimen>
-    <dimen name="ps_header_settings_icon_margin_end">8dp</dimen>
+    <dimen name="ps_header_settings_icon_margin_end">4dp</dimen>
     <dimen name="ps_header_text_size">16sp</dimen>
     <dimen name="ps_button_height">40dp</dimen>
     <dimen name="ps_button_width">40dp</dimen>
     <dimen name="ps_lock_button_width">89dp</dimen>
     <dimen name="ps_app_divider_padding">16dp</dimen>
+    <dimen name="ps_extra_bottom_padding">16dp</dimen>
     <dimen name="ps_lock_corner_radius">20dp</dimen>
     <dimen name="ps_lock_icon_size">20dp</dimen>
     <dimen name="ps_lock_icon_margin_top">10dp</dimen>

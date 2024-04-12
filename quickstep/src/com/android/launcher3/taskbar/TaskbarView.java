@@ -18,6 +18,7 @@ package com.android.launcher3.taskbar;
 import static android.content.pm.PackageManager.FEATURE_PC;
 import static android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
 
+import static com.android.launcher3.BubbleTextView.DISPLAY_TASKBAR;
 import static com.android.launcher3.Flags.enableCursorHoverStates;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APP_PAIR;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FOLDER;
@@ -31,6 +32,7 @@ import android.graphics.Canvas;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.util.AttributeSet;
+import android.view.DisplayCutout;
 import android.view.InputDevice;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -52,6 +54,8 @@ import com.android.launcher3.Utilities;
 import com.android.launcher3.apppairs.AppPairIcon;
 import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.folder.PreviewBackground;
+import com.android.launcher3.model.data.AppPairInfo;
+import com.android.launcher3.model.data.CollectionInfo;
 import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
@@ -131,7 +135,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
 
         int actualMargin = resources.getDimensionPixelSize(R.dimen.taskbar_icon_spacing);
         int actualIconSize = mActivityContext.getDeviceProfile().taskbarIconSize;
-        if (enableTaskbarPinning()) {
+        if (enableTaskbarPinning() && !mActivityContext.isThreeButtonNav()) {
             DeviceProfile deviceProfile = mActivityContext.getTransientTaskbarDeviceProfile();
             actualIconSize = deviceProfile.taskbarIconSize;
         }
@@ -270,7 +274,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             mAllAppsButton.setHapticFeedbackEnabled(
                     mControllerCallbacks.isAllAppsButtonHapticFeedbackEnabled());
         }
-        if (mTaskbarDivider != null) {
+        if (mTaskbarDivider != null && !mActivityContext.isThreeButtonNav()) {
             mTaskbarDivider.setOnLongClickListener(
                     mControllerCallbacks.getTaskbarDividerLongClickListener());
             mTaskbarDivider.setOnTouchListener(
@@ -282,7 +286,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         removeView(view);
         view.setOnClickListener(null);
         view.setOnLongClickListener(null);
-        if (!(view.getTag() instanceof FolderInfo)) {
+        if (!(view.getTag() instanceof CollectionInfo)) {
             mActivityContext.getViewCache().recycleView(view.getSourceLayoutResId(), view);
         }
         view.setTag(null);
@@ -316,8 +320,8 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             boolean isCollection = false;
             if (hotseatItemInfo.isPredictedItem()) {
                 expectedLayoutResId = R.layout.taskbar_predicted_app_icon;
-            } else if (hotseatItemInfo instanceof FolderInfo fi) {
-                expectedLayoutResId = fi.itemType == ITEM_TYPE_APP_PAIR
+            } else if (hotseatItemInfo instanceof CollectionInfo ci) {
+                expectedLayoutResId = ci.itemType == ITEM_TYPE_APP_PAIR
                         ? R.layout.app_pair_icon
                         : R.layout.folder_icon;
                 isCollection = true;
@@ -345,16 +349,18 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
 
             if (hotseatView == null) {
                 if (isCollection) {
-                    FolderInfo folderInfo = (FolderInfo) hotseatItemInfo;
+                    CollectionInfo collectionInfo = (CollectionInfo) hotseatItemInfo;
                     switch (hotseatItemInfo.itemType) {
                         case ITEM_TYPE_FOLDER:
                             hotseatView = FolderIcon.inflateFolderAndIcon(
-                                    expectedLayoutResId, mActivityContext, this, folderInfo);
+                                    expectedLayoutResId, mActivityContext, this,
+                                    (FolderInfo) collectionInfo);
                             ((FolderIcon) hotseatView).setTextVisible(false);
                             break;
                         case ITEM_TYPE_APP_PAIR:
                             hotseatView = AppPairIcon.inflateIcon(
-                                    expectedLayoutResId, mActivityContext, this, folderInfo);
+                                    expectedLayoutResId, mActivityContext, this,
+                                    (AppPairInfo) collectionInfo, DISPLAY_TASKBAR);
                             ((AppPairIcon) hotseatView).setTextVisible(false);
                             break;
                         default:
@@ -465,6 +471,29 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
                     : (right - navSpaceNeeded) - centerAlignIconEnd;
 
             iconEnd = centerAlignIconEnd + offset;
+        }
+
+        // Currently, we support only one device with display cutout and we only are concern about
+        // it when the bottom rect is present and non empty
+        DisplayCutout displayCutout = getDisplay().getCutout();
+        if (displayCutout != null && !displayCutout.getBoundingRectBottom().isEmpty()) {
+            Rect cutoutBottomRect = displayCutout.getBoundingRectBottom();
+            // when cutout present at the bottom of screen align taskbar icons to cutout offset
+            // if taskbar icon overlaps with cutout
+            int taskbarIconLeftBound = iconEnd - spaceNeeded;
+            int taskbarIconRightBound = iconEnd;
+
+            boolean doesTaskbarIconsOverlapWithCutout =
+                    taskbarIconLeftBound <= cutoutBottomRect.centerX()
+                            && cutoutBottomRect.centerX() <= taskbarIconRightBound;
+
+            if (doesTaskbarIconsOverlapWithCutout) {
+                if (!layoutRtl) {
+                    iconEnd = spaceNeeded + cutoutBottomRect.width();
+                } else {
+                    iconEnd = right - cutoutBottomRect.width();
+                }
+            }
         }
 
         sTmpRect.set(mIconLayoutBounds);

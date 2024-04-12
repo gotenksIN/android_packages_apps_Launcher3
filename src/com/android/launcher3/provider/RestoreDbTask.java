@@ -18,6 +18,7 @@ package com.android.launcher3.provider;
 
 import static android.os.Process.myUserHandle;
 
+import static com.android.launcher3.BuildConfig.WIDGETS_ENABLED;
 import static com.android.launcher3.Flags.enableLauncherBrMetricsFixed;
 import static com.android.launcher3.InvariantDeviceProfile.TYPE_MULTI_DISPLAY;
 import static com.android.launcher3.LauncherPrefs.APP_WIDGET_IDS;
@@ -64,7 +65,6 @@ import com.android.launcher3.logging.FileLog;
 import com.android.launcher3.model.DeviceGridState;
 import com.android.launcher3.model.LoaderTask;
 import com.android.launcher3.model.ModelDbController;
-import com.android.launcher3.model.WidgetsModel;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
@@ -126,6 +126,9 @@ public class RestoreDbTask {
         if (Flags.enableNarrowGridRestore()) {
             String oldPhoneFileName = idp.dbFile;
             removeOldDBs(context, oldPhoneFileName);
+            // The idp before this contains data about the old phone, after this it becomes the idp
+            // of the current phone.
+            idp.reset(context);
             trySettingPreviousGidAsCurrent(context, idp, oldPhoneFileName);
         } else {
             idp.reinitializeAfterRestore(context);
@@ -428,7 +431,7 @@ public class RestoreDbTask {
     private void restoreAppWidgetIds(Context context, ModelDbController controller,
             LauncherRestoreEventLogger launcherRestoreEventLogger, int[] oldWidgetIds,
             int[] newWidgetIds, @NonNull AppWidgetHost host) {
-        if (WidgetsModel.GO_DISABLE_WIDGETS) {
+        if (!WIDGETS_ENABLED) {
             FileLog.e(TAG, "Skipping widget ID remap as widgets not supported");
             host.deleteHost();
             launcherRestoreEventLogger.logFavoritesItemsRestoreFailed(Favorites.ITEM_TYPE_APPWIDGET,
@@ -456,7 +459,7 @@ public class RestoreDbTask {
         logDatabaseWidgetInfo(controller);
 
         for (int i = 0; i < oldWidgetIds.length; i++) {
-            FileLog.i(TAG, "Widget state restore id " + oldWidgetIds[i] + " => " + newWidgetIds[i]);
+            FileLog.i(TAG, "migrating appWidgetId: " + oldWidgetIds[i] + " => " + newWidgetIds[i]);
 
             final AppWidgetProviderInfo provider = widgets.getAppWidgetInfo(newWidgetIds[i]);
             final int state;

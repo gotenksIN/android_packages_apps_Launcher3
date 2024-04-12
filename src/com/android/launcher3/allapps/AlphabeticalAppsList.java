@@ -28,6 +28,7 @@ import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.DiffUtil;
 
 import com.android.launcher3.Flags;
+import com.android.launcher3.R;
 import com.android.launcher3.allapps.BaseAllAppsAdapter.AdapterItem;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.ItemInfo;
@@ -205,7 +206,10 @@ public class AlphabeticalAppsList<T extends Context & ActivityContext> implement
      */
     @Override
     public void onAppsUpdated() {
-        if (mAllAppsStore == null) {
+        // Don't update apps when the private profile animations are running, otherwise the motion
+        // is canceled.
+        if (mAllAppsStore == null || (mPrivateProviderManager != null &&
+                mPrivateProviderManager.getAnimationRunning())) {
             return;
         }
         // Sort the list of apps
@@ -272,6 +276,12 @@ public class AlphabeticalAppsList<T extends Context & ActivityContext> implement
                 addApps = mWorkProviderManager.shouldShowWorkApps();
             }
             if (addApps) {
+                if (/* education card was added */ position == 1) {
+                    // Add work educard section with "info icon" at 0th position.
+                    mFastScrollerSections.add(new FastScrollSectionInfo(
+                            mActivityContext.getResources().getString(
+                                    R.string.work_profile_edu_section), 0));
+                }
                 position = addAppsWithSections(mApps, position);
             }
             if (Flags.enablePrivateSpace()) {
@@ -435,6 +445,10 @@ public class AlphabeticalAppsList<T extends Context & ActivityContext> implement
             }
         }
         return roundRegion;
+    }
+
+    public PrivateProfileManager getPrivateProfileManager() {
+        return mPrivateProviderManager;
     }
 
     private static class MyDiffCallback extends DiffUtil.Callback {
