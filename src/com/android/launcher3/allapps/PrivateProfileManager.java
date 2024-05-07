@@ -21,6 +21,7 @@ import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
 
 import static com.android.launcher3.LauncherAnimUtils.VIEW_ALPHA;
+import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_PRIVATESPACE;
 import static com.android.launcher3.allapps.ActivityAllAppsContainerView.AdapterHolder.MAIN;
 import static com.android.launcher3.allapps.BaseAllAppsAdapter.VIEW_TYPE_ICON;
 import static com.android.launcher3.allapps.BaseAllAppsAdapter.VIEW_TYPE_PRIVATE_SPACE_HEADER;
@@ -79,9 +80,7 @@ import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.RecyclerViewFastScroller;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -104,7 +103,6 @@ public class PrivateProfileManager extends UserProfileManager {
             }
         }
     };
-    private Set<String> mPreInstalledSystemPackages = new HashSet<>();
     private Intent mAppInstallerIntent = new Intent();
     private PrivateAppsSectionDecorator mPrivateAppsSectionDecorator;
     private boolean mPrivateSpaceSettingsAvailable;
@@ -114,6 +112,8 @@ public class PrivateProfileManager extends UserProfileManager {
     private Runnable mOnPSHeaderAdded;
     @Nullable
     private RelativeLayout mPSHeader;
+    private final String mLockedStateContentDesc;
+    private final String mUnLockedStateContentDesc;
 
     public PrivateProfileManager(UserManager userManager,
             ActivityAllAppsContainerView<?> allApps,
@@ -127,6 +127,10 @@ public class PrivateProfileManager extends UserProfileManager {
         UI_HELPER_EXECUTOR.post(() -> initializeInBackgroundThread(appContext));
         mPsHeaderHeight = mAllApps.getContext().getResources().getDimensionPixelSize(
                 R.dimen.ps_header_height);
+        mLockedStateContentDesc = mAllApps.getContext()
+                .getString(R.string.ps_container_lock_button_content_description);
+        mUnLockedStateContentDesc = mAllApps.getContext()
+                .getString(R.string.ps_container_unlock_button_content_description);
     }
 
     /** Adds Private Space Header to the layout. */
@@ -159,7 +163,6 @@ public class PrivateProfileManager extends UserProfileManager {
         itemInfo.contentDescription = context.getResources().getString(
                 com.android.launcher3.R.string.ps_add_button_content_description);
         itemInfo.runtimeStatusFlags |= FLAG_NOT_PINNABLE;
-        itemInfo.user = getProfileUser();
 
         BaseAllAppsAdapter.AdapterItem item = new BaseAllAppsAdapter.AdapterItem(VIEW_TYPE_ICON);
         item.itemInfo = itemInfo;
@@ -216,11 +219,27 @@ public class PrivateProfileManager extends UserProfileManager {
         resetPrivateSpaceDecorator(updatedState);
     }
 
-    /** Opens the Private Space Settings Page. */
-    public void openPrivateSpaceSettings() {
+    /**
+     * Opens the Private Space Settings Page.
+     *
+     * @param view the view that was clicked to open the settings page and which will be the same
+     *             view to animate back. Otherwise if there is no view, simply start the activity.
+     */
+    public void openPrivateSpaceSettings(View view) {
         if (mPrivateSpaceSettingsAvailable) {
-            mAllApps.getContext().startActivity(
-                    ApiWrapper.INSTANCE.get(mAllApps.getContext()).getPrivateSpaceSettingsIntent());
+            Context context = mAllApps.getContext();
+            Intent intent = ApiWrapper.INSTANCE.get(context).getPrivateSpaceSettingsIntent();
+            if (view == null) {
+                context.startActivity(intent);
+                return;
+            }
+            ActivityContext activityContext = ActivityContext.lookupContext(context);
+            AppInfo itemInfo = new AppInfo();
+            itemInfo.id = CONTAINER_PRIVATESPACE;
+            itemInfo.componentName = intent.getComponent();
+            itemInfo.container = CONTAINER_PRIVATESPACE;
+            view.setTag(itemInfo);
+            activityContext.startActivitySafely(view, intent, itemInfo);
         }
     }
 
@@ -248,8 +267,6 @@ public class PrivateProfileManager extends UserProfileManager {
         ApiWrapper apiWrapper = ApiWrapper.INSTANCE.get(appContext);
         UserHandle profileUser = getProfileUser();
         if (profileUser != null) {
-            mPreInstalledSystemPackages = new HashSet<>(
-                    apiWrapper.getPreInstalledSystemPackages(profileUser));
             mAppInstallerIntent = apiWrapper
                     .getAppMarketActivityIntent(BuildConfig.APPLICATION_ID, profileUser);
         }
@@ -333,10 +350,12 @@ public class PrivateProfileManager extends UserProfileManager {
      * Splits private apps into user installed and system apps.
      * When the list of system apps is empty, all apps are treated as system.
      */
-    public Predicate<AppInfo> splitIntoUserInstalledAndSystemApps() {
-        return appInfo -> !mPreInstalledSystemPackages.isEmpty()
+    public Predicate<AppInfo> splitIntoUserInstalledAndSystemApps(Context context) {
+        List<String> preInstallApps = UserCache.getInstance(context)
+                .getPreInstallApps(getProfileUser());
+        return appInfo -> !preInstallApps.isEmpty()
                 && (appInfo.componentName == null
-                || !(mPreInstalledSystemPackages.contains(appInfo.componentName.getPackageName())));
+                || !(preInstallApps.contains(appInfo.componentName.getPackageName())));
     }
 
     /** Add Private Space Header view elements based upon {@link UserProfileState} */
@@ -385,11 +404,13 @@ public class PrivateProfileManager extends UserProfileManager {
                 lockText.setVisibility(VISIBLE);
                 lockButton.setVisibility(VISIBLE);
                 lockButton.setOnClickListener(view -> lockingAction(/* lock */ true));
+                lockButton.setContentDescription(mUnLockedStateContentDesc);
             }
             case STATE_DISABLED -> {
                 lockText.setVisibility(GONE);
                 lockButton.setVisibility(VISIBLE);
                 lockButton.setOnClickListener(view -> lockingAction(/* lock */ false));
+                lockButton.setContentDescription(mLockedStateContentDesc);
             }
             default -> lockButton.setVisibility(GONE);
         }
@@ -399,9 +420,14 @@ public class PrivateProfileManager extends UserProfileManager {
         if (getCurrentState() == STATE_DISABLED) {
             header.setOnClickListener(view -> lockingAction(/* lock */ false));
             header.setClickable(true);
+            // Add header as accessibility target when disabled.
+            header.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+            header.setContentDescription(mLockedStateContentDesc);
         } else {
             header.setOnClickListener(null);
             header.setClickable(false);
+            // Remove header from accessibility target when enabled.
+            header.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         }
     }
 
@@ -423,7 +449,7 @@ public class PrivateProfileManager extends UserProfileManager {
             settingsButton.setOnClickListener(
                     view -> {
                         logEvents(LAUNCHER_PRIVATE_SPACE_SETTINGS_TAP);
-                        openPrivateSpaceSettings();
+                        openPrivateSpaceSettings(view);
                     });
         } else {
             settingsButton.setVisibility(GONE);
@@ -747,6 +773,7 @@ public class PrivateProfileManager extends UserProfileManager {
     }
 
     boolean isPrivateSpaceItem(BaseAllAppsAdapter.AdapterItem item) {
-        return getItemInfoMatcher().test(item.itemInfo) || item.decorationInfo != null;
+        return getItemInfoMatcher().test(item.itemInfo) || item.decorationInfo != null
+                || (item.itemInfo instanceof PrivateSpaceInstallAppButtonInfo);
     }
 }

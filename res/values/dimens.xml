@@ -147,13 +147,15 @@
     <dimen name="work_fab_height">56dp</dimen>
     <dimen name="work_fab_radius">16dp</dimen>
     <dimen name="work_fab_icon_size">24dp</dimen>
-    <dimen name="work_fab_text_start_margin">8dp</dimen>
+    <dimen name="work_fab_icon_end_margin">12dp</dimen>
+    <dimen name="work_fab_text_end_margin">16dp</dimen>
     <dimen name="work_card_padding_horizontal">10dp</dimen>
     <dimen name="work_fab_width">214dp</dimen>
     <dimen name="work_card_button_height">52dp</dimen>
     <dimen name="work_fab_margin">16dp</dimen>
     <dimen name="work_fab_margin_bottom">20dp</dimen>
-    <dimen name="work_mode_fab_padding">16dp</dimen>
+    <dimen name="work_mode_fab_background_start_padding">16dp</dimen>
+    <dimen name="work_mode_fab_background_end_padding">4dp</dimen>
     <dimen name="work_profile_footer_padding">20dp</dimen>
     <dimen name="work_edu_card_margin">16dp</dimen>
     <dimen name="work_edu_card_radius">16dp</dimen>
@@ -206,6 +208,9 @@
     <!-- Margin applied to the recycler view with search bar & the list of widget apps below it. -->
     <dimen name="widget_list_left_pane_horizontal_margin">0dp</dimen>
     <dimen name="widget_list_horizontal_margin_two_pane">24dp</dimen>
+    <dimen name="widget_picker_vertical_margin_right_pane">24dp</dimen>
+    <!-- Margin on sides of the widgets scrollview in widgets bottom sheet -->
+    <dimen name="widget_bottom_sheet_horizontal_margin">16dp</dimen>
 
     <dimen name="widget_preview_shadow_blur">0.5dp</dimen>
     <dimen name="widget_preview_key_shadow_distance">1dp</dimen>
@@ -473,6 +478,7 @@
     <dimen name="bottom_sheet_handle_width">32dp</dimen>
     <dimen name="bottom_sheet_handle_height">4dp</dimen>
     <dimen name="bottom_sheet_handle_margin">16dp</dimen>
+    <dimen name="widgets_bottom_sheet_handle_margin">24dp</dimen>
     <dimen name="bottom_sheet_handle_corner_radius">2dp</dimen>
 
     <!-- State transition -->
@@ -493,7 +499,7 @@
     <dimen name="ps_header_image_height">48dp</dimen>
     <dimen name="ps_header_text_height">24dp</dimen>
     <dimen name="ps_header_layout_margin">16dp</dimen>
-    <dimen name="ps_header_settings_icon_margin_end">4dp</dimen>
+    <dimen name="ps_lock_button_margin_end">12dp</dimen>
     <dimen name="ps_header_text_size">16sp</dimen>
     <dimen name="ps_button_height">40dp</dimen>
     <dimen name="ps_button_width">40dp</dimen>

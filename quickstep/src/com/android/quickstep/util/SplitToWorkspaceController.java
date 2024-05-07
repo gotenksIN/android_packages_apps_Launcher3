@@ -63,7 +63,7 @@ public class SplitToWorkspaceController {
             SplitSelectStateController controller) {
         mLauncher = launcher;
         mController = controller;
-        mIconCache = LauncherAppState.getInstanceNoCreate().getIconCache();
+        mIconCache = LauncherAppState.getInstance(launcher).getIconCache();
         mHalfDividerSize = mLauncher.getResources().getDimensionPixelSize(
                 R.dimen.multi_window_task_divider_size) / 2;
     }
@@ -177,6 +177,11 @@ public class SplitToWorkspaceController {
             private boolean mIsCancelled = false;
 
             @Override
+            public void onAnimationStart(Animator animation) {
+                mController.launchSplitTasks(aBoolean -> cleanUp());
+            }
+
+            @Override
             public void onAnimationCancel(Animator animation) {
                 mIsCancelled = true;
                 cleanUp();
@@ -185,7 +190,6 @@ public class SplitToWorkspaceController {
             @Override
             public void onAnimationEnd(Animator animation) {
                 if (!mIsCancelled) {
-                    mController.launchSplitTasks(aBoolean -> cleanUp());
                     InteractionJankMonitorWrapper.end(Cuj.CUJ_SPLIT_SCREEN_ENTER);
                 }
             }

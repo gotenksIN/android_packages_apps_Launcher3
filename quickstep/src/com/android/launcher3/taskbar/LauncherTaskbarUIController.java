@@ -16,7 +16,6 @@
 package com.android.launcher3.taskbar;
 
 import static com.android.launcher3.QuickstepTransitionManager.TRANSIENT_TASKBAR_TRANSITION_DURATION;
-import static com.android.launcher3.config.FeatureFlags.enableSplitContextually;
 import static com.android.launcher3.statemanager.BaseState.FLAG_NON_INTERACTIVE;
 import static com.android.launcher3.taskbar.TaskbarEduTooltipControllerKt.TOOLTIP_STEP_FEATURES;
 import static com.android.launcher3.taskbar.TaskbarLauncherStateController.FLAG_VISIBLE;
@@ -227,11 +226,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
         }
 
         mTaskbarLauncherStateController.updateStateForFlag(FLAG_VISIBLE, isVisible);
-        // TODO(b/308851855): Skip animation for launching split from home, will refine later
-        boolean skipAnimForSplit = enableSplitContextually() &&
-                mLauncher.areBothSplitAppsConfirmed() &&
-                mLauncher.getStateManager().getState() == LauncherState.NORMAL;
-        if (skipAnimForSplit || fromInit) {
+        if (fromInit) {
             duration = 0;
         }
         return mTaskbarLauncherStateController.applyState(duration, startAnimation);
@@ -310,8 +305,8 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
      */
     public void showEduOnAppLaunch() {
         if (!shouldShowEduOnAppLaunch()) {
-            // Called in case the edu finishes and circle to search edu is still pending
-            mControllers.taskbarEduTooltipController.maybeShowCircleToSearchEdu();
+            // Called in case the edu finishes and search edu is still pending
+            mControllers.taskbarEduTooltipController.maybeShowSearchEdu();
             return;
         }
 

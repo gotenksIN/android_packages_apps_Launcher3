@@ -23,6 +23,7 @@ import static com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITIO
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Point;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.LayerDrawable;
@@ -38,13 +39,13 @@ import android.widget.FrameLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.desktop.DesktopRecentsTransitionController;
 import com.android.launcher3.icons.IconProvider;
 import com.android.launcher3.util.CancellableTask;
 import com.android.launcher3.util.RunnableList;
+import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.RecentsModel;
 import com.android.quickstep.TaskThumbnailCache;
 import com.android.quickstep.util.RecentsOrientedState;
@@ -74,10 +75,10 @@ public class DesktopTaskView extends TaskView {
     @NonNull
     private List<Task> mTasks = new ArrayList<>();
 
-    private final ArrayList<TaskThumbnailView> mSnapshotViews = new ArrayList<>();
+    private final ArrayList<TaskThumbnailViewDeprecated> mSnapshotViews = new ArrayList<>();
 
-    /** Maps {@code taskIds} to corresponding {@link TaskThumbnailView}s */
-    private final SparseArray<TaskThumbnailView> mSnapshotViewMap = new SparseArray<>();
+    /** Maps {@code taskIds} to corresponding {@link TaskThumbnailViewDeprecated}s */
+    private final SparseArray<TaskThumbnailViewDeprecated> mSnapshotViewMap = new SparseArray<>();
 
     private final ArrayList<CancellableTask<?>> mPendingThumbnailRequests = new ArrayList<>();
 
@@ -86,6 +87,8 @@ public class DesktopTaskView extends TaskView {
     private View mBackgroundView;
 
     private int mChildCountAtInflation;
+
+    private final PointF mTempPointF = new PointF();
 
     public DesktopTaskView(Context context) {
         this(context, null);
@@ -175,13 +178,14 @@ public class DesktopTaskView extends TaskView {
         if (mSnapshotViews.size() > mTasks.size()) {
             int diff = mSnapshotViews.size() - mTasks.size();
             for (int i = 0; i < diff; i++) {
-                TaskThumbnailView snapshotView = mSnapshotViews.remove(0);
+                TaskThumbnailViewDeprecated snapshotView = mSnapshotViews.remove(0);
                 removeView(snapshotView);
             }
         } else if (mSnapshotViews.size() < mTasks.size()) {
             int diff = mTasks.size() - mSnapshotViews.size();
             for (int i = 0; i < diff; i++) {
-                TaskThumbnailView snapshotView = new TaskThumbnailView(getContext());
+                TaskThumbnailViewDeprecated snapshotView =
+                        new TaskThumbnailViewDeprecated(getContext());
                 mSnapshotViews.add(snapshotView);
                 // Add snapshots from to position after the initial child views.
                 addView(snapshotView, mChildCountAtInflation,
@@ -191,7 +195,7 @@ public class DesktopTaskView extends TaskView {
 
         for (int i = 0; i < mTasks.size(); i++) {
             Task task = mTasks.get(i);
-            TaskThumbnailView snapshotView = mSnapshotViews.get(i);
+            TaskThumbnailViewDeprecated snapshotView = mSnapshotViews.get(i);
             snapshotView.bind(task);
             mSnapshotViewMap.put(task.key.id, snapshotView);
         }
@@ -217,13 +221,13 @@ public class DesktopTaskView extends TaskView {
         mTaskIdAttributeContainer = new TaskIdAttributeContainer[Math.max(mTasks.size(), 2)];
         for (int i = 0; i < mTasks.size(); i++) {
             Task task = mTasks.get(i);
-            TaskThumbnailView thumbnailView = mSnapshotViewMap.get(task.key.id);
+            TaskThumbnailViewDeprecated thumbnailView = mSnapshotViewMap.get(task.key.id);
             mTaskIdAttributeContainer[i] = createAttributeContainer(task, thumbnailView);
         }
     }
 
     private TaskIdAttributeContainer createAttributeContainer(Task task,
-            TaskThumbnailView thumbnailView) {
+            TaskThumbnailViewDeprecated thumbnailView) {
         return new TaskIdAttributeContainer(task, thumbnailView, createIconView(task),
                 STAGE_POSITION_UNDEFINED);
     }
@@ -250,14 +254,14 @@ public class DesktopTaskView extends TaskView {
     }
 
     @Override
-    public TaskThumbnailView getThumbnail() {
+    public TaskThumbnailViewDeprecated getThumbnail() {
         // TODO(b/249371338): returning single thumbnail. This won't work well with multiple tasks.
         Task task = getTask();
         if (task != null) {
             return mSnapshotViewMap.get(task.key.id);
         }
         // Return the place holder snapshot views. Callers expect this to be non-null
-        return mSnapshotView;
+        return mTaskThumbnailViewDeprecated;
     }
 
     @Override
@@ -277,7 +281,8 @@ public class DesktopTaskView extends TaskView {
                 for (Task task : mTasks) {
                     CancellableTask<?> thumbLoadRequest =
                             thumbnailCache.updateThumbnailInBackground(task, thumbnailData -> {
-                                TaskThumbnailView thumbnailView = mSnapshotViewMap.get(task.key.id);
+                                TaskThumbnailViewDeprecated thumbnailView =
+                                        mSnapshotViewMap.get(task.key.id);
                                 if (thumbnailView != null) {
                                     thumbnailView.setThumbnail(task, thumbnailData);
                                 }
@@ -290,7 +295,7 @@ public class DesktopTaskView extends TaskView {
         } else {
             if (needsUpdate(changes, FLAG_UPDATE_THUMBNAIL)) {
                 for (Task task : mTasks) {
-                    TaskThumbnailView thumbnailView = mSnapshotViewMap.get(task.key.id);
+                    TaskThumbnailViewDeprecated thumbnailView = mSnapshotViewMap.get(task.key.id);
                     if (thumbnailView != null) {
                         thumbnailView.setThumbnail(null, null);
                     }
@@ -303,16 +308,7 @@ public class DesktopTaskView extends TaskView {
 
     @Override
     protected void setThumbnailOrientation(RecentsOrientedState orientationState) {
-        DeviceProfile deviceProfile = mContainer.getDeviceProfile();
-        int thumbnailTopMargin = deviceProfile.overviewTaskThumbnailTopMarginPx;
-
-        LayoutParams snapshotParams = (LayoutParams) mSnapshotView.getLayoutParams();
-        snapshotParams.topMargin = thumbnailTopMargin;
-
-        for (int i = 0; i < mSnapshotViewMap.size(); i++) {
-            TaskThumbnailView thumbnailView = mSnapshotViewMap.valueAt(i);
-            thumbnailView.setLayoutParams(snapshotParams);
-        }
+        // no-op
     }
 
     @Override
@@ -367,11 +363,11 @@ public class DesktopTaskView extends TaskView {
     void refreshThumbnails(@Nullable HashMap<Integer, ThumbnailData> thumbnailDatas) {
         // Sets new thumbnails based on the incoming data and refreshes the rest.
         // Create a copy of the thumbnail map, so we can track thumbnails that need refreshing.
-        SparseArray<TaskThumbnailView> thumbnailsToRefresh = mSnapshotViewMap.clone();
+        SparseArray<TaskThumbnailViewDeprecated> thumbnailsToRefresh = mSnapshotViewMap.clone();
         if (thumbnailDatas != null) {
             for (Task task : mTasks) {
                 int key = task.key.id;
-                TaskThumbnailView thumbnailView = thumbnailsToRefresh.get(key);
+                TaskThumbnailViewDeprecated thumbnailView = thumbnailsToRefresh.get(key);
                 ThumbnailData thumbnailData = thumbnailDatas.get(key);
                 if (thumbnailView != null && thumbnailData != null) {
                     thumbnailView.setThumbnail(task, thumbnailData);
@@ -388,8 +384,9 @@ public class DesktopTaskView extends TaskView {
     }
 
     @Override
-    public TaskThumbnailView[] getThumbnails() {
-        TaskThumbnailView[] thumbnails = new TaskThumbnailView[mSnapshotViewMap.size()];
+    public TaskThumbnailViewDeprecated[] getThumbnails() {
+        TaskThumbnailViewDeprecated[] thumbnails =
+                new TaskThumbnailViewDeprecated[mSnapshotViewMap.size()];
         for (int i = 0; i < thumbnails.length; i++) {
             thumbnails[i] = mSnapshotViewMap.valueAt(i);
         }
@@ -402,7 +399,7 @@ public class DesktopTaskView extends TaskView {
         // Clear any references to the thumbnail (it will be re-read either from the cache or the
         // system on next bind)
         for (Task task : mTasks) {
-            TaskThumbnailView thumbnailView = mSnapshotViewMap.get(task.key.id);
+            TaskThumbnailViewDeprecated thumbnailView = mSnapshotViewMap.get(task.key.id);
             if (thumbnailView != null) {
                 thumbnailView.setThumbnail(task, null);
             }
@@ -428,8 +425,10 @@ public class DesktopTaskView extends TaskView {
             return;
         }
 
-        int windowWidth = mContainer.getDeviceProfile().widthPx;
-        int windowHeight = mContainer.getDeviceProfile().heightPx;
+        BaseContainerInterface.getTaskDimension(mContext, mContainer.getDeviceProfile(),
+                mTempPointF);
+        int windowWidth = (int) mTempPointF.x;
+        int windowHeight = (int) mTempPointF.y;
 
         float scaleWidth = containerWidth / (float) windowWidth;
         float scaleHeight = containerHeight / (float) windowHeight;
@@ -453,7 +452,7 @@ public class DesktopTaskView extends TaskView {
             int thumbWidth = (int) (taskSize.width() * scaleWidth);
             int thumbHeight = (int) (taskSize.height() * scaleHeight);
 
-            TaskThumbnailView thumbnailView = mSnapshotViewMap.get(task.key.id);
+            TaskThumbnailViewDeprecated thumbnailView = mSnapshotViewMap.get(task.key.id);
             if (thumbnailView != null) {
                 thumbnailView.measure(MeasureSpec.makeMeasureSpec(thumbWidth, MeasureSpec.EXACTLY),
                         MeasureSpec.makeMeasureSpec(thumbHeight, MeasureSpec.EXACTLY));
@@ -495,7 +494,7 @@ public class DesktopTaskView extends TaskView {
             mBackgroundView.setVisibility(VISIBLE);
         }
         for (int i = 0; i < mSnapshotViewMap.size(); i++) {
-            TaskThumbnailView thumbnailView = mSnapshotViewMap.valueAt(i);
+            TaskThumbnailViewDeprecated thumbnailView = mSnapshotViewMap.valueAt(i);
             thumbnailView.getTaskOverlay().setFullscreenProgress(progress);
         }
         updateSnapshotRadius();

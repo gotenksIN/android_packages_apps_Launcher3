@@ -38,8 +38,6 @@ import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCH
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_OVERVIEW_GESTURE;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_QUICKSWITCH_LEFT;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_QUICKSWITCH_RIGHT;
-import static com.android.launcher3.testing.shared.TestProtocol.SUCCESSFUL_GESTURE_MISMATCH_EVENTS;
-import static com.android.launcher3.testing.shared.TestProtocol.testLogD;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.launcher3.util.SystemUiController.UI_STATE_FULLSCREEN_TASK;
@@ -1254,10 +1252,12 @@ public abstract class AbsSwipeUpHandler<T extends RecentsViewContainer,
             return LAST_TASK;
         }
 
-        if (((mRecentsView.getNextPageTaskView() != null
-                && mRecentsView.getNextPageTaskView().isDesktopTask())
-                || (mRecentsView.getCurrentPageTaskView() != null
-                && mRecentsView.getCurrentPageTaskView().isDesktopTask()))
+        TaskView nextPageTaskView = mRecentsView != null
+                ? mRecentsView.getNextPageTaskView() : null;
+        TaskView currentPageTaskView = mRecentsView != null
+                ? mRecentsView.getCurrentPageTaskView() : null;
+        if (((nextPageTaskView != null && nextPageTaskView.isDesktopTask())
+                || (currentPageTaskView != null && currentPageTaskView.isDesktopTask()))
                 && endTarget == NEW_TASK) {
             // TODO(b/268075592): add support for quickswitch to/from desktop
             return LAST_TASK;
@@ -1649,12 +1649,6 @@ public abstract class AbsSwipeUpHandler<T extends RecentsViewContainer,
                         int taskToLaunch = mRecentsView.getNextPage();
                         int runningTask = getLastAppearedTaskIndex();
                         boolean hasStartedNewTask = hasStartedNewTask();
-                        testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS,
-                                "taskToLaunch=" + taskToLaunch);
-                        testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS,
-                                "runningTask=" + runningTask);
-                        testLogD(SUCCESSFUL_GESTURE_MISMATCH_EVENTS,
-                                "hasStartedNewTask=" + hasStartedNewTask);
                         if (target == NEW_TASK && taskToLaunch == runningTask
                                 && !hasStartedNewTask) {
                             // We are about to launch the current running task, so use LAST_TASK

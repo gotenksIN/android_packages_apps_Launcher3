@@ -21,7 +21,6 @@ import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_BOTTOM_
 import android.content.Context;
 import android.graphics.Rect;
 import android.util.AttributeSet;
-import android.util.IntProperty;
 import android.util.Pair;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -50,22 +49,6 @@ import java.util.List;
  * Bottom sheet for the "Widgets" system shortcut in the long-press popup.
  */
 public class WidgetsBottomSheet extends BaseWidgetSheet {
-    private static final String TAG = "WidgetsBottomSheet";
-
-    private static final IntProperty<View> PADDING_BOTTOM =
-            new IntProperty<View>("paddingBottom") {
-                @Override
-                public void setValue(View view, int paddingBottom) {
-                    view.setPadding(view.getPaddingLeft(), view.getPaddingTop(),
-                            view.getPaddingRight(), paddingBottom);
-                }
-
-                @Override
-                public Integer get(View view) {
-                    return view.getPaddingBottom();
-                }
-            };
-
     private static final int DEFAULT_CLOSE_DURATION = 200;
     private static final long EDUCATION_TIP_DELAY_MS = 300;
 
@@ -119,9 +102,6 @@ public class WidgetsBottomSheet extends BaseWidgetSheet {
         mContent = findViewById(R.id.widgets_bottom_sheet);
         setContentBackgroundWithParent(
                 getContext().getDrawable(R.drawable.bg_rounded_corner_bottom_sheet), mContent);
-        View scrollView = findViewById(R.id.widgets_table_scroll_view);
-        scrollView.setOutlineProvider(mViewOutlineProvider);
-        scrollView.setClipToOutline(true);
     }
 
     @Override
@@ -216,6 +196,7 @@ public class WidgetsBottomSheet extends BaseWidgetSheet {
     protected WidgetCell addItemCell(ViewGroup parent) {
         WidgetCell widget = (WidgetCell) LayoutInflater.from(getContext())
                 .inflate(R.layout.widget_cell, parent, false);
+        widget.setOnClickListener(this);
 
         View previewContainer = widget.findViewById(R.id.widget_preview_container);
         previewContainer.setOnClickListener(this);
