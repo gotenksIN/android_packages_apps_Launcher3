@@ -22,11 +22,13 @@ import android.graphics.Canvas;
 import android.graphics.Outline;
 import android.graphics.Rect;
 import android.util.AttributeSet;
+import android.util.FloatProperty;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewOutlineProvider;
 import android.widget.ImageView;
 
+import androidx.annotation.NonNull;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
 import com.android.launcher3.R;
@@ -47,6 +49,25 @@ public class BubbleView extends ConstraintLayout {
     public static final int DEFAULT_PATH_SIZE = 100;
 
     /**
+     * Property to update drag translation value.
+     *
+     * @see BubbleView#getDragTranslationX()
+     * @see BubbleView#setDragTranslationX(float)
+     */
+    public static final FloatProperty<BubbleView> DRAG_TRANSLATION_X = new FloatProperty<>(
+            "dragTranslationX") {
+        @Override
+        public void setValue(@NonNull BubbleView bubbleView, float value) {
+            bubbleView.setDragTranslationX(value);
+        }
+
+        @Override
+        public Float get(BubbleView bubbleView) {
+            return bubbleView.getDragTranslationX();
+        }
+    };
+
+    /**
      * Flags that suppress the visibility of the 'new' dot or the app badge, for one reason or
      * another. If any of these flags are set, the dot will not be shown.
      * If {@link SuppressionFlag#BEHIND_STACK} then the app badge will not be shown.
@@ -65,6 +86,9 @@ public class BubbleView extends ConstraintLayout {
     private final ImageView mBubbleIcon;
     private final ImageView mAppIcon;
     private final int mBubbleSize;
+
+    private float mDragTranslationX;
+    private float mOffsetX;
 
     private DotRenderer mDotRenderer;
     private DotRenderer.DrawParams mDrawParams;
@@ -124,6 +148,39 @@ public class BubbleView extends ConstraintLayout {
         final int normalizedSize = IconNormalizer.getNormalizedCircleSize(mBubbleSize);
         final int inset = (mBubbleSize - normalizedSize) / 2;
         outline.setOval(inset, inset, inset + normalizedSize, inset + normalizedSize);
+    }
+
+    /**
+     * Set translation-x while this bubble is being dragged.
+     * Translation applied to the view is a sum of {@code translationX} and offset defined by
+     * {@link #setOffsetX(float)}.
+     */
+    public void setDragTranslationX(float translationX) {
+        mDragTranslationX = translationX;
+        applyDragTranslation();
+    }
+
+    /**
+     * Get translation value applied via {@link #setDragTranslationX(float)}.
+     */
+    public float getDragTranslationX() {
+        return mDragTranslationX;
+    }
+
+    /**
+     * Set offset on x-axis while dragging.
+     * Used to counter parent translation in order to keep the dragged view at the current position
+     * on screen.
+     * Translation applied to the view is a sum of {@code offsetX} and translation defined by
+     * {@link #setDragTranslationX(float)}
+     */
+    public void setOffsetX(float offsetX) {
+        mOffsetX = offsetX;
+        applyDragTranslation();
+    }
+
+    private void applyDragTranslation() {
+        setTranslationX(mDragTranslationX + mOffsetX);
     }
 
     @Override

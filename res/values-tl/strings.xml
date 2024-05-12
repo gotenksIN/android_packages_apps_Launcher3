@@ -67,10 +67,7 @@
     <string name="widget_category_note_taking" msgid="3469689394504266039">"Pagtatala"</string>
     <string name="widget_add_button_label" msgid="2761267068711937179">"Idagdag"</string>
     <string name="widget_add_button_content_description" msgid="1810530016360039643">"Idagdag ang widget na <xliff:g id="WIDGET_NAME">%1$s</xliff:g>"</string>
-    <string name="widget_education_header" msgid="4874760613775913787">"Abot-kamay na mahalagang impormasyon"</string>
-    <string name="widget_education_content" msgid="1731667670753497052">"Para makakuha ng impormasyon nang hindi nagbubukas ng mga app, puwede kang magdagdag ng mga widget sa iyong home screen"</string>
     <string name="reconfigurable_widget_education_tip" msgid="6336962690888067057">"I-tap para baguhin ang mga setting ng widget"</string>
-    <string name="widget_education_close_button" msgid="8676165703104836580">"OK"</string>
     <string name="widget_reconfigure_button_content_description" msgid="8811472721881205250">"Baguhin ang mga setting ng widget"</string>
     <string name="all_apps_search_bar_hint" msgid="1390553134053255246">"Maghanap ng mga app"</string>
     <string name="all_apps_loading_message" msgid="5813968043155271636">"Naglo-load ng mga app…"</string>
@@ -91,7 +88,7 @@
     <string name="app_info_drop_target_label" msgid="692894985365717661">"Impormasyon ng app"</string>
     <string name="install_private_system_shortcut_label" msgid="1616889277073184841">"Pribadong i-install"</string>
     <string name="install_drop_target_label" msgid="2539096853673231757">"I-install"</string>
-    <string name="dismiss_prediction_label" msgid="3357562989568808658">"Huwag magmungkahi ng app"</string>
+    <string name="dismiss_prediction_label" msgid="3357562989568808658">"Huwag magmungkahi"</string>
     <string name="pin_prediction" msgid="4196423321649756498">"I-pin ang Hula"</string>
     <string name="permlab_install_shortcut" msgid="5632423390354674437">"i-install ang mga shortcut"</string>
     <string name="permdesc_install_shortcut" msgid="923466509822011139">"Pinapayagan ang isang app na magdagdag ng mga shortcut nang walang panghihimasok ng user."</string>
@@ -192,7 +189,8 @@
     <string name="private_space_secondary_label" msgid="9203933341714508907">"I-tap para i-set up o buksan"</string>
     <string name="ps_container_title" msgid="4391796149519594205">"Pribado"</string>
     <string name="ps_container_settings" msgid="6059734123353320479">"Mga Setting ng Pribadong Space"</string>
-    <string name="ps_container_lock_unlock_button" msgid="7605602332253423755">"I-lock/I-unlock ang Pribadong Space"</string>
+    <string name="ps_container_unlock_button_content_description" msgid="9181551784092204234">"Pribado, naka-unlock."</string>
+    <string name="ps_container_lock_button_content_description" msgid="5961993384382649530">"Pribado, naka-lock."</string>
     <string name="ps_container_lock_title" msgid="2640257399982364682">"I-lock"</string>
     <string name="ps_container_transition" msgid="8667331812048014412">"Pag-transition ng Pribadong Space"</string>
     <string name="ps_add_button_label" msgid="8611055839242385935">"Mag-install ng mga app"</string>

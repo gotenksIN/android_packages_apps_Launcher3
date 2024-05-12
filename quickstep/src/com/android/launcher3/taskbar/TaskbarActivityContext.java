@@ -15,7 +15,6 @@
  */
 package com.android.launcher3.taskbar;
 
-import static android.content.pm.PackageManager.FEATURE_PC;
 import static android.os.Trace.TRACE_TAG_APP;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
@@ -107,6 +106,7 @@ import com.android.launcher3.taskbar.bubbles.BubbleBarViewController;
 import com.android.launcher3.taskbar.bubbles.BubbleControllers;
 import com.android.launcher3.taskbar.bubbles.BubbleDismissController;
 import com.android.launcher3.taskbar.bubbles.BubbleDragController;
+import com.android.launcher3.taskbar.bubbles.BubblePinController;
 import com.android.launcher3.taskbar.bubbles.BubbleStashController;
 import com.android.launcher3.taskbar.bubbles.BubbleStashedHandleViewController;
 import com.android.launcher3.taskbar.navbutton.NearestTouchFrame;
@@ -248,8 +248,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
         mAccessibilityDelegate = new TaskbarShortcutMenuAccessibilityDelegate(this);
 
-        final boolean isPcMode = getPackageManager().hasSystemFeature(FEATURE_PC);
-
         // If Bubble bar is present, TaskbarControllers depends on it so build it first.
         Optional<BubbleControllers> bubbleControllersOptional = Optional.empty();
         BubbleBarController.onTaskbarRecreated();
@@ -262,6 +260,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                     new BubbleDragController(this),
                     new BubbleDismissController(this, mDragLayer),
                     new BubbleBarPinController(this, mDragLayer,
+                            () -> getDeviceProfile().getDisplayInfo().currentSize),
+                    new BubblePinController(this, mDragLayer,
                             () -> getDeviceProfile().getDisplayInfo().currentSize)
             ));
         }
@@ -275,16 +275,12 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 R.drawable.ic_sysbar_rotate_button_cw_start_0,
                 R.drawable.ic_sysbar_rotate_button_cw_start_90,
                 () -> getDisplay().getRotation());
-        rotationButtonController.setBgExecutor(Executors.THREAD_POOL_EXECUTOR);
+        rotationButtonController.setBgExecutor(Executors.UI_HELPER_EXECUTOR);
 
         mControllers = new TaskbarControllers(this,
                 new TaskbarDragController(this),
                 buttonController,
-                isPcMode
-                        ? new DesktopNavbarButtonsViewController(this, mNavigationBarPanelContext,
-                                navButtonsView)
-                        : new NavbarButtonsViewController(this, mNavigationBarPanelContext,
-                                navButtonsView),
+                new NavbarButtonsViewController(this, mNavigationBarPanelContext, navButtonsView),
                 rotationButtonController,
                 new TaskbarDragLayerController(this, mDragLayer),
                 new TaskbarViewController(this, taskbarView),
@@ -305,25 +301,24 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 new VoiceInteractionWindowController(this),
                 new TaskbarTranslationController(this),
                 new TaskbarSpringOnStashController(this),
-                createTaskbarRecentAppsController(isPcMode),
+                createTaskbarRecentAppsController(),
                 TaskbarEduTooltipController.newInstance(this),
                 new KeyboardQuickSwitchController(),
-                new TaskbarPinningController(this),
+                new TaskbarPinningController(this, () ->
+                        DisplayController.INSTANCE.get(this).getInfo().isInDesktopMode()),
                 bubbleControllersOptional);
 
         mLauncherPrefs = LauncherPrefs.get(this);
     }
 
-    private TaskbarRecentAppsController createTaskbarRecentAppsController(boolean isPcMode) {
-        if (isPcMode) return new DesktopTaskbarRecentAppsController(this);
+    private TaskbarRecentAppsController createTaskbarRecentAppsController() {
         // TODO(b/335401172): unify DesktopMode checks in Launcher
-        final boolean showRunningAppsInDesktopMode = enableDesktopWindowingMode()
-                && enableDesktopWindowingTaskbarRunningApps();
-        return showRunningAppsInDesktopMode
-                        ? new DesktopTaskbarRunningAppsController(
-                                RecentsModel.INSTANCE.get(this),
-                                LauncherActivityInterface.INSTANCE.getDesktopVisibilityController())
-                        : TaskbarRecentAppsController.DEFAULT;
+        if (enableDesktopWindowingMode() && enableDesktopWindowingTaskbarRunningApps()) {
+            return new DesktopTaskbarRunningAppsController(
+                    RecentsModel.INSTANCE.get(this),
+                    LauncherActivityInterface.INSTANCE::getDesktopVisibilityController);
+        }
+        return TaskbarRecentAppsController.DEFAULT;
     }
 
     /** Updates {@link DeviceProfile} instances for any Taskbar windows. */
@@ -1492,7 +1487,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             ((LauncherTaskbarUIController) uiController).addLauncherVisibilityChangedAnimation(
                     fullAnimation, duration);
         }
-        mControllers.taskbarStashController.addUnstashToHotseatAnimation(fullAnimation, duration);
+        mControllers.taskbarStashController.addUnstashToHotseatAnimationFromSuw(fullAnimation,
+                duration);
 
         View allAppsButton = mControllers.taskbarViewController.getAllAppsButtonView();
         if (allAppsButton != null && !FeatureFlags.ENABLE_ALL_APPS_BUTTON_IN_HOTSEAT.get()) {

@@ -403,9 +403,6 @@ public class BubbleBarController extends IBubblesListener.Stub {
         }
         if (bubbleToSelect != null) {
             setSelectedBubbleInternal(bubbleToSelect);
-            if (previouslySelectedBubble == null) {
-                mBubbleStashController.animateToInitialState(update.expanded);
-            }
         }
         if (update.shouldShowEducation) {
             mBubbleBarViewController.prepareToShowEducation();
@@ -419,9 +416,7 @@ public class BubbleBarController extends IBubblesListener.Stub {
         }
         if (update.bubbleBarLocation != null) {
             if (update.bubbleBarLocation != mBubbleBarViewController.getBubbleBarLocation()) {
-                // Animate when receiving updates. Skip it if we received the initial state.
-                boolean animate = !update.initialState;
-                updateBubbleBarLocationInternal(update.bubbleBarLocation, animate);
+                updateBubbleBarLocationInternal(update.bubbleBarLocation);
             }
         }
     }
@@ -483,13 +478,19 @@ public class BubbleBarController extends IBubblesListener.Stub {
      * Updates the value locally in Launcher and in WMShell.
      */
     public void updateBubbleBarLocation(BubbleBarLocation location) {
-        updateBubbleBarLocationInternal(location, false /* animate */);
+        updateBubbleBarLocationInternal(location);
         mSystemUiProxy.setBubbleBarLocation(location);
     }
 
-    private void updateBubbleBarLocationInternal(BubbleBarLocation location, boolean animate) {
-        mBubbleBarViewController.setBubbleBarLocation(location, animate);
+    private void updateBubbleBarLocationInternal(BubbleBarLocation location) {
+        mBubbleBarViewController.setBubbleBarLocation(location);
         mBubbleStashController.setBubbleBarLocation(location);
+    }
+
+    @Override
+    public void animateBubbleBarLocation(BubbleBarLocation bubbleBarLocation) {
+        mMainExecutor.execute(
+                () -> mBubbleBarViewController.animateBubbleBarLocation(bubbleBarLocation));
     }
 
     //

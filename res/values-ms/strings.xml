@@ -67,10 +67,7 @@
     <string name="widget_category_note_taking" msgid="3469689394504266039">"Pengambilan nota"</string>
     <string name="widget_add_button_label" msgid="2761267068711937179">"Tambah"</string>
     <string name="widget_add_button_content_description" msgid="1810530016360039643">"Tambahkan widget <xliff:g id="WIDGET_NAME">%1$s</xliff:g>"</string>
-    <string name="widget_education_header" msgid="4874760613775913787">"Maklumat berguna di hujung jari anda"</string>
-    <string name="widget_education_content" msgid="1731667670753497052">"Untuk mendapatkan maklumat tanpa membuka apl, anda boleh menambahkan widget pada skrin utama anda"</string>
     <string name="reconfigurable_widget_education_tip" msgid="6336962690888067057">"Ketik untuk menukar tetapan widget"</string>
-    <string name="widget_education_close_button" msgid="8676165703104836580">"OK"</string>
     <string name="widget_reconfigure_button_content_description" msgid="8811472721881205250">"Tukar tetapan widget"</string>
     <string name="all_apps_search_bar_hint" msgid="1390553134053255246">"Cari apl"</string>
     <string name="all_apps_loading_message" msgid="5813968043155271636">"Memuatkan apl…"</string>
@@ -89,7 +86,7 @@
     <string name="remove_drop_target_label" msgid="7812859488053230776">"Alih keluar"</string>
     <string name="uninstall_drop_target_label" msgid="4722034217958379417">"Nyahpasang"</string>
     <string name="app_info_drop_target_label" msgid="692894985365717661">"Maklumat apl"</string>
-    <string name="install_private_system_shortcut_label" msgid="1616889277073184841">"Pasang dalam peribadi"</string>
+    <string name="install_private_system_shortcut_label" msgid="1616889277073184841">"Pasang dalam persendirian"</string>
     <string name="install_drop_target_label" msgid="2539096853673231757">"Pasang"</string>
     <string name="dismiss_prediction_label" msgid="3357562989568808658">"Jangan cadangkan apl"</string>
     <string name="pin_prediction" msgid="4196423321649756498">"Sematkan Ramalan"</string>
@@ -190,9 +187,10 @@
     <string name="remote_action_failed" msgid="1383965239183576790">"Gagal: <xliff:g id="WHAT">%1$s</xliff:g>"</string>
     <string name="private_space_label" msgid="2359721649407947001">"Ruang privasi"</string>
     <string name="private_space_secondary_label" msgid="9203933341714508907">"Ketik untuk menyediakan atau membuka"</string>
-    <string name="ps_container_title" msgid="4391796149519594205">"Peribadi"</string>
+    <string name="ps_container_title" msgid="4391796149519594205">"Persendirian"</string>
     <string name="ps_container_settings" msgid="6059734123353320479">"Tetapan Ruang Peribadi"</string>
-    <string name="ps_container_lock_unlock_button" msgid="7605602332253423755">"Kunci/Buka kunci Ruang Peribadi"</string>
+    <string name="ps_container_unlock_button_content_description" msgid="9181551784092204234">"Peribadi, tidak berkunci."</string>
+    <string name="ps_container_lock_button_content_description" msgid="5961993384382649530">"Peribadi, dikunci."</string>
     <string name="ps_container_lock_title" msgid="2640257399982364682">"Kunci"</string>
     <string name="ps_container_transition" msgid="8667331812048014412">"Peralihan Ruang Peribadi"</string>
     <string name="ps_add_button_label" msgid="8611055839242385935">"Pasang apl"</string>

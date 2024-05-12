@@ -23,6 +23,7 @@ import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.app.ActivityManager.RunningTaskInfo
+import android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN
 import android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW
 import android.content.Context
 import android.graphics.Bitmap
@@ -50,6 +51,7 @@ import com.android.launcher3.anim.PendingAnimation
 import com.android.launcher3.apppairs.AppPairIcon
 import com.android.launcher3.config.FeatureFlags
 import com.android.launcher3.logging.StatsLogManager.EventEnum
+import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.statehandlers.DepthController
 import com.android.launcher3.statemanager.StateManager
 import com.android.launcher3.taskbar.TaskbarActivityContext
@@ -67,8 +69,9 @@ import com.android.quickstep.views.RecentsViewContainer
 import com.android.quickstep.views.SplitInstructionsView
 import com.android.quickstep.views.TaskThumbnailViewDeprecated
 import com.android.quickstep.views.TaskView
-import com.android.quickstep.views.TaskView.TaskIdAttributeContainer
+import com.android.quickstep.views.TaskView.TaskContainer
 import com.android.quickstep.views.TaskViewIcon
+import com.android.wm.shell.shared.TransitionUtil
 import java.util.Optional
 import java.util.function.Supplier
 
@@ -111,7 +114,7 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
         } else if (splitSelectStateController.isDismissingFromSplitPair) {
             // Initiating split from overview, but on a split pair
             val taskView = taskViewSupplier.get()
-            for (container: TaskIdAttributeContainer in taskView.taskIdAttributeContainers) {
+            for (container: TaskContainer in taskView.taskContainers) {
                 if (container.task.getKey().getId() == splitSelectStateController.initialTaskId) {
                     val drawable = getDrawable(container.iconView, splitSelectSource)
                     return SplitAnimInitProps(
@@ -131,15 +134,17 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
         } else {
             // Initiating split from overview on fullscreen task TaskView
             val taskView = taskViewSupplier.get()
-            val drawable = getDrawable(taskView.iconView, splitSelectSource)
-            return SplitAnimInitProps(
-                taskView.thumbnail,
-                taskView.thumbnail.thumbnail,
-                drawable!!,
-                fadeWithThumbnail = true,
-                isStagedTask = true,
-                taskView.iconView.asView()
-            )
+            taskView.taskContainers.first().let {
+                val drawable = getDrawable(it.iconView, splitSelectSource)
+                return SplitAnimInitProps(
+                    it.thumbnailView,
+                    it.thumbnailView.thumbnail,
+                    drawable!!,
+                    fadeWithThumbnail = true,
+                    isStagedTask = true,
+                    iconView = it.iconView.asView()
+                )
+            }
         }
     }
 
@@ -170,7 +175,7 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
      *   (opposite of that representing [taskIdAttributeContainer])
      */
     fun addInitialSplitFromPair(
-        taskIdAttributeContainer: TaskIdAttributeContainer,
+        taskIdAttributeContainer: TaskContainer,
         builder: PendingAnimation,
         deviceProfile: DeviceProfile,
         taskViewWidth: Int,
@@ -553,8 +558,19 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
             check(info != null && t != null) {
                 "trying to launch an app pair icon, but encountered an unexpected null"
             }
-
-            composeIconSplitLaunchAnimator(launchingIconView, info, t, finishCallback)
+            val appPairLaunchingAppIndex = hasChangesForBothAppPairs(launchingIconView, info)
+            if (appPairLaunchingAppIndex == -1) {
+                // Launch split app pair animation
+                composeIconSplitLaunchAnimator(launchingIconView, info, t, finishCallback)
+            } else {
+                composeFullscreenIconSplitLaunchAnimator(
+                    launchingIconView,
+                    info,
+                    t,
+                    finishCallback,
+                    appPairLaunchingAppIndex
+                )
+            }
         } else {
             // Fallback case: simple fade-in animation
             check(info != null && t != null) {
@@ -619,6 +635,43 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
     }
 
     /**
+     * @return -1 if [transitionInfo] contains both apps of the app pair to be animated, otherwise
+     *   the integer index corresponding to [launchingIconView]'s contents for the single app to be
+     *   animated
+     */
+    fun hasChangesForBothAppPairs(
+        launchingIconView: AppPairIcon,
+        transitionInfo: TransitionInfo
+    ): Int {
+        val intent1 = launchingIconView.info.getFirstApp().intent.component?.packageName
+        val intent2 = launchingIconView.info.getSecondApp().intent.component?.packageName
+        var launchFullscreenAppIndex = -1
+        for (change in transitionInfo.changes) {
+            val taskInfo: RunningTaskInfo = change.taskInfo ?: continue
+            if (
+                TransitionUtil.isOpeningType(change.mode) &&
+                    taskInfo.windowingMode == WINDOWING_MODE_FULLSCREEN
+            ) {
+                val baseIntent = taskInfo.baseIntent.component?.packageName
+                if (baseIntent == intent1) {
+                    if (launchFullscreenAppIndex > -1) {
+                        launchFullscreenAppIndex = -1
+                        break
+                    }
+                    launchFullscreenAppIndex = 0
+                } else if (baseIntent == intent2) {
+                    if (launchFullscreenAppIndex > -1) {
+                        launchFullscreenAppIndex = -1
+                        break
+                    }
+                    launchFullscreenAppIndex = 1
+                }
+            }
+        }
+        return launchFullscreenAppIndex
+    }
+
+    /**
      * When the user taps an app pair icon to launch split, this will play the tasks' launch
      * animation from the position of the icon.
      *
@@ -653,7 +706,12 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
         // If launching an app pair from Taskbar inside of an app context (no access to Launcher),
         // use the scale-up animation
         if (launchingIconView.context is TaskbarActivityContext) {
-            composeScaleUpLaunchAnimation(transitionInfo, t, finishCallback)
+            composeScaleUpLaunchAnimation(
+                transitionInfo,
+                t,
+                finishCallback,
+                WINDOWING_MODE_MULTI_WINDOW
+            )
             return
         }
 
@@ -663,11 +721,6 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
 
         // Create an AnimatorSet that will run both shell and launcher transitions together
         val launchAnimation = AnimatorSet()
-        val progressUpdater = ValueAnimator.ofFloat(0f, 1f)
-        val timings = AnimUtils.getDeviceAppPairLaunchTimings(dp.isTablet)
-        progressUpdater.setDuration(timings.getDuration().toLong())
-        progressUpdater.interpolator = Interpolators.LINEAR
-
         var rootCandidate: Change? = null
 
         for (change in transitionInfo.changes) {
@@ -711,6 +764,122 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
         // Make sure nothing weird happened, like getChange() returning null.
         check(rootCandidate != null) { "Failed to find a root leash" }
 
+        // Create a new floating view in Launcher, positioned above the launching icon
+        val drawableArea = launchingIconView.iconDrawableArea
+        val appIcon1 = launchingIconView.info.getFirstApp().newIcon(launchingIconView.context)
+        val appIcon2 = launchingIconView.info.getSecondApp().newIcon(launchingIconView.context)
+        appIcon1.setBounds(0, 0, dp.iconSizePx, dp.iconSizePx)
+        appIcon2.setBounds(0, 0, dp.iconSizePx, dp.iconSizePx)
+
+        val floatingView =
+            FloatingAppPairView.getFloatingAppPairView(
+                launcher,
+                drawableArea,
+                appIcon1,
+                appIcon2,
+                dividerPos
+            )
+        floatingView.bringToFront()
+
+        launchAnimation.play(
+            getIconLaunchValueAnimator(t, dp, finishCallback, launcher, floatingView, rootCandidate)
+        )
+        launchAnimation.start()
+    }
+
+    /**
+     * Similar to [composeIconSplitLaunchAnimator], but instructs [FloatingAppPairView] to animate a
+     * single fullscreen icon + background instead of for a pair
+     */
+    @VisibleForTesting
+    fun composeFullscreenIconSplitLaunchAnimator(
+        launchingIconView: AppPairIcon,
+        transitionInfo: TransitionInfo,
+        t: Transaction,
+        finishCallback: Runnable,
+        launchFullscreenIndex: Int
+    ) {
+        // If launching an app pair from Taskbar inside of an app context (no access to Launcher),
+        // use the scale-up animation
+        if (launchingIconView.context is TaskbarActivityContext) {
+            composeScaleUpLaunchAnimation(
+                transitionInfo,
+                t,
+                finishCallback,
+                WINDOWING_MODE_FULLSCREEN
+            )
+            return
+        }
+
+        // Else we are in Launcher and can launch with the full icon stretch-and-split animation.
+        val launcher = QuickstepLauncher.getLauncher(launchingIconView.context)
+        val dp = launcher.deviceProfile
+
+        // Create an AnimatorSet that will run both shell and launcher transitions together
+        val launchAnimation = AnimatorSet()
+
+        val appInfo =
+            launchingIconView.info.getContents()[launchFullscreenIndex] as WorkspaceItemInfo
+        val intentToLaunch = appInfo.intent.component?.packageName
+        var rootCandidate: Change? = null
+        for (change in transitionInfo.changes) {
+            val taskInfo: RunningTaskInfo = change.taskInfo ?: continue
+            val baseIntent = taskInfo.baseIntent.component?.packageName
+            if (
+                TransitionUtil.isOpeningType(change.mode) &&
+                    taskInfo.windowingMode == WINDOWING_MODE_FULLSCREEN &&
+                    baseIntent == intentToLaunch
+            ) {
+                rootCandidate = change
+            }
+        }
+
+        // If we could not find a proper root candidate, something went wrong.
+        check(rootCandidate != null) { "Could not find a split root candidate" }
+
+        // Recurse up the tree until parent is null, then we've found our root.
+        var parentToken: WindowContainerToken? = rootCandidate.parent
+        while (parentToken != null) {
+            rootCandidate = transitionInfo.getChange(parentToken) ?: break
+            parentToken = rootCandidate.parent
+        }
+
+        // Make sure nothing weird happened, like getChange() returning null.
+        check(rootCandidate != null) { "Failed to find a root leash" }
+
+        // Create a new floating view in Launcher, positioned above the launching icon
+        val drawableArea = launchingIconView.iconDrawableArea
+        val appIcon = appInfo.newIcon(launchingIconView.context)
+        appIcon.setBounds(0, 0, dp.iconSizePx, dp.iconSizePx)
+
+        val floatingView =
+            FloatingAppPairView.getFloatingAppPairView(
+                launcher,
+                drawableArea,
+                appIcon,
+                null /*appIcon2*/,
+                0 /*dividerPos*/
+            )
+        floatingView.bringToFront()
+        launchAnimation.play(
+            getIconLaunchValueAnimator(t, dp, finishCallback, launcher, floatingView, rootCandidate)
+        )
+        launchAnimation.start()
+    }
+
+    private fun getIconLaunchValueAnimator(
+        t: Transaction,
+        dp: com.android.launcher3.DeviceProfile,
+        finishCallback: Runnable,
+        launcher: QuickstepLauncher,
+        floatingView: FloatingAppPairView,
+        rootCandidate: Change
+    ): ValueAnimator {
+        val progressUpdater = ValueAnimator.ofFloat(0f, 1f)
+        val timings = AnimUtils.getDeviceAppPairLaunchTimings(dp.isTablet)
+        progressUpdater.setDuration(timings.getDuration().toLong())
+        progressUpdater.interpolator = Interpolators.LINEAR
+
         // Shell animation: the apps are revealed toward end of the launch animation
         progressUpdater.addUpdateListener { valueAnimator: ValueAnimator ->
             val progress =
@@ -726,23 +895,6 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
             t.apply()
         }
 
-        // Create a new floating view in Launcher, positioned above the launching icon
-        val drawableArea = launchingIconView.iconDrawableArea
-        val appIcon1 = launchingIconView.info.getFirstApp().newIcon(launchingIconView.context)
-        val appIcon2 = launchingIconView.info.getSecondApp().newIcon(launchingIconView.context)
-        appIcon1.setBounds(0, 0, dp.iconSizePx, dp.iconSizePx)
-        appIcon2.setBounds(0, 0, dp.iconSizePx, dp.iconSizePx)
-        val floatingView =
-            FloatingAppPairView.getFloatingAppPairView(
-                launcher,
-                drawableArea,
-                appIcon1,
-                appIcon2,
-                dividerPos
-            )
-        floatingView.bringToFront()
-
-        // Launcher animation: animate the floating view, expanding to fill the display surface
         progressUpdater.addUpdateListener(
             object : MultiValueUpdateListener() {
                 var mDx =
@@ -796,8 +948,6 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
                 }
             }
         )
-
-        // When animation ends, remove the floating view and run finishCallback
         progressUpdater.addListener(
             object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
@@ -807,19 +957,20 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
             }
         )
 
-        launchAnimation.play(progressUpdater)
-        launchAnimation.start()
+        return progressUpdater
     }
 
     /**
      * This is a scale-up-and-fade-in animation (34% to 100%) for launching an app in Overview when
-     * there is no visible associated tile to expand from.
+     * there is no visible associated tile to expand from. [windowingMode] helps determine whether
+     * we are looking for a split or a single fullscreen [Change]
      */
     @VisibleForTesting
     fun composeScaleUpLaunchAnimation(
         transitionInfo: TransitionInfo,
         t: Transaction,
-        finishCallback: Runnable
+        finishCallback: Runnable,
+        windowingMode: Int
     ) {
         val launchAnimation = AnimatorSet()
         val progressUpdater = ValueAnimator.ofFloat(0f, 1f)
@@ -833,9 +984,8 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
 
             // TODO (b/316490565): Replace this logic when SplitBounds is available to
             //  startAnimation() and we can know the precise taskIds of launching tasks.
-            // Find a change that has WINDOWING_MODE_MULTI_WINDOW.
             if (
-                taskInfo.windowingMode == WINDOWING_MODE_MULTI_WINDOW &&
+                taskInfo.windowingMode == windowingMode &&
                     (change.mode == TRANSIT_OPEN || change.mode == TRANSIT_TO_FRONT)
             ) {
                 // Found one!
@@ -967,12 +1117,12 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
         animator.setDuration(QuickstepTransitionManager.SPLIT_LAUNCH_DURATION.toLong())
         animator.addUpdateListener { valueAnimator: ValueAnimator ->
             val progress =
-                    Interpolators.clampToProgress(
-                            Interpolators.LINEAR,
-                            valueAnimator.animatedFraction,
-                            0.8f,
-                            1f
-                    )
+                Interpolators.clampToProgress(
+                    Interpolators.LINEAR,
+                    valueAnimator.animatedFraction,
+                    0.8f,
+                    1f
+                )
             for (leash in openingTargets) {
                 animTransaction.setAlpha(leash, progress)
             }

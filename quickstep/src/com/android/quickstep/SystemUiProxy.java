@@ -16,7 +16,6 @@
 package com.android.quickstep;
 
 import static android.app.ActivityManager.RECENT_IGNORE_UNAVAILABLE;
-import static android.content.pm.PackageManager.FEATURE_PC;
 
 import static com.android.launcher3.Flags.enableUnfoldStateAnimation;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
@@ -801,15 +800,29 @@ public class SystemUiProxy implements ISystemUiProxy, NavHandle, SafeCloseable {
     /**
      * Tells SysUI when the bubble is being dragged.
      * Should be called only when the bubble bar is expanded.
-     * @param bubbleKey the key of the bubble to collapse/expand
-     * @param isBeingDragged whether the bubble is being dragged
+     * @param bubbleKey key of the bubble being dragged
      */
-    public void onBubbleDrag(@Nullable String bubbleKey, boolean isBeingDragged) {
+    public void startBubbleDrag(@Nullable String bubbleKey) {
         if (mBubbles == null) return;
         try {
-            mBubbles.onBubbleDrag(bubbleKey, isBeingDragged);
+            mBubbles.startBubbleDrag(bubbleKey);
         } catch (RemoteException e) {
-            Log.w(TAG, "Failed call onBubbleDrag");
+            Log.w(TAG, "Failed call startBubbleDrag");
+        }
+    }
+
+    /**
+     * Tells SysUI when the bubble stops being dragged.
+     * Should be called only when the bubble bar is expanded.
+     * @param bubbleKey key of the bubble being dragged
+     * @param location location of the bubble bar
+     */
+    public void stopBubbleDrag(@Nullable String bubbleKey, BubbleBarLocation location) {
+        if (mBubbles == null) return;
+        try {
+            mBubbles.stopBubbleDrag(bubbleKey, location);
+        } catch (RemoteException e) {
+            Log.w(TAG, "Failed call stopBubbleDrag");
         }
     }
 
@@ -1385,8 +1398,7 @@ public class SystemUiProxy implements ISystemUiProxy, NavHandle, SafeCloseable {
 
     private boolean shouldEnableRunningTasksForDesktopMode() {
         // TODO(b/335401172): unify DesktopMode checks in Launcher
-        return (enableDesktopWindowingMode() && enableDesktopWindowingTaskbarRunningApps())
-                || mContext.getPackageManager().hasSystemFeature(FEATURE_PC);
+        return enableDesktopWindowingMode() && enableDesktopWindowingTaskbarRunningApps();
     }
 
     private boolean handleMessageAsync(Message msg) {

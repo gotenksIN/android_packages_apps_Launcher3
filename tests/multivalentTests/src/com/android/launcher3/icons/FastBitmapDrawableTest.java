@@ -38,7 +38,8 @@ import android.view.animation.PathInterpolator;
 
 import androidx.test.annotation.UiThreadTest;
 import androidx.test.filters.SmallTest;
-import androidx.test.runner.AndroidJUnit4;
+
+import com.android.launcher3.util.LauncherMultivalentJUnit;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -51,8 +52,8 @@ import org.mockito.Spy;
  * Tests for FastBitmapDrawable.
  */
 @SmallTest
+@RunWith(LauncherMultivalentJUnit.class)
 @UiThreadTest
-@RunWith(AndroidJUnit4.class)
 public class FastBitmapDrawableTest {
     private static final float EPSILON = 0.00001f;
 

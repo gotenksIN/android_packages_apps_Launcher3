@@ -18,10 +18,10 @@ package com.android.quickstep.views;
 
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
+import static com.android.launcher3.LauncherState.BACKGROUND_APP;
 import static com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_UNDEFINED;
 
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
@@ -31,8 +31,6 @@ import android.graphics.drawable.ShapeDrawable;
 import android.graphics.drawable.shapes.RoundRectShape;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.util.SparseArray;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.FrameLayout;
 
@@ -42,7 +40,6 @@ import androidx.annotation.Nullable;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.desktop.DesktopRecentsTransitionController;
-import com.android.launcher3.icons.IconProvider;
 import com.android.launcher3.util.CancellableTask;
 import com.android.launcher3.util.RunnableList;
 import com.android.quickstep.BaseContainerInterface;
@@ -72,13 +69,7 @@ public class DesktopTaskView extends TaskView {
 
     private static final boolean DEBUG = false;
 
-    @NonNull
-    private List<Task> mTasks = new ArrayList<>();
-
     private final ArrayList<TaskThumbnailViewDeprecated> mSnapshotViews = new ArrayList<>();
-
-    /** Maps {@code taskIds} to corresponding {@link TaskThumbnailViewDeprecated}s */
-    private final SparseArray<TaskThumbnailViewDeprecated> mSnapshotViewMap = new SparseArray<>();
 
     private final ArrayList<CancellableTask<?>> mPendingThumbnailRequests = new ArrayList<>();
 
@@ -132,21 +123,24 @@ public class DesktopTaskView extends TaskView {
         ShapeDrawable background = new ShapeDrawable(shape);
         background.setTint(getResources().getColor(android.R.color.system_neutral2_300,
                 getContext().getTheme()));
-        // TODO(b/244348395): this should be wallpaper
         mBackgroundView.setBackground(background);
 
         Drawable icon = getResources().getDrawable(R.drawable.ic_desktop, getContext().getTheme());
         Drawable iconBackground = getResources().getDrawable(R.drawable.bg_circle,
                 getContext().getTheme());
-        mIconView.setDrawable(new LayerDrawable(new Drawable[]{iconBackground, icon}));
+        setIcon(mIconView, new LayerDrawable(new Drawable[]{iconBackground, icon}));
 
         mChildCountAtInflation = getChildCount();
     }
 
     @Override
-    protected Unit updateBorderBounds(@NonNull Rect bounds) {
-        bounds.set(mBackgroundView.getLeft(), mBackgroundView.getTop(), mBackgroundView.getRight(),
-                mBackgroundView.getBottom());
+    public Unit getThumbnailBounds(@NonNull Rect bounds, boolean relativeToDragLayer) {
+        if (relativeToDragLayer) {
+            mContainer.getDragLayer().getDescendantRectRelativeToSelf(mBackgroundView, bounds);
+        } else {
+            bounds.set(mBackgroundView.getLeft(), mBackgroundView.getTop(),
+                    mBackgroundView.getRight(), mBackgroundView.getBottom());
+        }
         return Unit.INSTANCE;
     }
 
@@ -169,20 +163,19 @@ public class DesktopTaskView extends TaskView {
         }
         cancelPendingLoadTasks();
 
-        mTasks = new ArrayList<>(tasks);
-        mSnapshotViewMap.clear();
+        mTaskContainers = new TaskContainer[tasks.size()];
 
         // Ensure there are equal number of snapshot views and tasks.
         // More tasks than views, add views. More views than tasks, remove views.
         // TODO(b/251586230): use a ViewPool for creating TaskThumbnailViews
-        if (mSnapshotViews.size() > mTasks.size()) {
-            int diff = mSnapshotViews.size() - mTasks.size();
+        if (mSnapshotViews.size() > tasks.size()) {
+            int diff = mSnapshotViews.size() - tasks.size();
             for (int i = 0; i < diff; i++) {
                 TaskThumbnailViewDeprecated snapshotView = mSnapshotViews.remove(0);
                 removeView(snapshotView);
             }
-        } else if (mSnapshotViews.size() < mTasks.size()) {
-            int diff = mTasks.size() - mSnapshotViews.size();
+        } else if (mSnapshotViews.size() < tasks.size()) {
+            int diff = tasks.size() - mSnapshotViews.size();
             for (int i = 0; i < diff; i++) {
                 TaskThumbnailViewDeprecated snapshotView =
                         new TaskThumbnailViewDeprecated(getContext());
@@ -193,81 +186,20 @@ public class DesktopTaskView extends TaskView {
             }
         }
 
-        for (int i = 0; i < mTasks.size(); i++) {
-            Task task = mTasks.get(i);
-            TaskThumbnailViewDeprecated snapshotView = mSnapshotViews.get(i);
-            snapshotView.bind(task);
-            mSnapshotViewMap.put(task.key.id, snapshotView);
+        for (int i = 0; i < tasks.size(); i++) {
+            Task task = tasks.get(i);
+            TaskThumbnailViewDeprecated thumbnailView = mSnapshotViews.get(i);
+            thumbnailView.bind(task);
+            mTaskContainers[i] = createAttributeContainer(task, thumbnailView);
         }
-
-        updateTaskIdContainer();
-        updateTaskIdAttributeContainer();
 
         setOrientationState(orientedState);
     }
 
-    private void updateTaskIdContainer() {
-        // TODO(b/249371338): TaskView expects the array to have at least 2 elements.
-        // At least 2 elements in the array
-        mTaskIdContainer = new int[Math.max(mTasks.size(), 2)];
-        for (int i = 0; i < mTasks.size(); i++) {
-            mTaskIdContainer[i] = mTasks.get(i).key.id;
-        }
-    }
-
-    private void updateTaskIdAttributeContainer() {
-        // TODO(b/249371338): TaskView expects the array to have at least 2 elements.
-        // At least 2 elements in the array
-        mTaskIdAttributeContainer = new TaskIdAttributeContainer[Math.max(mTasks.size(), 2)];
-        for (int i = 0; i < mTasks.size(); i++) {
-            Task task = mTasks.get(i);
-            TaskThumbnailViewDeprecated thumbnailView = mSnapshotViewMap.get(task.key.id);
-            mTaskIdAttributeContainer[i] = createAttributeContainer(task, thumbnailView);
-        }
-    }
-
-    private TaskIdAttributeContainer createAttributeContainer(Task task,
+    private TaskContainer createAttributeContainer(Task task,
             TaskThumbnailViewDeprecated thumbnailView) {
-        return new TaskIdAttributeContainer(task, thumbnailView, createIconView(task),
-                STAGE_POSITION_UNDEFINED);
-    }
-
-    private IconView createIconView(Task task) {
-        IconView iconView = new IconView(mContext);
-        PackageManager pm = mContext.getApplicationContext().getPackageManager();
-        try {
-            IconProvider provider = new IconProvider(mContext);
-            Drawable appIcon = provider.getIcon(pm.getActivityInfo(task.topActivity,
-                    PackageManager.ComponentInfoFlags.of(0)));
-            iconView.setDrawable(appIcon);
-        } catch (PackageManager.NameNotFoundException e) {
-            Log.w(TAG, "Package not found: " + task.topActivity.getPackageName(), e);
-        }
-        return iconView;
-    }
-
-    @Nullable
-    @Override
-    public Task getTask() {
-        // TODO(b/249371338): returning first task. This won't work well with multiple tasks.
-        return mTasks.size() > 0 ? mTasks.get(0) : null;
-    }
-
-    @Override
-    public TaskThumbnailViewDeprecated getThumbnail() {
-        // TODO(b/249371338): returning single thumbnail. This won't work well with multiple tasks.
-        Task task = getTask();
-        if (task != null) {
-            return mSnapshotViewMap.get(task.key.id);
-        }
-        // Return the place holder snapshot views. Callers expect this to be non-null
-        return mTaskThumbnailViewDeprecated;
-    }
-
-    @Override
-    public boolean containsTaskId(int taskId) {
-        // Thumbnail map contains taskId -> thumbnail map. Use the keys for contains
-        return mSnapshotViewMap.contains(taskId);
+        return new TaskContainer(task, thumbnailView, mIconView,
+                STAGE_POSITION_UNDEFINED, /*digitalWellBeingToast=*/ null);
     }
 
     @Override
@@ -278,15 +210,12 @@ public class DesktopTaskView extends TaskView {
             TaskThumbnailCache thumbnailCache = model.getThumbnailCache();
 
             if (needsUpdate(changes, FLAG_UPDATE_THUMBNAIL)) {
-                for (Task task : mTasks) {
+                for (TaskContainer container : mTaskContainers) {
                     CancellableTask<?> thumbLoadRequest =
-                            thumbnailCache.updateThumbnailInBackground(task, thumbnailData -> {
-                                TaskThumbnailViewDeprecated thumbnailView =
-                                        mSnapshotViewMap.get(task.key.id);
-                                if (thumbnailView != null) {
-                                    thumbnailView.setThumbnail(task, thumbnailData);
-                                }
-                            });
+                            thumbnailCache.updateThumbnailInBackground(container.getTask(),
+                                    thumbnailData -> container.getThumbnailView().setThumbnail(
+                                            container.getTask(),
+                                            thumbnailData));
                     if (thumbLoadRequest != null) {
                         mPendingThumbnailRequests.add(thumbLoadRequest);
                     }
@@ -294,13 +223,10 @@ public class DesktopTaskView extends TaskView {
             }
         } else {
             if (needsUpdate(changes, FLAG_UPDATE_THUMBNAIL)) {
-                for (Task task : mTasks) {
-                    TaskThumbnailViewDeprecated thumbnailView = mSnapshotViewMap.get(task.key.id);
-                    if (thumbnailView != null) {
-                        thumbnailView.setThumbnail(null, null);
-                    }
+                for (TaskContainer container : mTaskContainers) {
+                    container.getThumbnailView().setThumbnail(null, null);
                     // Reset the task thumbnail ref
-                    task.thumbnail = null;
+                    container.getTask().thumbnail = null;
                 }
             }
         }
@@ -319,16 +245,6 @@ public class DesktopTaskView extends TaskView {
         mPendingThumbnailRequests.clear();
     }
 
-    @Override
-    public boolean offerTouchToChildren(MotionEvent event) {
-        return false;
-    }
-
-    @Override
-    protected boolean showTaskMenuWithContainer(TaskViewIcon iconView) {
-        return false;
-    }
-
     @Nullable
     @Override
     public RunnableList launchTaskAnimated() {
@@ -338,9 +254,13 @@ public class DesktopTaskView extends TaskView {
         DesktopRecentsTransitionController recentsController =
                 recentsView.getDesktopRecentsController();
         if (recentsController != null) {
-            recentsController.launchDesktopFromRecents(this, success -> {
-                endCallback.executeAllAndDestroy();
-            });
+            recentsController.launchDesktopFromRecents(this,
+                    success -> endCallback.executeAllAndDestroy());
+            Log.d(TAG, "launchTaskAnimated - launchDesktopFromRecents: " + Arrays.toString(
+                    getTaskIds()));
+        } else {
+            Log.d(TAG, "launchTaskAnimated - recentsController is null: " + Arrays.toString(
+                    getTaskIds()));
         }
 
         // Callbacks get run from recentsView for case when recents animation already running
@@ -355,42 +275,19 @@ public class DesktopTaskView extends TaskView {
     }
 
     @Override
-    public boolean isDesktopTask() {
-        return true;
-    }
-
-    @Override
     void refreshThumbnails(@Nullable HashMap<Integer, ThumbnailData> thumbnailDatas) {
         // Sets new thumbnails based on the incoming data and refreshes the rest.
-        // Create a copy of the thumbnail map, so we can track thumbnails that need refreshing.
-        SparseArray<TaskThumbnailViewDeprecated> thumbnailsToRefresh = mSnapshotViewMap.clone();
         if (thumbnailDatas != null) {
-            for (Task task : mTasks) {
-                int key = task.key.id;
-                TaskThumbnailViewDeprecated thumbnailView = thumbnailsToRefresh.get(key);
-                ThumbnailData thumbnailData = thumbnailDatas.get(key);
-                if (thumbnailView != null && thumbnailData != null) {
-                    thumbnailView.setThumbnail(task, thumbnailData);
-                    // Remove this thumbnail from the list that should be refreshed.
-                    thumbnailsToRefresh.remove(key);
+            for (TaskContainer container : mTaskContainers) {
+                ThumbnailData thumbnailData = thumbnailDatas.get(container.getTask().key.id);
+                if (thumbnailData != null) {
+                    container.getThumbnailView().setThumbnail(container.getTask(), thumbnailData);
+                } else {
+                    // Refresh the rest that were not updated.
+                    container.getThumbnailView().refresh();
                 }
             }
         }
-
-        // Refresh the rest that were not updated.
-        for (int i = 0; i < thumbnailsToRefresh.size(); i++) {
-            thumbnailsToRefresh.valueAt(i).refresh();
-        }
-    }
-
-    @Override
-    public TaskThumbnailViewDeprecated[] getThumbnails() {
-        TaskThumbnailViewDeprecated[] thumbnails =
-                new TaskThumbnailViewDeprecated[mSnapshotViewMap.size()];
-        for (int i = 0; i < thumbnails.length; i++) {
-            thumbnails[i] = mSnapshotViewMap.valueAt(i);
-        }
-        return thumbnails;
     }
 
     @Override
@@ -398,11 +295,8 @@ public class DesktopTaskView extends TaskView {
         resetPersistentViewTransforms();
         // Clear any references to the thumbnail (it will be re-read either from the cache or the
         // system on next bind)
-        for (Task task : mTasks) {
-            TaskThumbnailViewDeprecated thumbnailView = mSnapshotViewMap.get(task.key.id);
-            if (thumbnailView != null) {
-                thumbnailView.setThumbnail(task, null);
-            }
+        for (TaskContainer container : mTaskContainers) {
+            container.getThumbnailView().setThumbnail(container.getTask(), null);
         }
         setOverlayEnabled(false);
         onTaskListVisibilityChanged(false);
@@ -420,8 +314,7 @@ public class DesktopTaskView extends TaskView {
         int thumbnailTopMarginPx = mContainer.getDeviceProfile().overviewTaskThumbnailTopMarginPx;
         containerHeight -= thumbnailTopMarginPx;
 
-        int thumbnails = mSnapshotViewMap.size();
-        if (thumbnails == 0) {
+        if (mTaskContainers.length == 0) {
             return;
         }
 
@@ -441,8 +334,8 @@ public class DesktopTaskView extends TaskView {
         }
 
         // Desktop tile is a shrunk down version of launcher and freeform task thumbnails.
-        for (int i = 0; i < mTasks.size(); i++) {
-            Task task = mTasks.get(i);
+        for (TaskContainer container : mTaskContainers) {
+            Task task = container.getTask();
             Rect taskSize = task.appBounds;
             if (taskSize == null) {
                 // Default to quarter of the desktop if we did not get app bounds.
@@ -452,7 +345,7 @@ public class DesktopTaskView extends TaskView {
             int thumbWidth = (int) (taskSize.width() * scaleWidth);
             int thumbHeight = (int) (taskSize.height() * scaleHeight);
 
-            TaskThumbnailViewDeprecated thumbnailView = mSnapshotViewMap.get(task.key.id);
+            TaskThumbnailViewDeprecated thumbnailView = container.getThumbnailView();
             if (thumbnailView != null) {
                 thumbnailView.measure(MeasureSpec.makeMeasureSpec(thumbWidth, MeasureSpec.EXACTLY),
                         MeasureSpec.makeMeasureSpec(thumbHeight, MeasureSpec.EXACTLY));
@@ -479,7 +372,7 @@ public class DesktopTaskView extends TaskView {
 
     @Override
     public void setOverlayEnabled(boolean overlayEnabled) {
-        // Intentional no-op to prevent setting smart actions overlay on thumbnails
+        // TODO(b/330685808) support overlay for Screenshot action
     }
 
     @Override
@@ -487,15 +380,21 @@ public class DesktopTaskView extends TaskView {
         // TODO(b/249371338): this copies parent implementation and makes it work for N thumbs
         progress = Utilities.boundToRange(progress, 0, 1);
         mFullscreenProgress = progress;
+        mIconView.setVisibility(progress < 1 ? VISIBLE : INVISIBLE);
         if (mFullscreenProgress > 0) {
             // Don't show background while we are transitioning to/from fullscreen
             mBackgroundView.setVisibility(INVISIBLE);
         } else {
             mBackgroundView.setVisibility(VISIBLE);
         }
-        for (int i = 0; i < mSnapshotViewMap.size(); i++) {
-            TaskThumbnailViewDeprecated thumbnailView = mSnapshotViewMap.valueAt(i);
-            thumbnailView.getTaskOverlay().setFullscreenProgress(progress);
+        for (TaskContainer container : mTaskContainers) {
+            container.getThumbnailView().getTaskOverlay().setFullscreenProgress(progress);
+        }
+        // Animate icons and DWB banners in/out, except in QuickSwitch state, when tiles are
+        // oversized and banner would look disproportionately large.
+        if (mContainer.<RecentsView<?, ?>>getOverviewPanel().getStateManager().getState()
+                != BACKGROUND_APP) {
+            setIconsAndBannersTransitionProgress(progress, true);
         }
         updateSnapshotRadius();
     }
@@ -503,38 +402,30 @@ public class DesktopTaskView extends TaskView {
     @Override
     protected void updateSnapshotRadius() {
         super.updateSnapshotRadius();
-        for (int i = 0; i < mSnapshotViewMap.size(); i++) {
-            if (i == 0) {
-                // All snapshots share the same params. Only update it with the first snapshot.
-                updateFullscreenParams(mSnapshotDrawParams);
-            }
-            mSnapshotViewMap.valueAt(i).setFullscreenParams(mSnapshotDrawParams);
+        updateFullscreenParams(mSnapshotDrawParams);
+        for (TaskContainer container : mTaskContainers) {
+            container.getThumbnailView().setFullscreenParams(mSnapshotDrawParams);
         }
     }
 
     @Override
-    protected void setIconsAndBannersTransitionProgress(float progress, boolean invert) {
-        // no-op
-    }
-
-    @Override
     public void setColorTint(float amount, int tintColor) {
-        for (int i = 0; i < mSnapshotViewMap.size(); i++) {
-            mSnapshotViewMap.valueAt(i).setDimAlpha(amount);
+        for (TaskContainer container : mTaskContainers) {
+            container.getThumbnailView().setDimAlpha(amount);
         }
     }
 
     @Override
     protected void applyThumbnailSplashAlpha() {
-        for (int i = 0; i < mSnapshotViewMap.size(); i++) {
-            mSnapshotViewMap.valueAt(i).setSplashAlpha(mTaskThumbnailSplashAlpha);
+        for (TaskContainer container : mTaskContainers) {
+            container.getThumbnailView().setSplashAlpha(mTaskThumbnailSplashAlpha);
         }
     }
 
     @Override
     void setThumbnailVisibility(int visibility, int taskId) {
-        for (int i = 0; i < mSnapshotViewMap.size(); i++) {
-            mSnapshotViewMap.valueAt(i).setVisibility(visibility);
+        for (TaskContainer container : mTaskContainers) {
+            container.getThumbnailView().setVisibility(visibility);
         }
     }
 

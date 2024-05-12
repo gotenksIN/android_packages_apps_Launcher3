@@ -37,14 +37,14 @@ import com.android.launcher3.popup.RoundedArrowDrawable
 import com.android.launcher3.popup.SystemShortcut
 import com.android.launcher3.util.Themes
 import com.android.quickstep.TaskOverlayFactory
-import com.android.quickstep.views.TaskView.TaskIdAttributeContainer
+import com.android.quickstep.views.TaskView.TaskContainer
 
 class TaskMenuViewWithArrow<T> : ArrowPopup<T> where T : RecentsViewContainer, T : Context {
     companion object {
         const val TAG = "TaskMenuViewWithArrow"
 
         fun <T> showForTask(
-            taskContainer: TaskIdAttributeContainer,
+            taskContainer: TaskContainer,
             alignedOptionIndex: Int = 0
         ): Boolean where T : RecentsViewContainer, T : Context {
             val container: RecentsViewContainer =
@@ -83,11 +83,11 @@ class TaskMenuViewWithArrow<T> : ArrowPopup<T> where T : RecentsViewContainer, T
     private var alignedOptionIndex: Int = 0
     private val extraSpaceForRowAlignment: Int
         get() = optionMeasuredHeight * alignedOptionIndex
-    private val menuWidth = context.resources.getDimensionPixelSize(R.dimen.task_menu_width_grid)
+    private val menuPaddingEnd = context.resources.getDimensionPixelSize(R.dimen.task_card_margin)
 
     private lateinit var taskView: TaskView
     private lateinit var optionLayout: LinearLayout
-    private lateinit var taskContainer: TaskIdAttributeContainer
+    private lateinit var taskContainer: TaskContainer
 
     private var optionMeasuredHeight = 0
     private val arrowHorizontalPadding: Int
@@ -141,7 +141,7 @@ class TaskMenuViewWithArrow<T> : ArrowPopup<T> where T : RecentsViewContainer, T
     }
 
     private fun populateAndShowForTask(
-        taskContainer: TaskIdAttributeContainer,
+        taskContainer: TaskContainer,
         alignedOptionIndex: Int
     ): Boolean {
         if (isAttachedToWindow) {
@@ -174,10 +174,10 @@ class TaskMenuViewWithArrow<T> : ArrowPopup<T> where T : RecentsViewContainer, T
     /** @return true if successfully able to populate task view menu, false otherwise */
     private fun populateMenu(): Boolean {
         // Icon may not be loaded
-        if (taskContainer.task.icon == null) return false
+        if (taskContainer.iconView.drawable == null) return false
 
         addMenuOptions()
-        return true
+        return optionLayout.childCount > 0
     }
 
     private fun addMenuOptions() {
@@ -213,7 +213,13 @@ class TaskMenuViewWithArrow<T> : ArrowPopup<T> where T : RecentsViewContainer, T
             menuOptionView.requireViewById(R.id.text)
         )
         val lp = menuOptionView.layoutParams as LayoutParams
-        lp.width = menuWidth
+        lp.width = LayoutParams.MATCH_PARENT
+        menuOptionView.setPaddingRelative(
+            menuOptionView.paddingStart,
+            menuOptionView.paddingTop,
+            menuPaddingEnd,
+            menuOptionView.paddingBottom
+        )
         menuOptionView.setOnClickListener { view: View? -> menuOption.onClick(view) }
         optionLayout.addView(menuOptionView)
     }

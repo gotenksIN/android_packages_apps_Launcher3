@@ -17,6 +17,8 @@
 
 package com.android.quickstep.util
 
+import android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN
+import android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.view.ContextThemeWrapper
@@ -33,14 +35,16 @@ import com.android.quickstep.views.GroupedTaskView
 import com.android.quickstep.views.IconView
 import com.android.quickstep.views.TaskThumbnailViewDeprecated
 import com.android.quickstep.views.TaskView
-import com.android.quickstep.views.TaskView.TaskIdAttributeContainer
+import com.android.quickstep.views.TaskView.TaskContainer
 import com.android.systemui.shared.recents.model.Task
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.eq
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doNothing
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.spy
 import org.mockito.kotlin.verify
@@ -63,7 +67,7 @@ class SplitAnimationControllerTest {
     private val mockGroupedTaskView: GroupedTaskView = mock()
     private val mockTask: Task = mock()
     private val mockTaskKey: Task.TaskKey = mock()
-    private val mockTaskIdAttributeContainer: TaskIdAttributeContainer = mock()
+    private val mockTaskContainer: TaskContainer = mock()
     // AppPairIcon
     private val mockAppPairIcon: AppPairIcon = mock()
     private val mockContextThemeWrapper: ContextThemeWrapper = mock()
@@ -79,14 +83,15 @@ class SplitAnimationControllerTest {
     private val transitionInfo: TransitionInfo = mock()
     private val transaction: Transaction = mock()
 
-    lateinit var splitAnimationController: SplitAnimationController
+    private lateinit var splitAnimationController: SplitAnimationController
 
     @Before
     fun setup() {
-        whenever(mockTaskView.thumbnail).thenReturn(mockThumbnailView)
+        whenever(mockTaskContainer.thumbnailView).thenReturn(mockThumbnailView)
         whenever(mockThumbnailView.thumbnail).thenReturn(mockBitmap)
-        whenever(mockTaskView.iconView).thenReturn(mockIconView)
+        whenever(mockTaskContainer.iconView).thenReturn(mockIconView)
         whenever(mockIconView.drawable).thenReturn(mockTaskViewDrawable)
+        whenever(mockTaskView.taskContainers).thenReturn(Array(1) { mockTaskContainer })
 
         whenever(splitSelectSource.drawable).thenReturn(mockSplitSourceDrawable)
         whenever(splitSelectSource.view).thenReturn(mockSplitSourceView)
@@ -173,14 +178,13 @@ class SplitAnimationControllerTest {
         // Remove icon view from GroupedTaskView
         whenever(mockIconView.drawable).thenReturn(null)
 
-        whenever(mockTaskIdAttributeContainer.task).thenReturn(mockTask)
-        whenever(mockTaskIdAttributeContainer.iconView).thenReturn(mockIconView)
-        whenever(mockTaskIdAttributeContainer.thumbnailView).thenReturn(mockThumbnailView)
+        whenever(mockTaskContainer.task).thenReturn(mockTask)
+        whenever(mockTaskContainer.iconView).thenReturn(mockIconView)
+        whenever(mockTaskContainer.thumbnailView).thenReturn(mockThumbnailView)
         whenever(mockTask.getKey()).thenReturn(mockTaskKey)
         whenever(mockTaskKey.getId()).thenReturn(taskId)
         whenever(mockSplitSelectStateController.initialTaskId).thenReturn(taskId)
-        whenever(mockGroupedTaskView.taskIdAttributeContainers)
-            .thenReturn(Array(1) { mockTaskIdAttributeContainer })
+        whenever(mockGroupedTaskView.taskContainers).thenReturn(Array(1) { mockTaskContainer })
         val splitAnimInitProps: SplitAnimationController.Companion.SplitAnimInitProps =
             splitAnimationController.getFirstAnimInitViews(
                 { mockGroupedTaskView },
@@ -273,6 +277,7 @@ class SplitAnimationControllerTest {
         doNothing()
             .whenever(spySplitAnimationController)
             .composeIconSplitLaunchAnimator(any(), any(), any(), any())
+        doReturn(-1).whenever(spySplitAnimationController).hasChangesForBothAppPairs(any(), any())
 
         spySplitAnimationController.playSplitLaunchAnimation(
             null /* launchingTaskView */,
@@ -294,12 +299,13 @@ class SplitAnimationControllerTest {
     }
 
     @Test
-    fun playsAppropriateSplitLaunchAnimation_playsIconLaunchFromTaskbarContextCorrectly() {
+    fun playsAppropriateSplitLaunchAnimation_playsIconFullscreenLaunchCorrectly() {
         val spySplitAnimationController = spy(splitAnimationController)
-        whenever(mockAppPairIcon.context).thenReturn(mockTaskbarActivityContext)
+        whenever(mockAppPairIcon.context).thenReturn(mockContextThemeWrapper)
         doNothing()
             .whenever(spySplitAnimationController)
-            .composeScaleUpLaunchAnimation(any(), any(), any())
+            .composeFullscreenIconSplitLaunchAnimator(any(), any(), any(), any(), any())
+        doReturn(0).whenever(spySplitAnimationController).hasChangesForBothAppPairs(any(), any())
 
         spySplitAnimationController.playSplitLaunchAnimation(
             null /* launchingTaskView */,
@@ -316,7 +322,62 @@ class SplitAnimationControllerTest {
             {} /* finishCallback */
         )
 
-        verify(spySplitAnimationController).composeScaleUpLaunchAnimation(any(), any(), any())
+        verify(spySplitAnimationController)
+            .composeFullscreenIconSplitLaunchAnimator(any(), any(), any(), any(), eq(0))
+    }
+
+    @Test
+    fun playsAppropriateSplitLaunchAnimation_playsIconLaunchFromTaskbarCMultiWindow() {
+        val spySplitAnimationController = spy(splitAnimationController)
+        whenever(mockAppPairIcon.context).thenReturn(mockTaskbarActivityContext)
+        doNothing()
+            .whenever(spySplitAnimationController)
+            .composeScaleUpLaunchAnimation(any(), any(), any(), any())
+        doReturn(-1).whenever(spySplitAnimationController).hasChangesForBothAppPairs(any(), any())
+        spySplitAnimationController.playSplitLaunchAnimation(
+            null /* launchingTaskView */,
+            mockAppPairIcon,
+            taskId,
+            taskId2,
+            null /* apps */,
+            null /* wallpapers */,
+            null /* nonApps */,
+            stateManager,
+            depthController,
+            transitionInfo,
+            transaction,
+            {} /* finishCallback */
+        )
+
+        verify(spySplitAnimationController)
+            .composeScaleUpLaunchAnimation(any(), any(), any(), eq(WINDOWING_MODE_MULTI_WINDOW))
+    }
+
+    @Test
+    fun playsAppropriateSplitLaunchAnimation_playsIconLaunchFromTaskbarFullscreen() {
+        val spySplitAnimationController = spy(splitAnimationController)
+        whenever(mockAppPairIcon.context).thenReturn(mockTaskbarActivityContext)
+        doNothing()
+            .whenever(spySplitAnimationController)
+            .composeScaleUpLaunchAnimation(any(), any(), any(), any())
+        doReturn(0).whenever(spySplitAnimationController).hasChangesForBothAppPairs(any(), any())
+        spySplitAnimationController.playSplitLaunchAnimation(
+            null /* launchingTaskView */,
+            mockAppPairIcon,
+            taskId,
+            taskId2,
+            null /* apps */,
+            null /* wallpapers */,
+            null /* nonApps */,
+            stateManager,
+            depthController,
+            transitionInfo,
+            transaction,
+            {} /* finishCallback */
+        )
+
+        verify(spySplitAnimationController)
+            .composeScaleUpLaunchAnimation(any(), any(), any(), eq(WINDOWING_MODE_FULLSCREEN))
     }
 
     @Test
