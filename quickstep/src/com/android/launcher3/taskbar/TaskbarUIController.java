@@ -46,6 +46,7 @@ import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.TaskView;
 import com.android.quickstep.views.TaskView.TaskContainer;
 import com.android.systemui.shared.recents.model.Task;
+import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags;
 
 import java.io.PrintWriter;
 import java.util.Collections;
@@ -55,7 +56,6 @@ import java.util.stream.Stream;
  * Base class for providing different taskbar UI
  */
 public class TaskbarUIController {
-
     public static final TaskbarUIController DEFAULT = new TaskbarUIController();
 
     // Initialized in init.
@@ -90,6 +90,10 @@ public class TaskbarUIController {
      * Called when taskbar icon layout bounds change.
      */
     protected void onIconLayoutBoundsChanged() { }
+
+    protected String getTaskbarUIControllerName() {
+        return "TaskbarUIController";
+    }
 
     /** Called when an icon is launched. */
     @CallSuper
@@ -137,7 +141,7 @@ public class TaskbarUIController {
     /**
      * SysUI flags updated, see QuickStepContract.SYSUI_STATE_* values.
      */
-    public void updateStateForSysuiFlags(int sysuiFlags) {
+    public void updateStateForSysuiFlags(@SystemUiStateFlags long sysuiFlags) {
     }
 
     /**
@@ -207,7 +211,7 @@ public class TaskbarUIController {
         pw.println(String.format(
                 "%sTaskbarUIController: using an instance of %s",
                 prefix,
-                getClass().getSimpleName()));
+                getTaskbarUIControllerName()));
     }
 
     /**
