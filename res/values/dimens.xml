@@ -167,7 +167,6 @@
     <!-- (x) icon button inside work edu card -->
     <dimen name="rounded_button_width">24dp</dimen>
     <dimen name="x_icon_size">16dp</dimen>
-    <dimen name="x_icon_padding">4dp</dimen>
 
     <!-- rounded button shown inside card views, and snack bars  -->
     <dimen name="padded_rounded_button_height">48dp</dimen>
@@ -417,6 +416,9 @@
     <dimen name="taskbar_running_app_indicator_height">0dp</dimen>
     <dimen name="taskbar_running_app_indicator_width">0dp</dimen>
     <dimen name="taskbar_running_app_indicator_top_margin">0dp</dimen>
+    <dimen name="taskbar_minimized_app_indicator_height">0dp</dimen>
+    <dimen name="taskbar_minimized_app_indicator_width">0dp</dimen>
+    <dimen name="taskbar_minimized_app_indicator_top_margin">0dp</dimen>
 
     <!-- Transient taskbar (placeholders to compile in Launcher3 without Quickstep) -->
     <dimen name="transient_taskbar_padding">0dp</dimen>
@@ -527,7 +529,8 @@
     <dimen name="ps_button_height">40dp</dimen>
     <dimen name="ps_button_width">40dp</dimen>
     <dimen name="ps_lock_button_width">89dp</dimen>
-    <dimen name="ps_app_divider_padding">16dp</dimen>
+    <dimen name="ps_app_divider_horizontal_padding">16dp</dimen>
+    <dimen name="ps_app_divider_vertical_padding">32dp</dimen>
     <dimen name="ps_extra_bottom_padding">16dp</dimen>
     <dimen name="ps_lock_corner_radius">20dp</dimen>
     <dimen name="ps_lock_icon_size">20dp</dimen>

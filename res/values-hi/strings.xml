@@ -84,6 +84,7 @@
     <string name="uninstall_drop_target_label" msgid="4722034217958379417">"अनइंस्टॉल करें"</string>
     <string name="app_info_drop_target_label" msgid="692894985365717661">"ऐप्लिकेशन की जानकारी"</string>
     <string name="install_private_system_shortcut_label" msgid="1616889277073184841">"निजी तौर पर इंस्टॉल करें"</string>
+    <string name="uninstall_private_system_shortcut_label" msgid="8423460530441627982">"ऐप्लिकेशन अनइंस्टॉल करें"</string>
     <string name="install_drop_target_label" msgid="2539096853673231757">"इंस्‍टॉल करें"</string>
     <string name="dismiss_prediction_label" msgid="3357562989568808658">"ऐप्लिकेशन का सुझाव न दें"</string>
     <string name="pin_prediction" msgid="4196423321649756498">"सुझाए गए ऐप्लिकेशन को पिन करें"</string>
@@ -123,7 +124,7 @@
     <string name="title_missing_notification_access" msgid="7503287056163941064">"सूचना के ऐक्सेस की ज़रूरत है"</string>
     <string name="msg_missing_notification_access" msgid="281113995110910548">"सूचना बिंदु दिखाने के लिए, <xliff:g id="NAME">%1$s</xliff:g> के ऐप्लिकेशन सूचना चालू करें"</string>
     <string name="title_change_settings" msgid="1376365968844349552">"सेटिंग बदलें"</string>
-    <string name="notification_dots_service_title" msgid="4284221181793592871">"नई सूचनाएं बताने वाला गोल निशान दिखाएं"</string>
+    <string name="notification_dots_service_title" msgid="4284221181793592871">"सूचनाएं बताने वाले डॉट दिखाएं"</string>
     <string name="developer_options_title" msgid="700788437593726194">"डेवलपर के लिए सेटिंग और टूल"</string>
     <string name="auto_add_shortcuts_label" msgid="4926805029653694105">"होम स्क्रीन पर ऐप्लिकेशन के आइकॉन जोड़ें"</string>
     <string name="auto_add_shortcuts_description" msgid="7117251166066978730">"नए ऐप्लिकेशन के लिए"</string>
@@ -135,7 +136,7 @@
     <string name="app_installing_title" msgid="5864044122733792085">"<xliff:g id="NAME">%1$s</xliff:g> इंस्टॉल किया जा रहा है, <xliff:g id="PROGRESS">%2$s</xliff:g> पूरा हो गया"</string>
     <string name="app_downloading_title" msgid="8336702962104482644">"<xliff:g id="NAME">%1$s</xliff:g> डाउनलोड हो रहा है, <xliff:g id="PROGRESS">%2$s</xliff:g> पूरी हुई"</string>
     <string name="app_waiting_download_title" msgid="7053938513995617849">"<xliff:g id="NAME">%1$s</xliff:g> के इंस्टॉल होने की प्रतीक्षा की जा रही है"</string>
-    <string name="app_archived_title" msgid="9124290918876665128">"<xliff:g id="NAME">%1$s</xliff:g> को संग्रहित किया गया. डाउनलोड करने के लिए टैप करें."</string>
+    <string name="app_archived_title" msgid="7717956158562544081">"<xliff:g id="NAME">%1$s</xliff:g> को संग्रहित किया गया. ऐप्लिकेशन को वापस लाने और डाउनलोड करने के लिए टैप करें."</string>
     <string name="dialog_update_title" msgid="114234265740994042">"ऐप्लिकेशन को अपडेट करना ज़रूरी है"</string>
     <string name="dialog_update_message" msgid="4176784553982226114">"इस आइकॉन का ऐप्लिकेशन अपडेट नहीं है. इस शॉर्टकट को फिर से चालू करने या आइकॉन को हटाने के लिए, ऐप्लिकेशन को मैन्युअल रूप से अपडेट किया जा सकता है."</string>
     <string name="dialog_update" msgid="2178028071796141234">"अपडेट करें"</string>
@@ -190,8 +191,7 @@
     <string name="ps_container_lock_button_content_description" msgid="5961993384382649530">"प्राइवेट स्पेस को लॉक किया गया."</string>
     <string name="ps_container_lock_title" msgid="2640257399982364682">"लॉक"</string>
     <string name="ps_container_transition" msgid="8667331812048014412">"प्राइवेट स्पेस की सेटिंग में बदलाव किया जा रहा है"</string>
-    <!-- no translation found for ps_add_button_label (8127988716897128773) -->
-    <skip />
+    <string name="ps_add_button_label" msgid="8127988716897128773">"इंस्टॉल करें"</string>
     <string name="ps_add_button_content_description" msgid="3254274107740952556">"प्राइवेट स्पेस में ऐप्लिकेशन इंस्टॉल करें"</string>
     <string name="bubble_bar_overflow_description" msgid="7410995531938041192">"ओवरफ़्लो"</string>
 </resources>

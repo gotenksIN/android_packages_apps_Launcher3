@@ -84,6 +84,7 @@
     <string name="uninstall_drop_target_label" msgid="4722034217958379417">"제거"</string>
     <string name="app_info_drop_target_label" msgid="692894985365717661">"앱 정보"</string>
     <string name="install_private_system_shortcut_label" msgid="1616889277073184841">"비공개 스페이스에 설치"</string>
+    <string name="uninstall_private_system_shortcut_label" msgid="8423460530441627982">"앱 제거"</string>
     <string name="install_drop_target_label" msgid="2539096853673231757">"설치"</string>
     <string name="dismiss_prediction_label" msgid="3357562989568808658">"앱 제안 받지 않음"</string>
     <string name="pin_prediction" msgid="4196423321649756498">"예상 앱 고정"</string>
@@ -135,7 +136,7 @@
     <string name="app_installing_title" msgid="5864044122733792085">"<xliff:g id="NAME">%1$s</xliff:g> 설치 중, <xliff:g id="PROGRESS">%2$s</xliff:g> 완료"</string>
     <string name="app_downloading_title" msgid="8336702962104482644">"<xliff:g id="NAME">%1$s</xliff:g> 다운로드 중, <xliff:g id="PROGRESS">%2$s</xliff:g> 완료"</string>
     <string name="app_waiting_download_title" msgid="7053938513995617849">"<xliff:g id="NAME">%1$s</xliff:g> 설치 대기 중"</string>
-    <string name="app_archived_title" msgid="9124290918876665128">"<xliff:g id="NAME">%1$s</xliff:g> 앱이 보관처리되었습니다. 다운로드하려면 탭하세요."</string>
+    <string name="app_archived_title" msgid="7717956158562544081">"<xliff:g id="NAME">%1$s</xliff:g> 앱이 보관처리되었습니다. 탭하여 다운로드하고 복원하세요"</string>
     <string name="dialog_update_title" msgid="114234265740994042">"앱 업데이트 필요"</string>
     <string name="dialog_update_message" msgid="4176784553982226114">"바로가기 아이콘의 앱이 업데이트되지 않았습니다. 직접 업데이트하여 앱 바로가기를 다시 사용할 수 있도록 하거나 아이콘을 삭제하세요."</string>
     <string name="dialog_update" msgid="2178028071796141234">"업데이트"</string>
@@ -190,8 +191,7 @@
     <string name="ps_container_lock_button_content_description" msgid="5961993384382649530">"비공개, 잠김."</string>
     <string name="ps_container_lock_title" msgid="2640257399982364682">"잠금"</string>
     <string name="ps_container_transition" msgid="8667331812048014412">"비공개 스페이스 전환"</string>
-    <!-- no translation found for ps_add_button_label (8127988716897128773) -->
-    <skip />
+    <string name="ps_add_button_label" msgid="8127988716897128773">"설치"</string>
     <string name="ps_add_button_content_description" msgid="3254274107740952556">"비공개 스페이스에 앱 설치"</string>
     <string name="bubble_bar_overflow_description" msgid="7410995531938041192">"오버플로"</string>
 </resources>
