@@ -59,12 +59,18 @@ import java.util.stream.Collectors;
 public class WidgetPredictionsRequester {
     private static final int NUM_OF_RECOMMENDED_WIDGETS_PREDICATION = 20;
     private static final String BUNDLE_KEY_ADDED_APP_WIDGETS = "added_app_widgets";
+    // container/screenid/[positionx,positiony]/[spanx,spany]
+    // Matches the format passed used by PredictionHelper; But, position and size values aren't
+    // used, so, we pass default values.
+    @VisibleForTesting
+    static final String LAUNCH_LOCATION = "workspace/1/[0,0]/[2,2]";
 
     @Nullable
     private AppPredictor mAppPredictor;
     private final Context mContext;
     @NonNull
     private final String mUiSurface;
+    private boolean mPredictionsAvailable;
     @NonNull
     private final Map<ComponentKey, WidgetItem> mAllWidgets;
 
@@ -76,8 +82,8 @@ public class WidgetPredictionsRequester {
     }
 
     /**
-     * Requests predictions from the app predictions manager and registers the provided callback to
-     * receive updates when predictions are available.
+     * Requests one time predictions from the app predictions manager and invokes provided callback
+     * once predictions are available.
      *
      * @param existingWidgets widgets that are currently added to the surface;
      * @param callback        consumer of prediction results to be called when predictions are
@@ -85,7 +91,7 @@ public class WidgetPredictionsRequester {
      */
     public void request(List<AppWidgetProviderInfo> existingWidgets,
             Consumer<List<ItemInfo>> callback) {
-        Bundle bundle = buildBundleForPredictionSession(existingWidgets, mUiSurface);
+        Bundle bundle = buildBundleForPredictionSession(existingWidgets);
         Predicate<WidgetItem> filter = notOnUiSurfaceFilter(existingWidgets);
 
         MODEL_EXECUTOR.execute(() -> {
@@ -111,17 +117,14 @@ public class WidgetPredictionsRequester {
      * Returns a bundle that can be passed in a prediction session
      *
      * @param addedWidgets widgets that are already added by the user in the ui surface
-     * @param uiSurface    a unique identifier of the surface hosting widgets; format
-     *                     "widgets_xx"; note - "widgets" is reserved for home screen surface.
      */
     @VisibleForTesting
-    static Bundle buildBundleForPredictionSession(List<AppWidgetProviderInfo> addedWidgets,
-            String uiSurface) {
+    static Bundle buildBundleForPredictionSession(List<AppWidgetProviderInfo> addedWidgets) {
         Bundle bundle = new Bundle();
         ArrayList<AppTargetEvent> addedAppTargetEvents = new ArrayList<>();
         for (AppWidgetProviderInfo info : addedWidgets) {
             ComponentName componentName = info.provider;
-            AppTargetEvent appTargetEvent = buildAppTargetEvent(uiSurface, info, componentName);
+            AppTargetEvent appTargetEvent = buildAppTargetEvent(info, componentName);
             addedAppTargetEvents.add(appTargetEvent);
         }
         bundle.putParcelableArrayList(BUNDLE_KEY_ADDED_APP_WIDGETS, addedAppTargetEvents);
@@ -133,13 +136,13 @@ public class WidgetPredictionsRequester {
      * predictor.
      * Also see {@link PredictionHelper}
      */
-    private static AppTargetEvent buildAppTargetEvent(String uiSurface, AppWidgetProviderInfo info,
+    private static AppTargetEvent buildAppTargetEvent(AppWidgetProviderInfo info,
             ComponentName componentName) {
         AppTargetId appTargetId = new AppTargetId("widget:" + componentName.getPackageName());
         AppTarget appTarget = new AppTarget.Builder(appTargetId, componentName.getPackageName(),
                 /*user=*/ info.getProfile()).setClassName(componentName.getClassName()).build();
-        return new AppTargetEvent.Builder(appTarget, AppTargetEvent.ACTION_PIN)
-                .setLaunchLocation(uiSurface).build();
+        return new AppTargetEvent.Builder(appTarget, AppTargetEvent.ACTION_PIN).setLaunchLocation(
+                LAUNCH_LOCATION).build();
     }
 
     /**
@@ -159,10 +162,14 @@ public class WidgetPredictionsRequester {
     @WorkerThread
     private void bindPredictions(List<AppTarget> targets, Predicate<WidgetItem> filter,
             Consumer<List<ItemInfo>> callback) {
-        List<WidgetItem> filteredPredictions = filterPredictions(targets, mAllWidgets, filter);
-        List<ItemInfo> mappedPredictions = mapWidgetItemsToItemInfo(filteredPredictions);
+        if (!mPredictionsAvailable) {
+            mPredictionsAvailable = true;
+            List<WidgetItem> filteredPredictions = filterPredictions(targets, mAllWidgets, filter);
+            List<ItemInfo> mappedPredictions = mapWidgetItemsToItemInfo(filteredPredictions);
 
-        MAIN_EXECUTOR.execute(() -> callback.accept(mappedPredictions));
+            MAIN_EXECUTOR.execute(() -> callback.accept(mappedPredictions));
+            MODEL_EXECUTOR.execute(this::clear);
+        }
     }
 
     /**
@@ -214,5 +221,6 @@ public class WidgetPredictionsRequester {
             mAppPredictor.destroy();
             mAppPredictor = null;
         }
+        mPredictionsAvailable = false;
     }
 }

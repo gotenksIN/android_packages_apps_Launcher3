@@ -138,8 +138,8 @@ import com.android.quickstep.util.TransformParams;
 import com.android.quickstep.views.DesktopTaskView;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.RecentsViewContainer;
+import com.android.quickstep.views.TaskContainer;
 import com.android.quickstep.views.TaskView;
-import com.android.quickstep.views.TaskView.TaskContainer;
 import com.android.systemui.shared.recents.model.Task;
 import com.android.systemui.shared.recents.model.ThumbnailData;
 import com.android.systemui.shared.system.ActivityManagerWrapper;
@@ -152,8 +152,6 @@ import com.android.window.flags.Flags;
 import com.android.wm.shell.common.TransactionPool;
 import com.android.wm.shell.startingsurface.SplashScreenExitAnimationUtils;
 
-import kotlin.Unit;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -162,6 +160,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.function.Consumer;
+
+import kotlin.Unit;
 
 /**
  * Handles the navigation gestures when Launcher is the default home activity.
@@ -926,7 +926,7 @@ public abstract class AbsSwipeUpHandler<T extends RecentsViewContainer,
             TaskView runningTask = mRecentsView.getRunningTaskView();
             TaskView centermostTask = mRecentsView.getTaskViewNearestToCenterOfScreen();
             int centermostTaskFlags = centermostTask == null ? 0
-                    : centermostTask.getFirstThumbnailViewDeprecated().getSysUiStatusNavFlags();
+                    : centermostTask.getTaskContainers().getFirst().getSysUiStatusNavFlags();
             boolean swipeUpThresholdPassed = windowProgress > 1 - UPDATE_SYSUI_FLAGS_THRESHOLD;
             boolean quickswitchThresholdPassed = centermostTask != runningTask;
 
@@ -1631,14 +1631,17 @@ public abstract class AbsSwipeUpHandler<T extends RecentsViewContainer,
                             mRecentsAnimationController.screenshotTask(taskId));
                 });
 
-                // let SystemUi reparent the overlay leash as soon as possible
+                // let SystemUi reparent the overlay leash as soon as possible;
+                // make sure to pass in an empty src-rect-hint if overlay is present, since we
+                // use our own calculated source-rect-hint for the animation.
                 SystemUiProxy.INSTANCE.get(mContext).stopSwipePipToHome(
                         mSwipePipToHomeAnimator.getTaskId(),
                         mSwipePipToHomeAnimator.getComponentName(),
                         mSwipePipToHomeAnimator.getDestinationBounds(),
                         mSwipePipToHomeAnimator.getContentOverlay(),
                         mSwipePipToHomeAnimator.getAppBounds(),
-                        mSwipePipToHomeAnimator.getSourceRectHint());
+                        mSwipePipToHomeAnimator.getContentOverlay() != null ? new Rect()
+                                : mSwipePipToHomeAnimator.getSourceRectHint());
 
                 windowAnim = mSwipePipToHomeAnimators;
             } else {
@@ -2423,58 +2426,65 @@ public abstract class AbsSwipeUpHandler<T extends RecentsViewContainer,
         if (mRecentsAnimationController == null) {
             return;
         }
+        final Runnable onFinishComplete = () -> {
+            ActiveGestureLog.INSTANCE.addLog(new ActiveGestureLog.CompoundString(
+                    "AbsSwipeUpHandler.onTasksAppeared: ")
+                    .append("force finish recents animation complete; clearing state callback."));
+            mStateCallback.setStateOnUiThread(STATE_GESTURE_CANCELLED | STATE_HANDLER_INVALIDATED);
+        };
+        ActiveGestureLog.CompoundString forceFinishReason = new ActiveGestureLog.CompoundString(
+                "Forcefully finishing recents animation: ");
         if (!mStateCallback.hasStates(STATE_GESTURE_COMPLETED)
                 && !hasStartedTaskBefore(appearedTaskTargets)) {
             // This is a special case, if a task is started mid-gesture that wasn't a part of a
             // previous quickswitch task launch, then cancel the animation back to the app
             RemoteAnimationTarget appearedTaskTarget = appearedTaskTargets[0];
             TaskInfo taskInfo = appearedTaskTarget.taskInfo;
-            ActiveGestureLog.INSTANCE.addLog(
-                    new ActiveGestureLog.CompoundString("Unexpected task appeared")
-                            .append(" id=")
+            ActiveGestureLog.INSTANCE.addLog(forceFinishReason
+                            .append("Unexpected task appeared id=")
                             .append(taskInfo.taskId)
                             .append(" pkg=")
                             .append(taskInfo.baseIntent.getComponent().getPackageName()));
-            finishRecentsAnimationOnTasksAppeared(null /* onFinishComplete */);
+            finishRecentsAnimationOnTasksAppeared(onFinishComplete);
             return;
         }
         ActiveGestureLog.CompoundString handleTaskFailureReason =
                 new ActiveGestureLog.CompoundString("handleTaskAppeared check failed: ");
         if (!handleTaskAppeared(appearedTaskTargets, handleTaskFailureReason)) {
-            ActiveGestureLog.INSTANCE.addLog(handleTaskFailureReason);
-            finishRecentsAnimationOnTasksAppeared(null /* onFinishComplete */);
+            ActiveGestureLog.INSTANCE.addLog(forceFinishReason.append(handleTaskFailureReason));
+            finishRecentsAnimationOnTasksAppeared(onFinishComplete);
             return;
         }
-        Optional<RemoteAnimationTarget> taskTargetOptional =
-                Arrays.stream(appearedTaskTargets)
-                        .filter(mGestureState.mLastStartedTaskIdPredicate)
-                        .findFirst();
-        if (!taskTargetOptional.isPresent()) {
-            ActiveGestureLog.INSTANCE.addLog("No appeared task matching started task id");
-            finishRecentsAnimationOnTasksAppeared(null /* onFinishComplete */);
+        RemoteAnimationTarget[] taskTargets = Arrays.stream(appearedTaskTargets)
+                .filter(mGestureState.mLastStartedTaskIdPredicate)
+                .toArray(RemoteAnimationTarget[]::new);
+        if (taskTargets.length == 0) {
+            ActiveGestureLog.INSTANCE.addLog(
+                    forceFinishReason.append("No appeared task matching started task id"));
+            finishRecentsAnimationOnTasksAppeared(onFinishComplete);
             return;
         }
-        RemoteAnimationTarget taskTarget = taskTargetOptional.get();
+        RemoteAnimationTarget taskTarget = taskTargets[0];
         TaskView taskView = mRecentsView == null
                 ? null : mRecentsView.getTaskViewByTaskId(taskTarget.taskId);
-        if (taskView == null
-                || !taskView.getFirstThumbnailViewDeprecated().shouldShowSplashView()) {
-            ActiveGestureLog.INSTANCE.addLog("Invalid task view splash state");
-            finishRecentsAnimationOnTasksAppeared(null /* onFinishComplete */);
+        if (taskView == null || taskView.getTaskContainers().stream().noneMatch(
+                TaskContainer::getShouldShowSplashView)) {
+            ActiveGestureLog.INSTANCE.addLog(forceFinishReason.append("Splash not needed"));
+            finishRecentsAnimationOnTasksAppeared(onFinishComplete);
             return;
         }
         if (mContainer == null) {
-            ActiveGestureLog.INSTANCE.addLog("Activity destroyed");
-            finishRecentsAnimationOnTasksAppeared(null /* onFinishComplete */);
+            ActiveGestureLog.INSTANCE.addLog(forceFinishReason.append("Activity destroyed"));
+            finishRecentsAnimationOnTasksAppeared(onFinishComplete);
             return;
         }
-        animateSplashScreenExit(mContainer, appearedTaskTargets, taskTarget.leash);
+        animateSplashScreenExit(mContainer, appearedTaskTargets, taskTargets);
     }
 
     private void animateSplashScreenExit(
             @NonNull T activity,
             @NonNull RemoteAnimationTarget[] appearedTaskTargets,
-            @NonNull SurfaceControl leash) {
+            @NonNull RemoteAnimationTarget[] animatingTargets) {
         ViewGroup splashView = activity.getDragLayer();
         final QuickstepLauncher quickstepLauncher = activity instanceof QuickstepLauncher
                 ? (QuickstepLauncher) activity : null;
@@ -2492,26 +2502,28 @@ public abstract class AbsSwipeUpHandler<T extends RecentsViewContainer,
         }
         surfaceApplier.scheduleApply(transaction);
 
-        SplashScreenExitAnimationUtils.startAnimations(splashView, leash,
-                mSplashMainWindowShiftLength, new TransactionPool(), new Rect(),
-                SPLASH_ANIMATION_DURATION, SPLASH_FADE_OUT_DURATION,
-                /* iconStartAlpha= */ 0, /* brandingStartAlpha= */ 0,
-                SPLASH_APP_REVEAL_DELAY, SPLASH_APP_REVEAL_DURATION,
-                new AnimatorListenerAdapter() {
-                    @Override
-                    public void onAnimationEnd(Animator animation) {
-                        // Hiding launcher which shows the app surface behind, then
-                        // finishing recents to the app. After transition finish, showing
-                        // the views on launcher again, so it can be visible when next
-                        // animation starts.
-                        splashView.setAlpha(0);
-                        if (quickstepLauncher != null) {
-                            quickstepLauncher.getDepthController()
-                                    .pauseBlursOnWindows(false);
+        for (RemoteAnimationTarget target : animatingTargets) {
+            SplashScreenExitAnimationUtils.startAnimations(splashView, target.leash,
+                    mSplashMainWindowShiftLength, new TransactionPool(), target.screenSpaceBounds,
+                    SPLASH_ANIMATION_DURATION, SPLASH_FADE_OUT_DURATION,
+                    /* iconStartAlpha= */ 0, /* brandingStartAlpha= */ 0,
+                    SPLASH_APP_REVEAL_DELAY, SPLASH_APP_REVEAL_DURATION,
+                    new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            // Hiding launcher which shows the app surface behind, then
+                            // finishing recents to the app. After transition finish, showing
+                            // the views on launcher again, so it can be visible when next
+                            // animation starts.
+                            splashView.setAlpha(0);
+                            if (quickstepLauncher != null) {
+                                quickstepLauncher.getDepthController()
+                                        .pauseBlursOnWindows(false);
+                            }
+                            finishRecentsAnimationOnTasksAppeared(() -> splashView.setAlpha(1));
                         }
-                        finishRecentsAnimationOnTasksAppeared(() -> splashView.setAlpha(1));
-                    }
-                });
+                    });
+        }
     }
 
     private void finishRecentsAnimationOnTasksAppeared(Runnable onFinishComplete) {
