@@ -30,6 +30,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.PointF;
 import android.graphics.Rect;
+import android.os.Bundle;
 import android.util.AttributeSet;
 import android.util.FloatProperty;
 import android.util.LayoutDirection;
@@ -38,6 +39,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 
 import androidx.dynamicanimation.animation.SpringForce;
@@ -365,6 +367,47 @@ public class BubbleBarView extends FrameLayout {
             mPreviousLayoutDirection = layoutDirection;
             onBubbleBarLocationChanged();
         }
+    }
+
+    @Override
+    public void onInitializeAccessibilityNodeInfoInternal(AccessibilityNodeInfo info) {
+        super.onInitializeAccessibilityNodeInfoInternal(info);
+        // Always show only expand action as the menu is only for collapsed bubble bar
+        info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_EXPAND);
+        info.addAction(new AccessibilityNodeInfo.AccessibilityAction(R.id.action_dismiss_all,
+                getResources().getString(R.string.bubble_bar_action_dismiss_all)));
+        if (mBubbleBarLocation.isOnLeft(isLayoutRtl())) {
+            info.addAction(new AccessibilityNodeInfo.AccessibilityAction(R.id.action_move_right,
+                    getResources().getString(R.string.bubble_bar_action_move_right)));
+        } else {
+            info.addAction(new AccessibilityNodeInfo.AccessibilityAction(R.id.action_move_left,
+                    getResources().getString(R.string.bubble_bar_action_move_left)));
+        }
+    }
+
+    @Override
+    public boolean performAccessibilityActionInternal(int action,
+            @androidx.annotation.Nullable Bundle arguments) {
+        if (super.performAccessibilityActionInternal(action, arguments)) {
+            return true;
+        }
+        if (action == AccessibilityNodeInfo.ACTION_EXPAND) {
+            mController.expandBubbleBar();
+            return true;
+        }
+        if (action == R.id.action_dismiss_all) {
+            mController.dismissBubbleBar();
+            return true;
+        }
+        if (action == R.id.action_move_left) {
+            mController.updateBubbleBarLocation(BubbleBarLocation.LEFT);
+            return true;
+        }
+        if (action == R.id.action_move_right) {
+            mController.updateBubbleBarLocation(BubbleBarLocation.RIGHT);
+            return true;
+        }
+        return false;
     }
 
     @SuppressLint("RtlHardcoded")
@@ -758,7 +801,6 @@ public class BubbleBarView extends FrameLayout {
                 listener);
     }
 
-    // TODO: (b/280605790) animate it
     @Override
     public void addView(View child, int index, ViewGroup.LayoutParams params) {
         super.addView(child, index, params);
@@ -1186,6 +1228,7 @@ public class BubbleBarView extends FrameLayout {
                 mWidthAnimator.reverse();
             }
             updateBubbleAccessibilityStates();
+            announceExpandedStateChange();
         }
     }
 
@@ -1302,6 +1345,26 @@ public class BubbleBarView extends FrameLayout {
         setContentDescription(contentDesc);
     }
 
+    private void announceExpandedStateChange() {
+        final CharSequence selectedBubbleContentDesc;
+        if (mSelectedBubbleView != null) {
+            selectedBubbleContentDesc = mSelectedBubbleView.getContentDescription();
+        } else {
+            selectedBubbleContentDesc = getResources().getString(
+                    R.string.bubble_bar_bubble_fallback_description);
+        }
+
+        final String msg;
+        if (mIsBarExpanded) {
+            msg = getResources().getString(R.string.bubble_bar_accessibility_announce_expand,
+                    selectedBubbleContentDesc);
+        } else {
+            msg = getResources().getString(R.string.bubble_bar_accessibility_announce_collapse,
+                    selectedBubbleContentDesc);
+        }
+        announceForAccessibility(msg);
+    }
+
     private boolean isIconSizeOrPaddingUpdated(float newIconSize, float newBubbleBarPadding) {
         return isIconSizeUpdated(newIconSize) || isPaddingUpdated(newBubbleBarPadding);
     }
@@ -1382,5 +1445,14 @@ public class BubbleBarView extends FrameLayout {
 
         /** Notifies the controller that the bubble bar was touched while it was animating. */
         void onBubbleBarTouchedWhileAnimating();
+
+        /** Requests the controller to expand bubble bar */
+        void expandBubbleBar();
+
+        /** Requests the controller to dismiss the bubble bar */
+        void dismissBubbleBar();
+
+        /** Requests the controller to update bubble bar location to the given value */
+        void updateBubbleBarLocation(BubbleBarLocation location);
     }
 }
