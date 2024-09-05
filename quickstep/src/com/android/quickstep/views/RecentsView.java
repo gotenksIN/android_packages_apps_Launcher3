@@ -233,6 +233,7 @@ import kotlin.Unit;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -807,6 +808,7 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
     private boolean mAnyTaskHasBeenDismissed;
 
     private final RecentsViewModel mRecentsViewModel;
+    private final RecentsViewHelper mHelper;
 
     public RecentsView(Context context, @Nullable AttributeSet attrs, int defStyleAttr,
             BaseContainerInterface sizeStrategy) {
@@ -828,6 +830,7 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
                     recentsDependencies.inject(RecentTasksRepository.class),
                     recentsDependencies.inject(RecentsViewData.class)
             );
+            mHelper = new RecentsViewHelper(mRecentsViewModel);
 
             recentsDependencies.provide(RecentsRotationStateRepository.class,
                     () -> new RecentsRotationStateRepositoryImpl(mOrientationState));
@@ -836,6 +839,7 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
                     () -> new RecentsDeviceProfileRepositoryImpl(mContainer));
         } else {
             mRecentsViewModel = null;
+            mHelper = null;
         }
 
         mScrollHapticMinGapMillis = getResources()
@@ -1043,8 +1047,11 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
     @Override
     @Nullable
     public Task onTaskThumbnailChanged(int taskId, ThumbnailData thumbnailData) {
+        if (enableRefactorTaskThumbnail()) {
+            // TODO(b/342560598): Listen in TaskRepository and reload
+            return null;
+        }
         if (mHandleTaskStackChanges) {
-            // TODO(b/342560598): Handle onTaskThumbnailChanged for new TTV.
             if (!enableRefactorTaskThumbnail()) {
                 TaskView taskView = getTaskViewByTaskId(taskId);
                 if (taskView != null) {
@@ -1063,6 +1070,7 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
 
     @Override
     public void onTaskIconChanged(String pkg, UserHandle user) {
+        // TODO(b/342560598): Listen in TaskRepository and reload.
         for (int i = 0; i < getTaskViewCount(); i++) {
             TaskView tv = requireTaskViewAt(i);
             Task task = tv.getFirstTask();
@@ -1078,47 +1086,38 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
 
     @Override
     public void onTaskIconChanged(int taskId) {
+        if (enableRefactorTaskThumbnail()) {
+            return;
+        }
         TaskView taskView = getTaskViewByTaskId(taskId);
         if (taskView != null) {
             taskView.refreshTaskThumbnailSplash();
         }
     }
 
-    /**
-     * Update the thumbnail(s) of the relevant TaskView.
-     *
-     * @param refreshNow Refresh immediately if it's true.
-     */
-    @Nullable
-    public TaskView updateThumbnail(
-            HashMap<Integer, ThumbnailData> thumbnailData, boolean refreshNow) {
+    /** Updates the thumbnail(s) of the relevant TaskView. */
+    public void updateThumbnail(Map<Integer, ThumbnailData> thumbnailData) {
         if (enableRefactorTaskThumbnail()) {
-            // TODO(b/342560598): Handle updateThumbnail for new TTV.
-            return null;
-        }
-        TaskView updatedTaskView = null;
-        for (Map.Entry<Integer, ThumbnailData> entry : thumbnailData.entrySet()) {
-            Integer id = entry.getKey();
-            ThumbnailData thumbnail = entry.getValue();
-            TaskView taskView = getTaskViewByTaskId(id);
-            if (taskView == null) {
-                continue;
+            mRecentsViewModel.addOrUpdateThumbnailOverride(thumbnailData);
+        } else {
+            for (Map.Entry<Integer, ThumbnailData> entry : thumbnailData.entrySet()) {
+                Integer id = entry.getKey();
+                ThumbnailData thumbnail = entry.getValue();
+                TaskView taskView = getTaskViewByTaskId(id);
+                if (taskView == null) {
+                    continue;
+                }
+                // taskView could be a GroupedTaskView, so select the relevant task by ID
+                TaskContainer taskContainer = taskView.getTaskContainerById(id);
+                if (taskContainer == null) {
+                    continue;
+                }
+                Task task = taskContainer.getTask();
+                TaskThumbnailViewDeprecated taskThumbnailViewDeprecated =
+                        taskContainer.getThumbnailViewDeprecated();
+                taskThumbnailViewDeprecated.setThumbnail(task, thumbnail, /*refreshNow=*/false);
             }
-            // taskView could be a GroupedTaskView, so select the relevant task by ID
-            TaskContainer taskAttributes = taskView.getTaskContainerById(id);
-            if (taskAttributes == null) {
-                continue;
-            }
-            Task task = taskAttributes.getTask();
-            TaskThumbnailViewDeprecated taskThumbnailViewDeprecated =
-                    taskAttributes.getThumbnailViewDeprecated();
-            taskThumbnailViewDeprecated.setThumbnail(task, thumbnail, refreshNow);
-            // thumbnailData can contain 1-2 ids, but they should correspond to the same
-            // TaskView, so overwriting is ok
-            updatedTaskView = taskView;
         }
-
-        return updatedTaskView;
     }
 
     @Override
@@ -1173,6 +1172,9 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
         if (FeatureFlags.enableSplitContextually()) {
             mSplitSelectStateController.registerSplitListener(mSplitSelectionListener);
         }
+        if (enableRefactorTaskThumbnail()) {
+            mHelper.onAttachedToWindow();
+        }
     }
 
     @Override
@@ -1195,6 +1197,9 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
             mSplitSelectStateController.unregisterSplitListener(mSplitSelectionListener);
         }
         reset();
+        if (enableRefactorTaskThumbnail()) {
+            mHelper.onDetachedFromWindow();
+        }
     }
 
     @Override
@@ -2430,16 +2435,16 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
                 List<Task> tasksToUpdate = containers.stream()
                         .map(TaskContainer::getTask)
                         .collect(Collectors.toCollection(ArrayList::new));
-                if (enableRefactorTaskThumbnail()) {
-                    visibleTaskIds.addAll(
-                            tasksToUpdate.stream().map((task) -> task.key.id).toList());
-                }
                 if (mTmpRunningTasks != null) {
                     for (Task t : mTmpRunningTasks) {
                         // Skip loading if this is the task that we are animating into
                         // TODO(b/280812109) change this equality check to use A.equals(B)
                         tasksToUpdate.removeIf(task -> task == t);
                     }
+                }
+                if (enableRefactorTaskThumbnail()) {
+                    visibleTaskIds.addAll(
+                            tasksToUpdate.stream().map((task) -> task.key.id).toList());
                 }
                 if (tasksToUpdate.isEmpty()) {
                     continue;
@@ -2495,6 +2500,11 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
         // user goes to overview next time, the task thumbnails would show up without delay
         if (mHasVisibleTaskData.size() == 0) {
             mModel.preloadCacheIfNeeded();
+        }
+
+        if (enableRefactorTaskThumbnail()) {
+            // TODO(b/342560598): Listen in TaskRepository and reload.
+            return;
         }
 
         // Whenever the high res loading state changes, poke each of the visible tasks to see if
@@ -2565,14 +2575,19 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
 
         // These are relatively expensive and don't need to be done this frame (RecentsView isn't
         // visible anyway), so defer by a frame to get off the critical path, e.g. app to home.
-        post(() -> {
-            unloadVisibleTaskData(TaskView.FLAG_UPDATE_ALL);
-            setCurrentPage(0);
-            LayoutUtils.setViewEnabled(mActionsView, true);
-            if (mOrientationState.setGestureActive(false)) {
-                updateOrientationHandler(/* forceRecreateDragLayerControllers = */ false);
-            }
-        });
+        post(this::onReset);
+    }
+
+    private void onReset() {
+        if (enableRefactorTaskThumbnail()) {
+            mRecentsViewModel.onReset();
+        }
+        unloadVisibleTaskData(TaskView.FLAG_UPDATE_ALL);
+        setCurrentPage(0);
+        LayoutUtils.setViewEnabled(mActionsView, true);
+        if (mOrientationState.setGestureActive(false)) {
+            updateOrientationHandler(/* forceRecreateDragLayerControllers = */ false);
+        }
     }
 
     public int getRunningTaskViewId() {
@@ -2948,18 +2963,13 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
     }
 
     private void setRunningTaskViewId(int runningTaskViewId) {
-        int prevRunningTaskViewId = mRunningTaskViewId;
         mRunningTaskViewId = runningTaskViewId;
 
         if (enableRefactorTaskThumbnail()) {
-            TaskView previousRunningTaskView = getTaskViewFromTaskViewId(prevRunningTaskViewId);
-            if (previousRunningTaskView != null) {
-                previousRunningTaskView.notifyIsRunningTaskUpdated();
-            }
-            TaskView newRunningTaskView = getTaskViewFromTaskViewId(runningTaskViewId);
-            if (newRunningTaskView != null) {
-                newRunningTaskView.notifyIsRunningTaskUpdated();
-            }
+            TaskView runningTaskView = getTaskViewFromTaskViewId(runningTaskViewId);
+            mRecentsViewModel.updateRunningTask(
+                    runningTaskView != null ? runningTaskView.getTaskIdSet()
+                            : Collections.emptySet());
         }
     }
 
@@ -2988,6 +2998,9 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
         TaskView runningTaskView = getRunningTaskView();
         if (runningTaskView != null) {
             runningTaskView.setShouldShowScreenshot(mRunningTaskShowScreenshot);
+        }
+        if (enableRefactorTaskThumbnail()) {
+            mRecentsViewModel.setRunningTaskShowScreenshot(showScreenshot);
         }
     }
 
@@ -6024,38 +6037,28 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
             return;
         }
 
-        switchToScreenshotInternal(onFinishRunnable);
-    }
-
-    private void switchToScreenshotInternal(Runnable onFinishRunnable) {
-        // TODO(b/342560598): Handle switchToScreenshot for new TTV.
-        if (enableRefactorTaskThumbnail()) {
-            onFinishRunnable.run();
-            return;
-        }
-
         TaskView taskView = getRunningTaskView();
         if (taskView == null) {
             onFinishRunnable.run();
             return;
         }
 
-        setRunningTaskViewShowScreenshot(true);
-        for (TaskContainer container : taskView.getTaskContainers()) {
-            if (container == null) {
-                continue;
+        if (enableRefactorTaskThumbnail()) {
+            mHelper.switchToScreenshot(taskView, mRecentsAnimationController, onFinishRunnable);
+        } else {
+            setRunningTaskViewShowScreenshot(true);
+            for (TaskContainer container : taskView.getTaskContainers()) {
+                ThumbnailData thumbnailData =
+                        mRecentsAnimationController.screenshotTask(container.getTask().key.id);
+                TaskThumbnailViewDeprecated thumbnailView = container.getThumbnailViewDeprecated();
+                if (thumbnailData != null) {
+                    thumbnailView.setThumbnail(container.getTask(), thumbnailData);
+                } else {
+                    thumbnailView.refresh();
+                }
             }
-
-            ThumbnailData td =
-                    mRecentsAnimationController.screenshotTask(container.getTask().key.id);
-            TaskThumbnailViewDeprecated thumbnailView = container.getThumbnailViewDeprecated();
-            if (td != null) {
-                thumbnailView.setThumbnail(container.getTask(), td);
-            } else {
-                thumbnailView.refresh();
-            }
+            ViewUtils.postFrameDrawn(taskView, onFinishRunnable);
         }
-        ViewUtils.postFrameDrawn(taskView, onFinishRunnable);
     }
 
     /**
@@ -6069,9 +6072,13 @@ public abstract class RecentsView<CONTAINER_TYPE extends Context & RecentsViewCo
             Runnable onFinishRunnable) {
         final TaskView taskView = getRunningTaskView();
         if (taskView != null) {
-            taskView.setShouldShowScreenshot(true);
-            taskView.refreshThumbnails(thumbnailDatas);
-            ViewUtils.postFrameDrawn(taskView, onFinishRunnable);
+            if (enableRefactorTaskThumbnail()) {
+                mHelper.switchToScreenshot(taskView, thumbnailDatas, onFinishRunnable);
+            } else {
+                taskView.setShouldShowScreenshot(true);
+                taskView.refreshThumbnails(thumbnailDatas);
+                ViewUtils.postFrameDrawn(taskView, onFinishRunnable);
+            }
         } else {
             onFinishRunnable.run();
         }
