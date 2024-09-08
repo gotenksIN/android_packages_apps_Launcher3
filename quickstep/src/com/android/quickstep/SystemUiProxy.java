@@ -47,7 +47,6 @@ import android.view.IRecentsAnimationController;
 import android.view.IRecentsAnimationRunner;
 import android.view.IRemoteAnimationRunner;
 import android.view.MotionEvent;
-import android.view.RemoteAnimationAdapter;
 import android.view.RemoteAnimationTarget;
 import android.view.SurfaceControl;
 import android.window.IOnBackInvokedCallback;
@@ -894,6 +893,36 @@ public class SystemUiProxy implements ISystemUiProxy, NavHandle, SafeCloseable {
         }
     }
 
+    /**
+     * Tells SysUI to show a shortcut bubble.
+     *
+     * @param info the shortcut info used to create or identify the bubble.
+     */
+    public void showShortcutBubble(ShortcutInfo info) {
+        try {
+            if (mBubbles != null) {
+                mBubbles.showShortcutBubble(info);
+            }
+        } catch (RemoteException e) {
+            Log.w(TAG, "Failed call show bubble for shortcut");
+        }
+    }
+
+    /**
+     * Tells SysUI to show a bubble of an app.
+     *
+     * @param intent the intent used to create the bubble.
+     */
+    public void showAppBubble(Intent intent) {
+        try {
+            if (mBubbles != null) {
+                mBubbles.showAppBubble(intent);
+            }
+        } catch (RemoteException e) {
+            Log.w(TAG, "Failed call show bubble for app");
+        }
+    }
+
     //
     // Splitscreen
     //
@@ -1000,77 +1029,6 @@ public class SystemUiProxy implements ISystemUiProxy, NavHandle, SafeCloseable {
         }
     }
 
-    /**
-     * Start multiple tasks in split-screen simultaneously.
-     */
-    public void startTasksWithLegacyTransition(int taskId1, Bundle options1, int taskId2,
-            Bundle options2, @StagePosition int splitPosition,
-            @PersistentSnapPosition int snapPosition, RemoteAnimationAdapter adapter,
-            InstanceId instanceId) {
-        if (mSystemUiProxy != null) {
-            try {
-                mSplitScreen.startTasksWithLegacyTransition(taskId1, options1, taskId2, options2,
-                        splitPosition, snapPosition, adapter, instanceId);
-            } catch (RemoteException e) {
-                Log.w(TAG, splitFailureMessage(
-                        "startTasksWithLegacyTransition", "RemoteException"), e);
-            }
-        }
-    }
-
-    public void startIntentAndTaskWithLegacyTransition(PendingIntent pendingIntent, int userId1,
-            Bundle options1, int taskId, Bundle options2, @StagePosition int splitPosition,
-            @PersistentSnapPosition int snapPosition, RemoteAnimationAdapter adapter,
-            InstanceId instanceId) {
-        if (mSystemUiProxy != null) {
-            try {
-                mSplitScreen.startIntentAndTaskWithLegacyTransition(pendingIntent, userId1,
-                        options1, taskId, options2, splitPosition, snapPosition, adapter,
-                        instanceId);
-            } catch (RemoteException e) {
-                Log.w(TAG, splitFailureMessage(
-                        "startIntentAndTaskWithLegacyTransition", "RemoteException"), e);
-            }
-        }
-    }
-
-    public void startShortcutAndTaskWithLegacyTransition(ShortcutInfo shortcutInfo, Bundle options1,
-            int taskId, Bundle options2, @StagePosition int splitPosition,
-            @PersistentSnapPosition int snapPosition, RemoteAnimationAdapter adapter,
-            InstanceId instanceId) {
-        if (mSystemUiProxy != null) {
-            try {
-                mSplitScreen.startShortcutAndTaskWithLegacyTransition(shortcutInfo, options1,
-                        taskId, options2, splitPosition, snapPosition, adapter, instanceId);
-            } catch (RemoteException e) {
-                Log.w(TAG, splitFailureMessage(
-                        "startShortcutAndTaskWithLegacyTransition", "RemoteException"), e);
-            }
-        }
-    }
-
-    /**
-     * Starts a pair of intents or shortcuts in split-screen using legacy transition. Passing a
-     * non-null shortcut info means to start the app as a shortcut.
-     */
-    public void startIntentsWithLegacyTransition(PendingIntent pendingIntent1, int userId1,
-            @Nullable ShortcutInfo shortcutInfo1, @Nullable Bundle options1,
-            PendingIntent pendingIntent2, int userId2, @Nullable ShortcutInfo shortcutInfo2,
-            @Nullable Bundle options2, @StagePosition int sidePosition,
-            @PersistentSnapPosition int snapPosition, RemoteAnimationAdapter adapter,
-            InstanceId instanceId) {
-        if (mSystemUiProxy != null) {
-            try {
-                mSplitScreen.startIntentsWithLegacyTransition(pendingIntent1, userId1,
-                        shortcutInfo1, options1, pendingIntent2, userId2, shortcutInfo2, options2,
-                        sidePosition, snapPosition, adapter, instanceId);
-            } catch (RemoteException e) {
-                Log.w(TAG, splitFailureMessage(
-                        "startIntentsWithLegacyTransition", "RemoteException"), e);
-            }
-        }
-    }
-
     public void startShortcut(String packageName, String shortcutId, int position,
             Bundle options, UserHandle user, InstanceId instanceId) {
         if (mSplitScreen != null) {
@@ -1103,36 +1061,6 @@ public class SystemUiProxy implements ISystemUiProxy, NavHandle, SafeCloseable {
                 Log.w(TAG, "Failed call removeFromSideStage");
             }
         }
-    }
-
-    /**
-     * Call this when going to recents so that shell can set-up and provide appropriate leashes
-     * for animation (eg. DividerBar).
-     *
-     * @return RemoteAnimationTargets of windows that need to animate but only exist in shell.
-     */
-    @Nullable
-    public RemoteAnimationTarget[] onGoingToRecentsLegacy(RemoteAnimationTarget[] apps) {
-        if (!TaskAnimationManager.ENABLE_SHELL_TRANSITIONS && mSplitScreen != null) {
-            try {
-                return mSplitScreen.onGoingToRecentsLegacy(apps);
-            } catch (RemoteException e) {
-                Log.w(TAG, "Failed call onGoingToRecentsLegacy");
-            }
-        }
-        return null;
-    }
-
-    @Nullable
-    public RemoteAnimationTarget[] onStartingSplitLegacy(RemoteAnimationTarget[] apps) {
-        if (mSplitScreen != null) {
-            try {
-                return mSplitScreen.onStartingSplitLegacy(apps);
-            } catch (RemoteException e) {
-                Log.w(TAG, "Failed call onStartingSplitLegacy");
-            }
-        }
-        return null;
     }
 
     //
