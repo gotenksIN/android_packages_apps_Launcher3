@@ -52,7 +52,7 @@ interface BubbleStashController {
     /** Execute passed action only after controllers are initiated. */
     interface ControllersAfterInitAction {
         /** Execute action after controllers are initiated. */
-        fun runAfterInit(action: () -> Unit)
+        fun runAfterInit(action: Runnable)
     }
 
     /** Whether bubble bar is currently stashed */
@@ -81,12 +81,7 @@ interface BubbleStashController {
         controllersAfterInitAction: ControllersAfterInitAction
     )
 
-    /** Sets stashed and expanded state of the bubble bar */
-    fun updateStashedAndExpandedState(stash: Boolean = false, expand: Boolean = false)
-
-    /**
-     * Shows the bubble bar at [getBubbleBarTranslationY] position immediately without animation.
-     */
+    /** Shows the bubble bar at [bubbleBarTranslationY] position immediately without animation. */
     fun showBubbleBarImmediate()
 
     /** Shows the bubble bar at [bubbleBarTranslationY] position immediately without animation. */
@@ -120,21 +115,17 @@ interface BubbleStashController {
      * Stashes the bubble bar (transform to the handle view), or just shrink width of the expanded
      * bubble bar based on the controller implementation.
      */
-    fun stashBubbleBar() {
-        updateStashedAndExpandedState(stash = true, expand = false)
-    }
+    fun stashBubbleBar()
 
     /** Shows the bubble bar, and expands bubbles depending on [expandBubbles]. */
-    fun showBubbleBar(expandBubbles: Boolean) {
-        updateStashedAndExpandedState(stash = false, expandBubbles)
-    }
+    fun showBubbleBar(expandBubbles: Boolean)
 
     // TODO(b/354218264): Move to BubbleBarViewAnimator
     /**
      * The difference on the Y axis between the center of the handle and the center of the bubble
      * bar.
      */
-    fun getSlideInAnimationDistanceY(): Float
+    fun getDiffBetweenHandleAndBarCenters(): Float
 
     // TODO(b/354218264): Move to BubbleBarViewAnimator
     /** The distance the handle moves as part of the new bubble animation. */
@@ -151,6 +142,9 @@ interface BubbleStashController {
     // TODO(b/354218264): Move to BubbleBarViewAnimator
     /** Set the translation Y for the stashed handle. */
     fun setHandleTranslationY(translationY: Float)
+
+    /** Returns the translation of the handle. */
+    fun getHandleTranslationY(): Float?
 
     /**
      * Returns bubble bar Y position according to [isBubblesShowingOnHome] and
@@ -190,13 +184,5 @@ interface BubbleStashController {
 
         /** The scale bubble bar animates to when being stashed. */
         const val STASHED_BAR_SCALE = 0.5f
-
-        /** Creates new instance of [BubbleStashController] */
-        @JvmStatic
-        fun newInstance(
-            taskbarHotseatDimensionsProvider: TaskbarHotseatDimensionsProvider
-        ): BubbleStashController {
-            return PersistentTaskbarStashController(taskbarHotseatDimensionsProvider)
-        }
     }
 }

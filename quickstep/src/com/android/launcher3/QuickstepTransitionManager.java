@@ -356,14 +356,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         options.setOnAnimationAbortListener(endCallback);
         options.setOnAnimationFinishedListener(endCallback);
 
-        // Prepare taskbar for animation synchronization. This needs to happen here before any
-        // app transition is created.
-        LauncherTaskbarUIController taskbarController = mLauncher.getTaskbarUIController();
-        if (enableScalingRevealHomeAnimation() && taskbarController != null) {
-            taskbarController.setIgnoreInAppFlagForSync(true);
-            onEndCallback.add(() -> taskbarController.setIgnoreInAppFlagForSync(false));
-        }
-
         IBinder cookie = mAppLaunchRunner.supportsReturnTransition()
                 ? ((ContainerAnimationRunner) mAppLaunchRunner).getCookie() : null;
         addLaunchCookie(cookie, (ItemInfo) v.getTag(), options);
@@ -1252,15 +1244,25 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         TransitionFilter homeCheck = new TransitionFilter();
         // No need to handle the transition that also dismisses keyguard.
         homeCheck.mNotFlags = TRANSIT_FLAG_KEYGUARD_GOING_AWAY;
+
         homeCheck.mRequirements =
                 new TransitionFilter.Requirement[]{new TransitionFilter.Requirement(),
+                        new TransitionFilter.Requirement(),
                         new TransitionFilter.Requirement()};
+
         homeCheck.mRequirements[0].mActivityType = ACTIVITY_TYPE_HOME;
         homeCheck.mRequirements[0].mTopActivity = mLauncher.getComponentName();
         homeCheck.mRequirements[0].mModes = new int[]{TRANSIT_OPEN, TRANSIT_TO_FRONT};
         homeCheck.mRequirements[0].mOrder = CONTAINER_ORDER_TOP;
+
         homeCheck.mRequirements[1].mActivityType = ACTIVITY_TYPE_STANDARD;
         homeCheck.mRequirements[1].mModes = new int[]{TRANSIT_CLOSE, TRANSIT_TO_BACK};
+
+        homeCheck.mRequirements[2].mNot = true;
+        homeCheck.mRequirements[2].mCustomAnimation = true;
+        homeCheck.mRequirements[2].mMustBeTask = true;
+        homeCheck.mRequirements[2].mMustBeIndependent = true;
+
         SystemUiProxy.INSTANCE.get(mLauncher)
                 .registerRemoteTransition(mLauncherOpenTransition, homeCheck);
         if (mBackAnimationController != null) {
@@ -1930,21 +1932,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
             if (launcherClosing) {
                 anim.addListener(mForceInvisibleListener);
-            }
-
-            // Syncs the app launch animation and taskbar stash animation (if exists).
-            if (enableScalingRevealHomeAnimation()) {
-                LauncherTaskbarUIController taskbarController = mLauncher.getTaskbarUIController();
-                if (taskbarController != null) {
-                    taskbarController.setIgnoreInAppFlagForSync(false);
-
-                    if (launcherClosing) {
-                        Animator taskbar = taskbarController.createAnimToApp();
-                        if (taskbar != null) {
-                            anim.play(taskbar);
-                        }
-                    }
-                }
             }
 
             result.setAnimation(anim, mLauncher, mOnEndCallback::executeAllAndDestroy,

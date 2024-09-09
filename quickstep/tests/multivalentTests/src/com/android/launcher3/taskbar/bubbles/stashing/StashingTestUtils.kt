@@ -17,17 +17,22 @@
 package com.android.launcher3.taskbar.bubbles.stashing
 
 class ImmediateAction : BubbleStashController.ControllersAfterInitAction {
-    override fun runAfterInit(action: () -> Unit) = action.invoke()
+    override fun runAfterInit(action: Runnable) = action.run()
 }
 
-class DefaultDimensionsProvider : BubbleStashController.TaskbarHotseatDimensionsProvider {
-    override fun getTaskbarBottomSpace(): Int = TASKBAR_BOTTOM_SPACE
+class DefaultDimensionsProvider(
+    private val taskBarBottomSpace: Int = TASKBAR_BOTTOM_SPACE,
+    private val taskBarHeight: Int = TASKBAR_HEIGHT,
+    private val hotseatBottomSpace: Int = HOTSEAT_BOTTOM_SPACE,
+    private val hotseatHeight: Int = HOTSEAT_HEIGHT
+) : BubbleStashController.TaskbarHotseatDimensionsProvider {
+    override fun getTaskbarBottomSpace(): Int = taskBarBottomSpace
 
-    override fun getTaskbarHeight(): Int = TASKBAR_HEIGHT
+    override fun getTaskbarHeight(): Int = taskBarHeight
 
-    override fun getHotseatBottomSpace(): Int = HOTSEAT_BOTTOM_SPACE
+    override fun getHotseatBottomSpace(): Int = hotseatBottomSpace
 
-    override fun getHotseatHeight(): Int = HOTSEAT_HEIGHT
+    override fun getHotseatHeight(): Int = hotseatHeight
 
     companion object {
         const val TASKBAR_BOTTOM_SPACE = 0
