@@ -119,7 +119,8 @@ public class BubbleBarViewController {
         mBubbleDragController = bubbleControllers.bubbleDragController;
         mTaskbarStashController = controllers.taskbarStashController;
         mTaskbarInsetsController = controllers.taskbarInsetsController;
-        mBubbleBarViewAnimator = new BubbleBarViewAnimator(mBarView, mBubbleStashController);
+        mBubbleBarViewAnimator = new BubbleBarViewAnimator(
+                mBarView, mBubbleStashController, mBubbleBarController::showExpandedView);
         mTaskbarViewPropertiesProvider = taskbarViewPropertiesProvider;
         onBubbleBarConfigurationChanged(/* animate= */ false);
         mActivity.addOnDeviceProfileChangeListener(
@@ -306,6 +307,15 @@ public class BubbleBarViewController {
      */
     public Rect getBubbleBarBounds() {
         return mBarView.getBubbleBarBounds();
+    }
+
+    /** Checks that bubble bar is visible and that the motion event is within bounds. */
+    public boolean isEventOverBubbleBar(MotionEvent event) {
+        if (!isBubbleBarVisible()) return false;
+        final Rect bounds = getBubbleBarBounds();
+        final int bubbleBarTopOnScreen = mBarView.getRestingTopPositionOnScreen();
+        final float x = event.getX();
+        return event.getRawY() >= bubbleBarTopOnScreen && x >= bounds.left && x <= bounds.right;
     }
 
     /** Whether a new bubble is animating. */
