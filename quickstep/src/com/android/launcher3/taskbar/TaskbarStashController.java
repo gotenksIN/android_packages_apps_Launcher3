@@ -424,6 +424,11 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
         return hasAnyFlag(FLAGS_IN_APP);
     }
 
+    /** Returns whether the taskbar is currently in overview screen. */
+    public boolean isInOverview() {
+        return hasAnyFlag(FLAG_IN_OVERVIEW);
+    }
+
     /**
      * Returns the height that taskbar will be touchable.
      */
@@ -1146,7 +1151,8 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
      */
     public void setUpTaskbarSystemAction(boolean visible) {
         UI_HELPER_EXECUTOR.execute(() -> {
-            if (!visible || !DisplayController.isTransientTaskbar(mActivity)) {
+            if (!visible || !DisplayController.isTransientTaskbar(mActivity)
+                    || mActivity.isPhoneMode()) {
                 mAccessibilityManager.unregisterSystemAction(SYSTEM_ACTION_ID_TASKBAR);
                 mIsTaskbarSystemActionRegistered = false;
                 return;
