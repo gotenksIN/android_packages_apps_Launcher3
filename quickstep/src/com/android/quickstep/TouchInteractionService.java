@@ -89,6 +89,7 @@ import androidx.annotation.VisibleForTesting;
 import com.android.launcher3.BaseDraggingActivity;
 import com.android.launcher3.ConstantItem;
 import com.android.launcher3.EncryptionType;
+import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.anim.AnimatedFloat;
 import com.android.launcher3.config.FeatureFlags;
@@ -1193,7 +1194,8 @@ public class TouchInteractionService extends Service {
             NavHandle navHandle = tac != null ? tac.getNavHandle()
                     : SystemUiProxy.INSTANCE.get(this);
             if (canStartSystemGesture && !previousGestureState.isRecentsAnimationRunning()
-                    && navHandle.canNavHandleBeLongPressed()) {
+                    && navHandle.canNavHandleBeLongPressed()
+                    && !ignoreThreeFingerTrackpadForNavHandleLongPress(mGestureState)) {
                 reasonString.append(NEWLINE_PREFIX)
                         .append(reasonPrefix)
                         .append(SUBSTRING_PREFIX)
@@ -1287,6 +1289,11 @@ public class TouchInteractionService extends Service {
 
     private CompoundString newCompoundString(String substring) {
         return new CompoundString(NEWLINE_PREFIX).append(substring);
+    }
+
+    private boolean ignoreThreeFingerTrackpadForNavHandleLongPress(GestureState gestureState) {
+        return Flags.ignoreThreeFingerTrackpadForNavHandleLongPress()
+                && gestureState.isThreeFingerTrackpadGesture();
     }
 
     private void logInputConsumerSelectionReason(
