@@ -115,6 +115,7 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                     R.id.snapshot,
                     R.id.icon,
                     R.id.show_windows,
+                    R.id.digital_wellbeing_toast,
                     STAGE_POSITION_TOP_OR_LEFT,
                     taskOverlayFactory
                 ),
@@ -123,6 +124,7 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                     R.id.bottomright_snapshot,
                     R.id.bottomRight_icon,
                     R.id.show_windows_right,
+                    R.id.bottomRight_digital_wellbeing_toast,
                     STAGE_POSITION_BOTTOM_OR_RIGHT,
                     taskOverlayFactory
                 )
@@ -130,7 +132,7 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         taskContainers.forEach { it.bind() }
 
         this.splitBoundsConfig = splitBoundsConfig
-        taskContainers.forEach { it.digitalWellBeingToast?.setSplitBounds(splitBoundsConfig) }
+        taskContainers.forEach { it.digitalWellBeingToast?.splitBounds = splitBoundsConfig }
         setOrientationState(orientedState)
     }
 
@@ -210,8 +212,8 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
     fun updateSplitBoundsConfig(splitBounds: SplitConfigurationOptions.SplitBounds?) {
         splitBoundsConfig = splitBounds
         taskContainers.forEach {
-            it.digitalWellBeingToast?.setSplitBounds(splitBoundsConfig)
-            it.digitalWellBeingToast?.initialize(it.task)
+            it.digitalWellBeingToast?.splitBounds = splitBoundsConfig
+            it.digitalWellBeingToast?.initialize()
         }
         invalidate()
     }
