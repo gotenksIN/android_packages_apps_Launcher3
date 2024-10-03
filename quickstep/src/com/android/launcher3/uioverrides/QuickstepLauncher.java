@@ -1189,7 +1189,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public ActivityOptionsWrapper getActivityLaunchOptions(View v, @Nullable ItemInfo item) {
-        ActivityOptionsWrapper activityOptions = mAppTransitionManager.getActivityLaunchOptions(v);
+        ActivityOptionsWrapper activityOptions = mAppTransitionManager.getActivityLaunchOptions(
+                v, item != null ? item : (ItemInfo) v.getTag());
         if (mLastTouchUpTime > 0) {
             activityOptions.options.setSourceInfo(ActivityOptions.SourceInfo.TYPE_LAUNCHER,
                     mLastTouchUpTime);
