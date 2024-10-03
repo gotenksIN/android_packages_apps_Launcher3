@@ -62,8 +62,8 @@ import static com.android.quickstep.util.ActiveGestureErrorDetector.GestureEvent
 import static com.android.quickstep.util.ActiveGestureErrorDetector.GestureEvent.QUICK_SWITCH_FROM_HOME_FALLBACK;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.quickstep.util.SplitAnimationTimings.TABLET_HOME_TO_SPLIT;
-import static com.android.wm.shell.shared.desktopmode.DesktopModeFlags.WALLPAPER_ACTIVITY;
 import static com.android.systemui.shared.system.ActivityManagerWrapper.CLOSE_SYSTEM_WINDOWS_REASON_HOME_KEY;
+import static com.android.wm.shell.shared.desktopmode.DesktopModeFlags.WALLPAPER_ACTIVITY;
 import static com.android.wm.shell.shared.split.SplitScreenConstants.SNAP_TO_50_50;
 
 import android.animation.Animator;
@@ -199,8 +199,6 @@ import com.android.systemui.unfold.progress.RemoteUnfoldTransitionReceiver;
 import com.android.systemui.unfold.updates.RotationChangeProvider;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 
-import kotlin.Unit;
-
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -212,6 +210,8 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+
+import kotlin.Unit;
 
 public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         SystemShortcut.BubbleActivityStarter {
@@ -226,7 +226,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     private FixedContainerItems mAllAppsPredictions;
     private HotseatPredictionController mHotseatPredictionController;
     private DepthController mDepthController;
-    private @Nullable DesktopVisibilityController mDesktopVisibilityController;
     private QuickstepTransitionManager mAppTransitionManager;
 
     private OverviewActionsView<?> mActionsView;
@@ -300,8 +299,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         mTISBindHelper = new TISBindHelper(this, this::onTISConnected);
         mDepthController = new DepthController(this);
         if (DesktopModeStatus.canEnterDesktopMode(this)) {
-            mDesktopVisibilityController = new DesktopVisibilityController(this);
-            mDesktopVisibilityController.registerSystemUiListener();
             mSplitSelectStateController.initSplitFromDesktopController(this,
                     overviewComponentObserver);
         }
@@ -551,10 +548,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
         if (mLauncherUnfoldAnimationController != null) {
             mLauncherUnfoldAnimationController.onDestroy();
-        }
-
-        if (mDesktopVisibilityController != null) {
-            mDesktopVisibilityController.unregisterSystemUiListener();
         }
 
         if (mSplitSelectStateController != null) {
@@ -1010,10 +1003,11 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public void setResumed() {
+        DesktopVisibilityController desktopVisibilityController = getDesktopVisibilityController();
         if (!WALLPAPER_ACTIVITY.isEnabled(this)
-                && mDesktopVisibilityController != null
-                && mDesktopVisibilityController.areDesktopTasksVisible()
-                && !mDesktopVisibilityController.isRecentsGestureInProgress()) {
+                && desktopVisibilityController != null
+                && desktopVisibilityController.areDesktopTasksVisible()
+                && !desktopVisibilityController.isRecentsGestureInProgress()) {
             // Return early to skip setting activity to appear as resumed
             // TODO: b/333533253 - Remove after flag rollout
             return;
@@ -1153,8 +1147,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     }
 
     @Nullable
+    @Override
     public DesktopVisibilityController getDesktopVisibilityController() {
-        return mDesktopVisibilityController;
+        return mTISBindHelper.getDesktopVisibilityController();
     }
 
     @Nullable
@@ -1308,8 +1303,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public boolean areDesktopTasksVisible() {
-        if (mDesktopVisibilityController != null) {
-            return mDesktopVisibilityController.areDesktopTasksVisible();
+        DesktopVisibilityController desktopVisibilityController = getDesktopVisibilityController();
+        if (desktopVisibilityController != null) {
+            return desktopVisibilityController.areDesktopTasksVisible();
         }
         return false;
     }
