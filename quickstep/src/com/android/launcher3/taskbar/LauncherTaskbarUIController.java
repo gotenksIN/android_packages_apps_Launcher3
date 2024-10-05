@@ -38,20 +38,19 @@ import com.android.launcher3.anim.AnimatedFloat;
 import com.android.launcher3.logging.InstanceId;
 import com.android.launcher3.logging.InstanceIdSequence;
 import com.android.launcher3.model.data.ItemInfo;
-import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.taskbar.bubbles.BubbleBarController;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.MultiPropertyFactory;
 import com.android.launcher3.util.OnboardingPrefs;
 import com.android.quickstep.HomeVisibilityState;
-import com.android.quickstep.LauncherActivityInterface;
 import com.android.quickstep.RecentsAnimationCallbacks;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.util.GroupTask;
 import com.android.quickstep.util.TISBindHelper;
 import com.android.quickstep.views.RecentsView;
 import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags;
+import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 
 import java.io.PrintWriter;
 import java.util.Arrays;
@@ -128,18 +127,13 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         onLauncherVisibilityChanged(false);
+        super.onDestroy();
         mTaskbarLauncherStateController.onDestroy();
 
         mLauncher.setTaskbarUIController(null);
         mLauncher.removeOnDeviceProfileChangeListener(mOnDeviceProfileChangeListener);
         mHomeState.removeListener(mVisibilityChangeListener);
-    }
-
-    /** Returns {@code true} if launcher is currently presenting the home screen. */
-    public boolean isOnHome() {
-        return mTaskbarLauncherStateController.isOnHome();
     }
 
     private void onInAppDisplayProgressChanged() {
@@ -163,6 +157,16 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     public void setShouldDelayLauncherStateAnim(boolean shouldDelayLauncherStateAnim) {
         mTaskbarLauncherStateController.setShouldDelayLauncherStateAnim(
                 shouldDelayLauncherStateAnim);
+    }
+
+    @Override
+    public void stashHotseat(boolean stash) {
+        mTaskbarLauncherStateController.stashHotseat(stash);
+    }
+
+    @Override
+    public void unStashHotseatInstantly() {
+        mTaskbarLauncherStateController.unStashHotseatInstantly();
     }
 
     /**
@@ -207,6 +211,9 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
      */
     @Override
     public void onLauncherVisibilityChanged(boolean isVisible) {
+        if (DesktopModeStatus.enterDesktopByDefaultOnFreeformDisplay(mLauncher)) {
+            DisplayController.handleInfoChangeForLauncherVisibilityChanged(mLauncher);
+        }
         onLauncherVisibilityChanged(isVisible, false /* fromInit */);
     }
 
@@ -235,11 +242,8 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
             return null;
         }
 
-        DesktopVisibilityController desktopController =
-                LauncherActivityInterface.INSTANCE.getDesktopVisibilityController();
         if (!WALLPAPER_ACTIVITY.isEnabled(mLauncher)
-                && desktopController != null
-                && desktopController.areDesktopTasksVisible()) {
+                && mControllers.taskbarDesktopModeController.getAreDesktopTasksVisible()) {
             // TODO: b/333533253 - Remove after flag rollout
             isVisible = false;
         }
@@ -480,5 +484,14 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     @Override
     protected String getTaskbarUIControllerName() {
         return "LauncherTaskbarUIController";
+    }
+
+    @Override
+    public void onSwipeToUnstashTaskbar() {
+        // Once taskbar is unstashed, the user cannot return back to the overlay. We can
+        // clear it here to set the expected state once the user goes home.
+        if (mLauncher.getWorkspace().isOverlayShown()) {
+            mLauncher.getWorkspace().onOverlayScrollChanged(0);
+        }
     }
 }
