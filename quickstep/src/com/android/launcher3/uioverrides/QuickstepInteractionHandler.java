@@ -31,7 +31,6 @@ import android.widget.Toast;
 import android.window.SplashScreen;
 
 import com.android.launcher3.R;
-import com.android.launcher3.Utilities;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.util.ActivityOptionsWrapper;
@@ -69,7 +68,7 @@ class QuickstepInteractionHandler implements RemoteViews.InteractionHandler {
         Pair<Intent, ActivityOptions> options = remoteResponse.getLaunchOptions(view);
         ActivityOptionsWrapper activityOptions = mLauncher.getAppTransitionManager()
                 .getActivityLaunchOptions(hostView, (ItemInfo) hostView.getTag());
-        if (Utilities.ATLEAST_S && !pendingIntent.isActivity()) {
+        if (!pendingIntent.isActivity()) {
             // In the event this pending intent eventually launches an activity, i.e. a trampoline,
             // use the Quickstep transition animation.
             try {
