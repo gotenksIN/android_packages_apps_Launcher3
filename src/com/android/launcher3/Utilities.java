@@ -83,8 +83,8 @@ import androidx.core.graphics.ColorUtils;
 import com.android.launcher3.dragndrop.FolderAdaptiveIcon;
 import com.android.launcher3.graphics.TintedDrawableSpan;
 import com.android.launcher3.icons.BitmapInfo;
+import com.android.launcher3.icons.CacheableShortcutInfo;
 import com.android.launcher3.icons.LauncherIcons;
-import com.android.launcher3.icons.ShortcutCachingLogic;
 import com.android.launcher3.icons.ThemedIconDrawable;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
@@ -121,9 +121,6 @@ public final class Utilities {
 
     public static final String[] EMPTY_STRING_ARRAY = new String[0];
     public static final Person[] EMPTY_PERSON_ARRAY = new Person[0];
-
-    @ChecksSdkIntAtLeast(api = VERSION_CODES.S)
-    public static final boolean ATLEAST_S = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S;
 
     @ChecksSdkIntAtLeast(api = VERSION_CODES.TIRAMISU, codename = "T")
     public static final boolean ATLEAST_T = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU;
@@ -629,8 +626,7 @@ public final class Utilities {
             if (activityInfo == null) {
                 return null;
             }
-            mainIcon = appState.getIconProvider().getIcon(
-                    activityInfo, appState.getInvariantDeviceProfile().fillResIconDpi);
+            mainIcon = appState.getIconCache().getFullResIcon(activityInfo.getActivityInfo());
         } else if (info.itemType == LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT) {
             List<ShortcutInfo> siList = ShortcutKey.fromItemInfo(info)
                     .buildRequest(context)
@@ -639,7 +635,7 @@ public final class Utilities {
                 return null;
             } else {
                 ShortcutInfo si = siList.get(0);
-                mainIcon = ShortcutCachingLogic.getIcon(context, si,
+                mainIcon = CacheableShortcutInfo.getIcon(context, si,
                         appState.getInvariantDeviceProfile().fillResIconDpi);
                 // Only fetch badge if the icon is on workspace
                 if (info.id != ItemInfo.NO_ID && badge == null) {

@@ -21,7 +21,6 @@ import static com.android.launcher3.Flags.enableUnfoldStateAnimation;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.launcher3.util.SplitConfigurationOptions.StagePosition;
-import static com.android.quickstep.util.ActiveGestureErrorDetector.GestureEvent.RECENT_TASKS_MISSING;
 import static com.android.quickstep.util.LogUtils.splitFailureMessage;
 
 import android.app.ActivityManager;
@@ -51,9 +50,11 @@ import android.window.IOnBackInvokedCallback;
 import android.window.RemoteTransition;
 import android.window.TaskSnapshot;
 import android.window.TransitionFilter;
+import android.window.flags.DesktopModeFlags;
 
 import androidx.annotation.MainThread;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import androidx.annotation.WorkerThread;
 
 import com.android.internal.logging.InstanceId;
@@ -62,7 +63,7 @@ import com.android.internal.view.AppearanceRegion;
 import com.android.launcher3.util.MainThreadInitializedObject;
 import com.android.launcher3.util.Preconditions;
 import com.android.launcher3.util.SafeCloseable;
-import com.android.quickstep.util.ActiveGestureLog;
+import com.android.quickstep.util.ActiveGestureProtoLogProxy;
 import com.android.quickstep.util.AssistUtils;
 import com.android.quickstep.util.unfold.ProxyUnfoldTransitionProvider;
 import com.android.systemui.shared.recents.ISystemUiProxy;
@@ -85,14 +86,13 @@ import com.android.wm.shell.desktopmode.IDesktopMode;
 import com.android.wm.shell.desktopmode.IDesktopTaskListener;
 import com.android.wm.shell.draganddrop.IDragAndDrop;
 import com.android.wm.shell.onehanded.IOneHanded;
-import com.android.wm.shell.recents.IRecentsAnimationController;
-import com.android.wm.shell.recents.IRecentsAnimationRunner;
 import com.android.wm.shell.recents.IRecentTasks;
 import com.android.wm.shell.recents.IRecentTasksListener;
+import com.android.wm.shell.recents.IRecentsAnimationController;
+import com.android.wm.shell.recents.IRecentsAnimationRunner;
 import com.android.wm.shell.shared.GroupedRecentTaskInfo;
 import com.android.wm.shell.shared.IShellTransitions;
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
-import com.android.wm.shell.shared.desktopmode.DesktopModeFlags;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource;
 import com.android.wm.shell.shared.split.SplitBounds;
@@ -187,7 +187,8 @@ public class SystemUiProxy implements ISystemUiProxy, NavHandle, SafeCloseable {
     @Nullable
     private final ProxyUnfoldTransitionProvider mUnfoldTransitionProvider;
 
-    private SystemUiProxy(Context context) {
+    @VisibleForTesting
+    protected SystemUiProxy(Context context) {
         mContext = context;
         mAsyncHandler = new Handler(UI_HELPER_EXECUTOR.getLooper(), this::handleMessageAsync);
         final Intent baseIntent = new Intent().setPackage(mContext.getPackageName());
@@ -1395,7 +1396,7 @@ public class SystemUiProxy implements ISystemUiProxy, NavHandle, SafeCloseable {
 
     private boolean shouldEnableRunningTasksForDesktopMode() {
         return DesktopModeStatus.canEnterDesktopMode(mContext)
-                && DesktopModeFlags.TASKBAR_RUNNING_APPS.isEnabled(mContext);
+                && DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_TASKBAR_RUNNING_APPS.isTrue();
     }
 
     private boolean handleMessageAsync(Message msg) {
@@ -1518,7 +1519,7 @@ public class SystemUiProxy implements ISystemUiProxy, NavHandle, SafeCloseable {
     public boolean startRecentsActivity(Intent intent, ActivityOptions options,
             RecentsAnimationListener listener) {
         if (mRecentTasks == null) {
-            ActiveGestureLog.INSTANCE.addLog("Null mRecentTasks", RECENT_TASKS_MISSING);
+            ActiveGestureProtoLogProxy.logRecentTasksMissing();
             return false;
         }
         final IRecentsAnimationRunner runner = new IRecentsAnimationRunner.Stub() {
