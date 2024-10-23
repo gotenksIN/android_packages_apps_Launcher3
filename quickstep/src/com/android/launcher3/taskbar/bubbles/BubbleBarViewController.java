@@ -29,6 +29,7 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -42,6 +43,8 @@ import com.android.launcher3.taskbar.TaskbarControllers;
 import com.android.launcher3.taskbar.TaskbarInsetsController;
 import com.android.launcher3.taskbar.TaskbarStashController;
 import com.android.launcher3.taskbar.bubbles.animation.BubbleBarViewAnimator;
+import com.android.launcher3.taskbar.bubbles.flyout.BubbleBarFlyoutController;
+import com.android.launcher3.taskbar.bubbles.flyout.BubbleBarFlyoutPositioner;
 import com.android.launcher3.taskbar.bubbles.stashing.BubbleStashController;
 import com.android.launcher3.util.MultiPropertyFactory;
 import com.android.launcher3.util.MultiValueAlpha;
@@ -63,6 +66,8 @@ public class BubbleBarViewController {
     private static final float APP_ICON_SMALL_DP = 44f;
     private static final float APP_ICON_MEDIUM_DP = 48f;
     private static final float APP_ICON_LARGE_DP = 52f;
+    /** The dot size is defined as a percentage of the icon size. */
+    private static final float DOT_TO_BUBBLE_SIZE_RATIO = 0.228f;
     private final SystemUiProxy mSystemUiProxy;
     private final TaskbarActivityContext mActivity;
     private final BubbleBarView mBarView;
@@ -113,15 +118,19 @@ public class BubbleBarViewController {
     public boolean mOverflowAdded;
 
     private BubbleBarViewAnimator mBubbleBarViewAnimator;
+    private final FrameLayout mBubbleBarContainer;
+    private BubbleBarFlyoutController mBubbleBarFlyoutController;
 
     private final TimeSource mTimeSource = System::currentTimeMillis;
 
     @Nullable
     private BubbleBarBoundsChangeListener mBoundsChangeListener;
 
-    public BubbleBarViewController(TaskbarActivityContext activity, BubbleBarView barView) {
+    public BubbleBarViewController(TaskbarActivityContext activity, BubbleBarView barView,
+            FrameLayout bubbleBarContainer) {
         mActivity = activity;
         mBarView = barView;
+        mBubbleBarContainer = bubbleBarContainer;
         mSystemUiProxy = SystemUiProxy.INSTANCE.get(mActivity);
         mBubbleBarAlpha = new MultiValueAlpha(mBarView, 1 /* num alpha channels */);
         mIconSize = activity.getResources().getDimensionPixelSize(
@@ -136,6 +145,8 @@ public class BubbleBarViewController {
         mBubbleDragController = bubbleControllers.bubbleDragController;
         mTaskbarStashController = controllers.taskbarStashController;
         mTaskbarInsetsController = controllers.taskbarInsetsController;
+        mBubbleBarFlyoutController = new BubbleBarFlyoutController(
+                mBubbleBarContainer, createFlyoutPositioner(), createFlyoutTopBoundaryListener());
         mBubbleBarViewAnimator = new BubbleBarViewAnimator(
                 mBarView, mBubbleStashController, mBubbleBarController::showExpandedView);
         mTaskbarViewPropertiesProvider = taskbarViewPropertiesProvider;
@@ -204,6 +215,74 @@ public class BubbleBarViewController {
             @Override
             public void updateBubbleBarLocation(BubbleBarLocation location) {
                 mBubbleBarController.updateBubbleBarLocation(location);
+            }
+        };
+    }
+
+    private BubbleBarFlyoutPositioner createFlyoutPositioner() {
+        return new BubbleBarFlyoutPositioner() {
+
+            @Override
+            public boolean isOnLeft() {
+                return mBarView.getBubbleBarLocation().isOnLeft(mBarView.isLayoutRtl());
+            }
+
+            @Override
+            public float getTargetTy() {
+                return mBarView.getTranslationY() - mBarView.getHeight();
+            }
+
+            @Override
+            @NonNull
+            public PointF getDistanceToCollapsedPosition() {
+                // the flyout animates from the selected bubble dot. calculate the distance it needs
+                // to translate itself to its starting position.
+                PointF distanceToDotCenter = mBarView.getSelectedBubbleDotDistanceFromTopLeft();
+
+                // if we're gravitating left, return the distance between the top left corner of the
+                // bubble bar and the bottom left corner of the dot.
+                // if we're gravitating right, return the distance between the top right corner of
+                // the bubble bar and the bottom right corner of the dot.
+                float distanceX = isOnLeft()
+                        ? distanceToDotCenter.x - getCollapsedSize() / 2
+                        : mBarView.getWidth() - distanceToDotCenter.x - getCollapsedSize() / 2;
+                float distanceY = distanceToDotCenter.y + getCollapsedSize() / 2;
+                return new PointF(distanceX, distanceY);
+            }
+
+            @Override
+            public float getCollapsedSize() {
+                return mIconSize * DOT_TO_BUBBLE_SIZE_RATIO;
+            }
+
+            @Override
+            public int getCollapsedColor() {
+                return mBarView.getSelectedBubbleDotColor();
+            }
+
+            @Override
+            public float getCollapsedElevation() {
+                return mBarView.getBubbleElevation();
+            }
+
+            @Override
+            public float getDistanceToRevealTriangle() {
+                return getDistanceToCollapsedPosition().y - mBarView.getPointerSize();
+            }
+        };
+    }
+
+    private BubbleBarFlyoutController.TopBoundaryListener createFlyoutTopBoundaryListener() {
+        return new BubbleBarFlyoutController.TopBoundaryListener() {
+            @Override
+            public void extendTopBoundary(int space) {
+                int defaultSize = mActivity.getDefaultTaskbarWindowSize();
+                mActivity.setTaskbarWindowSize(defaultSize + space);
+            }
+
+            @Override
+            public void resetTopBoundary() {
+                mActivity.setTaskbarWindowSize(mActivity.getDefaultTaskbarWindowSize());
             }
         };
     }
