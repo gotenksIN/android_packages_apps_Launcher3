@@ -1100,10 +1100,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         if (isBubbleBarEnabled()
                 && enableBubbleBarInPersistentTaskBar()
                 && mBubbleBarLocation != null) {
-            boolean isRtl = isRtl(getResources());
-            boolean isBubblesOnLeft = mBubbleBarLocation.isOnLeft(isRtl);
+            boolean isBubblesOnLeft = mBubbleBarLocation.isOnLeft(isRtl(getResources()));
             translationX += mDeviceProfile
-                    .getHotseatTranslationXForBubbleBar(isBubblesOnLeft, isRtl);
+                    .getHotseatTranslationXForNavBar(this, isBubblesOnLeft);
         }
         if (isBubbleBarEnabled()
                 && mDeviceProfile.shouldAdjustHotseatForBubbleBar(getContext(), hasBubbles())) {
