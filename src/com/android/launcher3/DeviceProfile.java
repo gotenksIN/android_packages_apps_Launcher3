@@ -24,6 +24,7 @@ import static com.android.launcher3.InvariantDeviceProfile.INDEX_LANDSCAPE;
 import static com.android.launcher3.InvariantDeviceProfile.INDEX_TWO_PANEL_LANDSCAPE;
 import static com.android.launcher3.InvariantDeviceProfile.INDEX_TWO_PANEL_PORTRAIT;
 import static com.android.launcher3.Utilities.dpiFromPx;
+import static com.android.launcher3.Utilities.isEnglishLanguage;
 import static com.android.launcher3.Utilities.pxFromSp;
 import static com.android.launcher3.folder.ClippedFolderIconLayoutRule.ICON_OVERLAP_FACTOR;
 import static com.android.launcher3.icons.GraphicsUtils.getShapePath;
@@ -1344,8 +1345,14 @@ public class DeviceProfile {
         }
         if ((Flags.enableTwolineToggle()
                 && LauncherPrefs.ENABLE_TWOLINE_ALLAPPS_TOGGLE.get(context))) {
-            // Add extra textHeight to the existing allAppsCellHeight.
-            allAppsCellHeightPx += Utilities.calculateTextHeight(allAppsIconTextSizePx);
+            if (!isEnglishLanguage(context)) {
+                // Set toggle preference value to false if not english here as it's possible the
+                // preference is stale after language change.
+                LauncherPrefs.get(context).put(LauncherPrefs.ENABLE_TWOLINE_ALLAPPS_TOGGLE, false);
+            } else {
+                // Add extra textHeight to the existing allAppsCellHeight.
+                allAppsCellHeightPx += Utilities.calculateTextHeight(allAppsIconTextSizePx);
+            }
         }
 
         updateHotseatSizes(iconSizePx);
@@ -2019,6 +2026,18 @@ public class DeviceProfile {
     }
 
     /**
+     * Returns the number of pixels the hotseat icons vertical center is translated from the bottom
+     * of the screen.
+     */
+    public int getHotseatVerticalCenter() {
+        return hotseatBarSizePx
+                - (isQsbInline ? 0 : hotseatQsbVisualHeight)
+                - hotseatQsbSpace
+                - (hotseatCellHeightPx / 2)
+                + ((hotseatCellHeightPx - iconSizePx) / 2);
+    }
+
+    /**
      * Returns the number of pixels the taskbar is translated from the bottom of the screen.
      */
     public int getTaskbarOffsetY() {
@@ -2355,18 +2374,23 @@ public class DeviceProfile {
     /**
      * Returns whether Taskbar and Hotseat should adjust horizontally on bubble bar location update.
      */
-    public boolean shouldAdjustHotseatOnBubblesLocationUpdate(Context context) {
+    public boolean shouldAdjustHotseatOnNavBarLocationUpdate(Context context) {
         return enableBubbleBar()
                 && enableBubbleBarInPersistentTaskBar()
                 && !DisplayController.getNavigationMode(context).hasGestures;
     }
 
     /** Returns hotseat translation X for the bubble bar position. */
-    public int getHotseatTranslationXForBubbleBar(boolean isNavbarOnRight, boolean isRtl) {
-        if (isNavbarOnRight) {
-            return isRtl ? -navButtonsLayoutWidthPx : 0;
+    public int getHotseatTranslationXForNavBar(Context context, boolean isBubblesOnLeft) {
+        if (shouldAdjustHotseatOnNavBarLocationUpdate(context)) {
+            boolean isRtl = Utilities.isRtl(context.getResources());
+            if (isBubblesOnLeft) {
+                return isRtl ? -navButtonsLayoutWidthPx : 0;
+            } else {
+                return isRtl ? 0 : navButtonsLayoutWidthPx;
+            }
         } else {
-            return isRtl ? 0 : navButtonsLayoutWidthPx;
+            return 0;
         }
     }
 
