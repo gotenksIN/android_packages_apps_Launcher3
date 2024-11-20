@@ -33,6 +33,7 @@ import androidx.annotation.Nullable;
 
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Flags;
+import com.android.launcher3.Hotseat;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimatedFloat;
@@ -83,6 +84,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     private final DeviceProfile.OnDeviceProfileChangeListener mOnDeviceProfileChangeListener =
             dp -> {
                 onStashedInAppChanged(dp);
+                adjustHotseatForBubbleBar();
                 if (mControllers != null && mControllers.taskbarViewController != null) {
                     mControllers.taskbarViewController.onRotationChanged(dp);
                 }
@@ -210,8 +212,12 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     }
 
     private int getTaskbarAnimationDuration(boolean isVisible) {
-        if (isVisible && !mLauncher.getPredictiveBackToHomeInProgress()) {
-            return getTaskbarToHomeDuration();
+        // fast animation duration since we will not be playing workspace reveal animation.
+        boolean shouldOverrideToFastAnimation =
+                !isHotseatIconOnTopWhenAligned() || mLauncher.getPredictiveBackToHomeInProgress();
+        boolean isPinnedTaskbar = DisplayController.isPinnedTaskbar(mLauncher);
+        if (isVisible || isPinnedTaskbar) {
+            return getTaskbarToHomeDuration(shouldOverrideToFastAnimation, isPinnedTaskbar);
         } else {
             return DisplayController.isTransientTaskbar(mLauncher)
                     ? TRANSIENT_TASKBAR_TRANSITION_DURATION
@@ -261,6 +267,14 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
         if (mLauncher.getHotseat() != null) {
             mLauncher.getHotseat().adjustForBubbleBar(isBubbleBarVisible);
         }
+    }
+
+    private void adjustHotseatForBubbleBar() {
+        Hotseat hotseat = mLauncher.getHotseat();
+        if (mControllers.bubbleControllers.isEmpty() || hotseat == null) return;
+        boolean hiddenForBubbles =
+                mControllers.bubbleControllers.get().bubbleBarViewController.isHiddenForNoBubbles();
+        hotseat.post(() -> adjustHotseatForBubbleBar(!hiddenForBubbles));
     }
 
     /**
