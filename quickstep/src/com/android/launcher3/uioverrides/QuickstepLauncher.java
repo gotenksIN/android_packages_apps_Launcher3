@@ -264,6 +264,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     private boolean mIsOverlayVisible;
 
+    private final Runnable mOverviewTargetChangeRunnable = this::onOverviewTargetChanged;
+
     public static QuickstepLauncher getLauncher(Context context) {
         return fromContext(context);
     }
@@ -550,6 +552,10 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
             mUnfoldTransitionProgressProvider.destroy();
         }
 
+        TISBinder binder = mTISBindHelper.getBinder();
+        if (binder != null) {
+            binder.unregisterOverviewTargetChangeListener(mOverviewTargetChangeRunnable);
+        }
         mTISBindHelper.onDestroy();
 
         if (mLauncherUnfoldAnimationController != null) {
@@ -795,6 +801,10 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         if (mLauncherUnfoldAnimationController != null) {
             mLauncherUnfoldAnimationController.onResume();
         }
+
+        if (mTaskbarUIController != null && FeatureFlags.enableHomeTransitionListener()) {
+            mTaskbarUIController.onLauncherResume();
+        }
     }
 
     @Override
@@ -814,6 +824,18 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                 mSplitSelectStateController.getSplitAnimationController()
                         .playPlaceholderDismissAnim(this, LAUNCHER_SPLIT_SELECTION_EXIT_INTERRUPTED);
             }
+        }
+
+        if (mTaskbarUIController != null && FeatureFlags.enableHomeTransitionListener()) {
+            mTaskbarUIController.onLauncherPause();
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (mTaskbarUIController != null && FeatureFlags.enableHomeTransitionListener()) {
+            mTaskbarUIController.onLauncherStop();
         }
     }
 
@@ -1025,12 +1047,20 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         }
     }
 
+    private void onOverviewTargetChanged() {
+        QuickstepTransitionManager transitionManager = getAppTransitionManager();
+        if (transitionManager != null) {
+            transitionManager.onOverviewTargetChange();
+        }
+    }
+
     private void onTISConnected(TISBinder binder) {
         TaskbarManager taskbarManager = mTISBindHelper.getTaskbarManager();
         if (taskbarManager != null) {
             taskbarManager.setActivity(this);
         }
         mTISBindHelper.setPredictiveBackToHomeInProgress(mIsPredictiveBackToHomeInProgress);
+        binder.registerOverviewTargetChangeListener(mOverviewTargetChangeRunnable);
     }
 
     @Override
