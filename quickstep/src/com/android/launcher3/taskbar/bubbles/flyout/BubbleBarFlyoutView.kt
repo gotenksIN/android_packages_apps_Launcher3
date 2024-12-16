@@ -35,6 +35,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.animation.ArgbEvaluator
 import com.android.launcher3.R
 import com.android.launcher3.popup.RoundedArrowDrawable
+import kotlin.math.min
 
 /** The flyout view used to notify the user of a new bubble notification. */
 class BubbleBarFlyoutView(
@@ -46,6 +47,8 @@ class BubbleBarFlyoutView(
     private companion object {
         // the minimum progress of the expansion animation before the content starts fading in.
         const val MIN_EXPANSION_PROGRESS_FOR_CONTENT_ALPHA = 0.75f
+        // the rate multiple for the background color animation relative to the morph animation.
+        const val BACKGROUND_COLOR_CHANGE_RATE = 5
     }
 
     private val scheduler: FlyoutScheduler = scheduler ?: HandlerScheduler(this)
@@ -192,16 +195,8 @@ class BubbleBarFlyoutView(
         title.alpha = 0f
         message.alpha = 0f
         setData(flyoutMessage)
-        val txToCollapsedPosition =
-            if (positioner.isOnLeft) {
-                positioner.distanceToCollapsedPosition.x
-            } else {
-                -positioner.distanceToCollapsedPosition.x
-            }
-        val tyToCollapsedPosition =
-            positioner.distanceToCollapsedPosition.y + triangleHeight - triangleOverlap
-        translationToCollapsedPosition = PointF(txToCollapsedPosition, tyToCollapsedPosition)
 
+        updateTranslationToCollapsedPosition()
         collapsedSize = positioner.collapsedSize
         collapsedCornerRadius = collapsedSize / 2
         collapsedColor = positioner.collapsedColor
@@ -210,11 +205,19 @@ class BubbleBarFlyoutView(
         // calculate the expansion progress required before we start showing the triangle as part of
         // the expansion animation
         minExpansionProgressForTriangle =
-            positioner.distanceToRevealTriangle / tyToCollapsedPosition
+            positioner.distanceToRevealTriangle / translationToCollapsedPosition.y
+
+        backgroundPaint.color = collapsedColor
 
         // post the request to start the expand animation to the looper so the view can measure
         // itself
         scheduler.runAfterLayout(expandAnimation)
+    }
+
+    /** Updates the content of the flyout and schedules [afterLayout] to run after a layout pass. */
+    fun updateData(flyoutMessage: BubbleBarFlyoutMessage, afterLayout: () -> Unit) {
+        setData(flyoutMessage)
+        scheduler.runAfterLayout(afterLayout)
     }
 
     private fun setData(flyoutMessage: BubbleBarFlyoutMessage) {
@@ -249,6 +252,22 @@ class BubbleBarFlyoutView(
         message.minWidth = minTextViewWidth
         message.maxWidth = maxTextViewWidth
         message.text = flyoutMessage.message
+    }
+
+    /**
+     * This should be called to update [translationToCollapsedPosition] before we start expanding or
+     * collapsing to make sure that we're animating the flyout to and from the correct position.
+     */
+    fun updateTranslationToCollapsedPosition() {
+        val txToCollapsedPosition =
+            if (positioner.isOnLeft) {
+                positioner.distanceToCollapsedPosition.x
+            } else {
+                -positioner.distanceToCollapsedPosition.x
+            }
+        val tyToCollapsedPosition =
+            positioner.distanceToCollapsedPosition.y + triangleHeight - triangleOverlap
+        translationToCollapsedPosition = PointF(txToCollapsedPosition, tyToCollapsedPosition)
     }
 
     /** Updates the flyout view with the progress of the animation. */
@@ -293,8 +312,16 @@ class BubbleBarFlyoutView(
             height.toFloat() - triangleHeight + triangleOverlap,
         )
 
+        // transform the flyout color between the collapsed and expanded states. the color
+        // transformation completes at a faster rate (BACKGROUND_COLOR_CHANGE_RATE) than the
+        // expansion animation. this helps make the color change smooth.
         backgroundPaint.color =
-            ArgbEvaluator.getInstance().evaluate(expansionProgress, collapsedColor, backgroundColor)
+            ArgbEvaluator.getInstance()
+                .evaluate(
+                    min(expansionProgress * BACKGROUND_COLOR_CHANGE_RATE, 1f),
+                    collapsedColor,
+                    backgroundColor,
+                )
 
         canvas.save()
         canvas.translate(backgroundRectTx, backgroundRectTy)
