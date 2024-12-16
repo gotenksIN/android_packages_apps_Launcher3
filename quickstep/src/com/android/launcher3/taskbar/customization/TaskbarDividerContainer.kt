@@ -26,6 +26,7 @@ import com.android.launcher3.R
 import com.android.launcher3.Utilities.dpToPx
 import com.android.launcher3.taskbar.TaskbarActivityContext
 import com.android.launcher3.taskbar.TaskbarViewCallbacks
+import com.android.launcher3.util.DisplayController
 import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.views.IconButtonView
 
@@ -51,7 +52,9 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
         backgroundTintList = ColorStateList.valueOf(TRANSPARENT)
         val drawable = resources.getDrawable(R.drawable.taskbar_divider_button)
         setIconDrawable(drawable)
-        setPadding(dpToPx(activityContext.taskbarSpecsEvaluator.taskbarIconPadding.toFloat()))
+        if (!DisplayController.isTransientTaskbar(context)) {
+            setPadding(dpToPx(activityContext.taskbarSpecsEvaluator.taskbarIconPadding.toFloat()))
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
