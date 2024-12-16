@@ -157,6 +157,7 @@ import com.android.systemui.shared.system.InteractionJankMonitorWrapper;
 import com.android.systemui.shared.system.SysUiStatsLog;
 import com.android.systemui.shared.system.TaskStackChangeListener;
 import com.android.systemui.shared.system.TaskStackChangeListeners;
+import com.android.wm.shell.Flags;
 import com.android.wm.shell.shared.TransactionPool;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.shared.startingsurface.SplashScreenExitAnimationUtils;
@@ -783,7 +784,7 @@ public abstract class AbsSwipeUpHandler<
                 && recentsAttachedToAppWindow) {
             // Only move running task if RecentsView has never been attached before, to avoid
             // TaskView jumping to new position as we move the tasks.
-            mRecentsView.moveRunningTaskToFront();
+            mRecentsView.moveRunningTaskToExpectedPosition();
         }
         mAnimationFactory.setRecentsAttachedToAppWindow(
                 recentsAttachedToAppWindow, animate, updateRunningTaskAlpha);
@@ -1452,8 +1453,21 @@ public abstract class AbsSwipeUpHandler<
                 onPageTransitionEnd.run();
             }
         }
+        long finalDuration = duration;
+        runOnRecentsAnimationAndLauncherBound(() -> animateGestureEnd(
+                startShift, endShift, finalDuration, interpolator, endTarget, velocityPxPerMs));
+    }
 
-        animateToProgress(startShift, endShift, duration, interpolator, endTarget, velocityPxPerMs);
+    @UiThread
+    protected void animateGestureEnd(
+            float startShift,
+            float endShift,
+            long duration,
+            @NonNull Interpolator interpolator,
+            @NonNull GestureEndTarget endTarget,
+            @NonNull PointF velocityPxPerMs) {
+        animateToProgressInternal(
+                startShift, endShift, duration, interpolator, endTarget, velocityPxPerMs);
     }
 
     private void doLogGesture(GestureEndTarget endTarget, @Nullable TaskView targetTask) {
@@ -1494,14 +1508,6 @@ public abstract class AbsSwipeUpHandler<
                 : mRecentsView.getNextPage();
         logger.withRank(pageIndex);
         logger.log(event);
-    }
-
-    /** Animates to the given progress, where 0 is the current app and 1 is overview. */
-    @UiThread
-    private void animateToProgress(float start, float end, long duration, Interpolator interpolator,
-            GestureEndTarget target, PointF velocityPxPerMs) {
-        runOnRecentsAnimationAndLauncherBound(() -> animateToProgressInternal(start, end, duration,
-                interpolator, target, velocityPxPerMs));
     }
 
     protected abstract HomeAnimationFactory createHomeAnimationFactory(
@@ -2079,6 +2085,7 @@ public abstract class AbsSwipeUpHandler<
         if (mRecentsView != null) {
             mRecentsView.removeOnScrollChangedListener(mOnRecentsScrollListener);
         }
+        mGestureState.getContainerInterface().setOnDeferredActivityLaunchCallback(null);
     }
 
     private void resetStateForAnimationCancel() {
@@ -2205,8 +2212,9 @@ public abstract class AbsSwipeUpHandler<
                     mSwipePipToHomeAnimator.getFinishTransaction(),
                     mSwipePipToHomeAnimator.getContentOverlay());
             mIsSwipingPipToHome = false;
-        } else if (mIsSwipeForSplit) {
+        } else if (mIsSwipeForSplit && !Flags.enablePip2()) {
             // Transaction to hide the task to avoid flicker for entering PiP from split-screen.
+            // Note: PiP2 handles entering differently, so skip if enable_pip2=true
             PictureInPictureSurfaceTransaction tx =
                     new PictureInPictureSurfaceTransaction.Builder()
                             .setAlpha(0f)
