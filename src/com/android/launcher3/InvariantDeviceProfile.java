@@ -16,6 +16,7 @@
 
 package com.android.launcher3;
 
+import static com.android.launcher3.LauncherPrefs.DB_FILE;
 import static com.android.launcher3.LauncherPrefs.FIXED_LANDSCAPE_MODE;
 import static com.android.launcher3.LauncherPrefs.GRID_NAME;
 import static com.android.launcher3.Utilities.dpiFromPx;
@@ -53,6 +54,7 @@ import androidx.core.content.res.ResourcesCompat;
 
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.icons.DotRenderer;
+import com.android.launcher3.logging.FileLog;
 import com.android.launcher3.model.DeviceGridState;
 import com.android.launcher3.provider.RestoreDbTask;
 import com.android.launcher3.testing.shared.ResourceUtils;
@@ -63,6 +65,7 @@ import com.android.launcher3.util.Partner;
 import com.android.launcher3.util.ResourceHelper;
 import com.android.launcher3.util.SafeCloseable;
 import com.android.launcher3.util.WindowBounds;
+import com.android.launcher3.util.window.CachedDisplayInfo;
 import com.android.launcher3.util.window.WindowManagerProxy;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -84,6 +87,8 @@ public class InvariantDeviceProfile implements SafeCloseable {
     // We do not need any synchronization for this variable as its only written on UI thread.
     public static final MainThreadInitializedObject<InvariantDeviceProfile> INSTANCE =
             new MainThreadInitializedObject<>(InvariantDeviceProfile::new);
+
+    public static final String GRID_NAME_PREFS_KEY = "idp_grid_name";
 
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({TYPE_PHONE, TYPE_MULTI_DISPLAY, TYPE_TABLET})
@@ -240,11 +245,11 @@ public class InvariantDeviceProfile implements SafeCloseable {
     @TargetApi(23)
     private InvariantDeviceProfile(Context context) {
         String gridName = getCurrentGridName(context);
-        String newGridName = initGrid(context, gridName);
-        if (!newGridName.equals(gridName)) {
-            LauncherPrefs.get(context).put(GRID_NAME, newGridName);
-        }
-
+        FileLog.d(TAG, "New InvariantDeviceProfile, before initGrid(): "
+                + "gridName:" + gridName
+                + ", LauncherPrefs GRID_NAME:" + LauncherPrefs.get(context).get(GRID_NAME)
+                + ", LauncherPrefs DB_FILE:" + LauncherPrefs.get(context).get(DB_FILE));
+        initGrid(context, gridName);
         DisplayController.INSTANCE.get(context).setPriorityListener(
                 (displayContext, info, flags) -> {
                     if ((flags & (CHANGE_DENSITY | CHANGE_SUPPORTED_BOUNDS
@@ -367,7 +372,16 @@ public class InvariantDeviceProfile implements SafeCloseable {
                                 ? new ArrayList<>(allOptions)
                                 : new ArrayList<>(allOptionsFilteredByColCount),
                         displayInfo.getDeviceType());
+
+        if (!displayOption.grid.name.equals(gridName)) {
+            LauncherPrefs.get(context).put(GRID_NAME, displayOption.grid.name);
+        }
+
         initGrid(context, displayInfo, displayOption);
+        FileLog.d(TAG, "initGrid: "
+                + "gridName:" + gridName
+                + ", LauncherPrefs GRID_NAME:" + LauncherPrefs.get(context).get(GRID_NAME)
+                + ", LauncherPrefs DB_FILE:" + LauncherPrefs.get(context).get(DB_FILE));
         return displayOption.grid.name;
     }
 
@@ -679,28 +693,15 @@ public class InvariantDeviceProfile implements SafeCloseable {
     }
 
     private static int[] findMinWidthAndHeightDpForDevice(Info displayInfo) {
-        int minWidthPx = Integer.MAX_VALUE;
-        int minHeightPx = Integer.MAX_VALUE;
-        for (WindowBounds bounds : displayInfo.supportedBounds) {
-            boolean isTablet = displayInfo.isTablet(bounds);
-            if (isTablet && displayInfo.getDeviceType() == TYPE_MULTI_DISPLAY) {
-                // For split displays, take half width per page.
-                minWidthPx = Math.min(minWidthPx, bounds.availableSize.x / 2);
-                minHeightPx = Math.min(minHeightPx, bounds.availableSize.y);
-            } else if (!isTablet && bounds.isLandscape()) {
-                // We will use transposed layout in this case.
-                minWidthPx = Math.min(minWidthPx, bounds.availableSize.y);
-                minHeightPx = Math.min(minHeightPx, bounds.availableSize.x);
-            } else {
-                minWidthPx = Math.min(minWidthPx, bounds.availableSize.x);
-                minHeightPx = Math.min(minHeightPx, bounds.availableSize.y);
-            }
+        int minDisplayWidthDp = Integer.MAX_VALUE;
+        int minDisplayHeightDp = Integer.MAX_VALUE;
+        for (CachedDisplayInfo display: displayInfo.getAllDisplays()) {
+            minDisplayWidthDp = Math.min(minDisplayWidthDp,
+                    (int) dpiFromPx(display.size.x, DisplayMetrics.DENSITY_DEVICE_STABLE));
+            minDisplayHeightDp = Math.min(minDisplayHeightDp,
+                    (int) dpiFromPx(display.size.y, DisplayMetrics.DENSITY_DEVICE_STABLE));
         }
-
-        int minWidthDp = (int) dpiFromPx(minWidthPx, DisplayMetrics.DENSITY_DEVICE_STABLE);
-        int minHeightDp = (int) dpiFromPx(minHeightPx, DisplayMetrics.DENSITY_DEVICE_STABLE);
-
-        return new int[]{minWidthDp, minHeightDp};
+        return new int[]{minDisplayWidthDp, minDisplayHeightDp};
     }
 
     /**
