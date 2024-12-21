@@ -16,6 +16,8 @@
 
 package com.android.launcher3.taskbar;
 
+import static com.android.launcher3.Flags.taskbarRecentsLayoutTransition;
+import static com.android.launcher3.config.FeatureFlags.enableTaskbarPinning;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_TASKBAR_ALLAPPS_BUTTON_LONG_PRESS;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_TASKBAR_ALLAPPS_BUTTON_TAP;
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_TASKBAR_OVERFLOW;
@@ -23,6 +25,7 @@ import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLA
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.view.GestureDetector;
+import android.view.HapticFeedbackConstants;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
@@ -34,7 +37,6 @@ import com.android.internal.jank.Cuj;
 import com.android.launcher3.taskbar.bubbles.BubbleBarViewController;
 import com.android.launcher3.util.DisplayController;
 import com.android.systemui.shared.system.InteractionJankMonitorWrapper;
-import com.android.wm.shell.Flags;
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
 
 /**
@@ -110,6 +112,13 @@ public class TaskbarViewCallbacks {
         return new TaskbarHoverToolTipController(mActivity, mTaskbarView, icon);
     }
 
+    /** Callback invoked before Taskbar icons are laid out. */
+    void onPreLayoutChildren() {
+        if (enableTaskbarPinning() && taskbarRecentsLayoutTransition()) {
+            mControllers.taskbarViewController.updateTaskbarIconTranslationXForPinning();
+        }
+    }
+
     /**
      * Notifies launcher to update icon alignment.
      */
@@ -150,10 +159,9 @@ public class TaskbarViewCallbacks {
                 .orElse(0f);
     }
 
-    /** Returns true if bubble bar controllers present and enabled in persistent taskbar. */
-    public boolean isBubbleBarEnabledInPersistentTaskbar() {
-        return Flags.enableBubbleBarInPersistentTaskBar()
-                && mControllers.bubbleControllers.isPresent();
+    /** Returns true if bubble bar controllers are present. */
+    public boolean isBubbleBarEnabled() {
+        return mControllers.bubbleControllers.isPresent();
     }
 
     /** Returns on click listener for the taskbar overflow view. */
@@ -223,15 +231,19 @@ public class TaskbarViewCallbacks {
 
         @Override
         public void onLongPress(@NonNull MotionEvent event) {
-            maybeShowPinningView(event);
+            if (maybeShowPinningView(event)) {
+                mTaskbarView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            }
         }
 
-        private void maybeShowPinningView(@NonNull MotionEvent event) {
+        /** Returns true if the taskbar pinning popup view was shown for {@code event}. */
+        private boolean maybeShowPinningView(@NonNull MotionEvent event) {
             if (!DisplayController.isPinnedTaskbar(mActivity) || mTaskbarView.isEventOverAnyItem(
                     event)) {
-                return;
+                return false;
             }
             mControllers.taskbarPinningController.showPinningView(mTaskbarView, event.getRawX());
+            return true;
         }
     }
 }
