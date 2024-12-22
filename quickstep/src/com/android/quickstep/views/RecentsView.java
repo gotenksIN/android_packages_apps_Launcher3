@@ -25,11 +25,11 @@ import static com.android.app.animation.Interpolators.ACCELERATE;
 import static com.android.app.animation.Interpolators.ACCELERATE_0_75;
 import static com.android.app.animation.Interpolators.ACCELERATE_DECELERATE;
 import static com.android.app.animation.Interpolators.DECELERATE_2;
+import static com.android.app.animation.Interpolators.EMPHASIZED;
 import static com.android.app.animation.Interpolators.EMPHASIZED_DECELERATE;
 import static com.android.app.animation.Interpolators.FAST_OUT_SLOW_IN;
 import static com.android.app.animation.Interpolators.FINAL_FRAME;
 import static com.android.app.animation.Interpolators.LINEAR;
-import static com.android.app.animation.Interpolators.EMPHASIZED;
 import static com.android.app.animation.Interpolators.clampToProgress;
 import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
 import static com.android.launcher3.AbstractFloatingView.TYPE_TASK_MENU;
@@ -179,6 +179,7 @@ import com.android.launcher3.util.TraceHelper;
 import com.android.launcher3.util.TranslateEdgeEffect;
 import com.android.launcher3.util.VibratorWrapper;
 import com.android.launcher3.util.ViewPool;
+import com.android.launcher3.util.coroutines.DispatcherProvider;
 import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.GestureState;
 import com.android.quickstep.OverviewCommandHelper;
@@ -237,6 +238,8 @@ import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource;
 
 import kotlin.Unit;
 import kotlin.collections.CollectionsKt;
+
+import kotlinx.coroutines.CoroutineScope;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -927,7 +930,11 @@ public abstract class RecentsView<
                     recentsDependencies.inject(RecentTasksRepository.class),
                     recentsDependencies.inject(RecentsViewData.class)
             );
-            mHelper = new RecentsViewModelHelper(mRecentsViewModel);
+            mHelper = new RecentsViewModelHelper(
+                    mRecentsViewModel,
+                    recentsDependencies.inject(CoroutineScope.class),
+                    recentsDependencies.inject(DispatcherProvider.class)
+            );
 
             recentsDependencies.provide(RecentsRotationStateRepository.class,
                     () -> new RecentsRotationStateRepositoryImpl(mOrientationState));
@@ -1264,9 +1271,6 @@ public abstract class RecentsView<
         if (FeatureFlags.enableSplitContextually()) {
             mSplitSelectStateController.registerSplitListener(mSplitSelectionListener);
         }
-        if (enableRefactorTaskThumbnail()) {
-            mHelper.onAttachedToWindow();
-        }
     }
 
     @Override
@@ -1569,19 +1573,6 @@ public abstract class RecentsView<
     private boolean isFocusedTaskInExpectedScrollPosition() {
         TaskView focusedTask = getFocusedTaskView();
         return focusedTask != null && isTaskInExpectedScrollPosition(focusedTask);
-    }
-
-    /**
-     * Launch DesktopTaskView if found.
-     * @return provides runnable list to attach runnable at end of Desktop Mode launch
-     */
-    public RunnableList launchDesktopTaskView() {
-        for (TaskView taskView : getTaskViews()) {
-            if (taskView instanceof DesktopTaskView) {
-                return taskView.launchWithAnimation();
-            }
-        }
-        return null;
     }
 
     /**
@@ -3931,6 +3922,7 @@ public abstract class RecentsView<
                     : -newClearAllShortTotalWidthTranslation;
         }
         mDismissPrimaryTranslations = new int[taskCount];
+        int lastTaskViewIndex = indexOfChild(mUtils.getLastTaskView());
         for (int i = 0; i < count; i++) {
             View child = getChildAt(i);
             if (child == dismissedTaskView) {
@@ -3940,7 +3932,8 @@ public abstract class RecentsView<
             } else if (!showAsGrid || (enableLargeDesktopWindowingTile()
                     && dismissedTaskView != null && dismissedTaskView.isLargeTile()
                     && nextFocusedTaskView == null && !dismissingForSplitSelection)) {
-                int offset = getOffsetToDismissedTask(scrollDiffPerPage, dismissedIndex, taskCount);
+                int offset = getOffsetToDismissedTask(scrollDiffPerPage, dismissedIndex,
+                        lastTaskViewIndex);
                 int scrollDiff = newScroll[i] - oldScroll[i] + offset;
                 if (scrollDiff != 0) {
                     translateTaskWhenDismissed(
@@ -4290,14 +4283,14 @@ public abstract class RecentsView<
      * - Current page is rightmost page (leftmost for RTL)
      * - Dragging an adjacent page on the left side (right side for RTL)
      */
-    private int getOffsetToDismissedTask(int scrollDiffPerPage, int dismissedIndex, int taskCount) {
-        // When mCurrentPage is ClearAllButton, use the last TaskView instead to calculate
-        // offset.
-        int currentPage = mCurrentPage == taskCount ? taskCount - 1 : mCurrentPage;
+    private int getOffsetToDismissedTask(int scrollDiffPerPage, int dismissedIndex,
+            int lastTaskViewIndex) {
+        // If `mCurrentPage` is beyond `lastTaskViewIndex`, use the last TaskView instead to
+        // calculate offset.
+        int currentPage = Math.min(mCurrentPage, lastTaskViewIndex);
         int offset = mIsRtl ? scrollDiffPerPage : 0;
         if (currentPage == dismissedIndex) {
-            int lastPage = taskCount - 1;
-            if (currentPage == lastPage) {
+            if (currentPage == lastTaskViewIndex) {
                 offset += mIsRtl ? -scrollDiffPerPage : scrollDiffPerPage;
             }
         } else {
