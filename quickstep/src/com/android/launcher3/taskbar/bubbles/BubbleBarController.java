@@ -339,13 +339,15 @@ public class BubbleBarController extends IBubblesListener.Stub {
             // clear restored state
             mBubbleBarViewController.removeAllBubbles();
             mBubbles.clear();
+            mBubbleBarViewController.showOverflow(update.showOverflow);
         }
 
         BubbleBarBubble bubbleToSelect = null;
 
         if (Flags.enableOptionalBubbleOverflow()
                 && update.showOverflowChanged && !update.showOverflow && update.addedBubble != null
-                && update.removedBubbles.isEmpty()) {
+                && update.removedBubbles.isEmpty()
+                && !mBubbles.isEmpty()) {
             // A bubble was added from the overflow (& now it's empty / not showing)
             mBubbles.put(update.addedBubble.getKey(), update.addedBubble);
             mBubbleBarViewController.removeOverflowAndAddBubble(update.addedBubble);
