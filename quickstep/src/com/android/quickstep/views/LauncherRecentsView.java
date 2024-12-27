@@ -164,13 +164,14 @@ public class LauncherRecentsView extends RecentsView<QuickstepLauncher, Launcher
         }
 
         setFreezeViewVisibility(true);
-        if (mContainer.getDesktopVisibilityController() != null) {
-            mContainer.getDesktopVisibilityController().onLauncherStateChanged(toState);
-        }
     }
 
     @Override
     public void onStateTransitionComplete(LauncherState finalState) {
+        if (mContainer.getDesktopVisibilityController() != null) {
+            mContainer.getDesktopVisibilityController().onLauncherStateChanged(finalState);
+        }
+
         if (!finalState.isRecentsViewVisible) {
             // Clean-up logic that occurs when recents is no longer in use/visible.
             reset();
@@ -287,7 +288,7 @@ public class LauncherRecentsView extends RecentsView<QuickstepLauncher, Launcher
             desktopVisibilityController = mContainer.getDesktopVisibilityController();
             endTarget = mCurrentGestureEndTarget;
             if (endTarget == GestureState.GestureEndTarget.LAST_TASK
-                    && desktopVisibilityController.areDesktopTasksVisible()) {
+                    && desktopVisibilityController.areDesktopTasksVisibleAndNotInOverview()) {
                 // Recents gesture was cancelled and we are returning to the previous task.
                 // After super class has handled clean up, show desktop apps on top again
                 showDesktopApps = true;

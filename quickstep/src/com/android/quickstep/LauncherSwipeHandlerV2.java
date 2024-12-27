@@ -71,7 +71,7 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
             boolean continuingLastGesture, InputConsumerController inputConsumer,
             MSDLPlayerWrapper msdlPlayerWrapper) {
         super(context, deviceState, taskAnimationManager, gestureState, touchTimeMs,
-                continuingLastGesture, inputConsumer, null, msdlPlayerWrapper);
+                continuingLastGesture, inputConsumer, msdlPlayerWrapper);
     }
 
 
@@ -106,7 +106,8 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
                 && workspaceView.isAttachedToWindow()
                 && workspaceView.getHeight() > 0
                 && (mContainer.getDesktopVisibilityController() == null
-                || !mContainer.getDesktopVisibilityController().areDesktopTasksVisible());
+                || !mContainer.getDesktopVisibilityController()
+                    .areDesktopTasksVisibleAndNotInOverview());
 
         mContainer.getRootView().setForceHideBackArrow(true);
 

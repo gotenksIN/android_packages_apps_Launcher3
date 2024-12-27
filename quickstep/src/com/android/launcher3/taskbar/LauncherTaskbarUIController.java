@@ -49,7 +49,6 @@ import com.android.quickstep.HomeVisibilityState;
 import com.android.quickstep.RecentsAnimationCallbacks;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.util.GroupTask;
-import com.android.quickstep.util.TISBindHelper;
 import com.android.quickstep.views.RecentsView;
 import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags;
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
@@ -245,7 +244,8 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
         }
 
         if (!ENABLE_DESKTOP_WINDOWING_WALLPAPER_ACTIVITY.isTrue()
-                && mControllers.taskbarDesktopModeController.getAreDesktopTasksVisible()) {
+                && mControllers.taskbarDesktopModeController
+                    .getAreDesktopTasksVisibleAndNotInOverview()) {
             // TODO: b/333533253 - Remove after flag rollout
             isVisible = false;
         }
@@ -483,12 +483,6 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     @Override
     protected void onIconLayoutBoundsChanged() {
         mTaskbarLauncherStateController.resetIconAlignment();
-    }
-
-    @Nullable
-    @Override
-    protected TISBindHelper getTISBindHelper() {
-        return mLauncher.getTISBindHelper();
     }
 
     @Override
