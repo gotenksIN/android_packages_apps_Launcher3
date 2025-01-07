@@ -163,7 +163,6 @@ import com.android.systemui.shared.system.ActivityManagerWrapper;
 import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags;
 import com.android.systemui.unfold.updates.RotationChangeProvider;
 import com.android.systemui.unfold.util.ScopedUnfoldTransitionProgressProvider;
-import com.android.wm.shell.Flags;
 
 import java.io.PrintWriter;
 import java.util.Collections;
@@ -277,12 +276,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         TaskbarScrimView taskbarScrimView = mDragLayer.findViewById(R.id.taskbar_scrim);
         NearestTouchFrame navButtonsView = mDragLayer.findViewById(R.id.navbuttons_view);
         StashedHandleView stashedHandleView = mDragLayer.findViewById(R.id.stashed_handle);
-        BubbleBarView bubbleBarView = null;
-        FrameLayout bubbleBarContainer = null;
-        if (isTransientTaskbar || Flags.enableBubbleBarInPersistentTaskBar()) {
-            bubbleBarView = mDragLayer.findViewById(R.id.taskbar_bubbles);
-            bubbleBarContainer = mDragLayer.findViewById(R.id.taskbar_bubbles_container);
-        }
+        BubbleBarView bubbleBarView = mDragLayer.findViewById(R.id.taskbar_bubbles);
+        FrameLayout bubbleBarContainer = mDragLayer.findViewById(R.id.taskbar_bubbles_container);
         StashedHandleView bubbleHandleView = mDragLayer.findViewById(R.id.stashed_bubble_handle);
 
         mAccessibilityDelegate = new TaskbarShortcutMenuAccessibilityDelegate(this);
@@ -1322,25 +1317,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         } else if (tag instanceof TaskItemInfo info) {
             RemoteTransition remoteTransition = canUnminimizeDesktopTask(info.getTaskId())
                     ? createUnminimizeRemoteTransition() : null;
-
-            if (areDesktopTasksVisible() && recents != null) {
-                TaskView taskView = recents.getTaskViewByTaskId(info.getTaskId());
-                if (taskView == null) return;
-                RunnableList runnableList = taskView.launchWithAnimation();
-                if (runnableList != null) {
-                    runnableList.add(() ->
-                            // wrapped it in runnable here since we need the post for DW to be
-                            // ready. if we don't other DW will be gone and only the launched task
-                            // will show.
-                            UI_HELPER_EXECUTOR.execute(() ->
-                                    SystemUiProxy.INSTANCE.get(this).showDesktopApp(
-                                            info.getTaskId(), remoteTransition)));
-                }
-            } else {
-                UI_HELPER_EXECUTOR.execute(() ->
-                        SystemUiProxy.INSTANCE.get(this).showDesktopApp(
-                                info.getTaskId(), remoteTransition));
-            }
+            UI_HELPER_EXECUTOR.execute(() ->
+                    SystemUiProxy.INSTANCE.get(this).showDesktopApp(
+                            info.getTaskId(), remoteTransition));
             mControllers.taskbarStashController.updateAndAnimateTransientTaskbar(
                     /* stash= */ true);
         } else if (tag instanceof WorkspaceItemInfo) {
@@ -1422,6 +1401,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             Log.e(TAG, "Unknown type clicked: " + tag);
         }
 
+        mControllers.taskbarPopupController.maybeCloseMultiInstanceMenu();
         if (shouldCloseAllOpenViews) {
             AbstractFloatingView.closeAllOpenViews(this);
         }
@@ -1584,17 +1564,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                                                 .launchAppPair((AppPairIcon) launchingIconView,
                                                         -1 /*cuj*/)));
                     } else {
-                        if (areDesktopTasksVisible()) {
-                            RunnableList runnableList = recents.launchDesktopTaskView();
-                            // Wrapping it in runnable so we post after DW is ready for the app
-                            // launch.
-                            if (runnableList != null) {
-                                runnableList.add(() -> UI_HELPER_EXECUTOR.execute(
-                                        () -> startItemInfoActivity(itemInfos.get(0), foundTask)));
-                            }
-                        } else {
-                            startItemInfoActivity(itemInfos.get(0), foundTask);
-                        }
+                        startItemInfoActivity(itemInfos.get(0), foundTask);
                     }
                 }
         );

@@ -72,6 +72,8 @@ class TasksRepository(
     override fun getThumbnailById(taskId: Int) =
         getTaskDataById(taskId).map { it?.thumbnail }.distinctUntilChangedBy { it?.snapshotId }
 
+    override fun getCurrentThumbnailById(taskId: Int) = tasks.value[taskId]?.thumbnail
+
     override fun setVisibleTasks(visibleTaskIdList: Set<Int>) {
         val tasksNoLongerVisible = taskRequests.keys.subtract(visibleTaskIdList)
         val newlyVisibleTasks = visibleTaskIdList.subtract(taskRequests.keys)
@@ -94,7 +96,7 @@ class TasksRepository(
         taskRequests[taskId] =
             Pair(
                 task.key,
-                recentsCoroutineScope.launch {
+                recentsCoroutineScope.launch(dispatcherProvider.main) {
                     Log.i(TAG, "requestTaskData: $taskId")
                     fetchIcon(task)
                     fetchThumbnail(task)
@@ -132,7 +134,7 @@ class TasksRepository(
             task.key,
             object : TaskIconChangedCallback {
                 override fun onTaskIconChanged() {
-                    recentsCoroutineScope.launch {
+                    recentsCoroutineScope.launch(dispatcherProvider.main) {
                         updateIcon(task.key.id, getIconFromDataSource(task))
                     }
                 }
@@ -150,7 +152,7 @@ class TasksRepository(
                 }
 
                 override fun onHighResLoadingStateChanged() {
-                    recentsCoroutineScope.launch {
+                    recentsCoroutineScope.launch(dispatcherProvider.main) {
                         updateThumbnail(task.key.id, getThumbnailFromDataSource(task))
                     }
                 }

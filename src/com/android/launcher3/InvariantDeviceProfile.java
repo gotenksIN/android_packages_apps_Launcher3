@@ -57,6 +57,7 @@ import com.android.launcher3.icons.DotRenderer;
 import com.android.launcher3.logging.FileLog;
 import com.android.launcher3.model.DeviceGridState;
 import com.android.launcher3.provider.RestoreDbTask;
+import com.android.launcher3.settings.SettingsActivity;
 import com.android.launcher3.testing.shared.ResourceUtils;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.DisplayController.Info;
@@ -245,10 +246,6 @@ public class InvariantDeviceProfile implements SafeCloseable {
     @TargetApi(23)
     private InvariantDeviceProfile(Context context) {
         String gridName = getCurrentGridName(context);
-        FileLog.d(TAG, "New InvariantDeviceProfile, before initGrid(): "
-                + "gridName:" + gridName
-                + ", LauncherPrefs GRID_NAME:" + LauncherPrefs.get(context).get(GRID_NAME)
-                + ", LauncherPrefs DB_FILE:" + LauncherPrefs.get(context).get(DB_FILE));
         initGrid(context, gridName);
         DisplayController.INSTANCE.get(context).setPriorityListener(
                 (displayContext, info, flags) -> {
@@ -259,8 +256,12 @@ public class InvariantDeviceProfile implements SafeCloseable {
                     }
                 });
         if (Flags.oneGridSpecs()) {
-            mLandscapeModePreferenceListener = (String s) -> {
-                if (isFixedLandscape != FIXED_LANDSCAPE_MODE.get(context)) {
+            mLandscapeModePreferenceListener = (String preference_name) -> {
+                // Here we need both conditions even though they might seem redundant but because
+                // the update happens in the executable there can be race conditions and this avoids
+                // it.
+                if (isFixedLandscape != FIXED_LANDSCAPE_MODE.get(context)
+                        && SettingsActivity.FIXED_LANDSCAPE_MODE.equals(preference_name)) {
                     MAIN_EXECUTOR.execute(() -> {
                         Trace.beginSection("InvariantDeviceProfile#setFixedLandscape");
                         onConfigChanged(context.getApplicationContext());
@@ -353,6 +354,11 @@ public class InvariantDeviceProfile implements SafeCloseable {
     }
 
     private String initGrid(Context context, String gridName) {
+        FileLog.d(TAG, "Before initGrid:"
+                + "gridName:" + gridName
+                + ", dbFile:" + dbFile
+                + ", LauncherPrefs GRID_NAME:" + LauncherPrefs.get(context).get(GRID_NAME)
+                + ", LauncherPrefs DB_FILE:" + LauncherPrefs.get(context).get(DB_FILE));
         Info displayInfo = DisplayController.INSTANCE.get(context).getInfo();
         List<DisplayOption> allOptions = getPredefinedDeviceProfiles(
                 context,
@@ -378,8 +384,9 @@ public class InvariantDeviceProfile implements SafeCloseable {
         }
 
         initGrid(context, displayInfo, displayOption);
-        FileLog.d(TAG, "initGrid: "
+        FileLog.d(TAG, "After initGrid:"
                 + "gridName:" + gridName
+                + ", dbFile:" + dbFile
                 + ", LauncherPrefs GRID_NAME:" + LauncherPrefs.get(context).get(GRID_NAME)
                 + ", LauncherPrefs DB_FILE:" + LauncherPrefs.get(context).get(DB_FILE));
         return displayOption.grid.name;
@@ -397,7 +404,7 @@ public class InvariantDeviceProfile implements SafeCloseable {
      */
     @Deprecated
     public void reset(Context context) {
-        initGrid(context, getDefaultGridName(context));
+        initGrid(context, getCurrentGridName(context));
     }
 
     @VisibleForTesting

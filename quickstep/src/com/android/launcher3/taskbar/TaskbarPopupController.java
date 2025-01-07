@@ -17,6 +17,7 @@ package com.android.launcher3.taskbar;
 
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS;
 import static com.android.launcher3.model.data.AppInfo.COMPONENT_KEY_COMPARATOR;
+import static com.android.launcher3.popup.SystemShortcut.PIN_UNPIN_ITEM;
 import static com.android.launcher3.util.SplitConfigurationOptions.getLogEventForPosition;
 
 import android.content.Intent;
@@ -86,6 +87,8 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
     private TaskbarControllers mControllers;
     private boolean mAllowInitialSplitSelection;
     private AppInfo[] mAppInfosList;
+    private ManageWindowsTaskbarShortcut<BaseTaskbarContext> mManageWindowsTaskbarShortcut;
+
 
     public TaskbarPopupController(TaskbarActivityContext context) {
         mContext = context;
@@ -109,6 +112,19 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
 
     public void setDeepShortcutMap(HashMap<ComponentKey, Integer> deepShortcutMapCopy) {
         mPopupDataProvider.setDeepShortcutMap(deepShortcutMapCopy);
+    }
+
+    /** Closes the multi-instance menu if it is enabled and currently open. */
+    public void maybeCloseMultiInstanceMenu() {
+        if (Flags.enableMultiInstanceMenuTaskbar() && mManageWindowsTaskbarShortcut != null) {
+            mManageWindowsTaskbarShortcut.closeMultiInstanceMenu();
+            cleanUpMultiInstanceMenuReference();
+        }
+    }
+
+    /** Releases the reference to the Taskbar multi-instance menu */
+    public void cleanUpMultiInstanceMenuReference() {
+        mManageWindowsTaskbarShortcut = null;
     }
 
     public void setAllowInitialSplitSelection(boolean allowInitialSplitSelection) {
@@ -195,6 +211,9 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
         // append split options to APP_INFO shortcut if not in Desktop Windowing mode, the order
         // here will reflect in the popup
         ArrayList<SystemShortcut.Factory> shortcuts = new ArrayList<>();
+        if (Flags.enablePinningAppWithContextMenu()) {
+            shortcuts.add(PIN_UNPIN_ITEM);
+        }
         shortcuts.add(APP_INFO);
         if (!mControllers.taskbarDesktopModeController.getAreDesktopTasksVisible()) {
             shortcuts.addAll(mControllers.uiController.getSplitMenuOptions().toList());
@@ -206,6 +225,7 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
         if (Flags.enableMultiInstanceMenuTaskbar()
                 && DesktopModeStatus.canEnterDesktopMode(mContext)
                 && !mControllers.taskbarStashController.isInOverview()) {
+            maybeCloseMultiInstanceMenu();
             shortcuts.addAll(getMultiInstanceMenuOptions().toList());
         }
         return shortcuts.stream();
@@ -325,8 +345,9 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
     public SystemShortcut.Factory<BaseTaskbarContext> createManageWindowsShortcutFactory() {
         return (context, itemInfo, originalView) -> {
             if (shouldShowMultiInstanceOptions(itemInfo)) {
-                return new ManageWindowsTaskbarShortcut<>(context, itemInfo, originalView,
-                        mControllers);
+                mManageWindowsTaskbarShortcut = new ManageWindowsTaskbarShortcut<>(
+                        context, itemInfo, originalView, mControllers);
+                return mManageWindowsTaskbarShortcut;
             }
             return null;
         };

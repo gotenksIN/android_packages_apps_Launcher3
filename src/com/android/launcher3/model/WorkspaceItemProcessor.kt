@@ -20,6 +20,7 @@ import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.LauncherApps
+import android.content.pm.LauncherApps.ShortcutQuery
 import android.content.pm.PackageInstaller
 import android.content.pm.ShortcutInfo
 import android.graphics.Point
@@ -33,6 +34,7 @@ import com.android.launcher3.LauncherSettings.Favorites
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger.RestoreError
 import com.android.launcher3.config.FeatureFlags
 import com.android.launcher3.icons.CacheableShortcutInfo
+import com.android.launcher3.icons.cache.CacheLookupFlag.Companion.DEFAULT_LOOKUP_FLAG
 import com.android.launcher3.logging.FileLog
 import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.AppPairInfo
@@ -44,6 +46,7 @@ import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.pm.PackageInstallInfo
 import com.android.launcher3.pm.UserCache
 import com.android.launcher3.shortcuts.ShortcutKey
+import com.android.launcher3.shortcuts.ShortcutRequest
 import com.android.launcher3.util.ApiWrapper
 import com.android.launcher3.util.ApplicationInfoWrapper
 import com.android.launcher3.util.ComponentKey
@@ -270,7 +273,8 @@ class WorkspaceItemProcessor(
             c.itemType == Favorites.ITEM_TYPE_DEEP_SHORTCUT -> {
                 val key = ShortcutKey.fromIntent(intent, c.user)
                 if (unlockedUsers[c.serialNumber]) {
-                    val pinnedShortcut = shortcutKeyToPinnedShortcuts[key]
+                    val pinnedShortcut =
+                        shortcutKeyToPinnedShortcuts[key] ?: retryDeepShortcutById(key)
                     if (pinnedShortcut == null) {
                         // The shortcut is no longer valid.
                         c.markDeleted(
@@ -373,6 +377,25 @@ class WorkspaceItemProcessor(
         } else {
             throw RuntimeException("Unexpected null WorkspaceItemInfo")
         }
+    }
+
+    /**
+     * It is possible that the data was cleared from ShortcutManager after it was restored. In that
+     * instance, the Launcher would have a valid Shortcut id, but ShortcutManager wouldn't recognize
+     * it as valid. Here we retry by querying ShortcutManager by package name and shortcut id.
+     */
+    private fun retryDeepShortcutById(key: ShortcutKey): ShortcutInfo? {
+        FileLog.d(TAG, "retryDeepShortcutById: package=${key.packageName}, shortcutId=${key.id}")
+        return launcherApps
+            .getShortcuts(
+                ShortcutQuery().apply {
+                    setPackage(key.packageName)
+                    setShortcutIds(listOf(key.id))
+                    setQueryFlags(ShortcutRequest.ALL)
+                },
+                key.user,
+            )
+            ?.firstOrNull()
     }
 
     /**
@@ -521,7 +544,7 @@ class WorkspaceItemProcessor(
                         appWidgetInfo.providerName,
                         appWidgetInfo.user,
                     )
-                iconCache.getTitleAndIconForApp(appWidgetInfo.pendingItemInfo, false)
+                iconCache.getTitleAndIconForApp(appWidgetInfo.pendingItemInfo, DEFAULT_LOOKUP_FLAG)
             }
             WidgetInflater.TYPE_REAL ->
                 WidgetSizes.updateWidgetSizeRangesAsync(
