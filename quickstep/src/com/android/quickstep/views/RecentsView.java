@@ -849,8 +849,6 @@ public abstract class RecentsView<
 
     private final Matrix mTmpMatrix = new Matrix();
 
-    private int mTaskViewCount = 0;
-
     @Nullable
     public TaskView getFirstTaskView() {
         return mUtils.getFirstTaskView();
@@ -1240,8 +1238,15 @@ public abstract class RecentsView<
             mSplitSelectStateController.unregisterSplitListener(mSplitSelectionListener);
         }
         reset();
+    }
+
+    /**
+     * Execute clean-up logic needed when the view is destroyed.
+     */
+    public void destroy() {
+        Log.d(TAG, "destroy");
         if (enableRefactorTaskThumbnail()) {
-            mHelper.onDetachedFromWindow();
+            mHelper.onDestroy();
             RecentsDependencies.destroy();
         }
     }
@@ -1253,11 +1258,9 @@ public abstract class RecentsView<
         // - It's the initial taskview for entering split screen, we only pretend to dismiss the
         // task
         // - It's the focused task to be moved to the front, we immediately re-add the task
-        if (child instanceof TaskView) {
-            mTaskViewCount = Math.max(0, --mTaskViewCount);
-            if (child != mSplitHiddenTaskView && child != mMovingTaskView) {
-                clearAndRecycleTaskView((TaskView) child);
-            }
+        if (child instanceof TaskView && child != mSplitHiddenTaskView
+                && child != mMovingTaskView) {
+            clearAndRecycleTaskView((TaskView) child);
         }
     }
 
@@ -1278,9 +1281,6 @@ public abstract class RecentsView<
     @Override
     public void onViewAdded(View child) {
         super.onViewAdded(child);
-        if (child instanceof TaskView) {
-            mTaskViewCount++;
-        }
         child.setAlpha(mContentAlpha);
         // RecentsView is set to RTL in the constructor when system is using LTR. Here we set the
         // child direction back to match system settings.
@@ -2095,7 +2095,11 @@ public abstract class RecentsView<
     }
 
     public int getTaskViewCount() {
-        return mTaskViewCount;
+        int taskViewCount = getChildCount();
+        if (indexOfChild(mClearAllButton) != -1) {
+            taskViewCount--;
+        }
+        return taskViewCount;
     }
 
     /**
