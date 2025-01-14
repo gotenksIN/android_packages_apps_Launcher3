@@ -681,8 +681,18 @@ public class BubbleBarView extends FrameLayout {
         return mRelativePivotY;
     }
 
-    /** Add a new bubble to the bubble bar. */
+    /** Add a new bubble to the bubble bar without updating the selected bubble. */
     public void addBubble(BubbleView bubble) {
+        addBubble(bubble, /* bubbleToSelect = */ null);
+    }
+
+    /**
+     * Add a new bubble to the bubble bar and selects the provided bubble.
+     *
+     * @param bubble         bubble to add
+     * @param bubbleToSelect if {@code null}, then selected bubble does not change
+     */
+    public void addBubble(BubbleView bubble, @Nullable BubbleView bubbleToSelect) {
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams((int) mIconSize, (int) mIconSize,
                 Gravity.LEFT);
         final int index = bubble.isOverflow() ? getChildCount() : 0;
@@ -718,7 +728,12 @@ public class BubbleBarView extends FrameLayout {
                     invalidate();
                 }
             };
-            mBubbleAnimator.animateNewBubble(indexOfChild(mSelectedBubbleView), listener);
+            if (bubbleToSelect != null) {
+                mBubbleAnimator.animateNewBubble(indexOfChild(mSelectedBubbleView),
+                        indexOfChild(bubbleToSelect), listener);
+            } else {
+                mBubbleAnimator.animateNewBubble(indexOfChild(mSelectedBubbleView), listener);
+            }
         } else {
             addView(bubble, index, lp);
         }
@@ -726,35 +741,32 @@ public class BubbleBarView extends FrameLayout {
 
     /** Add a new bubble and remove an old bubble from the bubble bar. */
     public void addBubbleAndRemoveBubble(BubbleView addedBubble, BubbleView removedBubble,
-            Runnable onEndRunnable) {
+            @Nullable BubbleView bubbleToSelect, Runnable onEndRunnable) {
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams((int) mIconSize, (int) mIconSize,
                 Gravity.LEFT);
-        boolean isOverflowSelected =
-                mSelectedBubbleView != null && mSelectedBubbleView.isOverflow();
-        boolean removingOverflow = removedBubble.isOverflow();
-        boolean addingOverflow = addedBubble.isOverflow();
-
+        int addedIndex = addedBubble.isOverflow() ? getChildCount() : 0;
         if (!isExpanded()) {
             removeView(removedBubble);
-            int index = addingOverflow ? getChildCount() : 0;
-            addView(addedBubble, index, lp);
+            addView(addedBubble, addedIndex, lp);
             if (onEndRunnable != null) {
                 onEndRunnable.run();
             }
             return;
         }
-        int index = addingOverflow ? getChildCount() : 0;
         addedBubble.setScaleX(0f);
         addedBubble.setScaleY(0f);
-        addView(addedBubble, index, lp);
-
-        if (isOverflowSelected && removingOverflow) {
-            // The added bubble will be selected
-            mSelectedBubbleView = addedBubble;
-        }
-        int indexOfSelectedBubble = indexOfChild(mSelectedBubbleView);
+        addView(addedBubble, addedIndex, lp);
+        int indexOfCurrentSelectedBubble = indexOfChild(mSelectedBubbleView);
         int indexOfBubbleToRemove = indexOfChild(removedBubble);
-
+        int indexOfNewlySelectedBubble = bubbleToSelect == null
+                ? indexOfCurrentSelectedBubble : indexOfChild(bubbleToSelect);
+        // Since removed bubble is kept till the end of the animation we should check if there are
+        // more than one bubble. In such a case the bar will remain open without the selected bubble
+        if (mSelectedBubbleView == removedBubble
+                && bubbleToSelect == null
+                && getBubbleChildCount() > 1) {
+            Log.w(TAG, "Remove the currently selected bubble without selecting a new one.");
+        }
         mBubbleAnimator = new BubbleAnimator(mIconSize, mExpandedBarIconsSpacing,
                 getChildCount(), mBubbleBarLocation.isOnLeft(isLayoutRtl()));
         BubbleAnimator.Listener listener = new BubbleAnimator.Listener() {
@@ -787,8 +799,8 @@ public class BubbleBarView extends FrameLayout {
                 invalidate();
             }
         };
-        mBubbleAnimator.animateNewAndRemoveOld(indexOfSelectedBubble, indexOfBubbleToRemove,
-                listener);
+        mBubbleAnimator.animateNewAndRemoveOld(indexOfCurrentSelectedBubble,
+                indexOfNewlySelectedBubble, indexOfBubbleToRemove, addedIndex, listener);
     }
 
     @Override

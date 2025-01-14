@@ -415,7 +415,6 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     private final List<BackPressHandler> mBackPressedHandlers = new ArrayList<>();
     private boolean mIsColdStartupAfterReboot;
-    private boolean mForceConfigUpdate;
 
     private boolean mIsNaturalScrollingEnabled;
 
@@ -631,6 +630,10 @@ public class Launcher extends StatefulActivity<LauncherState>
         return new ColdRebootStartupLatencyLogger();
     }
 
+    @NonNull View getAccessibilityActionView() {
+        return findViewById(R.id.accessibility_action_view);
+    }
+
     /**
      * Provide {@link OnBackAnimationCallback} in below order:
      * <ol>
@@ -761,7 +764,7 @@ public class Launcher extends StatefulActivity<LauncherState>
     protected void onHandleConfigurationChanged() {
         Trace.beginSection("Launcher#onHandleconfigurationChanged");
         try {
-            if (!initDeviceProfile(mDeviceProfile.inv) && !mForceConfigUpdate) {
+            if (!initDeviceProfile(mDeviceProfile.inv)) {
                 return;
             }
             dispatchDeviceProfileChanged();
@@ -774,7 +777,6 @@ public class Launcher extends StatefulActivity<LauncherState>
             mModel.rebindCallbacks();
             updateDisallowBack();
         } finally {
-            mForceConfigUpdate = false;
             Trace.endSection();
         }
     }
@@ -3157,13 +3159,6 @@ public class Launcher extends StatefulActivity<LauncherState>
      */
     public CannedAnimationCoordinator getAnimationCoordinator() {
         return mAnimationCoordinator;
-    }
-
-    /**
-     * Set to force config update when set to true next time onHandleConfigurationChanged is called.
-     */
-    public void setForceConfigUpdate(boolean forceConfigUpdate) {
-        mForceConfigUpdate = forceConfigUpdate;
     }
 
     @Override

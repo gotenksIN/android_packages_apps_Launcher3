@@ -39,6 +39,7 @@ import androidx.annotation.Nullable;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.anim.AnimatorPlaybackController;
 import com.android.launcher3.model.data.ItemInfo;
+import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.states.StateAnimationConfig;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
 import com.android.launcher3.util.MSDLPlayerWrapper;
@@ -66,11 +67,10 @@ import java.util.List;
 public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
         QuickstepLauncher, RecentsView<QuickstepLauncher, LauncherState>, LauncherState> {
 
-    public LauncherSwipeHandlerV2(Context context, RecentsAnimationDeviceState deviceState,
-            TaskAnimationManager taskAnimationManager, GestureState gestureState, long touchTimeMs,
-            boolean continuingLastGesture, InputConsumerController inputConsumer,
-            MSDLPlayerWrapper msdlPlayerWrapper) {
-        super(context, deviceState, taskAnimationManager, gestureState, touchTimeMs,
+    public LauncherSwipeHandlerV2(Context context, TaskAnimationManager taskAnimationManager,
+            GestureState gestureState, long touchTimeMs, boolean continuingLastGesture,
+            InputConsumerController inputConsumer, MSDLPlayerWrapper msdlPlayerWrapper) {
+        super(context, taskAnimationManager, gestureState, touchTimeMs,
                 continuingLastGesture, inputConsumer, msdlPlayerWrapper);
     }
 
@@ -105,9 +105,8 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
         boolean canUseWorkspaceView = workspaceView != null
                 && workspaceView.isAttachedToWindow()
                 && workspaceView.getHeight() > 0
-                && (mContainer.getDesktopVisibilityController() == null
-                || !mContainer.getDesktopVisibilityController()
-                    .areDesktopTasksVisibleAndNotInOverview());
+                && !DesktopVisibilityController.INSTANCE.get(mContainer)
+                        .areDesktopTasksVisibleAndNotInOverview();
 
         mContainer.getRootView().setForceHideBackArrow(true);
 
