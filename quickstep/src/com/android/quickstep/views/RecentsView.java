@@ -209,7 +209,6 @@ import com.android.quickstep.recents.viewmodel.RecentsViewData;
 import com.android.quickstep.recents.viewmodel.RecentsViewModel;
 import com.android.quickstep.util.ActiveGestureProtoLogProxy;
 import com.android.quickstep.util.AnimUtils;
-import com.android.quickstep.util.DesktopTask;
 import com.android.quickstep.util.GroupTask;
 import com.android.quickstep.util.LayoutUtils;
 import com.android.quickstep.util.RecentsAtomicAnimationFactory;
@@ -551,6 +550,8 @@ public abstract class RecentsView<
     private final ClearAllButton mClearAllButton;
     private final Rect mClearAllButtonDeadZoneRect = new Rect();
     private final Rect mTaskViewDeadZoneRect = new Rect();
+    private final Rect mTopRowDeadZoneRect = new Rect();
+    private final Rect mBottomRowDeadZoneRect = new Rect();
     /**
      * Reflects if Recents is currently in the middle of a gesture, and if so, which tasks are
      * running. If a gesture is not in progress, this will be null.
@@ -1217,9 +1218,7 @@ public abstract class RecentsView<
                 mIPipAnimationListener);
         mOrientationState.initListeners();
         mTaskOverlayFactory.initListeners();
-        if (FeatureFlags.enableSplitContextually()) {
-            mSplitSelectStateController.registerSplitListener(mSplitSelectionListener);
-        }
+        mSplitSelectStateController.registerSplitListener(mSplitSelectionListener);
     }
 
     @Override
@@ -1239,9 +1238,7 @@ public abstract class RecentsView<
         mIPipAnimationListener.setActivityAndRecentsView(null, null);
         mOrientationState.destroyListeners();
         mTaskOverlayFactory.removeListeners();
-        if (FeatureFlags.enableSplitContextually()) {
-            mSplitSelectStateController.unregisterSplitListener(mSplitSelectionListener);
-        }
+        mSplitSelectStateController.unregisterSplitListener(mSplitSelectionListener);
         reset();
     }
 
@@ -1722,8 +1719,11 @@ public abstract class RecentsView<
                                 mClearAllButton.getAlpha() == 1
                                         && mClearAllButtonDeadZoneRect.contains(x, y);
                         final boolean cameFromNavBar = (ev.getEdgeFlags() & EDGE_NAV_BAR) != 0;
+                        int adjustedX = x + getScrollX();
                         if (!clearAllButtonDeadZoneConsumed && !cameFromNavBar
-                                && !mTaskViewDeadZoneRect.contains(x + getScrollX(), y)) {
+                                && !mTaskViewDeadZoneRect.contains(adjustedX, y)
+                                && !mTopRowDeadZoneRect.contains(adjustedX, y)
+                                && !mBottomRowDeadZoneRect.contains(adjustedX, y)) {
                             mTouchDownToStartHome = true;
                         }
                     }
@@ -1971,7 +1971,7 @@ public abstract class RecentsView<
             } else if (taskView instanceof DesktopTaskView) {
                 // Minimized tasks should not be shown in Overview
                 List<Task> nonMinimizedTasks =
-                        ((DesktopTask) groupTask).tasks.stream()
+                        groupTask.getTasks().stream()
                                 .filter(task -> !task.isMinimized)
                                 .toList();
                 ((DesktopTaskView) taskView).bind(nonMinimizedTasks, mOrientationState,
@@ -2101,7 +2101,7 @@ public abstract class RecentsView<
 
     /** Returns true if there are at least one TaskView has been added to the RecentsView. */
     public boolean hasTaskViews() {
-        return CollectionsKt.any(getTaskViews());
+        return mUtils.hasTaskViews();
     }
 
     public int getTaskViewCount() {
@@ -2663,9 +2663,6 @@ public abstract class RecentsView<
         }
         runActionOnRemoteHandles(remoteTargetHandle ->
                 remoteTargetHandle.getTaskViewSimulator().setDrawsBelowRecents(false));
-        if (!FeatureFlags.enableSplitContextually()) {
-            resetFromSplitSelectionState();
-        }
 
         // These are relatively expensive and don't need to be done this frame (RecentsView isn't
         // visible anyway), so defer by a frame to get off the critical path, e.g. app to home.
@@ -2712,7 +2709,7 @@ public abstract class RecentsView<
     }
 
     @Nullable
-    private TaskView getTaskViewFromTaskViewId(int taskViewId) {
+    TaskView getTaskViewFromTaskViewId(int taskViewId) {
         if (taskViewId == -1) {
             return null;
         }
@@ -3640,11 +3637,7 @@ public abstract class RecentsView<
                 InteractionJankMonitorWrapper.end(Cuj.CUJ_SPLIT_SCREEN_ENTER);
             } else {
                 // If transition to split select was interrupted, clean up to prevent glitches
-                if (FeatureFlags.enableSplitContextually()) {
-                    mSplitSelectStateController.resetState();
-                } else {
-                    resetFromSplitSelectionState();
-                }
+                mSplitSelectStateController.resetState();
                 InteractionJankMonitorWrapper.cancel(Cuj.CUJ_SPLIT_SCREEN_ENTER);
             }
 
@@ -4240,6 +4233,12 @@ public abstract class RecentsView<
                 onDismissAnimationEnds();
                 mPendingAnimation = null;
                 mTaskViewsDismissPrimaryTranslations.clear();
+
+                if (!dismissingForSplitSelection && success) {
+                    InteractionJankMonitorWrapper.end(Cuj.CUJ_LAUNCHER_OVERVIEW_TASK_DISMISS);
+                } else if (!dismissingForSplitSelection) {
+                    InteractionJankMonitorWrapper.cancel(Cuj.CUJ_LAUNCHER_OVERVIEW_TASK_DISMISS);
+                }
             }
         });
     }
@@ -4365,7 +4364,7 @@ public abstract class RecentsView<
     /**
      * Returns all the tasks in the top row, without the focused task
      */
-    private IntArray getTopRowIdArray() {
+    IntArray getTopRowIdArray() {
         if (mTopRowIdSet.isEmpty()) {
             return new IntArray(0);
         }
@@ -4382,7 +4381,7 @@ public abstract class RecentsView<
     /**
      * Returns all the tasks in the bottom row, without the focused task
      */
-    private IntArray getBottomRowIdArray() {
+    IntArray getBottomRowIdArray() {
         int bottomRowIdArraySize = getBottomRowTaskCountForTablet();
         if (bottomRowIdArraySize <= 0) {
             return new IntArray(0);
@@ -4543,6 +4542,7 @@ public abstract class RecentsView<
     }
 
     public void dismissTask(TaskView taskView, boolean animateTaskView, boolean removeTask) {
+        InteractionJankMonitorWrapper.begin(this, Cuj.CUJ_LAUNCHER_OVERVIEW_TASK_DISMISS);
         PendingAnimation pa = new PendingAnimation(DISMISS_TASK_DURATION);
         createTaskDismissAnimation(pa, taskView, animateTaskView, removeTask, DISMISS_TASK_DURATION,
                 false /* dismissingForSplitSelection*/);
@@ -5368,11 +5368,7 @@ public abstract class RecentsView<
             mSplitSelectStateController.launchSplitTasks(
                     aBoolean1 -> {
                         InteractionJankMonitorWrapper.end(Cuj.CUJ_SPLIT_SCREEN_ENTER);
-                        if (FeatureFlags.enableSplitContextually()) {
-                            mSplitSelectStateController.resetState();
-                        } else {
-                            resetFromSplitSelectionState();
-                        }
+                        mSplitSelectStateController.resetState();
                     });
         });
 
@@ -5394,17 +5390,14 @@ public abstract class RecentsView<
 
     @SuppressLint("WrongCall")
     protected void resetFromSplitSelectionState() {
-        if (mSplitSelectSource != null || mSplitHiddenTaskViewIndex != -1 ||
-                FeatureFlags.enableSplitContextually()) {
-            safeRemoveDragLayerView(mSplitSelectStateController.getFirstFloatingTaskView());
-            safeRemoveDragLayerView(mSecondFloatingTaskView);
-            safeRemoveDragLayerView(mSplitSelectStateController.getSplitInstructionsView());
-            safeRemoveDragLayerView(mSplitScrim);
-            mSecondFloatingTaskView = null;
-            mSplitSelectSource = null;
-            mSplitSelectStateController.getSplitAnimationController()
-                    .removeSplitInstructionsView(mContainer);
-        }
+        safeRemoveDragLayerView(mSplitSelectStateController.getFirstFloatingTaskView());
+        safeRemoveDragLayerView(mSecondFloatingTaskView);
+        safeRemoveDragLayerView(mSplitSelectStateController.getSplitInstructionsView());
+        safeRemoveDragLayerView(mSplitScrim);
+        mSecondFloatingTaskView = null;
+        mSplitSelectSource = null;
+        mSplitSelectStateController.getSplitAnimationController()
+                .removeSplitInstructionsView(mContainer);
 
         if (mSecondSplitHiddenView != null) {
             mSecondSplitHiddenView.setThumbnailVisibility(VISIBLE, INVALID_TASK_ID);
@@ -5416,11 +5409,6 @@ public abstract class RecentsView<
         setTaskViewsPrimarySplitTranslation(0);
         setTaskViewsSecondarySplitTranslation(0);
 
-        if (!FeatureFlags.enableSplitContextually()) {
-            // When flag is on, this method gets called from resetState() call below, let's avoid
-            // infinite recursion today
-            mSplitSelectStateController.resetState();
-        }
         if (mSplitHiddenTaskViewIndex == -1) {
             return;
         }
@@ -5519,15 +5507,8 @@ public abstract class RecentsView<
             mClearAllButtonDeadZoneRect.inset(-getPaddingRight() / 2, -verticalMargin);
         }
 
-        // Get the deadzone rect between the task views
-        mTaskViewDeadZoneRect.setEmpty();
-        if (hasTaskViews()) {
-            final View firstTaskView = getFirstTaskView();
-            mUtils.getLastTaskView().getHitRect(mTaskViewDeadZoneRect);
-            mTaskViewDeadZoneRect.union(firstTaskView.getLeft(), firstTaskView.getTop(),
-                    firstTaskView.getRight(),
-                    firstTaskView.getBottom());
-        }
+        mUtils.updateTaskViewDeadZoneRect(mTaskViewDeadZoneRect, mTopRowDeadZoneRect,
+                mBottomRowDeadZoneRect);
     }
 
     private void updateEmptyStateUi(boolean sizeChanged) {
