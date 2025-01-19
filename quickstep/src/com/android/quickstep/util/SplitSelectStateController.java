@@ -169,7 +169,7 @@ public class SplitSelectStateController {
     private final BackPressHandler mSplitBackHandler = new BackPressHandler() {
         @Override
         public boolean canHandleBack() {
-            return FeatureFlags.enableSplitContextually() && isSplitSelectActive();
+            return isSplitSelectActive();
         }
 
         @Override
@@ -678,7 +678,7 @@ public class SplitSelectStateController {
         }
 
         @Override
-        public void startAnimation(IBinder transition, TransitionInfo info,
+        public void startAnimation(IBinder transition, TransitionInfo transitionInfo,
                 SurfaceControl.Transaction t,
                 IRemoteTransitionFinishedCallback finishedCallback) {
             final Runnable finishAdapter = () ->  {
@@ -708,7 +708,7 @@ public class SplitSelectStateController {
                         null /* nonApps */,
                         mStateManager,
                         mDepthController,
-                        info, t, () -> {
+                        transitionInfo, t, () -> {
                             finishAdapter.run();
                             cleanup(true /*success*/);
                         },
@@ -739,8 +739,7 @@ public class SplitSelectStateController {
     }
 
     /**
-     * To be called whenever we exit split selection state. If
-     * {@link FeatureFlags#enableSplitContextually()} is set, this should be the
+     * To be called whenever we exit split selection state. This should be the
      * central way split is getting reset, which should then go through the callbacks to reset
      * other state.
      */
@@ -920,7 +919,7 @@ public class SplitSelectStateController {
 
             @Override
             public void onRecentsAnimationStart(RecentsAnimationController controller,
-                    RecentsAnimationTargets targets) {
+                    RecentsAnimationTargets targets, TransitionInfo transitionInfo) {
                 StatsLogManager.LauncherEvent launcherDesktopSplitEvent =
                         mSplitPosition == STAGE_POSITION_BOTTOM_OR_RIGHT ?
                         LAUNCHER_DESKTOP_MODE_SPLIT_RIGHT_BOTTOM :
