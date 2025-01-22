@@ -70,6 +70,7 @@ import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
+import androidx.core.view.ViewCompat;
 
 import com.android.app.animation.Interpolators;
 import com.android.launcher3.accessibility.AccessibleDragListenerAdapter;
@@ -108,6 +109,7 @@ import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pageindicators.PageIndicator;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.StateHandler;
+import com.android.launcher3.statemanager.StateManager.StateListener;
 import com.android.launcher3.states.StateAnimationConfig;
 import com.android.launcher3.touch.WorkspaceTouchListener;
 import com.android.launcher3.util.EdgeEffectCompat;
@@ -303,6 +305,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     private final StatsLogManager mStatsLogManager;
 
     private final MSDLPlayerWrapper mMSDLPlayerWrapper;
+    @Nullable
+    private DragController.DragListener mAccessibilityDragListener;
 
     /**
      * Used to inflate the Workspace from XML.
@@ -512,6 +516,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             }
         }
 
+        if (mAccessibilityDragListener != null) {
+            mAccessibilityDragListener.onDragStart(dragObject, options);
+        }
         if (!mLauncher.isInState(EDIT_MODE)) {
             mLauncher.getStateManager().goToState(SPRING_LOADED);
         }
@@ -548,6 +555,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             }
         });
 
+        if (mAccessibilityDragListener != null) {
+            mAccessibilityDragListener.onDragEnd();
+        }
         mDragInfo = null;
         mDragSourceInternal = null;
     }
@@ -1656,7 +1666,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         child.setVisibility(INVISIBLE);
 
         if (options.isAccessibleDrag) {
-            mDragController.addDragListener(
+            mAccessibilityDragListener =
                     new AccessibleDragListenerAdapter(this, WorkspaceAccessibilityHelper::new) {
                         @Override
                         protected void enableAccessibleDrag(boolean enable,
@@ -1669,7 +1679,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                                         IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
                             }
                         }
-                    });
+                    };
         }
 
         beginDragShared(child, this, options);
@@ -2232,6 +2242,23 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             }
             mStatsLogManager.logger().withItemInfo(d.dragInfo).withInstanceId(d.logInstanceId)
                     .log(LauncherEvent.LAUNCHER_ITEM_DROP_COMPLETED);
+
+            if (mAccessibilityDragListener != null) {
+                // This code needs to be called after StateManager.cancelAnimation. Before changing
+                // the order of operations in this method related to the StateListener below, please
+                // test that accessibility moves retain focus after accessibility dropping an item.
+                // Accessibility focus must be requested after launcher is back to a normal state
+                mLauncher.getStateManager().addStateListener(new StateListener<LauncherState>() {
+                    @Override
+                    public void onStateTransitionComplete(LauncherState finalState) {
+                        if (finalState == NORMAL) {
+                            cell.performAccessibilityAction(
+                                    AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null);
+                            mLauncher.getStateManager().removeStateListener(this);
+                        }
+                    }
+                });
+            }
         }
 
         if (d.stateAnnouncer != null && !droppedOnOriginalCell) {
@@ -3519,8 +3546,15 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
     @Override
     protected boolean canAnnouncePageDescription() {
-        // b/383247157: Disable disruptive home screen page announcement
-        return false;
+        return Float.compare(mOverlayProgress, 0f) == 0;
+    }
+
+    @Override
+    protected void announcePageForAccessibility() {
+        // Talkback focuses on AccessibilityActionView by default, so we need to modify the state
+        // description there in order for the change in page scroll to be announced.
+        ViewCompat.setStateDescription(mLauncher.getAccessibilityActionView(),
+                getCurrentPageDescription());
     }
 
     @Override

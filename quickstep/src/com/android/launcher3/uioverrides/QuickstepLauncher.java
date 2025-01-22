@@ -170,7 +170,6 @@ import com.android.launcher3.widget.LauncherWidgetHolder;
 import com.android.quickstep.OverviewCommandHelper;
 import com.android.quickstep.OverviewComponentObserver;
 import com.android.quickstep.OverviewComponentObserver.OverviewChangeListener;
-import com.android.quickstep.RecentsAnimationDeviceState;
 import com.android.quickstep.RecentsModel;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.TaskUtils;
@@ -282,7 +281,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                         getDepthController(), getStatsLogManager(),
                         systemUiProxy, RecentsModel.INSTANCE.get(this),
                         () -> onStateBack());
-        RecentsAnimationDeviceState deviceState = new RecentsAnimationDeviceState(asContext());
         if (DesktopModeStatus.canEnterDesktopMode(this)) {
             mDesktopRecentsTransitionController = new DesktopRecentsTransitionController(
                     getStateManager(), systemUiProxy, getIApplicationThread(),
@@ -290,8 +288,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         }
         overviewPanel.init(mActionsView, mSplitSelectStateController,
                 mDesktopRecentsTransitionController);
-        mSplitWithKeyboardShortcutController = new SplitWithKeyboardShortcutController(this,
-                mSplitSelectStateController, deviceState);
+        mSplitWithKeyboardShortcutController = new SplitWithKeyboardShortcutController(
+                this, mSplitSelectStateController);
         mSplitToWorkspaceController = new SplitToWorkspaceController(this,
                 mSplitSelectStateController);
         mActionsView.updateDimension(getDeviceProfile(), overviewPanel.getLastComputedTaskSize());
@@ -564,9 +562,13 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
             mSplitSelectStateController.onDestroy();
         }
 
+        RecentsView recentsView = getOverviewPanel();
+        if (recentsView != null) {
+            recentsView.destroy();
+        }
+
         super.onDestroy();
         mHotseatPredictionController.destroy();
-        mSplitWithKeyboardShortcutController.onDestroy();
         if (mViewCapture != null) mViewCapture.close();
         removeBackAnimationCallback(mSplitSelectStateController.getSplitBackHandler());
     }
@@ -1018,9 +1020,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public void setResumed() {
-        DesktopVisibilityController desktopVisibilityController = getDesktopVisibilityController();
+        DesktopVisibilityController desktopVisibilityController =
+                DesktopVisibilityController.INSTANCE.get(this);
         if (!ENABLE_DESKTOP_WINDOWING_WALLPAPER_ACTIVITY.isTrue()
-                && desktopVisibilityController != null
                 && desktopVisibilityController.areDesktopTasksVisibleAndNotInOverview()
                 && !desktopVisibilityController.isRecentsGestureInProgress()) {
             // Return early to skip setting activity to appear as resumed
@@ -1187,12 +1189,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     }
 
     @Nullable
-    @Override
-    public DesktopVisibilityController getDesktopVisibilityController() {
-        return mTISBindHelper.getDesktopVisibilityController();
-    }
-
-    @Nullable
     public UnfoldTransitionProgressProvider getUnfoldTransitionProgressProvider() {
         return mUnfoldTransitionProgressProvider;
     }
@@ -1347,11 +1343,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public boolean areDesktopTasksVisible() {
-        DesktopVisibilityController desktopVisibilityController = getDesktopVisibilityController();
-        if (desktopVisibilityController != null) {
-            return desktopVisibilityController.areDesktopTasksVisibleAndNotInOverview();
-        }
-        return false;
+        return DesktopVisibilityController.INSTANCE.get(this)
+                .areDesktopTasksVisibleAndNotInOverview();
     }
 
     @Override

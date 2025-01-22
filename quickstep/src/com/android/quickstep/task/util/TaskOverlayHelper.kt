@@ -67,13 +67,16 @@ class TaskOverlayHelper(val task: Task, val overlay: TaskOverlayFactory.TaskOver
 
     fun init() {
         overlayInitializedScope =
-            CoroutineScope(SupervisorJob() + Dispatchers.Main + CoroutineName("TaskOverlayHelper"))
+            CoroutineScope(
+                SupervisorJob() + Dispatchers.Main.immediate + CoroutineName("TaskOverlayHelper")
+            )
         viewModel =
             TaskOverlayViewModel(
                 task = task,
                 recentsViewData = RecentsDependencies.get(),
                 getThumbnailPositionUseCase = RecentsDependencies.get(),
                 recentTasksRepository = RecentsDependencies.get(),
+                dispatcherProvider = RecentsDependencies.get(),
             )
         viewModel.overlayState
             .onEach {

@@ -49,7 +49,6 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.os.Trace;
 import android.util.Log;
 import android.view.Choreographer;
 import android.view.InputDevice;
@@ -68,7 +67,6 @@ import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.anim.AnimatedFloat;
 import com.android.launcher3.desktop.DesktopAppLaunchTransitionManager;
-import com.android.launcher3.provider.RestoreDbTask;
 import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.statemanager.StatefulActivity;
 import com.android.launcher3.taskbar.TaskbarActivityContext;
@@ -96,6 +94,7 @@ import com.android.quickstep.util.ActiveGestureLog;
 import com.android.quickstep.util.ActiveGestureLog.CompoundString;
 import com.android.quickstep.util.ActiveGestureProtoLogProxy;
 import com.android.quickstep.util.ActiveTrackpadList;
+import com.android.quickstep.util.ActivityPreloadUtil;
 import com.android.quickstep.util.ContextualSearchInvoker;
 import com.android.quickstep.util.ContextualSearchStateManager;
 import com.android.quickstep.views.RecentsViewContainer;
@@ -183,7 +182,7 @@ public class TouchInteractionService extends Service {
                         recentTasks, launcherUnlockAnimationController, backAnimation, desktopMode,
                         unfoldTransition, dragAndDrop);
                 tis.initInputMonitor("TISBinder#onInitialize()");
-                tis.preloadOverview(true /* fromInit */);
+                ActivityPreloadUtil.preloadOverviewForTIS(tis, true /* fromInit */);
             }));
         }
 
@@ -350,16 +349,6 @@ public class TouchInteractionService extends Service {
             ));
         }
 
-        /**
-         * Preloads the Overview activity.
-         * <p>
-         * This method should only be used when the All Set page of the SUW is reached to safely
-         * preload the Launcher for the SUW first reveal.
-         */
-        public void preloadOverviewForSUWAllSet() {
-            executeForTouchInteractionService(tis -> tis.preloadOverview(false, true));
-        }
-
         @Override
         public void onRotationProposal(int rotation, boolean isValid) {
             executeForTaskbarManager(taskbarManager ->
@@ -422,18 +411,6 @@ public class TouchInteractionService extends Service {
             TouchInteractionService tis = mTis.get();
             if (tis == null) return null;
             return tis.mTaskbarManager;
-        }
-
-        /**
-         * Returns the {@link DesktopVisibilityController}
-         * <p>
-         * Returns {@code null} if TouchInteractionService is not connected
-         */
-        @Nullable
-        public DesktopVisibilityController getDesktopVisibilityController() {
-            TouchInteractionService tis = mTis.get();
-            if (tis == null) return null;
-            return tis.mDesktopVisibilityController;
         }
 
         @VisibleForTesting
@@ -554,7 +531,6 @@ public class TouchInteractionService extends Service {
 
     private NavigationMode mGestureStartNavMode = null;
 
-    private DesktopVisibilityController mDesktopVisibilityController;
     private DesktopAppLaunchTransitionManager mDesktopAppLaunchTransitionManager;
 
     @Override
@@ -565,8 +541,8 @@ public class TouchInteractionService extends Service {
         // Initialize anything here that is needed in direct boot mode.
         // Everything else should be initialized in onUserUnlocked() below.
         mMainChoreographer = Choreographer.getInstance();
-        mDeviceState = new RecentsAnimationDeviceState(this, true);
-        mRotationTouchHelper = mDeviceState.getRotationTouchHelper();
+        mDeviceState = RecentsAnimationDeviceState.INSTANCE.get(this);
+        mRotationTouchHelper = RotationTouchHelper.INSTANCE.get(this);
         mAllAppsActionManager = new AllAppsActionManager(
                 this, UI_HELPER_EXECUTOR, this::createAllAppsPendingIntent);
         mTrackpadsConnected = new ActiveTrackpadList(this, () -> {
@@ -578,9 +554,7 @@ public class TouchInteractionService extends Service {
             initInputMonitor("onTrackpadConnected()");
         });
 
-        mDesktopVisibilityController = new DesktopVisibilityController(this);
-        mTaskbarManager = new TaskbarManager(
-                this, mAllAppsActionManager, mNavCallbacks, mDesktopVisibilityController);
+        mTaskbarManager = new TaskbarManager(this, mAllAppsActionManager, mNavCallbacks);
         mDesktopAppLaunchTransitionManager =
                 new DesktopAppLaunchTransitionManager(this, SystemUiProxy.INSTANCE.get(this));
         mDesktopAppLaunchTransitionManager.registerTransitions();
@@ -730,7 +704,6 @@ public class TouchInteractionService extends Service {
             mOverviewComponentObserver.removeOverviewChangeListener(mOverviewChangeListener);
         }
         disposeEventHandlers("TouchInteractionService onDestroy()");
-        mDeviceState.destroy();
         SystemUiProxy.INSTANCE.get(this).clearProxy();
 
         mAllAppsActionManager.onDestroy();
@@ -741,7 +714,6 @@ public class TouchInteractionService extends Service {
             mDesktopAppLaunchTransitionManager.unregisterTransitions();
         }
         mDesktopAppLaunchTransitionManager = null;
-        mDesktopVisibilityController.onDestroy();
 
         LockedUserState.get(this).removeOnUserUnlockedRunnable(mUserUnlockedRunnable);
         ScreenOnTracker.INSTANCE.get(this).removeListener(mScreenOnListener);
@@ -1052,47 +1024,6 @@ public class TouchInteractionService extends Service {
         }
     }
 
-    private void preloadOverview(boolean fromInit) {
-        Trace.beginSection("preloadOverview(fromInit=" + fromInit + ")");
-        preloadOverview(fromInit, false);
-        Trace.endSection();
-    }
-
-    private void preloadOverview(boolean fromInit, boolean forSUWAllSet) {
-        if (!LockedUserState.get(this).isUserUnlocked()) {
-            return;
-        }
-
-        if (mDeviceState.isButtonNavMode() && !mOverviewComponentObserver.isHomeAndOverviewSame()) {
-            // Prevent the overview from being started before the real home on first boot.
-            return;
-        }
-
-        if ((RestoreDbTask.isPending(this) && !forSUWAllSet)
-                || !mDeviceState.isUserSetupComplete()) {
-            // Preloading while a restore is pending may cause launcher to start the restore
-            // too early.
-            return;
-        }
-
-        final BaseContainerInterface containerInterface =
-                mOverviewComponentObserver.getContainerInterface();
-        final Intent overviewIntent = new Intent(
-                mOverviewComponentObserver.getOverviewIntentIgnoreSysUiState());
-        if (containerInterface.getCreatedContainer() != null && fromInit) {
-            // The activity has been created before the initialization of overview service. It is
-            // usually happens when booting or launcher is the top activity, so we should already
-            // have the latest state.
-            return;
-        }
-
-        // TODO(b/258022658): Remove temporary logging.
-        Log.i(TAG, "preloadOverview: forSUWAllSet=" + forSUWAllSet
-                + ", isHomeAndOverviewSame=" + mOverviewComponentObserver.isHomeAndOverviewSame());
-        ActiveGestureProtoLogProxy.logPreloadRecentsAnimation();
-        mTaskAnimationManager.preloadRecentsAnimation(overviewIntent);
-    }
-
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         if (!LockedUserState.get(this).isUserUnlocked()) {
@@ -1120,7 +1051,7 @@ public class TouchInteractionService extends Service {
             return;
         }
 
-        preloadOverview(false /* fromInit */);
+        ActivityPreloadUtil.preloadOverviewForTIS(this, false /* fromInit */);
     }
 
     private static boolean isTablet(Configuration config) {
@@ -1164,7 +1095,7 @@ public class TouchInteractionService extends Service {
             createdOverviewContainer.getDeviceProfile().dump(this, "", pw);
         }
         mTaskbarManager.dumpLogs("", pw);
-        mDesktopVisibilityController.dumpLogs("", pw);
+        DesktopVisibilityController.INSTANCE.get(this).dumpLogs("", pw);
         pw.println("ContextualSearchStateManager:");
         ContextualSearchStateManager.INSTANCE.get(this).dump("\t", pw);
         SystemUiProxy.INSTANCE.get(this).dump(pw);
@@ -1174,21 +1105,21 @@ public class TouchInteractionService extends Service {
 
     private AbsSwipeUpHandler createLauncherSwipeHandler(
             GestureState gestureState, long touchTimeMs) {
-        return new LauncherSwipeHandlerV2(this, mDeviceState, mTaskAnimationManager,
+        return new LauncherSwipeHandlerV2(this, mTaskAnimationManager,
                 gestureState, touchTimeMs, mTaskAnimationManager.isRecentsAnimationRunning(),
                 mInputConsumer, MSDLPlayerWrapper.INSTANCE.get(this));
     }
 
     private AbsSwipeUpHandler createFallbackSwipeHandler(
             GestureState gestureState, long touchTimeMs) {
-        return new FallbackSwipeHandler(this, mDeviceState, mTaskAnimationManager,
+        return new FallbackSwipeHandler(this, mTaskAnimationManager,
                 gestureState, touchTimeMs, mTaskAnimationManager.isRecentsAnimationRunning(),
                 mInputConsumer, MSDLPlayerWrapper.INSTANCE.get(this));
     }
 
     private AbsSwipeUpHandler createRecentsWindowSwipeHandler(
             GestureState gestureState, long touchTimeMs) {
-        return new RecentsWindowSwipeHandler(this, mDeviceState, mTaskAnimationManager,
+        return new RecentsWindowSwipeHandler(this, mTaskAnimationManager,
                 gestureState, touchTimeMs, mTaskAnimationManager.isRecentsAnimationRunning(),
                 mInputConsumer, MSDLPlayerWrapper.INSTANCE.get(this));
     }

@@ -131,7 +131,7 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
     }
 
     public abstract BaseContainerInterface.AnimationFactory prepareRecentsUI(
-            RecentsAnimationDeviceState deviceState, boolean activityVisible,
+            boolean activityVisible,
             Consumer<AnimatorControllerWithResistance> callback);
 
     public abstract ContextInitListener createActivityInitListener(
@@ -151,11 +151,10 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
 
     public abstract void onLaunchTaskFailed();
 
-    public abstract void onExitOverview(RotationTouchHelper deviceState,
-            Runnable exitRunnable);
+    public abstract void onExitOverview(Runnable exitRunnable);
 
     /** Called when the animation to home has fully settled. */
-    public void onSwipeUpToHomeComplete(RecentsAnimationDeviceState deviceState) {}
+    public void onSwipeUpToHomeComplete() {}
 
     /**
      * Sets a callback to be run when an activity launch happens while launcher is not yet resumed.
@@ -177,13 +176,6 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
             return;
         }
         mOnInitBackgroundStateUICallback = callback;
-    }
-
-    @Nullable
-    public DesktopVisibilityController getDesktopVisibilityController() {
-        CONTAINER_TYPE container = getCreatedContainer();
-
-        return container == null ? null : container.getDesktopVisibilityController();
     }
 
     /**
@@ -241,9 +233,8 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
         if (endTarget != null) {
             // We were on our way to this state when we got canceled, end there instead.
             startState = stateFromGestureEndTarget(endTarget);
-            DesktopVisibilityController controller = getDesktopVisibilityController();
-            if (controller != null && controller.areDesktopTasksVisibleAndNotInOverview()
-                    && endTarget == LAST_TASK) {
+            if (DesktopVisibilityController.INSTANCE.get(recentsView.getContext())
+                    .areDesktopTasksVisibleAndNotInOverview() && endTarget == LAST_TASK) {
                 // When we are cancelling the transition and going back to last task, move to
                 // rest state instead when desktop tasks are visible.
                 // If a fullscreen task is visible, launcher goes to normal state when the
