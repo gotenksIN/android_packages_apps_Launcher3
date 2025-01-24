@@ -61,7 +61,6 @@ import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.anim.AnimatorPlaybackController;
-import com.android.launcher3.contextualeducation.ContextualEduStatsManager;
 import com.android.launcher3.statemanager.StatefulActivity;
 import com.android.launcher3.taskbar.TaskbarNavButtonController.TaskbarNavButtonCallbacks;
 import com.android.launcher3.taskbar.unfold.NonDestroyableScopedUnfoldTransitionProgressProvider;
@@ -270,7 +269,6 @@ public class TaskbarManager {
                 context,
                 navCallbacks,
                 SystemUiProxy.INSTANCE.get(mWindowContext),
-                ContextualEduStatsManager.INSTANCE.get(mWindowContext),
                 new Handler(),
                 new ContextualSearchInvoker(mWindowContext));
     }
@@ -689,6 +687,20 @@ public class TaskbarManager {
         }
     }
 
+    /**
+     * Signal from SysUI indicating that a non-mirroring display was just connected to the
+     * primary device.
+     */
+    public void onDisplayReady(int displayId) {
+    }
+
+    /**
+     * Signal from SysUI indicating that a previously connected non-mirroring display was just
+     * removed from the primary device.
+     */
+    public void onDisplayRemoved(int displayId) {
+    }
+
     private void removeActivityCallbacksAndListeners() {
         if (mActivity != null) {
             mActivity.removeOnDeviceProfileChangeListener(mDebugActivityDeviceProfileChanged);
@@ -795,7 +807,8 @@ public class TaskbarManager {
     private TaskbarActivityContext createTaskbarActivityContext(DeviceProfile dp, int displayId) {
         TaskbarActivityContext newTaskbar = new TaskbarActivityContext(mWindowContext,
                 mNavigationBarPanelContext, dp, mDefaultNavButtonController,
-                mUnfoldProgressProvider, isDefaultDisplay(displayId));
+                mUnfoldProgressProvider, isDefaultDisplay(displayId),
+                SystemUiProxy.INSTANCE.get(mWindowContext));
 
         addTaskbarToMap(displayId, newTaskbar);
         return newTaskbar;

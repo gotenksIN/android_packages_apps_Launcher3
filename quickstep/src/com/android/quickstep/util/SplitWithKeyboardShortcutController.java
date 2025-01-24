@@ -16,7 +16,6 @@
 
 package com.android.quickstep.util;
 
-import static com.android.launcher3.config.FeatureFlags.enableSplitContextually;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_KEYBOARD_SHORTCUT_SPLIT_LEFT_TOP;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_KEYBOARD_SHORTCUT_SPLIT_RIGHT_BOTTOM;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
@@ -30,6 +29,7 @@ import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.window.TransitionInfo;
 
 import androidx.annotation.BinderThread;
 
@@ -73,9 +73,8 @@ public class SplitWithKeyboardShortcutController {
 
     @BinderThread
     public void enterStageSplit(boolean leftOrTop) {
-        if (!enableSplitContextually() ||
-                // Do not enter stage split from keyboard shortcuts if the user is already in split
-                TopTaskTracker.INSTANCE.get(mLauncher).getRunningSplitTaskIds().length == 2) {
+        if (TopTaskTracker.INSTANCE.get(mLauncher).getRunningSplitTaskIds().length == 2) {
+            // Do not enter stage split from keyboard shortcuts if the user is already in split
             return;
         }
         RecentsAnimationCallbacks callbacks = new RecentsAnimationCallbacks(
@@ -114,7 +113,7 @@ public class SplitWithKeyboardShortcutController {
 
         @Override
         public void onRecentsAnimationStart(RecentsAnimationController controller,
-                RecentsAnimationTargets targets) {
+                RecentsAnimationTargets targets, TransitionInfo transitionInfo) {
             mController.setInitialTaskSelect(mRunningTaskInfo,
                     mLeftOrTop ? STAGE_POSITION_TOP_OR_LEFT : STAGE_POSITION_BOTTOM_OR_RIGHT,
                     null /* itemInfo */,

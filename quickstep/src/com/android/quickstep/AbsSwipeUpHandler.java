@@ -31,7 +31,6 @@ import static com.android.launcher3.BaseActivity.EVENT_STARTED;
 import static com.android.launcher3.BaseActivity.INVISIBLE_BY_STATE_HANDLER;
 import static com.android.launcher3.BaseActivity.STATE_HANDLER_INVISIBILITY_FLAGS;
 import static com.android.launcher3.Flags.enableAdditionalHomeAnimations;
-import static com.android.launcher3.Flags.enableGridOnlyOverview;
 import static com.android.launcher3.Flags.enableScalingRevealHomeAnimation;
 import static com.android.launcher3.Flags.msdlFeedback;
 import static com.android.launcher3.PagedView.INVALID_PAGE;
@@ -100,6 +99,7 @@ import android.view.animation.Interpolator;
 import android.widget.Toast;
 import android.window.DesktopModeFlags;
 import android.window.PictureInPictureSurfaceTransaction;
+import android.window.TransitionInfo;
 import android.window.WindowAnimationState;
 
 import androidx.annotation.NonNull;
@@ -117,7 +117,6 @@ import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimationSuccessListener;
 import com.android.launcher3.anim.AnimatorPlaybackController;
 import com.android.launcher3.compat.AccessibilityManagerCompat;
-import com.android.launcher3.contextualeducation.ContextualEduStatsManager;
 import com.android.launcher3.dragndrop.DragView;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.logging.StatsLogManager.StatsLogger;
@@ -173,6 +172,8 @@ import com.android.wm.shell.shared.startingsurface.SplashScreenExitAnimationUtil
 
 import com.google.android.msdl.data.model.MSDLToken;
 
+import kotlin.Unit;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -181,8 +182,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.function.Consumer;
-
-import kotlin.Unit;
 
 /**
  * Handles the navigation gestures when Launcher is the default home activity.
@@ -956,10 +955,10 @@ public abstract class AbsSwipeUpHandler<
 
     @Override
     public void onRecentsAnimationStart(RecentsAnimationController controller,
-            RecentsAnimationTargets targets) {
-        super.onRecentsAnimationStart(controller, targets);
+            RecentsAnimationTargets targets, TransitionInfo transitionInfo) {
+        super.onRecentsAnimationStart(controller, targets, transitionInfo);
         if (targets.hasDesktopTasks(mContext)) {
-            mRemoteTargetHandles = mTargetGluer.assignTargetsForDesktop(targets);
+            mRemoteTargetHandles = mTargetGluer.assignTargetsForDesktop(targets, transitionInfo);
         } else {
             int untrimmedAppCount = mRemoteTargetHandles.length;
             mRemoteTargetHandles = mTargetGluer.assignTargetsForSplitScreen(targets);
@@ -1412,7 +1411,7 @@ public abstract class AbsSwipeUpHandler<
             duration = mContainer != null && mContainer.getDeviceProfile().isTaskbarPresent
                     ? QuickstepTransitionManager.getTaskbarToHomeDuration(isPinnedTaskbar)
                     : StaggeredWorkspaceAnim.DURATION_MS;
-            ContextualEduStatsManager.INSTANCE.get(mContext).updateEduStats(
+            SystemUiProxy.INSTANCE.get(mContext).updateContextualEduStats(
                     mGestureState.isTrackpadGesture(), GestureType.HOME);
         } else if (endTarget == RECENTS) {
             if (mRecentsView != null) {
@@ -1438,7 +1437,7 @@ public abstract class AbsSwipeUpHandler<
                 if (!mGestureState.isHandlingAtomicEvent() || isScrolling) {
                     duration = Math.max(duration, mRecentsView.getScroller().getDuration());
                 }
-                ContextualEduStatsManager.INSTANCE.get(mContext).updateEduStats(
+                SystemUiProxy.INSTANCE.get(mContext).updateContextualEduStats(
                         mGestureState.isTrackpadGesture(), GestureType.OVERVIEW);
             }
         } else if (endTarget == LAST_TASK && mRecentsView != null
@@ -2688,9 +2687,7 @@ public abstract class AbsSwipeUpHandler<
         }
 
         float scrollOffset = Math.abs(mRecentsView.getScrollOffset(mRecentsView.getCurrentPage()));
-        Rect carouselTaskSize = enableGridOnlyOverview()
-                ? mRecentsView.getLastComputedCarouselTaskSize()
-                : mRecentsView.getLastComputedTaskSize();
+        Rect carouselTaskSize = mRecentsView.getLastComputedTaskSize();
         int maxScrollOffset = mRecentsView.getPagedOrientationHandler().getPrimaryValue(
                 carouselTaskSize.width(), carouselTaskSize.height());
         maxScrollOffset += mRecentsView.getPageSpacing();
