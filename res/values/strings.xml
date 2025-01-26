@@ -190,6 +190,8 @@
     <!-- Label for the header text of the All Apps section in All Apps view, used to separate Predicted Apps and Actions section from All Apps section. [CHAR_LIMIT=50] -->
     <string name="all_apps_label">All apps</string>
 
+    <string name="all_apps_list_label">Apps list</string>
+
     <!-- Popup items -->
     <!-- Text to display as the header above notifications. [CHAR_LIMIT=30] -->
     <string name="notifications_header">Notifications</string>
@@ -306,6 +308,8 @@
     <string name="folder_name_format_exact">Folder: <xliff:g id="name" example="Games">%1$s</xliff:g>, <xliff:g id="size" example="2">%2$d</xliff:g> items</string>
     <!-- Folder name format when folder has 4 or more items shown in preview-->
     <string name="folder_name_format_overflow">Folder: <xliff:g id="name" example="Games">%1$s</xliff:g>, <xliff:g id="size" example="2">%2$d</xliff:g> or more items</string>
+    <!-- Accessibility announement for unnamed folders -->
+    <string name="unnamed_folder">Unnamed folder</string>
 
     <!-- App pair accessibility -->
     <!-- App pair name -->

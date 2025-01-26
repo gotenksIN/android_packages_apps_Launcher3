@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright (C) 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,22 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.testing.shared;
+package com.android.launcher3.dagger;
 
-import android.os.Parcelable;
+
+import com.android.quickstep.dagger.QuickstepBaseAppComponent;
+
+import dagger.Component;
 
 /**
- * A Request sent to TestInformationHandler can implement this interface to carry more information.
+ * Root component for Dagger injection for Launcher Quickstep.
  */
-public interface TestInformationRequest extends Parcelable {
-    /**
-     * The name for handler to dispatch request.
-     */
-    String getRequestName();
+@LauncherAppSingleton
+@Component(modules = LauncherAppModule.class)
+public interface LauncherAppComponent extends QuickstepBaseAppComponent {
+    /** Builder for quickstep LauncherAppComponent. */
+    @Component.Builder
+    interface Builder extends LauncherBaseAppComponent.Builder {
+        LauncherAppComponent build();
+    }
 }

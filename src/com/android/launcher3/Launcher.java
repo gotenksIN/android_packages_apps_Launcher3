@@ -58,6 +58,7 @@ import static com.android.launcher3.LauncherConstants.TraceEvents.ON_CREATE_EVT;
 import static com.android.launcher3.LauncherConstants.TraceEvents.ON_NEW_INTENT_EVT;
 import static com.android.launcher3.LauncherConstants.TraceEvents.ON_RESUME_EVT;
 import static com.android.launcher3.LauncherConstants.TraceEvents.ON_START_EVT;
+import static com.android.launcher3.LauncherPrefs.FIXED_LANDSCAPE_MODE;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPLICATION;
 import static com.android.launcher3.LauncherState.ALL_APPS;
@@ -71,7 +72,6 @@ import static com.android.launcher3.LauncherState.SPRING_LOADED;
 import static com.android.launcher3.Utilities.postAsyncCallback;
 import static com.android.launcher3.config.FeatureFlags.FOLDABLE_SINGLE_PAGE;
 import static com.android.launcher3.config.FeatureFlags.MULTI_SELECT_EDIT_MODE;
-import static com.android.launcher3.folder.FolderGridOrganizer.createFolderGridOrganizer;
 import static com.android.launcher3.logging.KeyboardStateManager.KeyboardState.HIDE;
 import static com.android.launcher3.logging.KeyboardStateManager.KeyboardState.SHOW;
 import static com.android.launcher3.logging.StatsLogManager.EventEnum;
@@ -205,7 +205,6 @@ import com.android.launcher3.model.ItemInstallQueue;
 import com.android.launcher3.model.ModelWriter;
 import com.android.launcher3.model.StringCache;
 import com.android.launcher3.model.data.AppInfo;
-import com.android.launcher3.model.data.AppPairInfo;
 import com.android.launcher3.model.data.CollectionInfo;
 import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.ItemInfo;
@@ -785,9 +784,13 @@ public class Launcher extends StatefulActivity<LauncherState>
             return;
         }
         // When the flag oneGridSpecs is on we want to disable ALLOW_ROTATION which is replaced
-        // by FIXED_LANDSCAPE_MODE, ALLOW_ROTATION will only be used on Tablets afterwards.
-        if (getDeviceProfile().isPhone || getDeviceProfile().isTwoPanels) {
+        // by FIXED_LANDSCAPE_MODE, ALLOW_ROTATION will only be used on Tablets and foldables
+        // afterwards.
+        if (getDeviceProfile().isPhone) {
             LauncherPrefs.get(this).put(LauncherPrefs.ALLOW_ROTATION, false);
+        } else if (getDeviceProfile().isTablet) {
+            // Tablet do not use fixed landscape mode, make sure it can't be activated by mistake
+            LauncherPrefs.get(this).put(FIXED_LANDSCAPE_MODE, false);
         }
         getRotationHelper().setFixedLandscape(
                 Objects.requireNonNull(mDeviceProfile.inv).isFixedLandscape
@@ -826,26 +829,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         return true;
     }
 
-    @Override
-    public void invalidateParent(ItemInfo info) {
-        if (info.container >= 0) {
-            View collectionIcon = getWorkspace().getHomescreenIconByItemId(info.container);
-            if (collectionIcon instanceof FolderIcon folderIcon
-                    && collectionIcon.getTag() instanceof FolderInfo) {
-                if (createFolderGridOrganizer(getDeviceProfile())
-                        .setFolderInfo((FolderInfo) folderIcon.getTag())
-                        .isItemInPreview(info.rank)) {
-                    folderIcon.invalidate();
-                }
-            } else if (collectionIcon instanceof AppPairIcon appPairIcon
-                    && collectionIcon.getTag() instanceof AppPairInfo appPairInfo) {
-                if (appPairInfo.getContents().contains(info)) {
-                    appPairIcon.getIconDrawableArea().redraw();
-                }
-            }
-        }
-    }
-
     /**
      * Returns whether we should delay spring loaded mode -- for shortcuts and widgets that have
      * a configuration step, this allows the proper animations to run after other transitions.
@@ -864,7 +847,6 @@ public class Launcher extends StatefulActivity<LauncherState>
             case REQUEST_CREATE_SHORTCUT:
                 completeAddShortcut(intent, info.container, screenId,
                         cellPos.cellX, cellPos.cellY, info);
-                announceForAccessibility(R.string.item_added_to_workspace);
                 break;
             case REQUEST_CREATE_APPWIDGET:
                 completeAddAppWidget(appWidgetId, info, null, null, false, true, null);
@@ -1565,7 +1547,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         if (!enableAddAppWidgetViaConfigActivityV2() || hostView.getParent() == null) {
             mWorkspace.addInScreen(hostView, launcherInfo);
         }
-        announceForAccessibility(R.string.item_added_to_workspace);
 
         // Show the widget resize frame.
         if (hostView instanceof LauncherAppWidgetHostView) {

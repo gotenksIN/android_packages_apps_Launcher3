@@ -24,6 +24,7 @@ import android.view.accessibility.AccessibilityEvent;
 
 import androidx.annotation.Nullable;
 
+import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.ButtonDropTarget;
 import com.android.launcher3.CellLayout;
@@ -48,7 +49,6 @@ import com.android.launcher3.model.data.WorkspaceItemFactory;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.ArrowPopup;
 import com.android.launcher3.popup.PopupContainerWithArrow;
-import com.android.launcher3.shortcuts.DeepShortcutTextView;
 import com.android.launcher3.shortcuts.DeepShortcutView;
 import com.android.launcher3.touch.ItemLongClickListener;
 import com.android.launcher3.util.IntArray;
@@ -305,7 +305,6 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
                 info.spanX, info.spanY);
         host.requestLayout();
         mContext.getModelWriter().updateItemInDatabase(info);
-        announceConfirmation(mContext.getString(R.string.widget_resized, info.spanX, info.spanY));
         return true;
     }
 
@@ -405,6 +404,11 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
      */
     public boolean addToWorkspace(ItemInfo item, boolean accessibility,
             @Nullable Consumer<Boolean> finishCallback) {
+        // Dismiss widget resize frame if it is showing. The frame marks its cells as unoccupied
+        // while it is showing, so findSpaceOnWorkspace may try to use those cells.
+        AbstractFloatingView.closeOpenViews(mContext, /* animate= */ false,
+                AbstractFloatingView.TYPE_WIDGET_RESIZE_FRAME);
+
         final int[] coordinates = new int[2];
         final int screenId = findSpaceOnWorkspace(item, coordinates);
         if (screenId == -1) {

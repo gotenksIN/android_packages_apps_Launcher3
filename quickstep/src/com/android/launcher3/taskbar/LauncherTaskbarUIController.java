@@ -41,6 +41,7 @@ import com.android.launcher3.logging.InstanceId;
 import com.android.launcher3.logging.InstanceIdSequence;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.taskbar.bubbles.BubbleBarController;
+import com.android.launcher3.taskbar.bubbles.BubbleControllers;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.MultiPropertyFactory;
@@ -49,7 +50,6 @@ import com.android.quickstep.HomeVisibilityState;
 import com.android.quickstep.RecentsAnimationCallbacks;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.util.GroupTask;
-import com.android.quickstep.util.TISBindHelper;
 import com.android.quickstep.views.RecentsView;
 import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags;
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
@@ -87,7 +87,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     private final DeviceProfile.OnDeviceProfileChangeListener mOnDeviceProfileChangeListener =
             dp -> {
                 onStashedInAppChanged(dp);
-                adjustHotseatForBubbleBar();
+                postAdjustHotseatForBubbleBar();
                 if (mControllers != null && mControllers.taskbarViewController != null) {
                     mControllers.taskbarViewController.onRotationChanged(dp);
                 }
@@ -245,7 +245,8 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
         }
 
         if (!ENABLE_DESKTOP_WINDOWING_WALLPAPER_ACTIVITY.isTrue()
-                && mControllers.taskbarDesktopModeController.getAreDesktopTasksVisible()) {
+                && mControllers.taskbarDesktopModeController
+                    .getAreDesktopTasksVisibleAndNotInOverview()) {
             // TODO: b/333533253 - Remove after flag rollout
             isVisible = false;
         }
@@ -275,13 +276,16 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
         }
     }
 
-    private void adjustHotseatForBubbleBar() {
+    private void postAdjustHotseatForBubbleBar() {
         Hotseat hotseat = mLauncher.getHotseat();
-        if (mControllers.bubbleControllers.isEmpty() || hotseat == null) return;
-        boolean hiddenForBubbles =
-                mControllers.bubbleControllers.get().bubbleBarViewController.isHiddenForNoBubbles();
-        if (hiddenForBubbles) return;
-        hotseat.post(() -> adjustHotseatForBubbleBar(/* isBubbleBarVisible= */ true));
+        if (hotseat == null || !isBubbleBarVisible()) return;
+        hotseat.post(() -> adjustHotseatForBubbleBar(isBubbleBarVisible()));
+    }
+
+    private boolean isBubbleBarVisible() {
+        BubbleControllers bubbleControllers = mControllers.bubbleControllers.orElse(null);
+        return bubbleControllers != null
+                && bubbleControllers.bubbleBarViewController.isBubbleBarVisible();
     }
 
     /**
@@ -483,12 +487,6 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     @Override
     protected void onIconLayoutBoundsChanged() {
         mTaskbarLauncherStateController.resetIconAlignment();
-    }
-
-    @Nullable
-    @Override
-    protected TISBindHelper getTISBindHelper() {
-        return mLauncher.getTISBindHelper();
     }
 
     @Override

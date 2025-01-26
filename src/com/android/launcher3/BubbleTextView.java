@@ -369,25 +369,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
 
     @UiThread
     public void applyFromWorkspaceItem(WorkspaceItemInfo info) {
-        applyFromWorkspaceItem(info, /* animate = */ false, /* staggerIndex = */ 0);
-    }
-
-    @UiThread
-    public void applyFromWorkspaceItem(WorkspaceItemInfo info, boolean animate, int staggerIndex) {
         applyFromWorkspaceItem(info, null);
-    }
-
-    /**
-     * Returns whether the newInfo differs from the current getTag().
-     */
-    public boolean shouldAnimateIconChange(WorkspaceItemInfo newInfo) {
-        WorkspaceItemInfo oldInfo = getTag() instanceof WorkspaceItemInfo
-                ? (WorkspaceItemInfo) getTag()
-                : null;
-        boolean changedIcons = oldInfo != null && oldInfo.getTargetComponent() != null
-                && newInfo.getTargetComponent() != null
-                && !oldInfo.getTargetComponent().equals(newInfo.getTargetComponent());
-        return changedIcons && isShown();
     }
 
     @Override
@@ -743,7 +725,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         appTitleBounds = new RectF((tmpRect.width() - titleLength) / 2.f - getCompoundPaddingLeft(),
                 0, (tmpRect.width() + titleLength) / 2.f + getCompoundPaddingRight(),
                 (int) Math.ceil(fm.bottom - fm.top));
-        appTitleBounds.inset(mRoundRectPadding * 2, 0);
+        appTitleBounds.inset((mAppTitleHorizontalPadding) * 2, 0);
 
 
         if (mIcon != null) {
@@ -1333,7 +1315,6 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
                 applyFromApplicationInfo((AppInfo) info);
             } else if (info instanceof WorkspaceItemInfo) {
                 applyFromWorkspaceItem((WorkspaceItemInfo) info);
-                mActivity.invalidateParent(info);
             } else if (info != null) {
                 applyFromItemInfoWithIcon(info);
             }
@@ -1347,12 +1328,11 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
      * Verifies that the current icon is high-res otherwise posts a request to load the icon.
      */
     public void verifyHighRes() {
-        if (mIconLoadRequest != null) {
-            mIconLoadRequest.cancel();
-            mIconLoadRequest = null;
-        }
         if (getTag() instanceof ItemInfoWithIcon info && !mHighResUpdateInProgress
                 && info.getMatchingLookupFlag().useLowRes()) {
+            if (mIconLoadRequest != null) {
+                mIconLoadRequest.cancel();
+            }
             mIconLoadRequest = LauncherAppState.getInstance(getContext()).getIconCache()
                     .updateIconInBackground(BubbleTextView.this, info);
         }
