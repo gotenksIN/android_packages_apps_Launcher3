@@ -24,8 +24,7 @@ import android.content.res.Resources
 import android.os.Process
 import android.os.UserHandle
 import android.platform.test.annotations.EnableFlags
-import android.platform.test.rule.TestWatcher
-import android.testing.AndroidTestingRunner
+import androidx.test.annotation.UiThreadTest
 import com.android.internal.R
 import com.android.launcher3.BubbleTextView.RunningAppState
 import com.android.launcher3.Flags
@@ -35,6 +34,8 @@ import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.TaskItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
+import com.android.launcher3.taskbar.TaskbarRecentAppsController.TaskState
+import com.android.launcher3.util.LauncherMultivalentJUnit
 import com.android.quickstep.RecentsModel
 import com.android.quickstep.RecentsModel.RecentTasksChangedListener
 import com.android.quickstep.TaskIconCache
@@ -46,6 +47,7 @@ import java.util.function.Consumer
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestWatcher
 import org.junit.runner.Description
 import org.junit.runner.RunWith
 import org.mockito.ArgumentCaptor
@@ -58,7 +60,8 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
-@RunWith(AndroidTestingRunner::class)
+@UiThreadTest
+@RunWith(LauncherMultivalentJUnit::class)
 @EnableFlags(Flags.FLAG_ENABLE_MULTI_INSTANCE_MENU_TASKBAR)
 class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
 
@@ -88,6 +91,9 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
 
     private var canShowRunningAndRecentAppsAtInit = true
     private var recentTasksChangedListener: RecentTasksChangedListener? = null
+
+    val recentShownTasks: List<Task>
+        get() = recentAppsController.shownTasks.flatMap { it.tasks }
 
     @Before
     fun setUp() {
@@ -142,7 +148,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
     @Test
     fun canShowRunningAndRecentAppsIsFalseAfterInit_getTasksOnlyCalledInInit() {
         // getTasks() should have been called once from init().
-        verify(mockRecentsModel, times(1)).getTasks(any<Consumer<List<GroupTask>>>())
+        verify(mockRecentsModel, times(1)).getTasks(any<Consumer<List<GroupTask>>>(), any())
         recentAppsController.canShowRunningApps = false
         recentAppsController.canShowRecentApps = false
         prepareHotseatAndRunningAndRecentApps(
@@ -151,29 +157,28 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
             recentTaskPackages = listOf(RECENT_PACKAGE_1, RECENT_PACKAGE_2),
         )
         // Verify that getTasks() was not called again after the init().
-        verify(mockRecentsModel, times(1)).getTasks(any<Consumer<List<GroupTask>>>())
+        verify(mockRecentsModel, times(1)).getTasks(any<Consumer<List<GroupTask>>>(), any())
     }
 
     @Test
     fun getDesktopItemState_nullItemInfo_returnsNotRunning() {
         setInDesktopMode(true)
-        assertThat(recentAppsController.getDesktopItemState(/* itemInfo= */ null))
-            .isEqualTo(RunningAppState.NOT_RUNNING)
+        val taskState = recentAppsController.getDesktopItemState(/* itemInfo= */ null)
+        assertThat(taskState).isEqualTo(TaskState(RunningAppState.NOT_RUNNING))
     }
 
     @Test
     fun getDesktopItemState_noItemPackage_returnsNotRunning() {
         setInDesktopMode(true)
-        assertThat(recentAppsController.getDesktopItemState(ItemInfo()))
-            .isEqualTo(RunningAppState.NOT_RUNNING)
+        val taskState = recentAppsController.getDesktopItemState(ItemInfo())
+        assertThat(taskState).isEqualTo(TaskState(RunningAppState.NOT_RUNNING))
     }
 
     @Test
     fun getDesktopItemState_noMatchingTasks_returnsNotRunning() {
         setInDesktopMode(true)
-        val itemInfo = createItemInfo("package")
-        assertThat(recentAppsController.getDesktopItemState(itemInfo))
-            .isEqualTo(RunningAppState.NOT_RUNNING)
+        val taskState = recentAppsController.getDesktopItemState(createItemInfo("package"))
+        assertThat(taskState).isEqualTo(TaskState(RunningAppState.NOT_RUNNING))
     }
 
     @Test
@@ -181,10 +186,10 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
         setInDesktopMode(true)
         val visibleTask = createTask(id = 1, "visiblePackage", isVisible = true)
         updateRecentTasks(runningTasks = listOf(visibleTask), recentTaskPackages = emptyList())
-        val itemInfo = createItemInfo("visiblePackage")
 
-        assertThat(recentAppsController.getDesktopItemState(itemInfo))
-            .isEqualTo(RunningAppState.RUNNING)
+        val taskState = recentAppsController.getDesktopItemState(createItemInfo("visiblePackage"))
+
+        assertThat(taskState).isEqualTo(TaskState(RunningAppState.RUNNING, taskId = 1))
     }
 
     @Test
@@ -192,10 +197,10 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
         setInDesktopMode(true)
         val minimizedTask = createTask(id = 1, "minimizedPackage", isVisible = false)
         updateRecentTasks(runningTasks = listOf(minimizedTask), recentTaskPackages = emptyList())
-        val itemInfo = createItemInfo("minimizedPackage")
 
-        assertThat(recentAppsController.getDesktopItemState(itemInfo))
-            .isEqualTo(RunningAppState.MINIMIZED)
+        val taskState = recentAppsController.getDesktopItemState(createItemInfo("minimizedPackage"))
+
+        assertThat(taskState).isEqualTo(TaskState(RunningAppState.MINIMIZED, taskId = 1))
     }
 
     @Test
@@ -209,10 +214,10 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
                 ),
             recentTaskPackages = emptyList(),
         )
-        val itemInfo = createItemInfo("package")
 
-        assertThat(recentAppsController.getDesktopItemState(itemInfo))
-            .isEqualTo(RunningAppState.RUNNING)
+        val taskState = recentAppsController.getDesktopItemState(createItemInfo("package"))
+
+        assertThat(taskState).isEqualTo(TaskState(RunningAppState.RUNNING, taskId = 2))
     }
 
     @Test
@@ -226,10 +231,11 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
                 ),
             recentTaskPackages = emptyList(),
         )
-        val itemInfo = createItemInfo("package", USER_HANDLE_2)
 
-        assertThat(recentAppsController.getDesktopItemState(itemInfo))
-            .isEqualTo(RunningAppState.NOT_RUNNING)
+        val taskState =
+            recentAppsController.getDesktopItemState(createItemInfo("package", USER_HANDLE_2))
+
+        assertThat(taskState).isEqualTo(TaskState(RunningAppState.NOT_RUNNING))
     }
 
     @Test
@@ -352,9 +358,8 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
         val hotseatItem1 = newHotseatItems[0] as TaskItemInfo
         assertThat(hotseatItem1.targetPackage).isEqualTo(HOTSEAT_PACKAGE_1)
 
-        // The other task of the same package is not in shownTasks
-        val shownTasks = recentAppsController.shownTasks.map { it.task1 }
-        assertThat(shownTasks).isEmpty()
+        // The other task of the same package is not in recentShownTasks
+        assertThat(recentShownTasks).isEmpty()
     }
 
     @Test
@@ -437,8 +442,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
             runningTasks = listOf(task1, task2),
             recentTaskPackages = emptyList(),
         )
-        val shownTasks = recentAppsController.shownTasks.map { it.task1 }
-        assertThat(shownTasks).containsExactlyElementsIn(listOf(task1, task2))
+        assertThat(recentShownTasks).containsExactlyElementsIn(listOf(task1, task2))
     }
 
     @Test
@@ -533,8 +537,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
             recentTaskPackages = emptyList(),
         )
 
-        val shownTasks = recentAppsController.shownTasks.map { it.task1 }
-        assertThat(shownTasks).isEqualTo(listOf(task1, task2))
+        assertThat(recentShownTasks).isEqualTo(listOf(task1, task2))
     }
 
     /**
@@ -552,10 +555,9 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
             recentTaskPackages = emptyList(),
         )
 
-        // Assert that shownTasks contains only one instance of the app
-        val shownTasks = recentAppsController.shownTasks.map { it.task1 }
-        assertThat(shownTasks).hasSize(1)
-        assertThat(shownTasks[0].key.packageName).isEqualTo(RUNNING_APP_PACKAGE_1)
+        // Assert that recentShownTasks contains only one instance of the app
+        assertThat(recentShownTasks).hasSize(1)
+        assertThat(recentShownTasks[0].key.packageName).isEqualTo(RUNNING_APP_PACKAGE_1)
     }
 
     @Test
@@ -837,8 +839,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
             runningTasks = runningTasks,
             recentTaskPackages = emptyList(),
         )
-        val shownTasks = recentAppsController.shownTasks.map { it.task1 }
-        assertThat(shownTasks).contains(runningTask)
+        assertThat(recentShownTasks).contains(runningTask)
         assertThat(recentAppsController.runningTaskIds).containsExactlyElementsIn(listOf(1))
     }
 
@@ -881,7 +882,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
                 taskListChangeId
             }
             .whenever(mockRecentsModel)
-            .getTasks(any<Consumer<List<GroupTask>>>())
+            .getTasks(any<Consumer<List<GroupTask>>>(), any())
         recentTasksChangedListener?.onRecentTasksChanged()
     }
 
@@ -945,7 +946,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
     }
 
     private fun setInDesktopMode(inDesktopMode: Boolean) {
-        whenever(taskbarControllers.taskbarDesktopModeController.areDesktopTasksVisible)
+        whenever(taskbarControllers.taskbarDesktopModeController.shouldShowDesktopTasksInTaskbar())
             .thenReturn(inDesktopMode)
     }
 

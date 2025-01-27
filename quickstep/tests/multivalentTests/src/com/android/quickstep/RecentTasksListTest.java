@@ -21,7 +21,9 @@ import static com.google.common.truth.Truth.assertThat;
 import static junit.framework.TestCase.assertNull;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.anyInt;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -34,6 +36,7 @@ import android.app.TaskInfo;
 import android.content.Context;
 import android.content.res.Resources;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.internal.R;
@@ -45,6 +48,7 @@ import com.android.wm.shell.shared.GroupedTaskInfo;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -56,6 +60,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @SmallTest
+@RunWith(AndroidJUnit4.class)
 public class RecentTasksListTest {
 
     @Mock
@@ -157,12 +162,15 @@ public class RecentTasksListTest {
         List<Task> actualFreeformTasks = taskList.get(0).getTasks();
         assertEquals(3, actualFreeformTasks.size());
         assertEquals(1, actualFreeformTasks.get(0).key.id);
+        assertFalse(actualFreeformTasks.get(0).isMinimized);
         assertEquals(4, actualFreeformTasks.get(1).key.id);
+        assertFalse(actualFreeformTasks.get(1).isMinimized);
         assertEquals(5, actualFreeformTasks.get(2).key.id);
+        assertFalse(actualFreeformTasks.get(2).isMinimized);
     }
 
     @Test
-    public void loadTasksInBackground_freeformTask_onlyMinimizedTasks_doesNotCreateDesktopTask()
+    public void loadTasksInBackground_freeformTask_onlyMinimizedTasks_createDesktopTask()
             throws Exception {
         List<TaskInfo> tasks = Arrays.asList(
                 createRecentTaskInfo(1 /* taskId */),
@@ -177,7 +185,16 @@ public class RecentTasksListTest {
         List<GroupTask> taskList = mRecentTasksList.loadTasksInBackground(
                 Integer.MAX_VALUE /* numTasks */, -1 /* requestId */, false /* loadKeysOnly */);
 
-        assertEquals(0, taskList.size());
+        assertEquals(1, taskList.size());
+        assertEquals(TaskViewType.DESKTOP, taskList.get(0).taskViewType);
+        List<Task> actualFreeformTasks = taskList.get(0).getTasks();
+        assertEquals(3, actualFreeformTasks.size());
+        assertEquals(1, actualFreeformTasks.get(0).key.id);
+        assertTrue(actualFreeformTasks.get(0).isMinimized);
+        assertEquals(4, actualFreeformTasks.get(1).key.id);
+        assertTrue(actualFreeformTasks.get(1).isMinimized);
+        assertEquals(5, actualFreeformTasks.get(2).key.id);
+        assertTrue(actualFreeformTasks.get(2).isMinimized);
     }
 
     private TaskInfo createRecentTaskInfo(int taskId) {
