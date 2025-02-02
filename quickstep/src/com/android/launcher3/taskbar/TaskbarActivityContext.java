@@ -43,6 +43,7 @@ import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_NOTIFICATION_PANEL_VISIBLE;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_VOICE_INTERACTION_WINDOW_SHOWING;
+import static com.android.window.flags.Flags.enableStartLaunchTransitionFromTaskbarBugfix;
 import static com.android.wm.shell.Flags.enableTinyTaskbar;
 
 import static java.lang.invoke.MethodHandles.Lookup.PROTECTED;
@@ -86,7 +87,6 @@ import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.BubbleTextView.RunningAppState;
 import com.android.launcher3.DeviceProfile;
-import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherSettings.Favorites;
 import com.android.launcher3.R;
@@ -1330,7 +1330,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 mControllers.uiController.onTaskbarIconLaunched(api);
                 mControllers.taskbarStashController.updateAndAnimateTransientTaskbar(true);
             }
-        } else if (tag instanceof TaskItemInfo info && !Flags.enableMultiInstanceMenuTaskbar()) {
+        } else if (tag instanceof TaskItemInfo info) {
             RemoteTransition remoteTransition = canUnminimizeDesktopTask(info.getTaskId())
                     ? createDesktopAppLaunchRemoteTransition(
                             AppLaunchType.UNMINIMIZE, Cuj.CUJ_DESKTOP_MODE_APP_LAUNCH_FROM_ICON)
@@ -1341,7 +1341,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 taskView = recents.getTaskViewByTaskId(info.getTaskId());
             }
 
-            if (areDesktopTasksVisible() && taskView != null) {
+            if (areDesktopTasksVisible() && taskView != null
+                    && mControllers.uiController.isInOverviewUi()) {
                 RunnableList runnableList = taskView.launchWithAnimation();
                 if (runnableList != null) {
                     runnableList.add(() ->
@@ -1513,9 +1514,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         BubbleTextView.RunningAppState runningAppState =
                 mControllers.taskbarRecentAppsController.getRunningAppState(taskId);
         return runningAppState == RunningAppState.MINIMIZED
-                && (DesktopModeFlags.ENABLE_DESKTOP_APP_LAUNCH_ALTTAB_TRANSITIONS.isTrue()
-                    || DesktopModeFlags.ENABLE_DESKTOP_APP_LAUNCH_ALTTAB_TRANSITIONS_BUGFIX.isTrue()
-                    );
+                && DesktopModeFlags.ENABLE_DESKTOP_APP_LAUNCH_ALTTAB_TRANSITIONS_BUGFIX.isTrue();
     }
 
     private RemoteTransition createDesktopAppLaunchRemoteTransition(
@@ -1689,7 +1688,11 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         }
         // There is no task associated with this launch - launch a new task through an intent
         ActivityOptionsWrapper opts = getActivityLaunchDesktopOptions();
-        mSysUiProxy.startLaunchIntentTransition(intent, opts.options.toBundle(), displayId);
+        if (enableStartLaunchTransitionFromTaskbarBugfix()) {
+            mSysUiProxy.startLaunchIntentTransition(intent, opts.options.toBundle(), displayId);
+        } else {
+            startActivity(intent, opts.options.toBundle());
+        }
     }
 
     /** Expands a folder icon when it is clicked */

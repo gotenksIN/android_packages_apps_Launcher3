@@ -564,3 +564,30 @@ flag {
     purpose: PURPOSE_BUGFIX
   }
 }
+
+flag {
+  name: "restore_archived_shortcuts"
+  namespace: "launcher"
+  description: "Makes sure pre-archived pinned shortcuts also get restored"
+  bug: "375414891"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "restore_archived_app_icons_from_db"
+  namespace: "launcher"
+  description: "Restores pre-archived icons from db when available, mimicing promise icons"
+  bug: "391913214"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "enable_mouse_interaction_changes"
+  namespace: "launcher"
+  description: "Changes mouse interaction behavior"
+  bug: "388897603"
+}

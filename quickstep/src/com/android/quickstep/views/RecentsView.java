@@ -40,6 +40,7 @@ import static com.android.launcher3.Flags.enableDesktopTaskAlphaAnimation;
 import static com.android.launcher3.Flags.enableGridOnlyOverview;
 import static com.android.launcher3.Flags.enableLargeDesktopWindowingTile;
 import static com.android.launcher3.Flags.enableRefactorTaskThumbnail;
+import static com.android.launcher3.Flags.enableSeparateExternalDisplayTasks;
 import static com.android.launcher3.LauncherAnimUtils.SUCCESS_TRANSITION_PROGRESS;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_ALPHA;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_BACKGROUND_COLOR;
@@ -907,6 +908,7 @@ public abstract class RecentsView<
         if (DesktopModeStatus.enableMultipleDesktops(mContext)) {
             mAddDesktopButton = (AddDesktopButton) LayoutInflater.from(context).inflate(
                     R.layout.overview_add_desktop_button, this, false);
+            mAddDesktopButton.setOnClickListener(this::createDesk);
         }
 
         mTaskViewPool = new ViewPool<>(context, this, R.layout.task, 20 /* max size */,
@@ -1827,7 +1829,7 @@ public abstract class RecentsView<
             return;
         }
 
-        int runningTaskExpectedIndex = getRunningTaskExpectedIndex(runningTaskView);
+        int runningTaskExpectedIndex = mUtils.getRunningTaskExpectedIndex(runningTaskView);
         if (mCurrentPage == runningTaskExpectedIndex) {
             return;
         }
@@ -1845,28 +1847,6 @@ public abstract class RecentsView<
         setCurrentPage(runningTaskExpectedIndex);
 
         updateTaskSize();
-    }
-
-    private int getRunningTaskExpectedIndex(TaskView runningTaskView) {
-        int firstTaskViewIndex = indexOfChild(getFirstTaskView());
-        if (mContainer.getDeviceProfile().isTablet) {
-            if (runningTaskView instanceof DesktopTaskView) {
-                return firstTaskViewIndex; // Desktop running task is always in front.
-            } else if (enableLargeDesktopWindowingTile()) {
-                // Other running task is behind desktop tasks.
-                return getDesktopTaskViewCount() + firstTaskViewIndex;
-            } else {
-                return firstTaskViewIndex;
-            }
-        } else {
-            int currentIndex = indexOfChild(runningTaskView);
-            if (currentIndex != -1) {
-                return currentIndex; // Keep the position if running task already in layout.
-            } else {
-                // New running task are added to the front to begin with.
-                return firstTaskViewIndex;
-            }
-        }
     }
 
     @Override
@@ -1955,6 +1935,9 @@ public abstract class RecentsView<
         // Move Desktop Tasks to the end of the list
         if (enableLargeDesktopWindowingTile()) {
             taskGroups = mUtils.sortDesktopTasksToFront(taskGroups);
+        }
+        if (enableSeparateExternalDisplayTasks()) {
+            taskGroups = mUtils.sortExternalDisplayTasksToFront(taskGroups);
         }
 
         if (mAddDesktopButton != null) {
@@ -2135,6 +2118,11 @@ public abstract class RecentsView<
      */
     private int getDesktopTaskViewCount() {
         return mUtils.getDesktopTaskViewCount();
+    }
+
+    /** Counts {@link TaskView}s that are not {@link DesktopTaskView} instances. */
+    public int getNonDesktopTaskViewCount() {
+        return mUtils.getNonDesktopTaskViewCount();
     }
 
     /**
@@ -3033,7 +3021,7 @@ public abstract class RecentsView<
             if (mAddDesktopButton != null && wasEmpty) {
                 addView(mAddDesktopButton);
             }
-            addView(taskView, getRunningTaskExpectedIndex(taskView));
+            addView(taskView, mUtils.getRunningTaskExpectedIndex(taskView));
             runningTaskViewId = taskView.getTaskViewId();
             if (wasEmpty) {
                 addView(mClearAllButton);
@@ -3467,7 +3455,7 @@ public abstract class RecentsView<
                 // `mAddDesktopButton`, shift `mAddDesktopButton` to accommodate.
                 translationX += largeTaskWidthAndSpacing;
             }
-            mAddDesktopButton.setTranslationX(translationX);
+            mAddDesktopButton.setGridTranslationX(translationX);
         }
 
         final TaskView runningTask = getRunningTaskView();
@@ -4605,6 +4593,12 @@ public abstract class RecentsView<
         }
     }
 
+    private void createDesk(View view) {
+        SystemUiProxy.INSTANCE
+                .get(getContext())
+                .createDesktop(mContainer.getDisplay().getDisplayId());
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (isHandlingTouch() || event.getAction() != KeyEvent.ACTION_DOWN) {
@@ -4973,8 +4967,8 @@ public abstract class RecentsView<
             } else if (child instanceof ClearAllButton) {
                 getPagedOrientationHandler().getPrimaryViewTranslate().set(child,
                         totalTranslationX);
-            } else {
-                // TODO(b/389209581): Handle the page offsets update of the 'mAddDesktopButton'.
+            } else if (child instanceof AddDesktopButton addDesktopButton) {
+                addDesktopButton.setOffsetTranslationX(totalTranslationX);
             }
             if (mEnableDrawingLiveTile && i == getRunningTaskIndex()) {
                 runActionOnRemoteHandles(
@@ -6157,7 +6151,7 @@ public abstract class RecentsView<
         if (addDesktopButtonIndex != -1 && addDesktopButtonIndex < outPageScrolls.length) {
             outPageScrolls[addDesktopButtonIndex] =
                     newPageScrolls[addDesktopButtonIndex] + Math.round(
-                            mAddDesktopButton.getTranslationX());
+                            mAddDesktopButton.getGridTranslationX());
         }
 
         int lastTaskScroll = getLastTaskScroll(clearAllScroll, clearAllWidth);
