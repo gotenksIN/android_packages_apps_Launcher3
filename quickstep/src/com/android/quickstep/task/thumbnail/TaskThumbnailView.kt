@@ -20,6 +20,7 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.Rect
+import android.graphics.drawable.ShapeDrawable
 import android.util.AttributeSet
 import android.util.Log
 import android.view.LayoutInflater
@@ -29,7 +30,9 @@ import android.widget.FrameLayout
 import androidx.annotation.ColorInt
 import androidx.core.view.isInvisible
 import com.android.launcher3.Flags.enableDesktopExplodedView
+import com.android.launcher3.LauncherAnimUtils.VIEW_ALPHA
 import com.android.launcher3.R
+import com.android.launcher3.util.MultiPropertyFactory
 import com.android.launcher3.util.ViewPool
 import com.android.launcher3.util.coroutines.DispatcherProvider
 import com.android.quickstep.recents.di.RecentsDependencies
@@ -70,11 +73,13 @@ class TaskThumbnailView : FrameLayout, ViewPool.Reusable {
     private val thumbnailView: FixedSizeImageView by lazy { findViewById(R.id.task_thumbnail) }
     private val splashBackground: View by lazy { findViewById(R.id.splash_background) }
     private val splashIcon: FixedSizeImageView by lazy { findViewById(R.id.splash_icon) }
+    private val dimAlpha: MultiPropertyFactory<View> by lazy {
+        MultiPropertyFactory(scrimView, VIEW_ALPHA, ScrimViewAlpha.entries.size, ::maxOf)
+    }
 
     private var taskThumbnailViewHeader: TaskThumbnailViewHeader? = null
 
     private var uiState: TaskThumbnailUiState = Uninitialized
-
     private val bounds = Rect()
 
     var cornerRadius: Float = 0f
@@ -108,26 +113,6 @@ class TaskThumbnailView : FrameLayout, ViewPool.Reusable {
         viewData = RecentsDependencies.get(this)
         updateViewDataValues()
         viewModel = RecentsDependencies.get(this)
-        viewModel.uiState
-            .dropWhile { it == Uninitialized }
-            .flowOn(dispatcherProvider.background)
-            .onEach { viewModelUiState ->
-                Log.d(TAG, "viewModelUiState changed from: $uiState to: $viewModelUiState")
-                uiState = viewModelUiState
-                resetViews()
-                when (viewModelUiState) {
-                    is Uninitialized -> {}
-                    is LiveTile -> drawLiveWindow(viewModelUiState)
-                    is SnapshotSplash -> drawSnapshotSplash(viewModelUiState)
-                    is BackgroundOnly -> drawBackground(viewModelUiState.backgroundColor)
-                }
-            }
-            .launchIn(viewAttachedScope)
-        viewModel.dimProgress
-            .dropWhile { it == 0f }
-            .flowOn(dispatcherProvider.background)
-            .onEach { dimProgress -> scrimView.alpha = dimProgress }
-            .launchIn(viewAttachedScope)
         viewModel.splashAlpha
             .dropWhile { it == 0f }
             .flowOn(dispatcherProvider.background)
@@ -164,6 +149,27 @@ class TaskThumbnailView : FrameLayout, ViewPool.Reusable {
         if (changed) {
             updateViewDataValues()
         }
+    }
+
+    fun setState(state: TaskThumbnailUiState) {
+        Log.d(TAG, "viewModelUiState changed from: $uiState to: $state")
+        if (uiState == state) return
+        uiState = state
+        resetViews()
+        when (state) {
+            is Uninitialized -> {}
+            is LiveTile -> drawLiveWindow(state)
+            is SnapshotSplash -> drawSnapshotSplash(state)
+            is BackgroundOnly -> drawBackground(state.backgroundColor)
+        }
+    }
+
+    fun updateTintAmount(tintAmount: Float) {
+        dimAlpha[ScrimViewAlpha.TintAmount.ordinal].value = tintAmount
+    }
+
+    fun updateMenuOpenProgress(progress: Float) {
+        dimAlpha[ScrimViewAlpha.MenuProgress.ordinal].value = progress * MAX_SCRIM_ALPHA
     }
 
     private fun updateViewDataValues() {
@@ -219,7 +225,8 @@ class TaskThumbnailView : FrameLayout, ViewPool.Reusable {
         drawSnapshot(snapshotSplash.snapshot)
 
         splashBackground.setBackgroundColor(snapshotSplash.snapshot.backgroundColor)
-        splashIcon.setImageDrawable(snapshotSplash.splash)
+        val icon = snapshotSplash.splash?.constantState?.newDrawable()?.mutate() ?: ShapeDrawable()
+        splashIcon.setImageDrawable(icon)
     }
 
     private fun drawSnapshot(snapshot: Snapshot) {
@@ -238,10 +245,6 @@ class TaskThumbnailView : FrameLayout, ViewPool.Reusable {
         thumbnailView.imageMatrix = viewModel.getThumbnailPositionState(width, height, isLayoutRtl)
     }
 
-    private companion object {
-        const val TAG = "TaskThumbnailView"
-    }
-
     private fun maybeCreateHeader() {
         if (enableDesktopExplodedView() && taskThumbnailViewHeader == null) {
             taskThumbnailViewHeader =
@@ -249,6 +252,16 @@ class TaskThumbnailView : FrameLayout, ViewPool.Reusable {
                     .inflate(R.layout.task_thumbnail_view_header, this, false)
                     as TaskThumbnailViewHeader
             addView(taskThumbnailViewHeader)
+        }
+    }
+
+    private companion object {
+        const val TAG = "TaskThumbnailView"
+        private const val MAX_SCRIM_ALPHA = 0.4f
+
+        enum class ScrimViewAlpha {
+            MenuProgress,
+            TintAmount,
         }
     }
 }
