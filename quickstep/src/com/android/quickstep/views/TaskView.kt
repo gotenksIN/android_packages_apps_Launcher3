@@ -165,10 +165,7 @@ constructor(
          * Returns addition of translationX that is persistent (e.g. fullscreen and grid), and does
          * not change according to a temporary state (e.g. task offset).
          */
-        get() =
-            (getNonGridTrans(nonGridTranslationX) +
-                getGridTrans(this.gridTranslationX) +
-                getNonGridTrans(nonGridPivotTranslationX))
+        get() = (getNonGridTrans(nonGridTranslationX) + getGridTrans(this.gridTranslationX))
 
     protected val persistentTranslationY: Float
         /**
@@ -347,12 +344,6 @@ constructor(
     // Applied as a complement to gridTranslation, for adjusting the carousel overview and quick
     // switch.
     protected var nonGridTranslationX = 0f
-        set(value) {
-            field = value
-            applyTranslationX()
-        }
-
-    protected var nonGridPivotTranslationX = 0f
         set(value) {
             field = value
             applyTranslationX()
@@ -622,7 +613,13 @@ constructor(
         borderEnabled = false
         hoverBorderVisible = false
         taskViewId = UNBOUND_TASK_VIEW_ID
+        // TODO(b/390583187): Clean the components UI State when TaskView is recycled.
         taskContainers.forEach { it.destroy() }
+    }
+
+    fun destroyScopes() {
+        // TODO(b/391842220): Cancel scope in onDetach instead of having a specific method for this.
+        taskContainers.forEach { it.destroyScopes() }
     }
 
     // TODO: Clip-out the icon region from the thumbnail, since they are overlapping.
@@ -633,7 +630,11 @@ constructor(
         with(info) {
             // Only make actions available if the app icon menu is visible to the user.
             // When modalness is >0, the user is in select mode and the icon menu is hidden.
-            if (modalness == 0f) {
+            // When split selection is active, they should only be able to select the app and not
+            // take any other action.
+            val shouldPopulateAccessibilityMenu =
+                modalness == 0f && recentsView?.isSplitSelectionActive == false
+            if (shouldPopulateAccessibilityMenu) {
                 addAction(
                     AccessibilityAction(
                         R.id.action_close,
@@ -797,11 +798,7 @@ constructor(
      * Updates TaskView scaling and translation required to support variable width if enabled, while
      * ensuring TaskView fits into screen in fullscreen.
      */
-    open fun updateTaskSize(
-        lastComputedTaskSize: Rect,
-        lastComputedGridTaskSize: Rect,
-        lastComputedCarouselTaskSize: Rect,
-    ) {
+    open fun updateTaskSize(lastComputedTaskSize: Rect, lastComputedGridTaskSize: Rect) {
         val thumbnailPadding = container.deviceProfile.overviewTaskThumbnailTopMarginPx
         val taskWidth = lastComputedTaskSize.width()
         val taskHeight = lastComputedTaskSize.height()
@@ -829,12 +826,7 @@ constructor(
             expectedHeight = boxHeight + thumbnailPadding
 
             // Scale to to fit task Rect.
-            nonGridScale =
-                if (enableGridOnlyOverview()) {
-                    lastComputedCarouselTaskSize.width() / taskWidth.toFloat()
-                } else {
-                    taskWidth / boxWidth.toFloat()
-                }
+            nonGridScale = taskWidth / boxWidth.toFloat()
 
             // Align to top of task Rect.
             boxTranslationY = (expectedHeight - thumbnailPadding - taskHeight) / 2.0f
@@ -1587,7 +1579,6 @@ constructor(
         gridTranslationX = 0f
         gridTranslationY = 0f
         boxTranslationY = 0f
-        nonGridPivotTranslationX = 0f
         taskContainers.forEach {
             it.snapshotView.translationX = 0f
             it.snapshotView.translationY = 0f

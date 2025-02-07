@@ -30,7 +30,6 @@ import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.LauncherPrefs.Companion.TASKBAR_PINNING
 import com.android.launcher3.LauncherPrefs.Companion.TASKBAR_PINNING_IN_DESKTOP_MODE
 import com.android.launcher3.dagger.LauncherAppComponent
-import com.android.launcher3.dagger.LauncherAppModule
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.util.DisplayController.CHANGE_DENSITY
 import com.android.launcher3.util.DisplayController.CHANGE_ROTATION
@@ -97,9 +96,10 @@ class DisplayControllerTest {
     @Before
     fun setUp() {
         context.initDaggerComponent(
-            DaggerDisplayControllerTestComponent.builder().bindWMProxy(windowManagerProxy)
+            DaggerDisplayControllerTestComponent.builder()
+                .bindWMProxy(windowManagerProxy)
+                .bindLauncherPrefs(launcherPrefs)
         )
-        context.putObject(LauncherPrefs.INSTANCE, launcherPrefs)
         displayManager = context.spyService(DisplayManager::class.java)
 
         whenever(launcherPrefs.get(TASKBAR_PINNING)).thenReturn(false)
@@ -138,7 +138,7 @@ class DisplayControllerTest {
         whenever(context.resources).thenReturn(resources)
 
         // Initialize DisplayController
-        displayController = DisplayController(context)
+        displayController = DisplayController.INSTANCE.get(context)
         displayController.addChangeListener(displayInfoChangeListener)
     }
 
@@ -234,14 +234,14 @@ class DisplayControllerTest {
 class MyWmProxy : WindowManagerProxy()
 
 @LauncherAppSingleton
-@Component(modules = [LauncherAppModule::class])
+@Component(modules = [AllModulesMinusWMProxy::class])
 interface DisplayControllerTestComponent : LauncherAppComponent {
-
-    override fun getWmProxy(): MyWmProxy
 
     @Component.Builder
     interface Builder : LauncherAppComponent.Builder {
-        @BindsInstance fun bindWMProxy(proxy: MyWmProxy): Builder
+        @BindsInstance fun bindWMProxy(proxy: WindowManagerProxy): Builder
+
+        @BindsInstance fun bindLauncherPrefs(prefs: LauncherPrefs): Builder
 
         override fun build(): DisplayControllerTestComponent
     }

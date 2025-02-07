@@ -28,7 +28,6 @@
     <string name="accessibility_app_usage_settings" msgid="6312864233673544149">"Impostazioni di utilizzo delle app"</string>
     <string name="recents_clear_all" msgid="5328176793634888831">"Cancella tutto"</string>
     <string name="accessibility_recent_apps" msgid="4058661986695117371">"App recenti"</string>
-    <string name="task_view_closed" msgid="9170038230110856166">"Attività chiusa"</string>
     <string name="task_contents_description_with_remaining_time" msgid="4479688746574672685">"<xliff:g id="TASK_DESCRIPTION">%1$s</xliff:g>, <xliff:g id="REMAINING_TIME">%2$s</xliff:g>"</string>
     <string name="shorter_duration_less_than_one_minute" msgid="4722015666335015336">"&lt; 1 min"</string>
     <string name="time_left_for_app" msgid="3111996412933644358">"Rimanente oggi: <xliff:g id="TIME">%1$s</xliff:g>"</string>
@@ -47,6 +46,8 @@
     <string name="hotsaet_tip_prediction_enabled" msgid="2233554377501347650">"La funzionalità app suggerite è attiva"</string>
     <string name="hotsaet_tip_prediction_disabled" msgid="1506426298884658491">"La funzionalità app suggerite è disattivata"</string>
     <string name="hotseat_prediction_content_description" msgid="4582028296938078419">"App prevista: <xliff:g id="TITLE">%1$s</xliff:g>"</string>
+    <!-- no translation found for gesture_tutorial_title (2750751261768388354) -->
+    <skip />
     <string name="gesture_tutorial_rotation_prompt_title" msgid="7537946781362766964">"Ruota il dispositivo"</string>
     <string name="gesture_tutorial_rotation_prompt" msgid="1664493449851960691">"Ruota il dispositivo per completare il tutorial relativo alla navigazione tramite gesti"</string>
     <string name="back_gesture_feedback_swipe_too_far_from_edge" msgid="4175100312909721217">"Assicurati di scorrere dal bordo all\'estrema destra o all\'estrema sinistra"</string>
@@ -153,4 +154,7 @@
     <string name="bubble_bar_accessibility_announce_expand" msgid="1503192695527477102">"espandi <xliff:g id="BUBBLE_DESCRIPTION">%1$s</xliff:g>"</string>
     <string name="bubble_bar_accessibility_announce_collapse" msgid="928284600086798791">"comprimi <xliff:g id="BUBBLE_DESCRIPTION">%1$s</xliff:g>"</string>
     <string name="search_gesture_feature_title" msgid="1294044108313175306">"Cerchia e Cerca"</string>
+    <string name="header_app_icon_description" msgid="2184625881433608027">"Icona dell\'app"</string>
+    <string name="header_default_app_title" msgid="8308052350689531566">"Titolo dell\'app"</string>
+    <string name="header_close_icon_description" msgid="5400033616675911319">"Pulsante Chiudi"</string>
 </resources>

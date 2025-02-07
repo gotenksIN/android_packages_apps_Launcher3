@@ -82,8 +82,7 @@
     <string name="all_apps_no_search_results" msgid="3200346862396363786">"\"<xliff:g id="QUERY">%1$s</xliff:g>\" سے مماثل کوئی ایپس نہیں ملیں"</string>
     <string name="label_application" msgid="8531721983832654978">"ایپ"</string>
     <string name="all_apps_label" msgid="5015784846527570951">"سبھی ایپس"</string>
-    <!-- no translation found for all_apps_list_label (5106226764073070906) -->
-    <skip />
+    <string name="all_apps_list_label" msgid="5106226764073070906">"ایپس کی فہرست"</string>
     <string name="notifications_header" msgid="1404149926117359025">"اطلاعات"</string>
     <string name="long_press_shortcut_to_add" msgid="5405328730817637737">"شارٹ کٹ منتقل کرنے کیلیے ٹچ کریں اور پکڑ کر رکھیں۔"</string>
     <string name="long_accessible_way_to_add_shortcut" msgid="2199537273817090740">"شارٹ کٹ کو منتقل کرنے یا حسب ضرورت کارروائیاں استعمال کرنے کے لیے دوبار تھپتھپائیں اور پکڑ کر رکھیں۔"</string>
@@ -126,6 +125,7 @@
     <string name="folder_renamed" msgid="1794088362165669656">"فولڈر کا نام تبدیل کر کے <xliff:g id="NAME">%1$s</xliff:g> کر دیا گیا"</string>
     <string name="folder_name_format_exact" msgid="8626242716117004803">"فولڈر: <xliff:g id="NAME">%1$s</xliff:g>، <xliff:g id="SIZE">%2$d</xliff:g> آئٹمز"</string>
     <string name="folder_name_format_overflow" msgid="4270108890534995199">"فولڈر: <xliff:g id="NAME">%1$s</xliff:g>، <xliff:g id="SIZE">%2$d</xliff:g> یا مزید آئٹمز"</string>
+    <string name="unnamed_folder" msgid="2420192029474044442">"بلا نام فولڈر"</string>
     <string name="app_pair_name_format" msgid="8134106404716224054">"ایپس کا جوڑا: <xliff:g id="APP1">%1$s</xliff:g> اور <xliff:g id="APP2">%2$s</xliff:g>"</string>
     <string name="styles_wallpaper_button_text" msgid="8216961355289236794">"وال پیپر اور طرز"</string>
     <string name="edit_home_screen" msgid="8947858375782098427">"ہوم اسکرین میں ترمیم کریں"</string>
@@ -163,7 +163,6 @@
     <string name="widgets_list_closed" msgid="6141506579418771922">"ویجیٹس کی فہرست بند کر دی گئی"</string>
     <string name="action_add_to_workspace" msgid="215894119683164916">"ہوم اسکرین میں شامل کریں"</string>
     <string name="action_move_here" msgid="2170188780612570250">"آئٹم یہاں منتقل کریں"</string>
-    <string name="item_added_to_workspace" msgid="4211073925752213539">"آئٹم کو ہوم اسکرین میں شامل کر دیا گیا"</string>
     <string name="item_removed" msgid="851119963877842327">"آئٹم ہٹا دیا گیا"</string>
     <string name="undo" msgid="4151576204245173321">"کالعدم کریں"</string>
     <string name="action_move" msgid="4339390619886385032">"آئٹم منتقل کریں"</string>

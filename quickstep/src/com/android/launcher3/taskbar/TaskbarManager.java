@@ -61,8 +61,6 @@ import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.anim.AnimatorPlaybackController;
-import com.android.launcher3.contextualeducation.ContextualEduStatsManager;
-import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.statemanager.StatefulActivity;
 import com.android.launcher3.taskbar.TaskbarNavButtonController.TaskbarNavButtonCallbacks;
 import com.android.launcher3.taskbar.unfold.NonDestroyableScopedUnfoldTransitionProgressProvider;
@@ -223,14 +221,11 @@ public class TaskbarManager {
                 }
             };
 
-    @NonNull private final DesktopVisibilityController mDesktopVisibilityController;
-
     @SuppressLint("WrongConstant")
     public TaskbarManager(
             Context context,
             AllAppsActionManager allAppsActionManager,
-            TaskbarNavButtonCallbacks navCallbacks,
-            @NonNull DesktopVisibilityController desktopVisibilityController) {
+            TaskbarNavButtonCallbacks navCallbacks) {
         Display display =
                 context.getSystemService(DisplayManager.class).getDisplay(context.getDisplayId());
         mWindowContext = context.createWindowContext(display,
@@ -240,7 +235,6 @@ public class TaskbarManager {
         mNavigationBarPanelContext = ENABLE_TASKBAR_NAVBAR_UNIFICATION
                 ? context.createWindowContext(display, TYPE_NAVIGATION_BAR_PANEL, null)
                 : null;
-        mDesktopVisibilityController = desktopVisibilityController;
         if (enableTaskbarNoRecreate()) {
             mWindowManager = mWindowContext.getSystemService(WindowManager.class);
             createTaskbarRootLayout(getDefaultDisplayId());
@@ -275,7 +269,6 @@ public class TaskbarManager {
                 context,
                 navCallbacks,
                 SystemUiProxy.INSTANCE.get(mWindowContext),
-                ContextualEduStatsManager.INSTANCE.get(mWindowContext),
                 new Handler(),
                 new ContextualSearchInvoker(mWindowContext));
     }
@@ -694,6 +687,20 @@ public class TaskbarManager {
         }
     }
 
+    /**
+     * Signal from SysUI indicating that a non-mirroring display was just connected to the
+     * primary device.
+     */
+    public void onDisplayReady(int displayId) {
+    }
+
+    /**
+     * Signal from SysUI indicating that a previously connected non-mirroring display was just
+     * removed from the primary device.
+     */
+    public void onDisplayRemoved(int displayId) {
+    }
+
     private void removeActivityCallbacksAndListeners() {
         if (mActivity != null) {
             mActivity.removeOnDeviceProfileChangeListener(mDebugActivityDeviceProfileChanged);
@@ -800,7 +807,8 @@ public class TaskbarManager {
     private TaskbarActivityContext createTaskbarActivityContext(DeviceProfile dp, int displayId) {
         TaskbarActivityContext newTaskbar = new TaskbarActivityContext(mWindowContext,
                 mNavigationBarPanelContext, dp, mDefaultNavButtonController,
-                mUnfoldProgressProvider, mDesktopVisibilityController, isDefaultDisplay(displayId));
+                mUnfoldProgressProvider, isDefaultDisplay(displayId),
+                SystemUiProxy.INSTANCE.get(mWindowContext));
 
         addTaskbarToMap(displayId, newTaskbar);
         return newTaskbar;

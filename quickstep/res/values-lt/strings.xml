@@ -28,7 +28,6 @@
     <string name="accessibility_app_usage_settings" msgid="6312864233673544149">"Programos naudojimo nustatymai"</string>
     <string name="recents_clear_all" msgid="5328176793634888831">"Išvalyti viską"</string>
     <string name="accessibility_recent_apps" msgid="4058661986695117371">"Naujausios programos"</string>
-    <string name="task_view_closed" msgid="9170038230110856166">"Užduotis uždaryta"</string>
     <string name="task_contents_description_with_remaining_time" msgid="4479688746574672685">"<xliff:g id="TASK_DESCRIPTION">%1$s</xliff:g>, <xliff:g id="REMAINING_TIME">%2$s</xliff:g>"</string>
     <string name="shorter_duration_less_than_one_minute" msgid="4722015666335015336">"&lt; 1 min."</string>
     <string name="time_left_for_app" msgid="3111996412933644358">"Šiandien liko: <xliff:g id="TIME">%1$s</xliff:g>"</string>
@@ -47,6 +46,8 @@
     <string name="hotsaet_tip_prediction_enabled" msgid="2233554377501347650">"Siūlomų programų funkcija įgalinta"</string>
     <string name="hotsaet_tip_prediction_disabled" msgid="1506426298884658491">"Siūlomų programų funkcija išjungta"</string>
     <string name="hotseat_prediction_content_description" msgid="4582028296938078419">"Numatoma programa: <xliff:g id="TITLE">%1$s</xliff:g>"</string>
+    <!-- no translation found for gesture_tutorial_title (2750751261768388354) -->
+    <skip />
     <string name="gesture_tutorial_rotation_prompt_title" msgid="7537946781362766964">"Pasukite įrenginį"</string>
     <string name="gesture_tutorial_rotation_prompt" msgid="1664493449851960691">"Pasukite įrenginį, kad pereitumėte į naršymo gestais mokomąją medžiagą"</string>
     <string name="back_gesture_feedback_swipe_too_far_from_edge" msgid="4175100312909721217">"Turite perbraukti nuo dešiniojo ar kairiojo krašto"</string>
@@ -153,4 +154,7 @@
     <string name="bubble_bar_accessibility_announce_expand" msgid="1503192695527477102">"išskleisti „<xliff:g id="BUBBLE_DESCRIPTION">%1$s</xliff:g>“"</string>
     <string name="bubble_bar_accessibility_announce_collapse" msgid="928284600086798791">"sutraukti „<xliff:g id="BUBBLE_DESCRIPTION">%1$s</xliff:g>“"</string>
     <string name="search_gesture_feature_title" msgid="1294044108313175306">"Paieška apibrėžiant"</string>
+    <string name="header_app_icon_description" msgid="2184625881433608027">"Programos piktograma"</string>
+    <string name="header_default_app_title" msgid="8308052350689531566">"Programos pavadinimas"</string>
+    <string name="header_close_icon_description" msgid="5400033616675911319">"Mygtukas „Uždaryti“"</string>
 </resources>

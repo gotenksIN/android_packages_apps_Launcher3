@@ -36,6 +36,7 @@ import com.android.launcher3.anim.PendingAnimation;
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.desktop.DesktopRecentsTransitionController;
 import com.android.launcher3.logging.StatsLogManager;
+import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.StateListener;
 import com.android.launcher3.statemanager.StatefulContainer;
@@ -44,7 +45,6 @@ import com.android.launcher3.util.SplitConfigurationOptions.SplitSelectSource;
 import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.FallbackActivityInterface;
 import com.android.quickstep.GestureState;
-import com.android.quickstep.RotationTouchHelper;
 import com.android.quickstep.fallback.window.RecentsDisplayModel;
 import com.android.quickstep.util.GroupTask;
 import com.android.quickstep.util.SplitSelectStateController;
@@ -113,12 +113,11 @@ public class FallbackRecentsView<CONTAINER_TYPE extends Context & RecentsViewCon
      * to the home task. This allows us to handle quick-switch similarly to a quick-switching
      * from a foreground task.
      */
-    public void onGestureAnimationStartOnHome(Task[] homeTask,
-            RotationTouchHelper rotationTouchHelper) {
+    public void onGestureAnimationStartOnHome(Task[] homeTask) {
         // TODO(b/195607777) General fallback love, but this might be correct
         //  Home task should be defined as the front-most task info I think?
         mHomeTask = homeTask.length > 0 ? homeTask[0] : null;
-        onGestureAnimationStart(homeTask, rotationTouchHelper);
+        onGestureAnimationStart(homeTask);
     }
 
     /**
@@ -268,9 +267,7 @@ public class FallbackRecentsView<CONTAINER_TYPE extends Context & RecentsViewCon
 
     @Override
     public void onStateTransitionComplete(RecentsState finalState) {
-        if (mContainer.getDesktopVisibilityController() != null) {
-            mContainer.getDesktopVisibilityController().onLauncherStateChanged(finalState);
-        }
+        DesktopVisibilityController.INSTANCE.get(mContainer).onLauncherStateChanged(finalState);
         if (!finalState.isRecentsViewVisible()) {
             // Clean-up logic that occurs when recents is no longer in use/visible.
             reset();
@@ -287,11 +284,7 @@ public class FallbackRecentsView<CONTAINER_TYPE extends Context & RecentsViewCon
         }
 
         if (finalState != OVERVIEW_SPLIT_SELECT) {
-            if (FeatureFlags.enableSplitContextually()) {
-                mSplitSelectStateController.resetState();
-            } else {
-                resetFromSplitSelectionState();
-            }
+            mSplitSelectStateController.resetState();
         }
 
         // disabling this so app icons aren't drawn on top of recent tasks.

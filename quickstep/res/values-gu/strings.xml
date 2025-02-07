@@ -28,7 +28,6 @@
     <string name="accessibility_app_usage_settings" msgid="6312864233673544149">"ઍપ વપરાશનું સેટિંગ"</string>
     <string name="recents_clear_all" msgid="5328176793634888831">"બધું સાફ કરો"</string>
     <string name="accessibility_recent_apps" msgid="4058661986695117371">"તાજેતરની ઍપ"</string>
-    <string name="task_view_closed" msgid="9170038230110856166">"કાર્ય બંધ કર્યું"</string>
     <string name="task_contents_description_with_remaining_time" msgid="4479688746574672685">"<xliff:g id="TASK_DESCRIPTION">%1$s</xliff:g>, <xliff:g id="REMAINING_TIME">%2$s</xliff:g>"</string>
     <string name="shorter_duration_less_than_one_minute" msgid="4722015666335015336">"&lt; 1 મિનિટ"</string>
     <string name="time_left_for_app" msgid="3111996412933644358">"<xliff:g id="TIME">%1$s</xliff:g> આજે બાકી"</string>
@@ -47,6 +46,8 @@
     <string name="hotsaet_tip_prediction_enabled" msgid="2233554377501347650">"ઍપના સુઝાવો ચાલુ છે"</string>
     <string name="hotsaet_tip_prediction_disabled" msgid="1506426298884658491">"ઍપના સુઝાવો બંધ છે"</string>
     <string name="hotseat_prediction_content_description" msgid="4582028296938078419">"પૂર્વાનુમાનિત ઍપ: <xliff:g id="TITLE">%1$s</xliff:g>"</string>
+    <!-- no translation found for gesture_tutorial_title (2750751261768388354) -->
+    <skip />
     <string name="gesture_tutorial_rotation_prompt_title" msgid="7537946781362766964">"તમારા ડિવાઇસને ફેરવો"</string>
     <string name="gesture_tutorial_rotation_prompt" msgid="1664493449851960691">"સંકેતથી નૅવિગેશન ટ્યૂટૉરિઅલ પૂર્ણ કરવા માટે કૃપા કરીને તમારા ડિવાઇસને ફેરવો"</string>
     <string name="back_gesture_feedback_swipe_too_far_from_edge" msgid="4175100312909721217">"ખાતરી કરો કે તમે એકદમ દૂરની જમણી કે ડાબી કિનારીએથી સ્વાઇપ કરો છો"</string>
@@ -153,4 +154,7 @@
     <string name="bubble_bar_accessibility_announce_expand" msgid="1503192695527477102">"<xliff:g id="BUBBLE_DESCRIPTION">%1$s</xliff:g> મોટો કરો"</string>
     <string name="bubble_bar_accessibility_announce_collapse" msgid="928284600086798791">"<xliff:g id="BUBBLE_DESCRIPTION">%1$s</xliff:g> નાનો કરો"</string>
     <string name="search_gesture_feature_title" msgid="1294044108313175306">"શોધવા માટે વર્તુળ દોરો"</string>
+    <string name="header_app_icon_description" msgid="2184625881433608027">"ઍપનું આઇકન"</string>
+    <string name="header_default_app_title" msgid="8308052350689531566">"ઍપનું શીર્ષક"</string>
+    <string name="header_close_icon_description" msgid="5400033616675911319">"\'બંધ કરો\' બટન"</string>
 </resources>

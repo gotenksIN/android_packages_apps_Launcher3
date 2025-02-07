@@ -954,7 +954,7 @@ public final class LauncherInstrumentation {
                     waitUntilLauncherObjectGone(APPS_RES_ID);
                     waitUntilLauncherObjectGone(WORKSPACE_RES_ID);
                     waitUntilLauncherObjectGone(WIDGETS_RES_ID);
-                    if (isTablet() && !is3PLauncher()) {
+                    if (isTablet() && !is3PLauncher() && !isRecentsWindowEnabled()) {
                         waitForSystemLauncherObject(TASKBAR_RES_ID);
                     } else {
                         waitUntilSystemLauncherObjectGone(TASKBAR_RES_ID);
@@ -1006,6 +1006,11 @@ public final class LauncherInstrumentation {
                     return null;
             }
         }
+    }
+
+    boolean isRecentsWindowEnabled() {
+        return getTestInfo(TestProtocol.REQUEST_IS_RECENTS_WINDOW_ENABLED)
+                .getBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD);
     }
 
     public void waitForModelQueueCleared() {
@@ -2007,11 +2012,6 @@ public final class LauncherInstrumentation {
 
     public boolean isGridOnlyOverviewEnabled() {
         return getTestInfo(TestProtocol.REQUEST_FLAG_ENABLE_GRID_ONLY_OVERVIEW).getBoolean(
-                TestProtocol.TEST_INFO_RESPONSE_FIELD);
-    }
-
-    boolean isAppPairsEnabled() {
-        return getTestInfo(TestProtocol.REQUEST_FLAG_ENABLE_APP_PAIRS).getBoolean(
                 TestProtocol.TEST_INFO_RESPONSE_FIELD);
     }
 

@@ -28,6 +28,7 @@ import com.android.launcher3.R;
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayContext;
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayDragLayer;
 import com.android.launcher3.util.TouchController;
+import com.android.quickstep.RecentsFilterState;
 import com.android.quickstep.RecentsModel;
 import com.android.quickstep.util.DesktopTask;
 import com.android.quickstep.util.GroupTask;
@@ -153,6 +154,8 @@ public final class KeyboardQuickSwitchController implements
                 // Skip the task reload if the list is not changed.
                 if (!mModel.isTaskListValid(mTaskListChangeId) || !taskIdsToExclude.equals(
                         mExcludedTaskIds)) {
+                    final boolean shouldShowDesktopTasks = mControllers.taskbarDesktopModeController
+                            .shouldShowDesktopTasksInTaskbar();
                     mExcludedTaskIds = taskIdsToExclude;
                     mTaskListChangeId = mModel.getTasks((tasks) -> {
                         processLoadedTasks(tasks, taskIdsToExclude);
@@ -162,7 +165,8 @@ public final class KeyboardQuickSwitchController implements
                                 currentFocusIndexOverride,
                                 mHasDesktopTask,
                                 mWasDesktopTaskFilteredOut);
-                    });
+                    }, shouldShowDesktopTasks ? RecentsFilterState.EMPTY_FILTER
+                            : RecentsFilterState.getEmptyDesktopTaskFilter());
                 }
 
                 mQuickSwitchViewController.updateLayoutForSurface(wasOpenedFromTaskbar,
@@ -188,8 +192,8 @@ public final class KeyboardQuickSwitchController implements
         mQuickSwitchViewController = new KeyboardQuickSwitchViewController(
                 mControllers, mOverlayContext, keyboardQuickSwitchView, mControllerCallbacks);
 
-        final boolean onDesktop = mControllers.taskbarDesktopModeController
-                .getAreDesktopTasksVisibleAndNotInOverview();
+        final boolean shouldShowDesktopTasks = mControllers.taskbarDesktopModeController
+                .shouldShowDesktopTasksInTaskbar();
 
         if (mModel.isTaskListValid(mTaskListChangeId)
                 && taskIdsToExclude.equals(mExcludedTaskIds)) {
@@ -201,7 +205,7 @@ public final class KeyboardQuickSwitchController implements
                     /* updateTasks= */ false,
                     currentFocusedIndex == -1 && !mControllerCallbacks.isFirstTaskRunning()
                             ? 0 : currentFocusedIndex,
-                    onDesktop,
+                    shouldShowDesktopTasks,
                     mHasDesktopTask,
                     mWasDesktopTaskFilteredOut,
                     wasOpenedFromTaskbar);
@@ -219,11 +223,12 @@ public final class KeyboardQuickSwitchController implements
                     /* updateTasks= */ true,
                     currentFocusedIndex == -1 && !mControllerCallbacks.isFirstTaskRunning()
                             ? 0 : currentFocusedIndex,
-                    onDesktop,
+                    shouldShowDesktopTasks,
                     mHasDesktopTask,
                     mWasDesktopTaskFilteredOut,
                     wasOpenedFromTaskbar);
-        });
+        }, shouldShowDesktopTasks ? RecentsFilterState.EMPTY_FILTER
+                : RecentsFilterState.getEmptyDesktopTaskFilter());
     }
 
     private boolean shouldExcludeTask(GroupTask task, Set<Integer> taskIdsToExclude) {
@@ -233,7 +238,7 @@ public final class KeyboardQuickSwitchController implements
     private void processLoadedTasks(List<GroupTask> tasks, Set<Integer> taskIdsToExclude) {
         mHasDesktopTask = false;
         mWasDesktopTaskFilteredOut = false;
-        if (mControllers.taskbarDesktopModeController.getAreDesktopTasksVisibleAndNotInOverview()) {
+        if (mControllers.taskbarDesktopModeController.shouldShowDesktopTasksInTaskbar()) {
             processLoadedTasksOnDesktop(tasks, taskIdsToExclude);
         } else {
             processLoadedTasksOutsideDesktop(tasks, taskIdsToExclude);
@@ -269,7 +274,7 @@ public final class KeyboardQuickSwitchController implements
         DesktopTask desktopTask = findDesktopTask(tasks);
 
         if (desktopTask != null) {
-            mTasks = desktopTask.tasks.stream()
+            mTasks = desktopTask.getTasks().stream()
                     .map(GroupTask::new)
                     .filter(task -> !shouldExcludeTask(task, taskIdsToExclude))
                     .collect(Collectors.toList());
@@ -349,15 +354,12 @@ public final class KeyboardQuickSwitchController implements
         pw.println(prefix + "\tmWasDesktopTaskFilteredOut=" + mWasDesktopTaskFilteredOut);
         pw.println(prefix + "\tmTasks=[");
         for (GroupTask task : mTasks) {
-            Task task1 = task.task1;
-            Task task2 = task.task2;
-            ComponentName cn1 = task1.getTopComponent();
-            ComponentName cn2 = task2 != null ? task2.getTopComponent() : null;
-            pw.println(prefix + "\t\tt1: (id=" + task1.key.id
-                    + "; package=" + (cn1 != null ? cn1.getPackageName() + ")" : "no package)")
-                    + " t2: (id=" + (task2 != null ? task2.key.id : "-1")
-                    + "; package=" + (cn2 != null ? cn2.getPackageName() + ")"
-                    : "no package)"));
+            int count = 0;
+            for (Task t : task.getTasks()) {
+                ComponentName cn = t.getTopComponent();
+                pw.println(prefix + "\t\tt" + (++count) + ": (id=" + t.key.id
+                        + "; package=" + (cn != null ? cn.getPackageName() + ")" : "no package)"));
+            }
         }
         pw.println(prefix + "\t]");
 
@@ -411,10 +413,7 @@ public final class KeyboardQuickSwitchController implements
                 return false;
             }
             int runningTaskId = ActivityManagerWrapper.getInstance().getRunningTask().taskId;
-            Task task2 = task.task2;
-
-            return runningTaskId == task.task1.key.id
-                    || (task2 != null && runningTaskId == task2.key.id);
+            return task.containsTask(runningTaskId);
         }
 
         boolean isFirstTaskRunning() {
