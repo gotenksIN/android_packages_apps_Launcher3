@@ -142,7 +142,7 @@ public class PredictedAppIcon extends DoubleShadowBubbleTextView {
         int shadowSize = context.getResources().getDimensionPixelSize(
                 R.dimen.blur_size_thin_outline);
         mShadowFilter = new BlurMaskFilter(shadowSize, BlurMaskFilter.Blur.OUTER);
-        mShapePath = IconShape.INSTANCE.get(context).getShapeOverridePath(mNormalizedIconSize);
+        mShapePath = IconShape.INSTANCE.get(context).getShape().getPath(mNormalizedIconSize);
     }
 
     @Override
@@ -214,7 +214,7 @@ public class PredictedAppIcon extends DoubleShadowBubbleTextView {
         boolean animate = shouldAnimateIconChange(info);
         Drawable oldIcon = getIcon();
         int oldPlateColor = mPlateColor.currentColor;
-        applyFromWorkspaceItem(info, null);
+        applyFromWorkspaceItem(info);
 
         setContentDescription(
                 mIsPinned ? info.contentDescription :
