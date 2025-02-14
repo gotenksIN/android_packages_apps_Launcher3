@@ -21,7 +21,6 @@ import android.graphics.Point
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.android.launcher3.Flags
-import com.android.launcher3.Flags.oneGridSpecs
 import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.LauncherPrefs.Companion.get
 import com.android.launcher3.LauncherPrefs.Companion.getPrefs
@@ -35,7 +34,7 @@ import com.android.launcher3.model.GridSizeMigrationDBController.DbReader
 import com.android.launcher3.provider.LauncherDbUtils.SQLiteTransaction
 import com.android.launcher3.provider.LauncherDbUtils.copyTable
 import com.android.launcher3.provider.LauncherDbUtils.dropTable
-import com.android.launcher3.provider.LauncherDbUtils.shiftTableByXCells
+import com.android.launcher3.provider.LauncherDbUtils.shiftWorkspaceByXCells
 import com.android.launcher3.util.CellAndSpan
 import com.android.launcher3.util.GridOccupancy
 import com.android.launcher3.util.IntArray
@@ -81,8 +80,8 @@ class GridSizeMigrationLogic {
                 // down.
                 if (shouldMigrateToStrtictlyTallerGrid) {
                     Log.d(TAG, "Migrating to strictly taller grid")
-                    if (oneGridSpecs()) {
-                        shiftTableByXCells(
+                    if (Flags.oneGridSpecs()) {
+                        shiftWorkspaceByXCells(
                             target.writableDatabase,
                             (destDeviceState.rows - srcDeviceState.rows),
                             TABLE_NAME,
@@ -107,7 +106,14 @@ class GridSizeMigrationLogic {
                 val idsInUse = mutableListOf<Int>()
 
                 // Migrate hotseat.
-                migrateHotseat(destDeviceState.numHotseat, srcReader, destReader, target, idsInUse)
+                migrateHotseat(
+                    srcDeviceState.numHotseat,
+                    destDeviceState.numHotseat,
+                    srcReader,
+                    destReader,
+                    target,
+                    idsInUse,
+                )
                 // Migrate workspace.
                 migrateWorkspace(srcReader, destReader, target, targetSize, idsInUse)
 
@@ -134,6 +140,7 @@ class GridSizeMigrationLogic {
     /** Handles hotseat migration. */
     @VisibleForTesting
     fun migrateHotseat(
+        srcHotseatSize: Int,
         destHotseatSize: Int,
         srcReader: DbReader,
         destReader: DbReader,
@@ -143,17 +150,24 @@ class GridSizeMigrationLogic {
         val srcHotseatItems = srcReader.loadHotseatEntries()
         val dstHotseatItems = destReader.loadHotseatEntries()
 
-        val hotseatToBeAdded = getItemsToBeAdded(srcHotseatItems, dstHotseatItems)
-        val toBeRemoved = IntArray()
-        toBeRemoved.addAll(getItemsToBeRemoved(srcHotseatItems, dstHotseatItems))
+        // We want to filter out the hotseat items that are placed beyond the size of the source
+        // grid as we always want to keep those extra items from the destination grid.
+        var filteredDstHotseatItems = dstHotseatItems
+        if (srcHotseatSize < destHotseatSize) {
+            filteredDstHotseatItems =
+                filteredDstHotseatItems.filter { entry -> entry.screenId < srcHotseatSize }
+        }
+
+        val itemsToBeAdded = getItemsToBeAdded(srcHotseatItems, filteredDstHotseatItems)
+        val itemsToBeRemoved = getItemsToBeRemoved(srcHotseatItems, filteredDstHotseatItems)
 
         if (DEBUG) {
             Log.d(
                 TAG,
                 """Start hotseat migration:
-            |Removing Hotseat Items: [${dstHotseatItems.filter { toBeRemoved.contains(it.id) }
+            |Removing Hotseat Items: [${filteredDstHotseatItems.filter { itemsToBeRemoved.contains(it.id) }
                 .joinToString(",\n") { it.toString() }}]
-            |Adding Hotseat Items: [${hotseatToBeAdded
+            |Adding Hotseat Items: [${itemsToBeAdded
                 .joinToString(",\n") { it.toString() }}]
             |"""
                     .trimMargin(),
@@ -161,16 +175,16 @@ class GridSizeMigrationLogic {
         }
 
         // Removes the items that we need to remove from the destination DB.
-        if (!toBeRemoved.isEmpty) {
+        if (!itemsToBeRemoved.isEmpty) {
             GridSizeMigrationDBController.removeEntryFromDb(
                 destReader.mDb,
                 destReader.mTableName,
-                toBeRemoved,
+                itemsToBeRemoved,
             )
         }
 
         placeHotseatItems(
-            hotseatToBeAdded,
+            itemsToBeAdded,
             dstHotseatItems,
             destHotseatSize,
             helper,
@@ -359,7 +373,7 @@ class GridSizeMigrationLogic {
         srcDeviceState: DeviceGridState,
         destDeviceState: DeviceGridState,
     ): Boolean {
-        return isDestNewDb &&
+        return (Flags.oneGridSpecs() || isDestNewDb) &&
             srcDeviceState.columns == destDeviceState.columns &&
             srcDeviceState.rows < destDeviceState.rows
     }
