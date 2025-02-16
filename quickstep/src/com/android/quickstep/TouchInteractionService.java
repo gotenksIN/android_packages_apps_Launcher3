@@ -88,6 +88,7 @@ import com.android.launcher3.util.ScreenOnTracker;
 import com.android.launcher3.util.TraceHelper;
 import com.android.quickstep.OverviewCommandHelper.CommandType;
 import com.android.quickstep.OverviewComponentObserver.OverviewChangeListener;
+import com.android.quickstep.fallback.window.RecentsDisplayModel;
 import com.android.quickstep.fallback.window.RecentsWindowSwipeHandler;
 import com.android.quickstep.inputconsumers.BubbleBarInputConsumer;
 import com.android.quickstep.inputconsumers.OneHandedModeInputConsumer;
@@ -302,80 +303,65 @@ public class TouchInteractionService extends Service {
         @BinderThread
         @Override
         public void onDisplayAddSystemDecorations(int displayId) {
-            MAIN_EXECUTOR.execute(() -> executeForTouchInteractionService(
-                    tis -> executeForTaskbarManager(taskbarManager ->
-                            taskbarManager.onDisplayAddSystemDecorations(displayId))));
+            executeForTaskbarManager(taskbarManager ->
+                            taskbarManager.onDisplayAddSystemDecorations(displayId));
         }
 
         @BinderThread
         @Override
         public void onDisplayRemoved(int displayId) {
-            MAIN_EXECUTOR.execute(() -> executeForTouchInteractionService(
-                    tis -> executeForTaskbarManager(
-                            taskbarManager -> taskbarManager.onDisplayRemoved(displayId))));
+            executeForTaskbarManager(taskbarManager ->
+                    taskbarManager.onDisplayRemoved(displayId));
         }
 
         @BinderThread
         @Override
         public void onDisplayRemoveSystemDecorations(int displayId) {
-            // TODO(b/391786915): Replace all
-            // `executeForTouchInteractionService(executeForTaskbarManager())` with just
-            // `executeForTaskbarManager` directly (since `tis` is unused).
-            MAIN_EXECUTOR.execute(() -> executeForTouchInteractionService(
-                    tis -> executeForTaskbarManager(taskbarManager -> taskbarManager
-                            .onDisplayRemoveSystemDecorations(displayId))));
+            executeForTaskbarManager(taskbarManager ->
+                    taskbarManager.onDisplayRemoveSystemDecorations(displayId));
         }
 
         @BinderThread
         @Override
         public void updateWallpaperVisibility(int displayId, boolean visible) {
-            MAIN_EXECUTOR.execute(() -> executeForTouchInteractionService(
-                    tis -> executeForTaskbarManager(
-                            taskbarManager -> taskbarManager.setWallpaperVisible(displayId,
-                                    visible))));
+            executeForTaskbarManager(taskbarManager ->
+                    taskbarManager.setWallpaperVisible(displayId, visible));
         }
 
         @BinderThread
         @Override
         public void checkNavBarModes(int displayId) {
-            MAIN_EXECUTOR.execute(() -> executeForTouchInteractionService(tis ->
-                    executeForTaskbarManager(
-                            taskbarManager -> taskbarManager.checkNavBarModes(displayId))));
+            executeForTaskbarManager(taskbarManager ->
+                    taskbarManager.checkNavBarModes(displayId));
         }
 
         @BinderThread
         @Override
         public void finishBarAnimations(int displayId) {
-            MAIN_EXECUTOR.execute(() -> executeForTouchInteractionService(
-                    tis -> executeForTaskbarManager(
-                            taskbarManager -> taskbarManager.finishBarAnimations(displayId))));
+            executeForTaskbarManager(taskbarManager ->
+                    taskbarManager.finishBarAnimations(displayId));
         }
 
         @BinderThread
         @Override
         public void touchAutoDim(int displayId, boolean reset) {
-            MAIN_EXECUTOR.execute(() -> executeForTouchInteractionService(
-                    tis -> executeForTaskbarManager(
-                            taskbarManager -> taskbarManager.touchAutoDim(displayId, reset))));
+            executeForTaskbarManager(taskbarManager ->
+                    taskbarManager.touchAutoDim(displayId, reset));
         }
 
         @BinderThread
         @Override
         public void transitionTo(int displayId, @BarTransitions.TransitionMode int barMode,
                 boolean animate) {
-            MAIN_EXECUTOR.execute(() -> executeForTouchInteractionService(
-                    tis -> executeForTaskbarManager(
-                            taskbarManager -> taskbarManager.transitionTo(displayId, barMode,
-                                    animate))));
+            executeForTaskbarManager(taskbarManager ->
+                    taskbarManager.transitionTo(displayId, barMode, animate));
         }
 
         @BinderThread
         @Override
         public void appTransitionPending(boolean pending) {
-            MAIN_EXECUTOR.execute(() -> executeForTouchInteractionService(tis ->
-                    executeForTaskbarManager(
-                            taskbarManager -> taskbarManager.appTransitionPending(pending))
-            ));
+            executeForTaskbarManager(taskbarManager ->
+                    taskbarManager.appTransitionPending(pending));
         }
 
         @Override
@@ -576,6 +562,8 @@ public class TouchInteractionService extends Service {
 
     private DesktopAppLaunchTransitionManager mDesktopAppLaunchTransitionManager;
 
+    private DisplayController.DisplayInfoChangeListener mDisplayInfoChangeListener;
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -597,7 +585,8 @@ public class TouchInteractionService extends Service {
             initInputMonitor("onTrackpadConnected()");
         });
 
-        mTaskbarManager = new TaskbarManager(this, mAllAppsActionManager, mNavCallbacks);
+        mTaskbarManager = new TaskbarManager(this, mAllAppsActionManager, mNavCallbacks,
+                RecentsDisplayModel.getINSTANCE().get(this));
         mDesktopAppLaunchTransitionManager =
                 new DesktopAppLaunchTransitionManager(this, SystemUiProxy.INSTANCE.get(this));
         mDesktopAppLaunchTransitionManager.registerTransitions();
@@ -605,7 +594,8 @@ public class TouchInteractionService extends Service {
 
         // Call runOnUserUnlocked() before any other callbacks to ensure everything is initialized.
         LockedUserState.get(this).runOnUserUnlocked(mUserUnlockedRunnable);
-        mDeviceState.addNavigationModeChangedCallback(this::onNavigationModeChanged);
+        mDisplayInfoChangeListener =
+                mDeviceState.addNavigationModeChangedCallback(this::onNavigationModeChanged);
         ScreenOnTracker.INSTANCE.get(this).addListener(mScreenOnListener);
     }
 
@@ -653,7 +643,9 @@ public class TouchInteractionService extends Service {
         mTaskAnimationManager = new TaskAnimationManager(this, mDeviceState);
         mOverviewComponentObserver = OverviewComponentObserver.INSTANCE.get(this);
         mOverviewCommandHelper = new OverviewCommandHelper(this,
-                mOverviewComponentObserver, mTaskAnimationManager);
+                mOverviewComponentObserver, mTaskAnimationManager,
+                RecentsDisplayModel.getINSTANCE().get(this),
+                SystemUiProxy.INSTANCE.get(this).getFocusState(), mTaskbarManager);
         mResetGestureInputConsumer = new ResetGestureInputConsumer(
                 mTaskAnimationManager, mTaskbarManager::getCurrentActivityContext);
         mInputConsumer.registerInputConsumer();
@@ -757,7 +749,7 @@ public class TouchInteractionService extends Service {
             mDesktopAppLaunchTransitionManager.unregisterTransitions();
         }
         mDesktopAppLaunchTransitionManager = null;
-
+        mDeviceState.removeDisplayInfoChangeListener(mDisplayInfoChangeListener);
         LockedUserState.get(this).removeOnUserUnlockedRunnable(mUserUnlockedRunnable);
         ScreenOnTracker.INSTANCE.get(this).removeListener(mScreenOnListener);
         super.onDestroy();

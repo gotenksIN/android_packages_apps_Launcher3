@@ -1272,8 +1272,6 @@ public final class LauncherInstrumentation {
         if (getNavigationModel() == NavigationModel.ZERO_BUTTON
                 || isThreeFingerTrackpadGesture) {
             final Point displaySize = getRealDisplaySize();
-            // TODO(b/225505986): change startY and endY back to displaySize.y / 2 once the
-            //  issue is solved.
             int startX = isThreeFingerTrackpadGesture ? displaySize.x / 4 : 0;
             int endX = isThreeFingerTrackpadGesture ? displaySize.x * 3 / 4 : displaySize.x / 2;
             linearGesture(startX, displaySize.y / 4, endX, displaySize.y / 4,
@@ -2131,12 +2129,13 @@ public final class LauncherInstrumentation {
                 downTime, currentTime, action, point.x, point.y, pointerCount,
                 mTrackpadGestureType)
                 : getMotionEvent(downTime, currentTime, action, point.x, point.y, source, toolType);
+        int button = isRightClick ? MotionEvent.BUTTON_SECONDARY : MotionEvent.BUTTON_PRIMARY;
+        if (action == MotionEvent.ACTION_BUTTON_PRESS) {
+            event.setButtonState(event.getButtonState() | button);
+        }
         if (action == MotionEvent.ACTION_BUTTON_PRESS
                 || action == MotionEvent.ACTION_BUTTON_RELEASE) {
-            event.setActionButton(MotionEvent.BUTTON_PRIMARY);
-        }
-        if (isRightClick) {
-            event.setButtonState(event.getButtonState() | MotionEvent.BUTTON_SECONDARY);
+            event.setActionButton(button);
         }
         injectEvent(event);
     }
@@ -2247,11 +2246,17 @@ public final class LauncherInstrumentation {
         sendPointer(downTime, downTime, MotionEvent.ACTION_DOWN, targetCenter,
                 GestureScope.DONT_EXPECT_PILFER, InputDevice.SOURCE_TOUCHSCREEN,
                 /* isRightClick= */ true, MotionEvent.TOOL_TYPE_STYLUS);
+        sendPointer(downTime, downTime, MotionEvent.ACTION_BUTTON_PRESS, targetCenter,
+                GestureScope.DONT_EXPECT_PILFER, InputDevice.SOURCE_TOUCHSCREEN,
+                /* isRightClick= */ true, MotionEvent.TOOL_TYPE_STYLUS);
         try {
             expectEvent(TestProtocol.SEQUENCE_MAIN, longClickEvent);
             final UiObject2 result = waitForLauncherObject(resName);
             return result;
         } finally {
+            sendPointer(downTime, downTime, MotionEvent.ACTION_BUTTON_RELEASE, targetCenter,
+                    GestureScope.DONT_EXPECT_PILFER, InputDevice.SOURCE_TOUCHSCREEN,
+                    /* isRightClick= */ true, MotionEvent.TOOL_TYPE_STYLUS);
             sendPointer(downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, targetCenter,
                     GestureScope.DONT_EXPECT_PILFER, InputDevice.SOURCE_TOUCHSCREEN,
                     /* isRightClick= */ true, MotionEvent.TOOL_TYPE_STYLUS);
@@ -2266,11 +2271,17 @@ public final class LauncherInstrumentation {
         sendPointer(downTime, downTime, MotionEvent.ACTION_DOWN, targetCenter,
                 GestureScope.DONT_EXPECT_PILFER, InputDevice.SOURCE_MOUSE,
                 /* isRightClick= */ true);
+        sendPointer(downTime, downTime, MotionEvent.ACTION_BUTTON_PRESS, targetCenter,
+                GestureScope.DONT_EXPECT_PILFER, InputDevice.SOURCE_MOUSE,
+                /* isRightClick= */ true);
         try {
             expectEvent(TestProtocol.SEQUENCE_MAIN, rightClickEvent);
             final UiObject2 result = waitForLauncherObject(resName);
             return result;
         } finally {
+            sendPointer(downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_BUTTON_RELEASE,
+                    targetCenter, GestureScope.DONT_EXPECT_PILFER, InputDevice.SOURCE_MOUSE,
+                    /* isRightClick= */ true);
             sendPointer(downTime, SystemClock.uptimeMillis(), ACTION_UP, targetCenter,
                     GestureScope.DONT_EXPECT_PILFER, InputDevice.SOURCE_MOUSE,
                     /* isRightClick= */ true);
