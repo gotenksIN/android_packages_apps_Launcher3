@@ -559,6 +559,13 @@ flag {
 }
 
 flag {
+  name: "enable_launcher_visual_refresh"
+  namespace: "launcher"
+  description: "Adds refresh for font family, app longpress menu icons, and pagination dots"
+  bug: "395145453"
+}
+
+flag {
   name: "restore_archived_shortcuts"
   namespace: "launcher"
   description: "Makes sure pre-archived pinned shortcuts also get restored"
@@ -583,4 +590,28 @@ flag {
   namespace: "launcher"
   description: "Changes mouse interaction behavior"
   bug: "388897603"
+}
+
+flag {
+  name: "enable_alt_tab_kqs_on_connected_displays"
+  namespace: "lse_desktop_experience"
+  description: "Enable Alt + Tab KQS support on connected displays"
+  bug: "394007677"
+}
+
+flag {
+  name: "expressive_theme_in_taskbar_and_navigation"
+  namespace: "launcher"
+  description: "Enables the expressive theme and GSF font styles for Taskbar and Gesture Navigation"
+  bug: "394613212"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "enable_strict_mode"
+  namespace: "launcher"
+  description: "Enable Strict Mode for the Launcher app"
+  bug: "394651876"
 }
