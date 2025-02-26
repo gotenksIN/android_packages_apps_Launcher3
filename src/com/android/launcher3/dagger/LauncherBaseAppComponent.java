@@ -18,6 +18,7 @@ package com.android.launcher3.dagger;
 
 import android.content.Context;
 
+import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.graphics.IconShape;
 import com.android.launcher3.graphics.ThemeManager;
@@ -26,11 +27,11 @@ import com.android.launcher3.pm.InstallSessionHelper;
 import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.util.ApiWrapper;
 import com.android.launcher3.util.DaggerSingletonTracker;
+import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.DynamicResource;
 import com.android.launcher3.util.LockedUserState;
 import com.android.launcher3.util.MSDLPlayerWrapper;
 import com.android.launcher3.util.PackageManagerHelper;
-import com.android.launcher3.util.PerDisplayObjectProvider;
 import com.android.launcher3.util.PluginManagerWrapper;
 import com.android.launcher3.util.ScreenOnTracker;
 import com.android.launcher3.util.SettingsCache;
@@ -69,9 +70,10 @@ public interface LauncherBaseAppComponent {
     LauncherPrefs getLauncherPrefs();
     ThemeManager getThemeManager();
     UserCache getUserCache();
-    PerDisplayObjectProvider getPerDisplayObjectProvider();
+    DisplayController getDisplayController();
     WallpaperColorHints getWallpaperColorHints();
     LockedUserState getLockedUserState();
+    InvariantDeviceProfile getIDP();
 
     /** Builder for LauncherBaseAppComponent. */
     interface Builder {
