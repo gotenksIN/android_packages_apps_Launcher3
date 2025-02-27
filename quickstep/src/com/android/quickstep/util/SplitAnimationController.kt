@@ -127,7 +127,7 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
                     val drawable = getDrawable(container.iconView, splitSelectSource)
                     return SplitAnimInitProps(
                         container.snapshotView,
-                        container.splitAnimationThumbnail,
+                        container.thumbnail,
                         drawable,
                         fadeWithThumbnail = true,
                         isStagedTask = true,
@@ -147,7 +147,7 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
                 val drawable = getDrawable(it.iconView, splitSelectSource)
                 return SplitAnimInitProps(
                     it.snapshotView,
-                    it.splitAnimationThumbnail,
+                    it.thumbnail,
                     drawable,
                     fadeWithThumbnail = true,
                     isStagedTask = true,
@@ -215,13 +215,13 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
         if (enableOverviewIconMenu()) {
             builder.add(
                 ObjectAnimator.ofFloat(
-                    (iconView as IconAppChipView).splitTranslationX,
+                    (iconView as IconAppChipView).getSplitTranslationX(),
                     MULTI_PROPERTY_VALUE,
                     0f,
                 )
             )
             builder.add(
-                ObjectAnimator.ofFloat(iconView.splitTranslationY, MULTI_PROPERTY_VALUE, 0f)
+                ObjectAnimator.ofFloat(iconView.getSplitTranslationY(), MULTI_PROPERTY_VALUE, 0f)
             )
         }
 
@@ -985,6 +985,11 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
         val splitTree: Pair<Change, List<Change>>? = extractTopParentAndChildren(transitionInfo)
         check(splitTree != null) { "Could not find a split root candidate" }
         val rootCandidate = splitTree.first
+        val stageRootTaskIds: Set<Int> = splitTree.second.map { it.taskInfo!!.taskId }.toSet()
+        val leafTasks: List<Change> =
+            transitionInfo.changes
+                .filter { it.taskInfo != null && it.taskInfo!!.parentTaskId in stageRootTaskIds }
+                .toList()
 
         // Starting position is a 34% size tile centered in the middle of the screen.
         // Ending position is the full device screen.
@@ -1017,6 +1022,42 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
             object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
                     finishCallback.run()
+                }
+
+                override fun onAnimationStart(animation: Animator) {
+                    // Reset leaf and stage root tasks, animation can begin from freeform windows
+                    for (leaf in leafTasks) {
+                        val endAbsBounds = leaf.endAbsBounds
+
+                        t.setAlpha(leaf.leash, 1f)
+                        t.setCrop(
+                            leaf.leash,
+                            0f,
+                            0f,
+                            endAbsBounds.width().toFloat(),
+                            endAbsBounds.height().toFloat(),
+                        )
+                        t.setPosition(leaf.leash, 0f, 0f)
+                    }
+
+                    for (stageRoot in splitTree.second) {
+                        val endAbsBounds = stageRoot.endAbsBounds
+
+                        t.setAlpha(stageRoot.leash, 1f)
+                        t.setCrop(
+                            stageRoot.leash,
+                            0f,
+                            0f,
+                            endAbsBounds.width().toFloat(),
+                            endAbsBounds.height().toFloat(),
+                        )
+                        t.setPosition(
+                            stageRoot.leash,
+                            endAbsBounds.left.toFloat(),
+                            endAbsBounds.top.toFloat(),
+                        )
+                    }
+                    t.apply()
                 }
             }
         )

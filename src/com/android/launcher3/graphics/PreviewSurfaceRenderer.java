@@ -20,6 +20,7 @@ import static android.content.res.Configuration.UI_MODE_NIGHT_NO;
 import static android.content.res.Configuration.UI_MODE_NIGHT_YES;
 import static android.view.Display.DEFAULT_DISPLAY;
 
+import static com.android.launcher3.LauncherPrefs.GRID_NAME;
 import static com.android.launcher3.LauncherSettings.Favorites.TABLE_NAME;
 import static com.android.launcher3.graphics.ThemeManager.PREF_ICON_SHAPE;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
@@ -39,6 +40,7 @@ import android.util.SparseArray;
 import android.util.SparseIntArray;
 import android.view.ContextThemeWrapper;
 import android.view.Display;
+import android.view.Surface;
 import android.view.SurfaceControlViewHost;
 import android.view.SurfaceControlViewHost.SurfacePackage;
 import android.view.View;
@@ -60,7 +62,6 @@ import com.android.launcher3.graphics.LauncherPreviewRenderer.PreviewContext;
 import com.android.launcher3.model.BaseLauncherBinder;
 import com.android.launcher3.model.BgDataModel;
 import com.android.launcher3.model.BgDataModel.Callbacks;
-import com.android.launcher3.model.GridSizeMigrationDBController;
 import com.android.launcher3.model.LoaderTask;
 import com.android.launcher3.model.ModelDbController;
 import com.android.launcher3.provider.LauncherDbUtils;
@@ -117,7 +118,7 @@ public class PreviewSurfaceRenderer {
         mGridName = bundle.getString("name");
         bundle.remove("name");
         if (mGridName == null) {
-            mGridName = InvariantDeviceProfile.getCurrentGridName(context);
+            mGridName = LauncherPrefs.get(context).get(GRID_NAME);
         }
         mWallpaperColors = bundle.getParcelable(KEY_COLORS);
         if (Flags.newCustomizationPickerUi()) {
@@ -286,6 +287,20 @@ public class PreviewSurfaceRenderer {
             }
             context = context.createConfigurationContext(configuration);
         }
+        if (InvariantDeviceProfile.INSTANCE.get(context).isFixedLandscape) {
+            Configuration configuration = new Configuration(
+                    context.getResources().getConfiguration()
+            );
+            int width = configuration.screenWidthDp;
+            int height = configuration.screenHeightDp;
+            if (configuration.screenHeightDp > configuration.screenWidthDp) {
+                configuration.screenWidthDp = height;
+                configuration.screenHeightDp = width;
+                configuration.orientation = Surface.ROTATION_90;
+            }
+            context = context.createConfigurationContext(configuration);
+        }
+
         if (Flags.newCustomizationPickerUi()) {
             if (mPreviewColorOverride != null) {
                 LocalColorExtractor.newInstance(context)
@@ -316,11 +331,10 @@ public class PreviewSurfaceRenderer {
     @WorkerThread
     private void loadModelData() {
         final Context inflationContext = getPreviewContext();
-        final InvariantDeviceProfile idp = new InvariantDeviceProfile(inflationContext, mGridName);
-        if (GridSizeMigrationDBController.needsToMigrate(inflationContext, idp)
+        if (!mGridName.equals(LauncherPrefs.INSTANCE.get(mContext).get(GRID_NAME))
                 || mShapeKey != null) {
             // Start the migration
-            PreviewContext previewContext = new PreviewContext(inflationContext, idp);
+            PreviewContext previewContext = new PreviewContext(inflationContext, mGridName);
             if (mShapeKey != null) {
                 LauncherPrefs.INSTANCE.get(previewContext).put(PREF_ICON_SHAPE, mShapeKey);
             }
@@ -348,6 +362,7 @@ public class PreviewSurfaceRenderer {
 
                 @Override
                 public void run() {
+                    InvariantDeviceProfile idp = LauncherAppState.getIDP(previewContext);
                     DeviceProfile deviceProfile = idp.getDeviceProfile(previewContext);
                     String query =
                             LauncherSettings.Favorites.SCREEN + " = " + Workspace.FIRST_SCREEN_ID
@@ -371,7 +386,7 @@ public class PreviewSurfaceRenderer {
             LauncherAppState.getInstance(inflationContext).getModel().loadAsync(dataModel -> {
                 if (dataModel != null) {
                     MAIN_EXECUTOR.execute(() -> renderView(inflationContext, dataModel, null,
-                            null, idp));
+                            null, LauncherAppState.getIDP(inflationContext)));
                 } else {
                     Log.e(TAG, "Model loading failed");
                 }
@@ -396,15 +411,28 @@ public class PreviewSurfaceRenderer {
         }
         renderer.hideBottomRow(mHideQsb);
         View view = renderer.getRenderedView(dataModel, widgetProviderInfoMap);
-        // This aspect scales the view to fit in the surface and centers it
-        final float scale = Math.min(mWidth / (float) view.getMeasuredWidth(),
-                mHeight / (float) view.getMeasuredHeight());
-        view.setScaleX(scale);
-        view.setScaleY(scale);
+
         view.setPivotX(0);
         view.setPivotY(0);
-        view.setTranslationX((mWidth - scale * view.getWidth()) / 2);
-        view.setTranslationY((mHeight - scale * view.getHeight()) / 2);
+        if (idp.isFixedLandscape) {
+            final float scale = Math.min(mHeight / (float) view.getMeasuredWidth(),
+                    mWidth / (float) view.getMeasuredHeight());
+            view.setScaleX(scale);
+            view.setScaleY(scale);
+            view.setRotation(90);
+            view.setTranslationX((mHeight - scale * view.getWidth()) / 2 + mWidth);
+            view.setTranslationY((mWidth - scale * view.getHeight()) / 2);
+        } else {
+            // This aspect scales the view to fit in the surface and centers it
+            final float scale = Math.min(mWidth / (float) view.getMeasuredWidth(),
+                    mHeight / (float) view.getMeasuredHeight());
+            view.setScaleX(scale);
+            view.setScaleY(scale);
+            view.setTranslationX((mWidth - scale * view.getWidth()) / 2);
+            view.setTranslationY((mHeight - scale * view.getHeight()) / 2);
+        }
+
+
         if (!Flags.newCustomizationPickerUi()) {
             view.setAlpha(0);
             view.animate().alpha(1)
