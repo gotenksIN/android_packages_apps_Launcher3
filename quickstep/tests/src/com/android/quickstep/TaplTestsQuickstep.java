@@ -62,6 +62,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Comparator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -537,6 +538,45 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
         } else {
             // Presumably the test started with 0 tasks and remains that way after going home.
         }
+    }
+
+    @Test
+    @PortraitLandscape
+    public void testDismissCancel() throws Exception {
+        startTestAppsWithCheck();
+        Overview overview = mLauncher.goHome().switchToOverview();
+        assertIsInState("Launcher internal state didn't switch to Overview",
+                ExpectedState.OVERVIEW);
+        final Integer numTasks = getFromRecentsView(RecentsView::getTaskViewCount);
+        OverviewTask task = overview.getCurrentTask();
+        assertNotNull("overview.getCurrentTask() returned null (2)", task);
+
+        task.dismissCancel();
+
+        runOnRecentsView(recentsView -> assertEquals(
+                "Canceling dismissing a task removed a task from Overview",
+                numTasks == null ? 0 : numTasks, recentsView.getTaskViewCount()));
+    }
+
+    @Test
+    @PortraitLandscape
+    public void testDismissBottomRow() throws Exception {
+        assumeTrue(mLauncher.isTablet());
+        mLauncher.goHome().switchToOverview().dismissAllTasks();
+        startTestAppsWithCheck();
+        Overview overview = mLauncher.goHome().switchToOverview();
+        assertIsInState("Launcher internal state didn't switch to Overview",
+                ExpectedState.OVERVIEW);
+        final Integer numTasks = getFromRecentsView(RecentsView::getTaskViewCount);
+        OverviewTask bottomTask = overview.getCurrentTasksForTablet().stream().max(
+                Comparator.comparingInt(OverviewTask::getTaskCenterY)).get();
+        assertNotNull("bottomTask null", bottomTask);
+
+        bottomTask.dismiss();
+
+        runOnRecentsView(recentsView -> assertEquals(
+                "Dismissing a bottomTask didn't remove 1 bottomTask from Overview",
+                numTasks - 1, recentsView.getTaskViewCount()));
     }
 
     private void startTestAppsWithCheck() throws Exception {

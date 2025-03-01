@@ -19,12 +19,14 @@ package com.android.launcher3.graphics
 import android.content.Context
 import android.content.res.Resources
 import com.android.launcher3.EncryptionType
+import com.android.launcher3.Item
 import com.android.launcher3.LauncherPrefChangeListener
 import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.LauncherPrefs.Companion.backedUpItem
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.graphics.ShapeDelegate.Companion.pickBestShape
 import com.android.launcher3.icons.IconThemeController
 import com.android.launcher3.icons.mono.MonoIconThemeController
 import com.android.launcher3.shapes.ShapesProvider
@@ -37,52 +39,59 @@ import javax.inject.Inject
 
 /** Centralized class for managing Launcher icon theming */
 @LauncherAppSingleton
-open class ThemeManager
+class ThemeManager
 @Inject
 constructor(
     @ApplicationContext private val context: Context,
     private val prefs: LauncherPrefs,
+    private val iconControllerFactory: IconControllerFactory,
     lifecycle: DaggerSingletonTracker,
 ) {
 
     /** Representation of the current icon state */
-    var iconState = parseIconState()
+    var iconState = parseIconState(null)
         private set
 
     var isMonoThemeEnabled
         set(value) = prefs.put(THEMED_ICONS, value)
         get() = prefs.get(THEMED_ICONS)
 
-    var themeController: IconThemeController? =
-        if (isMonoThemeEnabled) MonoIconThemeController() else null
-        private set
+    val themeController
+        get() = iconState.themeController
+
+    val isIconThemeEnabled
+        get() = themeController != null
+
+    val iconShape
+        get() = iconState.iconShape
+
+    val folderShape
+        get() = iconState.folderShape
 
     private val listeners = CopyOnWriteArrayList<ThemeChangeListener>()
 
     init {
-        val receiver = SimpleBroadcastReceiver(MAIN_EXECUTOR) { verifyIconState() }
-        receiver.registerPkgActions(context, "android", ACTION_OVERLAY_CHANGED)
+        val receiver = SimpleBroadcastReceiver(context, MAIN_EXECUTOR) { verifyIconState() }
+        receiver.registerPkgActions("android", ACTION_OVERLAY_CHANGED)
 
+        val keys = (iconControllerFactory.prefKeys + PREF_ICON_SHAPE)
+
+        val keysArray = keys.toTypedArray()
+        val prefKeySet = keys.map { it.sharedPrefKey }
         val prefListener = LauncherPrefChangeListener { key ->
-            when (key) {
-                KEY_THEMED_ICONS,
-                KEY_ICON_SHAPE -> verifyIconState()
-            }
+            if (prefKeySet.contains(key)) verifyIconState()
         }
-        prefs.addListener(prefListener, THEMED_ICONS, PREF_ICON_SHAPE)
-
+        prefs.addListener(prefListener, *keysArray)
         lifecycle.addCloseable {
-            receiver.unregisterReceiverSafely(context)
-            prefs.removeListener(prefListener)
+            receiver.unregisterReceiverSafely()
+            prefs.removeListener(prefListener, *keysArray)
         }
     }
 
     private fun verifyIconState() {
-        val newState = parseIconState()
+        val newState = parseIconState(iconState)
         if (newState == iconState) return
-
         iconState = newState
-        themeController = if (isMonoThemeEnabled) MonoIconThemeController() else null
 
         listeners.forEach { it.onThemeChanged() }
     }
@@ -91,7 +100,7 @@ constructor(
 
     fun removeChangeListener(listener: ThemeChangeListener) = listeners.remove(listener)
 
-    private fun parseIconState(): IconState {
+    private fun parseIconState(oldState: IconState?): IconState {
         val shapeModel =
             prefs.get(PREF_ICON_SHAPE).let { shapeOverride ->
                 ShapesProvider.iconShapes.values.firstOrNull { it.key == shapeOverride }
@@ -102,18 +111,38 @@ constructor(
                 CONFIG_ICON_MASK_RES_ID == Resources.ID_NULL -> ""
                 else -> context.resources.getString(CONFIG_ICON_MASK_RES_ID)
             }
+
+        val iconShape =
+            if (oldState != null && oldState.iconMask == iconMask) oldState.iconShape
+            else pickBestShape(iconMask)
+
+        val folderShapeMask = shapeModel?.folderPathString ?: iconMask
+        val folderShape =
+            when {
+                oldState != null && oldState.folderShapeMask == folderShapeMask ->
+                    oldState.folderShape
+                folderShapeMask == iconMask || folderShapeMask.isEmpty() -> iconShape
+                else -> pickBestShape(folderShapeMask)
+            }
+
         return IconState(
             iconMask = iconMask,
-            folderShapeMask = shapeModel?.folderPathString ?: iconMask,
-            isMonoTheme = isMonoThemeEnabled,
+            folderShapeMask = folderShapeMask,
+            themeController = iconControllerFactory.createThemeController(),
+            iconScale = shapeModel?.iconScale ?: 1f,
+            iconShape = iconShape,
+            folderShape = folderShape,
         )
     }
 
     data class IconState(
         val iconMask: String,
         val folderShapeMask: String,
-        val isMonoTheme: Boolean,
-        val themeCode: String = if (isMonoTheme) "with-theme" else "no-theme",
+        val themeController: IconThemeController?,
+        val themeCode: String = themeController?.themeID ?: "no-theme",
+        val iconScale: Float = 1f,
+        val iconShape: ShapeDelegate,
+        val folderShape: ShapeDelegate,
     ) {
         fun toUniqueId() = "${iconMask.hashCode()},$themeCode"
     }
@@ -121,6 +150,15 @@ constructor(
     /** Interface for receiving theme change events */
     fun interface ThemeChangeListener {
         fun onThemeChanged()
+    }
+
+    open class IconControllerFactory @Inject constructor(protected val prefs: LauncherPrefs) {
+
+        open val prefKeys: List<Item> = listOf(THEMED_ICONS)
+
+        open fun createThemeController(): IconThemeController? {
+            return if (prefs.get(THEMED_ICONS)) MONO_THEME_CONTROLLER else null
+        }
     }
 
     companion object {
@@ -135,5 +173,8 @@ constructor(
         private const val ACTION_OVERLAY_CHANGED = "android.intent.action.OVERLAY_CHANGED"
         private val CONFIG_ICON_MASK_RES_ID: Int =
             Resources.getSystem().getIdentifier("config_icon_mask", "string", "android")
+
+        // Use a constant to allow equality check in verifyIconState
+        private val MONO_THEME_CONTROLLER = MonoIconThemeController()
     }
 }

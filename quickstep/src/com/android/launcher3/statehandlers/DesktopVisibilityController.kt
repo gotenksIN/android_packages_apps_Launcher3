@@ -18,8 +18,11 @@ package com.android.launcher3.statehandlers
 import android.content.Context
 import android.os.Debug
 import android.util.Log
+import android.util.Slog
 import android.util.SparseArray
+import android.view.Display.DEFAULT_DISPLAY
 import android.window.DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_WALLPAPER_ACTIVITY
+import androidx.core.util.forEach
 import com.android.launcher3.LauncherState
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppComponent
@@ -62,14 +65,14 @@ constructor(
      * @property canCreateDesks true if it's possible to create new desks on the display represented
      *   by this object.
      * @property activeDeskId The ID of the active desk on the associated display (if any). It has a
-     *   value of `-1` if there are no active desks. Note that there can only be at most one active
-     *   desk on each display.
+     *   value of `INACTIVE_DESK_ID` (-1) if there are no active desks. Note that there can only be
+     *   at most one active desk on each display.
      * @property deskIds a set containing the IDs of the desks on the associated display.
      */
     private data class DisplayDeskConfig(
         val displayId: Int,
         var canCreateDesks: Boolean,
-        var activeDeskId: Int = -1,
+        var activeDeskId: Int = INACTIVE_DESK_ID,
         val deskIds: MutableSet<Int>,
     )
 
@@ -79,6 +82,8 @@ constructor(
     private val desktopVisibilityListeners: MutableSet<DesktopVisibilityListener> = HashSet()
     private val taskbarDesktopModeListeners: MutableSet<TaskbarDesktopModeListener> = HashSet()
 
+    // TODO: b/394387739 - Deprecate this and replace it with something that tracks the count per
+    //  desk.
     /** Number of visible desktop windows in desktop mode. */
     var visibleDesktopTasksCount: Int = 0
         /**
@@ -103,7 +108,7 @@ constructor(
                 field = visibleTasksCount
                 val areDesktopTasksVisibleNow = areDesktopTasksVisibleAndNotInOverview()
                 if (wereDesktopTasksVisibleBefore != areDesktopTasksVisibleNow) {
-                    notifyDesktopVisibilityListeners(areDesktopTasksVisibleNow)
+                    notifyIsInDesktopModeChanged(DEFAULT_DISPLAY, areDesktopTasksVisibleNow)
                 }
 
                 if (
@@ -142,8 +147,37 @@ constructor(
         }
     }
 
+    /** Returns whether a desk is currently active on the display with the given [displayId]. */
+    fun isInDesktopMode(displayId: Int): Boolean {
+        if (!DesktopModeStatus.enableMultipleDesktops(context)) {
+            return areDesktopTasksVisible()
+        }
+
+        val activeDeskId = getDisplayDeskConfig(displayId)?.activeDeskId ?: INACTIVE_DESK_ID
+        val isInDesktopMode = activeDeskId != INACTIVE_DESK_ID
+        if (DEBUG) {
+            Log.d(TAG, "isInDesktopMode: $isInDesktopMode")
+        }
+        return isInDesktopMode
+    }
+
+    /**
+     * Returns whether a desk is currently active on the display with the given [displayId] and
+     * Overview is not active.
+     */
+    fun isInDesktopModeAndNotInOverview(displayId: Int): Boolean {
+        if (!DesktopModeStatus.enableMultipleDesktops(context)) {
+            return areDesktopTasksVisibleAndNotInOverview()
+        }
+
+        if (DEBUG) {
+            Log.d(TAG, "isInDesktopModeAndNotInOverview: overview=$inOverviewState")
+        }
+        return isInDesktopMode(displayId) && !inOverviewState
+    }
+
     /** Whether desktop tasks are visible in desktop mode. */
-    fun areDesktopTasksVisible(): Boolean {
+    private fun areDesktopTasksVisible(): Boolean {
         val desktopTasksVisible: Boolean = visibleDesktopTasksCount > 0
         if (DEBUG) {
             Log.d(TAG, "areDesktopTasksVisible: desktopVisible=$desktopTasksVisible")
@@ -152,7 +186,7 @@ constructor(
     }
 
     /** Whether desktop tasks are visible in desktop mode. */
-    fun areDesktopTasksVisibleAndNotInOverview(): Boolean {
+    private fun areDesktopTasksVisibleAndNotInOverview(): Boolean {
         val desktopTasksVisible: Boolean = visibleDesktopTasksCount > 0
         if (DEBUG) {
             Log.d(
@@ -220,8 +254,23 @@ constructor(
             val wereDesktopTasksVisibleBefore = areDesktopTasksVisibleAndNotInOverview()
             inOverviewState = overviewStateEnabled
             val areDesktopTasksVisibleNow = areDesktopTasksVisibleAndNotInOverview()
-            if (wereDesktopTasksVisibleBefore != areDesktopTasksVisibleNow) {
-                notifyDesktopVisibilityListeners(areDesktopTasksVisibleNow)
+
+            if (!DesktopModeStatus.enableMultipleDesktops(context)) {
+                if (wereDesktopTasksVisibleBefore != areDesktopTasksVisibleNow) {
+                    notifyIsInDesktopModeChanged(DEFAULT_DISPLAY, areDesktopTasksVisibleNow)
+                }
+            } else {
+                // When overview state changes, it changes together on all displays.
+                displaysDesksConfigsMap.forEach { displayId, deskConfig ->
+                    // Overview affects the state of desks only if desktop mode is active on this
+                    // display.
+                    if (isInDesktopMode(displayId)) {
+                        notifyIsInDesktopModeChanged(
+                            displayId,
+                            isInDesktopModeAndNotInOverview(displayId),
+                        )
+                    }
+                }
             }
 
             if (ENABLE_DESKTOP_WINDOWING_WALLPAPER_ACTIVITY.isTrue) {
@@ -249,12 +298,19 @@ constructor(
         desktopVisibilityListeners.remove(listener)
     }
 
-    private fun notifyDesktopVisibilityListeners(areDesktopTasksVisible: Boolean) {
+    private fun notifyIsInDesktopModeChanged(
+        displayId: Int,
+        isInDesktopModeAndNotInOverview: Boolean,
+    ) {
         if (DEBUG) {
-            Log.d(TAG, "notifyDesktopVisibilityListeners: visible=$areDesktopTasksVisible")
+            Log.d(
+                TAG,
+                "notifyIsInDesktopModeChanged: displayId=$displayId, isInDesktopModeAndNotInOverview=$isInDesktopModeAndNotInOverview",
+            )
         }
+
         for (listener in desktopVisibilityListeners) {
-            listener.onDesktopVisibilityChanged(areDesktopTasksVisible)
+            listener.onIsInDesktopModeChanged(displayId, isInDesktopModeAndNotInOverview)
         }
     }
 
@@ -355,18 +411,16 @@ constructor(
         }
     }
 
-    private fun getDisplayDeskConfig(displayId: Int): DisplayDeskConfig {
-        return checkNotNull(displaysDesksConfigsMap[displayId]) {
-            "Expected non-null desk config for display: $displayId"
-        }
-    }
+    private fun getDisplayDeskConfig(displayId: Int) =
+        displaysDesksConfigsMap[displayId]
+            ?: null.also { Slog.e(TAG, "Expected non-null desk config for display: $displayId") }
 
     private fun onCanCreateDesksChanged(displayId: Int, canCreateDesks: Boolean) {
         if (!DesktopModeStatus.enableMultipleDesktops(context)) {
             return
         }
 
-        getDisplayDeskConfig(displayId).canCreateDesks = canCreateDesks
+        getDisplayDeskConfig(displayId)?.canCreateDesks = canCreateDesks
     }
 
     private fun onDeskAdded(displayId: Int, deskId: Int) {
@@ -374,7 +428,7 @@ constructor(
             return
         }
 
-        getDisplayDeskConfig(displayId).also {
+        getDisplayDeskConfig(displayId)?.also {
             check(it.deskIds.add(deskId)) {
                 "Found a duplicate desk Id: $deskId on display: $displayId"
             }
@@ -386,12 +440,12 @@ constructor(
             return
         }
 
-        getDisplayDeskConfig(displayId).also {
+        getDisplayDeskConfig(displayId)?.also {
             check(it.deskIds.remove(deskId)) {
                 "Removing non-existing desk Id: $deskId on display: $displayId"
             }
             if (it.activeDeskId == deskId) {
-                it.activeDeskId = -1
+                it.activeDeskId = INACTIVE_DESK_ID
             }
         }
     }
@@ -401,7 +455,9 @@ constructor(
             return
         }
 
-        getDisplayDeskConfig(displayId).also {
+        val wasInDesktopMode = isInDesktopModeAndNotInOverview(displayId)
+
+        getDisplayDeskConfig(displayId)?.also {
             check(oldActiveDesk == it.activeDeskId) {
                 "Mismatch between the Shell's oldActiveDesk: $oldActiveDesk, and Launcher's: ${it.activeDeskId}"
             }
@@ -409,6 +465,10 @@ constructor(
                 "newActiveDesk: $newActiveDesk was never added to display: $displayId"
             }
             it.activeDeskId = newActiveDesk
+        }
+
+        if (wasInDesktopMode != isInDesktopModeAndNotInOverview(displayId)) {
+            notifyIsInDesktopModeChanged(displayId, !wasInDesktopMode)
         }
     }
 
@@ -542,5 +602,7 @@ constructor(
 
         private const val TAG = "DesktopVisController"
         private const val DEBUG = false
+
+        private const val INACTIVE_DESK_ID = -1
     }
 }
