@@ -28,6 +28,8 @@ import com.android.quickstep.recents.di.RecentsDependencies
 import com.android.quickstep.recents.di.get
 import com.android.quickstep.recents.di.getScope
 import com.android.quickstep.recents.di.inject
+import com.android.quickstep.recents.ui.mapper.TaskUiStateMapper
+import com.android.quickstep.recents.ui.viewmodel.TaskData
 import com.android.quickstep.recents.viewmodel.TaskContainerViewModel
 import com.android.quickstep.task.thumbnail.TaskThumbnailView
 import com.android.quickstep.task.viewmodel.TaskContainerData
@@ -61,11 +63,7 @@ class TaskContainer(
 
     // TODO(b/335649589): Ideally create and obtain this from DI.
     private val taskContainerViewModel: TaskContainerViewModel by lazy {
-        TaskContainerViewModel(
-            sysUiStatusNavFlagsUseCase = RecentsDependencies.get(),
-            getThumbnailUseCase = RecentsDependencies.get(),
-            splashAlphaUseCase = RecentsDependencies.get(),
-        )
+        TaskContainerViewModel(splashAlphaUseCase = RecentsDependencies.get())
     }
 
     init {
@@ -84,13 +82,9 @@ class TaskContainer(
         }
     }
 
-    val splitAnimationThumbnail: Bitmap?
-        get() =
-            if (enableRefactorTaskThumbnail()) {
-                taskContainerViewModel.getThumbnail(task.key.id)
-            } else {
-                thumbnailViewDeprecated.thumbnail
-            }
+    var splitAnimationThumbnail: Bitmap? = null
+        get() = if (enableRefactorTaskThumbnail()) field else thumbnailViewDeprecated.thumbnail
+        private set
 
     val thumbnailView: TaskThumbnailView
         get() {
@@ -109,12 +103,6 @@ class TaskContainer(
             if (enableRefactorTaskThumbnail())
                 taskContainerViewModel.shouldShowThumbnailSplash(task.key.id)
             else thumbnailViewDeprecated.shouldShowSplashView()
-
-    val sysUiStatusNavFlags: Int
-        get() =
-            if (enableRefactorTaskThumbnail())
-                taskContainerViewModel.getSysUiStatusNavFlags(task.key.id)
-            else thumbnailViewDeprecated.sysUiStatusNavFlags
 
     /** Builds proto for logging */
     val itemInfo: TaskViewItemInfo
@@ -146,7 +134,7 @@ class TaskContainer(
         thumbnailView.destroyScopes()
     }
 
-    fun bindThumbnailView() {
+    private fun bindThumbnailView() {
         taskThumbnailViewModel.bind(task.key.id)
     }
 
@@ -162,5 +150,19 @@ class TaskContainer(
         showWindowsView?.let { addAccessibleChildToList(it, outChildren) }
         digitalWellBeingToast?.let { addAccessibleChildToList(it, outChildren) }
         overlay.addChildForAccessibility(outChildren)
+    }
+
+    fun setState(state: TaskData?, liveTile: Boolean, hasHeader: Boolean) {
+        thumbnailView.setState(TaskUiStateMapper.toTaskThumbnailUiState(state, liveTile, hasHeader))
+        splitAnimationThumbnail =
+            if (state is TaskData.Data) state.thumbnailData?.thumbnail else null
+    }
+
+    fun updateTintAmount(tintAmount: Float) {
+        thumbnailView.updateTintAmount(tintAmount)
+    }
+
+    fun updateMenuOpenProgress(progress: Float) {
+        thumbnailView.updateMenuOpenProgress(progress)
     }
 }

@@ -15,62 +15,85 @@
  */
 package com.android.quickstep.util
 
-import androidx.annotation.VisibleForTesting
 import com.android.launcher3.util.SplitConfigurationOptions
 import com.android.quickstep.views.TaskViewType
 import com.android.systemui.shared.recents.model.Task
 import java.util.Objects
 
 /**
- * A [Task] container that can contain one or two tasks, depending on if the two tasks are
- * represented as an app-pair in the recents task list.
+ * An abstract class for creating [Task] containers that can be [SingleTask]s, [SplitTask]s, or
+ * [DesktopTask]s in the recent tasks list.
  */
-open class GroupTask
-@VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
-constructor(
-    @Deprecated("Prefer using `getTasks()` instead") @JvmField val task1: Task,
-    @Deprecated("Prefer using `getTasks()` instead") @JvmField val task2: Task?,
-    @JvmField val mSplitBounds: SplitConfigurationOptions.SplitBounds?,
-    @JvmField val taskViewType: TaskViewType,
-) {
-    constructor(task: Task) : this(task, null, null)
-
-    constructor(
-        t1: Task,
-        t2: Task?,
-        splitBounds: SplitConfigurationOptions.SplitBounds?,
-    ) : this(t1, t2, splitBounds, if (t2 != null) TaskViewType.GROUPED else TaskViewType.SINGLE)
-
-    open fun containsTask(taskId: Int) =
-        task1.key.id == taskId || (task2 != null && task2.key.id == taskId)
+abstract class GroupTask(val tasks: List<Task>, @JvmField val taskViewType: TaskViewType) {
+    fun containsTask(taskId: Int) = tasks.any { it.key.id == taskId }
 
     /**
      * Returns true if a task in this group has a package name that matches the given `packageName`.
      */
-    fun containsPackage(packageName: String) = tasks.any { it.key.packageName == packageName }
+    fun containsPackage(packageName: String?) = tasks.any { it.key.packageName == packageName }
 
-    open fun hasMultipleTasks() = task2 != null
+    /**
+     * Returns true if a task in this group has a package name that matches the given `packageName`,
+     * and its user ID matches the given `userId`.
+     */
+    fun containsPackage(packageName: String?, userId: Int) =
+        tasks.any { it.key.packageName == packageName && it.key.userId == userId }
 
-    /** Returns whether this task supports multiple tasks or not. */
-    open fun supportsMultipleTasks() = taskViewType == TaskViewType.GROUPED
-
-    /** Returns a List of all the Tasks in this GroupTask */
-    open val tasks: List<Task>
-        get() = listOfNotNull(task1, task2)
+    fun isEmpty() = tasks.isEmpty()
 
     /** Creates a copy of this instance */
-    open fun copy() = GroupTask(Task(task1), if (task2 != null) Task(task2) else null, mSplitBounds)
-
-    override fun toString() = "type=$taskViewType task1=$task1 task2=$task2"
+    abstract fun copy(): GroupTask
 
     override fun equals(o: Any?): Boolean {
         if (this === o) return true
         if (o !is GroupTask) return false
-        return taskViewType == o.taskViewType &&
-            task1 == o.task1 &&
-            task2 == o.task2 &&
-            mSplitBounds == o.mSplitBounds
+        return taskViewType == o.taskViewType && tasks == o.tasks
     }
 
-    override fun hashCode() = Objects.hash(task1, task2, mSplitBounds, taskViewType)
+    override fun hashCode() = Objects.hash(tasks, taskViewType)
+}
+
+/** A [Task] container that must contain exactly one task in the recent tasks list. */
+class SingleTask(task: Task) : GroupTask(listOf(task), TaskViewType.SINGLE) {
+
+    val task: Task
+        get() = tasks[0]
+
+    override fun copy() = SingleTask(task)
+
+    override fun toString() = "type=$taskViewType task=$task"
+
+    override fun equals(o: Any?): Boolean {
+        if (this === o) return true
+        if (o !is SingleTask) return false
+        return super.equals(o)
+    }
+}
+
+/**
+ * A [Task] container that must contain exactly two tasks and split bounds to represent an app-pair
+ * in the recent tasks list.
+ */
+class SplitTask(task1: Task, task2: Task, val splitBounds: SplitConfigurationOptions.SplitBounds) :
+    GroupTask(listOf(task1, task2), TaskViewType.GROUPED) {
+
+    val topLeftTask: Task
+        get() = if (splitBounds.leftTopTaskId == tasks[0].key.id) tasks[0] else tasks[1]
+
+    val bottomRightTask: Task
+        get() = if (topLeftTask == tasks[0]) tasks[1] else tasks[0]
+
+    override fun copy() = SplitTask(tasks[0], tasks[1], splitBounds)
+
+    override fun toString() =
+        "type=$taskViewType topLeftTask=$topLeftTask bottomRightTask=$bottomRightTask"
+
+    override fun equals(o: Any?): Boolean {
+        if (this === o) return true
+        if (o !is SplitTask) return false
+        if (splitBounds != o.splitBounds) return false
+        return super.equals(o)
+    }
+
+    override fun hashCode() = Objects.hash(super.hashCode(), splitBounds)
 }

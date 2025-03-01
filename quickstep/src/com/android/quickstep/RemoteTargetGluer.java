@@ -142,7 +142,9 @@ public class RemoteTargetGluer {
         if (mSplitBounds == null) {
             SplitBounds shellSplitBounds = targets.extras.getParcelable(KEY_EXTRA_SPLIT_BOUNDS,
                     SplitBounds.class);
-            mSplitBounds = convertShellSplitBoundsToLauncher(shellSplitBounds);
+            if (shellSplitBounds != null) {
+                mSplitBounds = convertShellSplitBoundsToLauncher(shellSplitBounds);
+            }
         }
 
         boolean containsSplitTargets = mSplitBounds != null;
@@ -215,7 +217,7 @@ public class RemoteTargetGluer {
      * transform params per app in {@code targets.apps} list.
      */
     public RemoteTargetHandle[] assignTargetsForDesktop(
-            RemoteAnimationTargets targets, TransitionInfo transitionInfo) {
+            RemoteAnimationTargets targets, @Nullable TransitionInfo transitionInfo) {
         resizeRemoteTargetHandles(targets);
 
         for (int i = 0; i < mRemoteTargetHandles.length; i++) {
