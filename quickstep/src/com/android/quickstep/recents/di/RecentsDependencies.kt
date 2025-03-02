@@ -28,22 +28,20 @@ import com.android.quickstep.recents.data.TaskVisualsChangedDelegateImpl
 import com.android.quickstep.recents.data.TasksRepository
 import com.android.quickstep.recents.domain.usecase.GetSysUiStatusNavFlagsUseCase
 import com.android.quickstep.recents.domain.usecase.GetTaskUseCase
+import com.android.quickstep.recents.domain.usecase.GetThumbnailPositionUseCase
 import com.android.quickstep.recents.domain.usecase.IsThumbnailValidUseCase
 import com.android.quickstep.recents.domain.usecase.OrganizeDesktopTasksUseCase
-import com.android.quickstep.recents.usecase.GetThumbnailPositionUseCase
-import com.android.quickstep.recents.usecase.GetThumbnailUseCase
 import com.android.quickstep.recents.viewmodel.RecentsViewData
 import com.android.quickstep.task.viewmodel.TaskOverlayViewModel
-import com.android.quickstep.task.viewmodel.TaskThumbnailViewModel
-import com.android.quickstep.task.viewmodel.TaskThumbnailViewModelImpl
 import com.android.systemui.shared.recents.model.Task
+import com.android.systemui.shared.recents.utilities.PreviewPositionHelper
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 
 internal typealias RecentsScopeId = String
 
-class RecentsDependencies private constructor(private val appContext: Context) {
+class RecentsDependencies private constructor(appContext: Context) {
     private val scopes = mutableMapOf<RecentsScopeId, RecentsDependenciesScope>()
 
     init {
@@ -173,8 +171,6 @@ class RecentsDependencies private constructor(private val appContext: Context) {
         val instance: Any =
             when (modelClass) {
                 RecentsViewData::class.java -> RecentsViewData()
-                TaskThumbnailViewModel::class.java ->
-                    TaskThumbnailViewModelImpl(getThumbnailPositionUseCase = inject())
                 TaskOverlayViewModel::class.java -> {
                     val task = extras["Task"] as Task
                     TaskOverlayViewModel(
@@ -188,13 +184,12 @@ class RecentsDependencies private constructor(private val appContext: Context) {
                 IsThumbnailValidUseCase::class.java ->
                     IsThumbnailValidUseCase(rotationStateRepository = inject())
                 GetTaskUseCase::class.java -> GetTaskUseCase(repository = inject())
-                GetThumbnailUseCase::class.java -> GetThumbnailUseCase(taskRepository = inject())
                 GetSysUiStatusNavFlagsUseCase::class.java -> GetSysUiStatusNavFlagsUseCase()
                 GetThumbnailPositionUseCase::class.java ->
                     GetThumbnailPositionUseCase(
                         deviceProfileRepository = inject(),
                         rotationStateRepository = inject(),
-                        tasksRepository = inject(),
+                        previewPositionHelper = PreviewPositionHelper(),
                     )
                 OrganizeDesktopTasksUseCase::class.java -> OrganizeDesktopTasksUseCase()
                 else -> {

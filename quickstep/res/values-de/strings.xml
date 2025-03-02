@@ -23,8 +23,7 @@
     <string name="recent_task_option_freeform" msgid="48863056265284071">"Freeform-Modus"</string>
     <string name="recent_task_option_desktop" msgid="8280879717125435668">"Desktopmodus"</string>
     <string name="recent_task_option_external_display" msgid="4533840664313389484">"Auf externes Display verschieben"</string>
-    <!-- no translation found for recent_task_option_close (942942499021777264) -->
-    <skip />
+    <string name="recent_task_option_close" msgid="942942499021777264">"Schließen"</string>
     <string name="recent_task_desktop" msgid="8081113562549637334">"Desktopmodus"</string>
     <string name="recents_empty_message" msgid="7040467240571714191">"Keine kürzlich verwendeten Elemente"</string>
     <string name="accessibility_app_usage_settings" msgid="6312864233673544149">"Einstellungen zur App-Nutzung"</string>
@@ -119,7 +118,7 @@
     <string name="taskbar_edu_pinning_title" msgid="210102174154211712">"Taskleiste immer anzeigen"</string>
     <string name="taskbar_edu_pinning_standalone" msgid="2636919474366410467">"Damit die Taskleiste immer unten angezeigt wird, halte den Teiler gedrückt"</string>
     <string name="taskbar_search_edu_title" msgid="5569194922234364530">"Aktionstaste gedrückt halten, um auf dem Bildschirm zu suchen"</string>
-    <string name="taskbar_edu_search_disclosure" msgid="8734536088447779686">"Dieses Produkt verwendet den ausgewählten Teil deines Bildschirms für die Suche. Es gelten die <xliff:g id="BEGIN_PRIVACY_LINK">&lt;a href="%1$s"&gt;</xliff:g>Datenschutzerklärung<xliff:g id="END_PRIVACY_LINK">&lt;/a&gt;</xliff:g> und die <xliff:g id="BEGIN_TOS_LINK">&lt;a href="%2$s"&gt;</xliff:g>Nutzungsbedingungen<xliff:g id="END_TOS_LINK">&lt;/a&gt;</xliff:g> von Google."</string>
+    <string name="taskbar_edu_search_disclosure" msgid="8734536088447779686">"Dieses Produkt sucht dann anhand des ausgewählten Teils deines Displays nach weiteren Informationen. Es gelten die <xliff:g id="BEGIN_PRIVACY_LINK">&lt;a href="%1$s"&gt;</xliff:g>Datenschutzerklärung<xliff:g id="END_PRIVACY_LINK">&lt;/a&gt;</xliff:g> und die <xliff:g id="BEGIN_TOS_LINK">&lt;a href="%2$s"&gt;</xliff:g>Nutzungsbedingungen<xliff:g id="END_TOS_LINK">&lt;/a&gt;</xliff:g> von Google."</string>
     <string name="taskbar_edu_close" msgid="887022990168191073">"Schließen"</string>
     <string name="taskbar_edu_done" msgid="6880178093977704569">"Fertig"</string>
     <string name="taskbar_button_home" msgid="2151398979630664652">"Startbildschirm"</string>

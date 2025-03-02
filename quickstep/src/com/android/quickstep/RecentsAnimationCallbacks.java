@@ -21,6 +21,7 @@ import static android.view.RemoteAnimationTarget.MODE_OPENING;
 import static android.view.WindowManager.LayoutParams.TYPE_DOCK_DIVIDER;
 
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
+import static com.android.wm.shell.shared.TransitionUtil.TYPE_SPLIT_SCREEN_DIM_LAYER;
 
 import android.annotation.Nullable;
 import android.graphics.Rect;
@@ -163,11 +164,12 @@ public class RecentsAnimationCallbacks implements
 
     @BinderThread
     @Override
-    public void onTasksAppeared(RemoteAnimationTarget[] apps) {
+    public void onTasksAppeared(
+            RemoteAnimationTarget[] apps, @Nullable TransitionInfo transitionInfo) {
         Utilities.postAsyncCallback(MAIN_EXECUTOR.getHandler(), () -> {
             ActiveGestureProtoLogProxy.logRecentsAnimationCallbacksOnTasksAppeared();
             for (RecentsAnimationListener listener : getListeners()) {
-                listener.onTasksAppeared(apps);
+                listener.onTasksAppeared(apps, transitionInfo);
             }
         });
     }
@@ -189,7 +191,8 @@ public class RecentsAnimationCallbacks implements
             ArrayList<RemoteAnimationTarget> apps, ArrayList<RemoteAnimationTarget> nonApps) {
         for (int i = 0; i < appTargets.length; i++) {
             RemoteAnimationTarget target = appTargets[i];
-            if (target.windowType == TYPE_DOCK_DIVIDER) {
+            if (target.windowType == TYPE_DOCK_DIVIDER
+                    || target.windowType == TYPE_SPLIT_SCREEN_DIM_LAYER) {
                 nonApps.add(target);
             } else {
                 apps.add(target);
@@ -225,6 +228,7 @@ public class RecentsAnimationCallbacks implements
         /**
          * Callback made when a task started from the recents is ready for an app transition.
          */
-        default void onTasksAppeared(@NonNull RemoteAnimationTarget[] appearedTaskTarget) {}
+        default void onTasksAppeared(@NonNull RemoteAnimationTarget[] appearedTaskTarget,
+                @Nullable TransitionInfo transitionInfo) {}
     }
 }

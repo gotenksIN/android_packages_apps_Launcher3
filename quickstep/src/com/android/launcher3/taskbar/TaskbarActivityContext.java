@@ -47,6 +47,8 @@ import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_NOTIFICATION_PANEL_VISIBLE;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_VOICE_INTERACTION_WINDOW_SHOWING;
 import static com.android.window.flags.Flags.enableStartLaunchTransitionFromTaskbarBugfix;
+import static com.android.wm.shell.Flags.enableBubbleBar;
+import static com.android.wm.shell.Flags.enableBubbleBarOnPhones;
 import static com.android.wm.shell.Flags.enableTinyTaskbar;
 
 import static java.lang.invoke.MethodHandles.Lookup.PROTECTED;
@@ -76,6 +78,7 @@ import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.Toast;
+import android.window.DesktopExperienceFlags;
 import android.window.DesktopModeFlags;
 import android.window.RemoteTransition;
 
@@ -297,9 +300,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         // If Bubble bar is present, TaskbarControllers depends on it so build it first.
         Optional<BubbleControllers> bubbleControllersOptional = Optional.empty();
         BubbleBarController.onTaskbarRecreated();
+        final boolean deviceBubbleBarEnabled = enableBubbleBarOnPhones()
+                || (!mDeviceProfile.isPhone && !mDeviceProfile.isVerticalBarLayout());
         if (BubbleBarController.isBubbleBarEnabled()
-                && !mDeviceProfile.isPhone
-                && !mDeviceProfile.isVerticalBarLayout()
+                && deviceBubbleBarEnabled
                 && bubbleBarView != null
         ) {
             Optional<BubbleStashedHandleViewController> bubbleHandleController = Optional.empty();
@@ -433,7 +437,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                     .setIsTransientTaskbar(true)
                     .build();
         }
-        mNavMode = DisplayController.getNavigationMode(this);
+        mNavMode = (DesktopExperienceFlags.ENABLE_TASKBAR_CONNECTED_DISPLAYS.isTrue()
+                && !mIsPrimaryDisplay) ? NavigationMode.THREE_BUTTONS
+                : DisplayController.getNavigationMode(this);
+
     }
 
     /** Called when the visibility of the bubble bar changed. */
@@ -506,6 +513,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     /** Returns {@code true} iff a tiny version of taskbar is shown on phone. */
     public boolean isTinyTaskbar() {
         return enableTinyTaskbar() && mDeviceProfile.isPhone && mDeviceProfile.isTaskbarPresent;
+    }
+
+    public boolean isBubbleBarOnPhone() {
+        return enableBubbleBarOnPhones() && enableBubbleBar() && mDeviceProfile.isPhone;
     }
 
     /**
@@ -1288,7 +1299,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     boolean areDesktopTasksVisible() {
         return mControllers != null
-                && mControllers.taskbarDesktopModeController.getAreDesktopTasksVisible();
+                && mControllers.taskbarDesktopModeController.isInDesktopMode(getDisplayId());
     }
 
     protected void onTaskbarIconClicked(View view) {
@@ -1530,9 +1541,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         return new RemoteTransition(
                 new DesktopAppLaunchTransition(
                         this,
-                        getMainExecutor(),
                         appLaunchType,
-                        cujType
+                        cujType,
+                        getMainExecutor()
                 ),
                 "TaskbarDesktopAppLaunch");
     }
@@ -1555,7 +1566,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      */
     private void launchFromInAppTaskbar(@Nullable RecentsView recents,
             @Nullable View launchingIconView, List<? extends ItemInfo> itemInfos) {
-        if (recents == null) {
+        boolean launchedFromExternalDisplay =
+                DesktopExperienceFlags.ENABLE_TASKBAR_CONNECTED_DISPLAYS.isTrue()
+                        && !mIsPrimaryDisplay;
+        if (recents == null && !launchedFromExternalDisplay) {
             return;
         }
 
