@@ -24,11 +24,14 @@ import static android.view.WindowManager.LayoutParams.TYPE_NAVIGATION_BAR;
 import static android.view.WindowManager.LayoutParams.TYPE_NAVIGATION_BAR_PANEL;
 import static android.window.SplashScreen.SPLASH_SCREEN_STYLE_UNDEFINED;
 
+import static androidx.annotation.VisibleForTesting.PACKAGE_PRIVATE;
+
 import static com.android.launcher3.AbstractFloatingView.TYPE_ALL;
 import static com.android.launcher3.AbstractFloatingView.TYPE_ON_BOARD_POPUP;
 import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
 import static com.android.launcher3.AbstractFloatingView.TYPE_TASKBAR_OVERLAY_PROXY;
 import static com.android.launcher3.Flags.enableCursorHoverStates;
+import static com.android.launcher3.Flags.removeExcludeFromScreenMagnificationFlagUsage;
 import static com.android.launcher3.Utilities.calculateTextHeight;
 import static com.android.launcher3.Utilities.isRunningInTestHarness;
 import static com.android.launcher3.config.FeatureFlags.ENABLE_TASKBAR_NAVBAR_UNIFICATION;
@@ -1906,6 +1909,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             return;
         }
 
+        if (removeExcludeFromScreenMagnificationFlagUsage()) {
+            return;
+        }
+
         mIsExcludeFromMagnificationRegion = exclude;
         if (exclude) {
             mWindowLayoutParams.privateFlags |=
@@ -2003,7 +2010,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         return mControllers.uiController.isIconAlignedWithHotseat();
     }
 
-    @VisibleForTesting
+    // TODO(b/395061396): Remove `otherwise` when overview in widow is enabled.
+    @VisibleForTesting(otherwise = PACKAGE_PRIVATE)
     public TaskbarControllers getControllers() {
         return mControllers;
     }

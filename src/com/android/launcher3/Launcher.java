@@ -29,6 +29,7 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
 import static com.android.launcher3.AbstractFloatingView.getTopOpenViewWithType;
 import static com.android.launcher3.Flags.enableAddAppWidgetViaConfigActivityV2;
 import static com.android.launcher3.Flags.enableSmartspaceRemovalToggle;
+import static com.android.launcher3.Flags.enableStrictMode;
 import static com.android.launcher3.Flags.enableWorkspaceInflation;
 import static com.android.launcher3.LauncherAnimUtils.HOTSEAT_SCALE_PROPERTY_FACTORY;
 import static com.android.launcher3.LauncherAnimUtils.SCALE_INDEX_WIDGET_TRANSITION;
@@ -102,6 +103,7 @@ import static com.android.launcher3.testing.shared.TestProtocol.LAUNCHER_ACTIVIT
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.ItemInfoMatcher.forFolderMatch;
 import static com.android.launcher3.util.SettingsCache.TOUCHPAD_NATURAL_SCROLLING;
+import static com.android.launcher3.util.WallpaperThemeManager.setWallpaperDependentTheme;
 
 import android.animation.Animator;
 import android.animation.AnimatorSet;
@@ -144,6 +146,7 @@ import android.view.KeyboardShortcutGroup;
 import android.view.Menu;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver.OnPreDrawListener;
 import android.view.WindowInsets;
@@ -222,6 +225,7 @@ import com.android.launcher3.states.RotationHelper;
 import com.android.launcher3.testing.TestLogging;
 import com.android.launcher3.testing.shared.TestProtocol;
 import com.android.launcher3.touch.AllAppsSwipeController;
+import com.android.launcher3.touch.ItemClickHandler;
 import com.android.launcher3.touch.ItemLongClickListener;
 import com.android.launcher3.util.ActivityResultInfo;
 import com.android.launcher3.util.BackPressHandler;
@@ -284,6 +288,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -456,7 +461,8 @@ public class Launcher extends StatefulActivity<LauncherState>
         Trace.beginAsyncSection(DISPLAY_ALL_APPS_TRACE_METHOD_NAME,
                 DISPLAY_ALL_APPS_TRACE_COOKIE);
         TraceHelper.INSTANCE.beginSection(ON_CREATE_EVT);
-        if (DEBUG_STRICT_MODE) {
+        if (DEBUG_STRICT_MODE
+                || (FeatureFlags.IS_STUDIO_BUILD && enableStrictMode())) {
             StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder()
                     .detectDiskReads()
                     .detectDiskWrites()
@@ -466,6 +472,7 @@ public class Launcher extends StatefulActivity<LauncherState>
             StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder()
                     .detectLeakedSqlLiteObjects()
                     .detectLeakedClosableObjects()
+                    .detectActivityLeaks()
                     .penaltyLog()
                     .penaltyDeath()
                     .build());
@@ -509,6 +516,7 @@ public class Launcher extends StatefulActivity<LauncherState>
         }
 
         super.onCreate(savedInstanceState);
+        setWallpaperDependentTheme(this);
 
         LauncherAppState app = LauncherAppState.getInstance(this);
         mModel = app.getModel();
@@ -819,7 +827,6 @@ public class Launcher extends StatefulActivity<LauncherState>
                     this, getMultiWindowDisplaySize());
         }
 
-        onDeviceProfileInitiated();
         if (FOLDABLE_SINGLE_PAGE.get() && mDeviceProfile.isTwoPanels) {
             mCellPosMapper = new TwoPanelCellPosMapper(mDeviceProfile.inv.numColumns);
         } else {
@@ -2250,8 +2257,9 @@ public class Launcher extends StatefulActivity<LauncherState>
      */
     @Override
     public void bindItems(final List<ItemInfo> items, final boolean forceAnimateIcons) {
-        bindInflatedItems(items.stream().map(i -> Pair.create(
-                i, getItemInflater().inflateItem(i, getModelWriter()))).toList(),
+        bindInflatedItems(items.stream()
+                .map(i -> Pair.create(i, getItemInflater().inflateItem(i, getModelWriter())))
+                .collect(Collectors.toList()),
                 forceAnimateIcons ? new AnimatorSet() : null);
     }
 
@@ -2840,12 +2848,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         // Overridden
     }
 
-    @Override
-    public void returnToHomescreen() {
-        super.returnToHomescreen();
-        getStateManager().goToState(LauncherState.NORMAL);
-    }
-
     public void closeOpenViews() {
         closeOpenViews(true);
     }
@@ -3168,6 +3170,11 @@ public class Launcher extends StatefulActivity<LauncherState>
     @Nullable
     public ArrowPopup<?> getOptionsPopup() {
         return findViewById(R.id.popup_container);
+    }
+
+    @Override
+    public OnClickListener getItemOnClickListener() {
+        return ItemClickHandler.INSTANCE;
     }
 
     // End of Getters and Setters

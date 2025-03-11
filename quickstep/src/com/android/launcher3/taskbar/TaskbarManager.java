@@ -32,6 +32,7 @@ import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.launcher3.util.FlagDebugUtils.formatFlagChange;
 import static com.android.quickstep.util.SystemActionConstants.ACTION_SHOW_TASKBAR;
 import static com.android.quickstep.util.SystemActionConstants.SYSTEM_ACTION_ID_TASKBAR;
+import static com.android.window.flags.Flags.enableTaskbarConnectedDisplays;
 
 import android.annotation.SuppressLint;
 import android.app.PendingIntent;
@@ -71,6 +72,7 @@ import com.android.launcher3.util.SimpleBroadcastReceiver;
 import com.android.quickstep.AllAppsActionManager;
 import com.android.quickstep.RecentsActivity;
 import com.android.quickstep.SystemUiProxy;
+import com.android.quickstep.fallback.window.RecentsDisplayModel;
 import com.android.quickstep.fallback.window.RecentsWindowManager;
 import com.android.quickstep.util.ContextualSearchInvoker;
 import com.android.quickstep.views.RecentsViewContainer;
@@ -116,7 +118,6 @@ public class TaskbarManager {
             Settings.Secure.NAV_BAR_KIDS_MODE);
 
     private final Context mParentContext;
-    private final @Nullable Context mNavigationBarPanelContext;
     private final TaskbarNavButtonController mDefaultNavButtonController;
     private final ComponentCallbacks mDefaultComponentCallbacks;
 
@@ -183,6 +184,7 @@ public class TaskbarManager {
             new SimpleBroadcastReceiver(UI_HELPER_EXECUTOR, this::showTaskbarFromBroadcast);
 
     private final AllAppsActionManager mAllAppsActionManager;
+    private final RecentsDisplayModel mRecentsDisplayModel;
 
     private final Runnable mActivityOnDestroyCallback = new Runnable() {
         @Override
@@ -243,15 +245,12 @@ public class TaskbarManager {
     public TaskbarManager(
             Context context,
             AllAppsActionManager allAppsActionManager,
-            TaskbarNavButtonCallbacks navCallbacks) {
+            TaskbarNavButtonCallbacks navCallbacks,
+            RecentsDisplayModel recentsDisplayModel) {
         mParentContext = context;
         createWindowContext(context.getDisplayId());
         mAllAppsActionManager = allAppsActionManager;
-        Display display = context.getSystemService(DisplayManager.class).getDisplay(
-                getDefaultDisplayId());
-        mNavigationBarPanelContext = ENABLE_TASKBAR_NAVBAR_UNIFICATION
-                ? context.createWindowContext(display, TYPE_NAVIGATION_BAR_PANEL, null)
-                : null;
+        mRecentsDisplayModel = recentsDisplayModel;
         if (enableTaskbarNoRecreate()) {
             createTaskbarRootLayout(getDefaultDisplayId());
         }
@@ -493,6 +492,18 @@ public class TaskbarManager {
         return null;
     }
 
+    /** Creates a {@link TaskbarUIController} to use with non default displays. */
+    private TaskbarUIController createTaskbarUIControllerForNonDefaultDisplay(int displayId) {
+        if (RecentsDisplayModel.enableOverviewInWindow()) {
+            RecentsViewContainer rvc = mRecentsDisplayModel.getRecentsWindowManager(displayId);
+            if (rvc != null) {
+                return createTaskbarUIControllerForRecentsViewContainer(rvc);
+            }
+        }
+
+        return new TaskbarUIController();
+    }
+
     /**
      * Creates a {@link TaskbarUIController} to use while the given StatefulActivity is active.
      */
@@ -567,7 +578,11 @@ public class TaskbarManager {
             mSharedState.allAppsVisible = mSharedState.allAppsVisible && isLargeScreenTaskbar;
             taskbar.init(mSharedState);
 
-            if (mRecentsViewContainer != null) {
+            // Non default displays should not use LauncherTaskbarUIController as they shouldn't
+            // have access to the Launcher activity.
+            if (enableTaskbarConnectedDisplays() && !isDefaultDisplay(displayId)) {
+                taskbar.setUIController(createTaskbarUIControllerForNonDefaultDisplay(displayId));
+            } else if (mRecentsViewContainer != null) {
                 taskbar.setUIController(
                         createTaskbarUIControllerForRecentsViewContainer(mRecentsViewContainer));
             }
@@ -835,6 +850,23 @@ public class TaskbarManager {
     }
 
     /**
+     * Returns the {@link TaskbarUIController} associated with the given display ID.
+     * TODO(b/395061396): Remove this method when overview in widow is enabled.
+     *
+     * @param displayId The ID of the display to retrieve the taskbar for.
+     * @return The {@link TaskbarUIController} for the specified display, or
+     *         {@code null} if no taskbar is associated with that display.
+     */
+    @Nullable
+    public TaskbarUIController getUIControllerForDisplay(int displayId) {
+        if (!mTaskbars.contains(displayId)) {
+            return null;
+        }
+
+        return getTaskbarForDisplay(displayId).getControllers().uiController;
+    }
+
+    /**
      * Retrieves whether RootLayout was added to window for specific display, or false if no
      * such mapping has been made.
      *
@@ -861,8 +893,14 @@ public class TaskbarManager {
      * Creates a {@link TaskbarActivityContext} for the given display and adds it to the map.
      */
     private TaskbarActivityContext createTaskbarActivityContext(DeviceProfile dp, int displayId) {
+        Display display = mParentContext.getSystemService(DisplayManager.class).getDisplay(
+                displayId);
+        Context navigationBarPanelContext = ENABLE_TASKBAR_NAVBAR_UNIFICATION
+                ? mParentContext.createWindowContext(display, TYPE_NAVIGATION_BAR_PANEL, null)
+                : null;
+
         TaskbarActivityContext newTaskbar = new TaskbarActivityContext(getWindowContext(displayId),
-                mNavigationBarPanelContext, dp, mDefaultNavButtonController,
+                navigationBarPanelContext, dp, mDefaultNavButtonController,
                 mUnfoldProgressProvider, isDefaultDisplay(displayId),
                 SystemUiProxy.INSTANCE.get(getPrimaryWindowContext()));
 

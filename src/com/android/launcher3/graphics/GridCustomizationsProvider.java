@@ -55,6 +55,9 @@ import com.android.systemui.shared.Flags;
 
 import java.lang.ref.WeakReference;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -123,6 +126,8 @@ public class GridCustomizationsProvider extends ContentProvider {
     private static final int MESSAGE_ID_UPDATE_GRID = 7414;
     private static final int MESSAGE_ID_UPDATE_COLOR = 856;
 
+    private static final String DEFAULT_SHAPE_KEY = "circle";
+
     // Set of all active previews used to track duplicate memory allocations
     private final Set<PreviewLifecycleObserver> mActivePreviews =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -148,13 +153,23 @@ public class GridCustomizationsProvider extends ContentProvider {
                             KEY_SHAPE_KEY, KEY_SHAPE_TITLE, KEY_PATH, KEY_IS_DEFAULT});
                     String currentShapePath =
                             ThemeManager.INSTANCE.get(context).getIconState().getIconMask();
+                    Optional<IconShapeModel> selectedShape = ShapesProvider.INSTANCE.getIconShapes()
+                            .values()
+                            .stream()
+                            .filter(shape -> shape.getPathString().equals(currentShapePath))
+                            .findFirst();
+                    // Handle default for when current shape doesn't match new shapes.
+                    if (selectedShape.isEmpty()) {
+                        selectedShape = Optional.ofNullable(ShapesProvider.INSTANCE.getIconShapes()
+                                .get(DEFAULT_SHAPE_KEY));
+                    }
+
                     for (IconShapeModel shape : ShapesProvider.INSTANCE.getIconShapes().values()) {
                         cursor.newRow()
                                 .add(KEY_SHAPE_KEY, shape.getKey())
                                 .add(KEY_SHAPE_TITLE, shape.getTitle())
                                 .add(KEY_PATH, shape.getPathString())
-                                .add(KEY_IS_DEFAULT,
-                                        shape.getPathString().equals(currentShapePath));
+                                .add(KEY_IS_DEFAULT, shape.equals(selectedShape.get()));
                     }
                     return cursor;
                 } else  {
@@ -166,7 +181,13 @@ public class GridCustomizationsProvider extends ContentProvider {
                         KEY_NAME, KEY_GRID_TITLE, KEY_ROWS, KEY_COLS, KEY_PREVIEW_COUNT,
                         KEY_IS_DEFAULT, KEY_GRID_ICON_ID});
                 InvariantDeviceProfile idp = InvariantDeviceProfile.INSTANCE.get(getContext());
-                for (GridOption gridOption : idp.parseAllGridOptions(getContext())) {
+                List<GridOption> gridOptionList = idp.parseAllGridOptions(getContext());
+                if (com.android.launcher3.Flags.oneGridSpecs()) {
+                    gridOptionList.sort(Comparator
+                            .comparingInt((GridOption option) -> option.numColumns)
+                            .reversed());
+                }
+                for (GridOption gridOption : gridOptionList) {
                     cursor.newRow()
                             .add(KEY_NAME, gridOption.name)
                             .add(KEY_GRID_TITLE, gridOption.gridTitle)
