@@ -27,6 +27,7 @@ import static android.window.SplashScreen.SPLASH_SCREEN_STYLE_UNDEFINED;
 
 import static androidx.annotation.VisibleForTesting.PACKAGE_PRIVATE;
 
+import static com.android.app.animation.Interpolators.LINEAR;
 import static com.android.launcher3.AbstractFloatingView.TYPE_ALL;
 import static com.android.launcher3.AbstractFloatingView.TYPE_ON_BOARD_POPUP;
 import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
@@ -47,7 +48,6 @@ import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_NOTIFICATION_PANEL_VISIBLE;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_VOICE_INTERACTION_WINDOW_SHOWING;
-import static com.android.window.flags.Flags.enableStartLaunchTransitionFromTaskbarBugfix;
 import static com.android.wm.shell.Flags.enableBubbleBar;
 import static com.android.wm.shell.Flags.enableBubbleBarOnPhones;
 import static com.android.wm.shell.Flags.enableTinyTaskbar;
@@ -229,7 +229,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     private boolean mIsDestroyed = false;
     // The flag to know if the window is excluded from magnification region computation.
     private boolean mIsExcludeFromMagnificationRegion = false;
-    private boolean mBindingItems = false;
     private boolean mAddedWindow = false;
 
     // The bounds of the taskbar items relative to TaskbarDragLayer
@@ -450,14 +449,25 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mControllers.taskbarViewController.adjustTaskbarForBubbleBar();
     }
 
-    public void init(@NonNull TaskbarSharedState sharedState) {
+    /**
+     * Init of taskbar activity context.
+     * @param duration If duration is greater than 0, it will be used to create an animation
+ *                     for the taskbar create/recreate process.
+     */
+    public void init(@NonNull TaskbarSharedState sharedState, int duration) {
         mImeDrawsImeNavBar = getBoolByName(IME_DRAWS_IME_NAV_BAR_RES_NAME, getResources(), false);
         mLastRequestedNonFullscreenSize = getDefaultTaskbarWindowSize();
         mWindowLayoutParams = createAllWindowParams();
         mLastUpdatedLayoutParams = new WindowManager.LayoutParams();
 
+
+        AnimatorSet recreateAnim = null;
+        if (duration > 0) {
+            recreateAnim = onRecreateAnimation(duration);
+        }
+
         // Initialize controllers after all are constructed.
-        mControllers.init(sharedState);
+        mControllers.init(sharedState, recreateAnim);
         // This may not be necessary and can be reverted once we move towards recreating all
         // controllers without re-creating the window
         mControllers.rotationButtonController.onNavigationModeChanged(mNavMode.resValue);
@@ -485,6 +495,33 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         } else {
             notifyUpdateLayoutParams();
         }
+
+
+        if (recreateAnim != null) {
+            recreateAnim.start();
+        }
+    }
+
+    /**
+     * Create AnimatorSet for taskbar create/recreate animation. Further used in init
+     */
+    public AnimatorSet onRecreateAnimation(int duration) {
+        AnimatorSet animatorSet = new AnimatorSet();
+        animatorSet.setDuration(duration);
+        return animatorSet;
+    }
+
+    /**
+     * Called when we want destroy current taskbar with animation as part of recreate process.
+     */
+    public AnimatorSet onDestroyAnimation(int duration) {
+        mIsDestroyed = true;
+        AnimatorSet animatorSet = new AnimatorSet();
+        mControllers.taskbarViewController.onDestroyAnimation(animatorSet);
+        mControllers.taskbarDragLayerController.onDestroyAnimation(animatorSet);
+        animatorSet.setInterpolator(LINEAR);
+        animatorSet.setDuration(duration);
+        return animatorSet;
     }
 
     /**
@@ -854,15 +891,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     @Override
     public View.AccessibilityDelegate getAccessibilityDelegate() {
         return mAccessibilityDelegate;
-    }
-
-    @Override
-    public boolean isBindingItems() {
-        return mBindingItems;
-    }
-
-    public void setBindingItems(boolean bindingItems) {
-        mBindingItems = bindingItems;
     }
 
     @Override
@@ -1727,7 +1755,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         }
         // There is no task associated with this launch - launch a new task through an intent
         ActivityOptionsWrapper opts = getActivityLaunchDesktopOptions();
-        if (enableStartLaunchTransitionFromTaskbarBugfix()) {
+        if (DesktopModeFlags.ENABLE_START_LAUNCH_TRANSITION_FROM_TASKBAR_BUGFIX.isTrue()) {
             mSysUiProxy.startLaunchIntentTransition(intent, opts.options.toBundle(), displayId);
         } else {
             startActivity(intent, opts.options.toBundle());
@@ -1984,6 +2012,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         return mControllers.taskbarStashController.isInApp();
     }
 
+    public boolean isInOverview() {
+        return mControllers.taskbarStashController.isInOverview();
+    }
+
     public boolean isInStashedLauncherState() {
         return mControllers.taskbarStashController.isInStashedLauncherState();
     }
@@ -2007,8 +2039,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 "%s\tmIsUserSetupComplete=%b", prefix, mIsUserSetupComplete));
         pw.println(String.format(
                 "%s\tmWindowLayoutParams.height=%dpx", prefix, mWindowLayoutParams.height));
-        pw.println(String.format(
-                "%s\tmBindInProgress=%b", prefix, mBindingItems));
         mControllers.dumpLogs(prefix + "\t", pw);
         mDeviceProfile.dump(this, prefix, pw);
     }

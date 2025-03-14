@@ -20,25 +20,24 @@ import com.android.app.animation.Interpolators.AGGRESSIVE_EASE_IN_OUT
 import com.android.app.animation.Interpolators.FINAL_FRAME
 import com.android.app.animation.Interpolators.INSTANT
 import com.android.app.animation.Interpolators.LINEAR
+import com.android.launcher3.Flags.enableDesktopExplodedView
 import com.android.launcher3.Flags.enableLargeDesktopWindowingTile
 import com.android.launcher3.LauncherState
 import com.android.launcher3.anim.AnimatedFloat
 import com.android.launcher3.anim.AnimatorListeners.forSuccessCallback
 import com.android.launcher3.anim.PendingAnimation
 import com.android.launcher3.anim.PropertySetter
-import com.android.launcher3.logging.StatsLogManager.LauncherEvent
 import com.android.launcher3.statemanager.StateManager.StateHandler
 import com.android.launcher3.states.StateAnimationConfig
 import com.android.launcher3.states.StateAnimationConfig.ANIM_OVERVIEW_ACTIONS_FADE
 import com.android.launcher3.states.StateAnimationConfig.ANIM_OVERVIEW_FADE
 import com.android.launcher3.states.StateAnimationConfig.ANIM_OVERVIEW_MODAL
 import com.android.launcher3.states.StateAnimationConfig.ANIM_OVERVIEW_SCALE
-import com.android.launcher3.states.StateAnimationConfig.ANIM_OVERVIEW_SPLIT_SELECT_INSTRUCTIONS_FADE
 import com.android.launcher3.states.StateAnimationConfig.ANIM_OVERVIEW_TRANSLATE_X
 import com.android.launcher3.states.StateAnimationConfig.ANIM_OVERVIEW_TRANSLATE_Y
 import com.android.launcher3.states.StateAnimationConfig.SKIP_OVERVIEW
+import com.android.launcher3.util.MultiPropertyFactory.MULTI_PROPERTY_VALUE
 import com.android.quickstep.util.AnimUtils
-import com.android.quickstep.views.ClearAllButton
 import com.android.quickstep.views.RecentsView
 import com.android.quickstep.views.RecentsView.ADJACENT_PAGE_HORIZONTAL_OFFSET
 import com.android.quickstep.views.RecentsView.CONTENT_ALPHA
@@ -51,6 +50,7 @@ import com.android.quickstep.views.RecentsView.TASK_PRIMARY_SPLIT_TRANSLATION
 import com.android.quickstep.views.RecentsView.TASK_SECONDARY_SPLIT_TRANSLATION
 import com.android.quickstep.views.RecentsView.TASK_SECONDARY_TRANSLATION
 import com.android.quickstep.views.RecentsView.TASK_THUMBNAIL_SPLASH_ALPHA
+import com.android.quickstep.views.RecentsViewUtils.Companion.DESK_EXPLODE_PROGRESS
 import com.android.quickstep.views.TaskView.Companion.FLAG_UPDATE_ALL
 
 /**
@@ -74,6 +74,13 @@ class RecentsViewStateController(private val launcher: QuickstepLauncher) :
             recentsView,
             if (state.displayOverviewTasksAsGrid(launcher.deviceProfile)) 1f else 0f,
         )
+        if (enableDesktopExplodedView()) {
+            DESK_EXPLODE_PROGRESS.set(
+                recentsView,
+                if (state.displayOverviewTasksAsGrid(launcher.deviceProfile)) 1f else 0f,
+            )
+        }
+
         TASK_THUMBNAIL_SPLASH_ALPHA.set(
             recentsView,
             if (state.showTaskThumbnailSplash()) 1f else 0f,
@@ -156,6 +163,15 @@ class RecentsViewStateController(private val launcher: QuickstepLauncher) :
             getOverviewInterpolator(fromState, toState),
         )
 
+        if (enableDesktopExplodedView()) {
+            builder.setFloat(
+                recentsView,
+                DESK_EXPLODE_PROGRESS,
+                if (toState.isRecentsViewVisible) 1f else 0f,
+                getOverviewInterpolator(fromState, toState),
+            )
+        }
+
         if (enableLargeDesktopWindowingTile()) {
             builder.setFloat(
                 recentsView,
@@ -208,8 +224,8 @@ class RecentsViewStateController(private val launcher: QuickstepLauncher) :
         builder: PendingAnimation,
         animate: Boolean,
     ) {
-        val goingToOverviewFromWorkspaceContextual = toState == LauncherState.OVERVIEW &&
-                launcher.isSplitSelectionActive
+        val goingToOverviewFromWorkspaceContextual =
+            toState == LauncherState.OVERVIEW && launcher.isSplitSelectionActive
         if (
             toState != LauncherState.OVERVIEW_SPLIT_SELECT &&
                 !goingToOverviewFromWorkspaceContextual
@@ -271,8 +287,8 @@ class RecentsViewStateController(private val launcher: QuickstepLauncher) :
         val clearAllButtonAlpha =
             if (state.areElementsVisible(launcher, LauncherState.CLEAR_ALL_BUTTON)) 1f else 0f
         propertySetter.setFloat(
-            recentsView.clearAllButton,
-            ClearAllButton.VISIBILITY_ALPHA,
+            recentsView.clearAllButton.visibilityAlphaProperty,
+            MULTI_PROPERTY_VALUE,
             clearAllButtonAlpha,
             LINEAR,
         )
@@ -284,6 +300,14 @@ class RecentsViewStateController(private val launcher: QuickstepLauncher) :
             overviewButtonAlpha,
             config.getInterpolator(ANIM_OVERVIEW_ACTIONS_FADE, LINEAR),
         )
+        recentsView.addDeskButton?.let {
+            propertySetter.setFloat(
+                it.visibilityAlphaProperty,
+                MULTI_PROPERTY_VALUE,
+                if (state.areElementsVisible(launcher, LauncherState.ADD_DESK_BUTTON)) 1f else 0f,
+                LINEAR,
+            )
+        }
     }
 
     private fun getOverviewInterpolator(fromState: LauncherState, toState: LauncherState) =
