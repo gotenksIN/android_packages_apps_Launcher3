@@ -233,6 +233,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     private static final Uri URI_USER_SETUP_COMPLETE = Secure.getUriFor(Secure.USER_SETUP_COMPLETE);
     private static final Uri URI_NAV_BAR_KIDS_MODE = Secure.getUriFor(Secure.NAV_BAR_KIDS_MODE);
+    private static final Uri URI_NAVIGATION_BAR_HINT = Settings.Secure.getUriFor(
+            Settings.Secure.NAVIGATION_BAR_HINT);
 
     private static final String TAG = "TaskbarActivityContext";
 
@@ -289,6 +291,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     private final boolean mIsSafeModeEnabled;
     private final boolean mIsUserSetupComplete;
     private final boolean mIsNavBarKidsMode;
+    private final boolean mIsNavbarHintEnabled;
 
     private boolean mIsDestroyed = false;
 
@@ -352,6 +355,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         SettingsCache settingsCache = SettingsCache.INSTANCE.get(this);
         mIsUserSetupComplete = settingsCache.getValue(URI_USER_SETUP_COMPLETE);
         mIsNavBarKidsMode = settingsCache.getValue(URI_NAV_BAR_KIDS_MODE);
+        mIsNavbarHintEnabled = settingsCache.getValue(URI_NAVIGATION_BAR_HINT);
         mBubbleFeatureConfig =
                 new BubbleFeatureConfigImpl(mWindowContext, getDesktopState(mWindowContext));
 
@@ -1605,6 +1609,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     public int getDefaultTaskbarWindowSize() {
         Resources resources = getResources();
 
+        if (isGestureNav() && mIsNavbarHintEnabled) {
+            return 0;
+        }
+
         if (isPhoneMode()) {
             return isThreeButtonNav() ?
                     resources.getDimensionPixelSize(R.dimen.taskbar_phone_size) :
@@ -2458,6 +2466,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     public boolean isInKidsMode() {
         return mIsNavBarKidsMode;
+    }
+
+    public boolean isNavbarHintEnabled() {
+        return mIsNavbarHintEnabled;
     }
 
     /**

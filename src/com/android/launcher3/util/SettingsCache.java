@@ -66,6 +66,9 @@ public class SettingsCache extends ContentObserver {
     /** Hidden field Settings.Secure.NOTIFICATION_BADGING */
     public static final Uri NOTIFICATION_BADGING_URI =
             Settings.Secure.getUriFor("notification_badging");
+    /** Hidden field Settings.Secure.NAVIGATION_BAR_HINT */
+    public static final Uri NAVIGATION_BAR_HINT_URI =
+            Settings.Secure.getUriFor(Settings.Secure.NAVIGATION_BAR_HINT);
     /** Hidden field Settings.Secure.ONE_HANDED_MODE_ENABLED */
     public static final String ONE_HANDED_ENABLED = "one_handed_mode_enabled";
     /** Hidden field Settings.Secure.SWIPE_BOTTOM_TO_NOTIFICATION_ENABLED */
