@@ -16,6 +16,7 @@
 package com.android.launcher3.secondarydisplay;
 
 import static com.android.launcher3.util.WallpaperThemeManager.setWallpaperDependentTheme;
+import static com.android.window.flags.Flags.enableTaskbarConnectedDisplays;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -56,7 +57,6 @@ import com.android.launcher3.popup.PopupContainerWithArrow;
 import com.android.launcher3.popup.PopupDataProvider;
 import com.android.launcher3.touch.ItemClickHandler.ItemClickProxy;
 import com.android.launcher3.util.ComponentKey;
-import com.android.launcher3.util.IntSet;
 import com.android.launcher3.util.PackageUserKey;
 import com.android.launcher3.util.Preconditions;
 import com.android.launcher3.util.Themes;
@@ -82,7 +82,6 @@ public class SecondaryDisplayLauncher extends BaseActivity
     private boolean mAppDrawerShown = false;
 
     private StringCache mStringCache;
-    private boolean mBindingItems = false;
     private SecondaryDisplayPredictions mSecondaryDisplayPredictions;
 
     private final int[] mTempXY = new int[2];
@@ -124,6 +123,10 @@ public class SecondaryDisplayLauncher extends BaseActivity
         mDragLayer = findViewById(R.id.drag_layer);
         mAppsView = findViewById(R.id.apps_view);
         mAppsButton = findViewById(R.id.all_apps_button);
+        // TODO (b/391965805): Replace this flag with DesktopExperiences flag.
+        if (enableTaskbarConnectedDisplays()) {
+            mAppsButton.setVisibility(View.INVISIBLE);
+        }
 
         mDragController.addDragListener(this);
         mPopupDataProvider = new PopupDataProvider(
@@ -243,7 +246,9 @@ public class SecondaryDisplayLauncher extends BaseActivity
                 @Override
                 public void onAnimationEnd(Animator animation) {
                     mAppsView.setVisibility(View.INVISIBLE);
-                    mAppsButton.setVisibility(View.VISIBLE);
+                    // TODO (b/391965805): Replace this flag with DesktopExperiences flag.
+                    mAppsButton.setVisibility(
+                            enableTaskbarConnectedDisplays() ? View.INVISIBLE : View.VISIBLE);
                     mAppsView.getSearchUiManager().resetSearch();
                 }
             });
@@ -253,18 +258,7 @@ public class SecondaryDisplayLauncher extends BaseActivity
 
     @Override
     public void startBinding() {
-        mBindingItems = true;
         mDragController.cancelDrag();
-    }
-
-    @Override
-    public boolean isBindingItems() {
-        return mBindingItems;
-    }
-
-    @Override
-    public void finishBindingItems(IntSet pagesBoundFirst) {
-        mBindingItems = false;
     }
 
     @Override

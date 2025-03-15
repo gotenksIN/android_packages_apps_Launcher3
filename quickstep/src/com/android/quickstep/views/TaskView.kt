@@ -44,6 +44,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.view.updateLayoutParams
 import com.android.app.animation.Interpolators
 import com.android.launcher3.Flags.enableCursorHoverStates
+import com.android.launcher3.Flags.enableDesktopExplodedView
 import com.android.launcher3.Flags.enableGridOnlyOverview
 import com.android.launcher3.Flags.enableHoverOfChildElementsInTaskview
 import com.android.launcher3.Flags.enableLargeDesktopWindowingTile
@@ -198,7 +199,7 @@ constructor(
          */
         get() = (getNonGridTrans(nonGridTranslationX) + getGridTrans(this.gridTranslationX))
 
-    protected val persistentTranslationY: Float
+    val persistentTranslationY: Float
         /**
          * Returns addition of translationY that is persistent (e.g. fullscreen and grid), and does
          * not change according to a temporary state (e.g. task offset).
@@ -300,7 +301,7 @@ constructor(
     var sysUiStatusNavFlags: Int = 0
         get() =
             if (enableRefactorTaskThumbnail()) field
-            else taskContainers.first().thumbnailViewDeprecated.sysUiStatusNavFlags
+            else firstTaskContainer?.thumbnailViewDeprecated?.sysUiStatusNavFlags ?: 0
         private set
 
     // Various animation progress variables.
@@ -768,11 +769,27 @@ constructor(
         // Updating containers
         val mapOfTasks = state.tasks.associateBy { it.taskId }
         taskContainers.forEach { container ->
-            val containerState = mapOfTasks[container.task.key.id]
+            val taskId = container.task.key.id
+            val containerState = mapOfTasks[taskId]
+            val shouldHaveHeader = (type == TaskViewType.DESKTOP) && enableDesktopExplodedView()
             container.setState(
                 state = containerState,
                 liveTile = state.isLiveTile,
-                hasHeader = state.hasHeader,
+                hasHeader = shouldHaveHeader,
+                clickCloseListener =
+                    if (shouldHaveHeader) {
+                        {
+                            // Update the layout UI to remove this task from the layout grid, and
+                            // remove the task from ActivityManager afterwards.
+                            recentsView?.dismissTask(
+                                taskId,
+                                /* animate= */ true,
+                                /* removeTask= */ true,
+                            )
+                        }
+                    } else {
+                        null
+                    },
             )
             updateThumbnailValidity(container)
             updateThumbnailMatrix(
@@ -1459,7 +1476,8 @@ constructor(
         return if (enableOverviewIconMenu() && menuContainer.iconView is IconAppChipView) {
             menuContainer.iconView.revealAnim(/* isRevealing= */ true)
             TaskMenuView.showForTask(menuContainer) {
-                menuContainer.iconView.revealAnim(/* isRevealing= */ false)
+                val isAnimated = !recentsView.isSplitSelectionActive
+                menuContainer.iconView.revealAnim(/* isRevealing= */ false, isAnimated)
                 if (enableHoverOfChildElementsInTaskview()) {
                     recentsView.setTaskBorderEnabled(true)
                 }

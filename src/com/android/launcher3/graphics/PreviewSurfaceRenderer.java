@@ -64,7 +64,6 @@ import com.android.launcher3.model.BgDataModel;
 import com.android.launcher3.model.BgDataModel.Callbacks;
 import com.android.launcher3.model.LoaderTask;
 import com.android.launcher3.model.ModelDbController;
-import com.android.launcher3.provider.LauncherDbUtils;
 import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.RunnableList;
 import com.android.launcher3.util.Themes;
@@ -73,7 +72,6 @@ import com.android.systemui.shared.Flags;
 
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /** Render preview using surface view. */
@@ -120,11 +118,12 @@ public class PreviewSurfaceRenderer {
         if (mGridName == null) {
             mGridName = LauncherPrefs.get(context).get(GRID_NAME);
         }
+        mShapeKey = LauncherPrefs.get(context).get(PREF_ICON_SHAPE);
         mWallpaperColors = bundle.getParcelable(KEY_COLORS);
         if (Flags.newCustomizationPickerUi()) {
             updateColorOverrides(bundle);
         }
-        mHideQsb = bundle.getBoolean(GridCustomizationsProvider.KEY_HIDE_BOTTOM_ROW);
+        mHideQsb = bundle.getBoolean(GridCustomizationsProxy.KEY_HIDE_BOTTOM_ROW);
 
         mHostToken = bundle.getBinder(KEY_HOST_TOKEN);
         mWidth = bundle.getInt(KEY_VIEW_WIDTH);
@@ -225,8 +224,8 @@ public class PreviewSurfaceRenderer {
      *
      * @param shapeKey key for the IconShape model
      */
-    public void updateShape(@Nullable String shapeKey) {
-        if (Objects.equals(mShapeKey, shapeKey)) {
+    public void updateShape(String shapeKey) {
+        if (shapeKey.equals(mShapeKey)) {
             Log.w(TAG, "Preview shape already set, skipping. shape=" + mShapeKey);
             return;
         }
@@ -332,22 +331,10 @@ public class PreviewSurfaceRenderer {
     private void loadModelData() {
         final Context inflationContext = getPreviewContext();
         if (!mGridName.equals(LauncherPrefs.INSTANCE.get(mContext).get(GRID_NAME))
-                || mShapeKey != null) {
+                || !mShapeKey.equals(LauncherPrefs.INSTANCE.get(mContext).get(PREF_ICON_SHAPE))) {
             // Start the migration
-            PreviewContext previewContext = new PreviewContext(inflationContext, mGridName);
-            if (mShapeKey != null) {
-                LauncherPrefs.INSTANCE.get(previewContext).put(PREF_ICON_SHAPE, mShapeKey);
-            }
-            // Copy existing data to preview DB
-            LauncherDbUtils.copyTable(LauncherAppState.getInstance(mContext)
-                            .getModel().getModelDbController().getDb(),
-                    TABLE_NAME,
-                    LauncherAppState.getInstance(previewContext)
-                            .getModel().getModelDbController().getDb(),
-                    TABLE_NAME,
-                    mContext);
-            LauncherAppState.getInstance(previewContext)
-                    .getModel().getModelDbController().clearEmptyDbFlag();
+            PreviewContext previewContext =
+                    new PreviewContext(inflationContext, mGridName, mShapeKey);
 
             BgDataModel bgModel = new BgDataModel();
             new LoaderTask(
