@@ -31,6 +31,7 @@ import static com.android.launcher3.testing.shared.ResourceUtils.pxFromDp;
 import static com.android.launcher3.testing.shared.ResourceUtils.roundPxValueFromFloat;
 import static com.android.wm.shell.Flags.enableBubbleBar;
 import static com.android.wm.shell.Flags.enableTinyTaskbar;
+import static com.android.wm.shell.Flags.enableBubbleBarOnPhones;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -52,9 +53,8 @@ import androidx.core.content.res.ResourcesCompat;
 import com.android.launcher3.CellLayout.ContainerType;
 import com.android.launcher3.DevicePaddings.DevicePadding;
 import com.android.launcher3.folder.ClippedFolderIconLayoutRule;
-import com.android.launcher3.graphics.IconShape;
+import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.icons.DotRenderer;
-import com.android.launcher3.icons.IconNormalizer;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.responsive.CalculatedCellSpec;
 import com.android.launcher3.responsive.CalculatedHotseatSpec;
@@ -387,7 +387,8 @@ public class DeviceProfile {
     }
 
     /** TODO: Once we fully migrate to staged split, remove "isMultiWindowMode" */
-    DeviceProfile(Context context, InvariantDeviceProfile inv, Info info, WindowBounds windowBounds,
+    DeviceProfile(Context context, InvariantDeviceProfile inv, Info info,
+            WindowManagerProxy wmProxy, ThemeManager themeManager, WindowBounds windowBounds,
             SparseArray<DotRenderer> dotRendererCache, boolean isMultiWindowMode,
             boolean transposeLayoutWithOrientation, boolean isMultiDisplay, boolean isGestureMode,
             @NonNull final ViewScaleProvider viewScaleProvider,
@@ -419,8 +420,10 @@ public class DeviceProfile {
         isTablet = info.isTablet(windowBounds);
         isPhone = !isTablet;
         isTwoPanels = isTablet && isMultiDisplay;
-        isTaskbarPresent = (isTablet || (enableTinyTaskbar() && isGestureMode))
-                && WindowManagerProxy.INSTANCE.get(context).isTaskbarDrawnInProcess();
+        boolean taskbarOrBubbleBarOnPhones = enableTinyTaskbar()
+                || (enableBubbleBar() && enableBubbleBarOnPhones());
+        isTaskbarPresent = (isTablet || (taskbarOrBubbleBarOnPhones && isGestureMode))
+                && wmProxy.isTaskbarDrawnInProcess();
 
         // Some more constants.
         context = getContext(context, info, inv.isFixedLandscape
@@ -845,8 +848,8 @@ public class DeviceProfile {
         dimensionOverrideProvider.accept(this);
 
         // This is done last, after iconSizePx is calculated above.
-        mDotRendererWorkSpace = createDotRenderer(context, iconSizePx, dotRendererCache);
-        mDotRendererAllApps = createDotRenderer(context, allAppsIconSizePx, dotRendererCache);
+        mDotRendererWorkSpace = createDotRenderer(themeManager, iconSizePx, dotRendererCache);
+        mDotRendererAllApps = createDotRenderer(themeManager, allAppsIconSizePx, dotRendererCache);
     }
 
     /**
@@ -868,12 +871,12 @@ public class DeviceProfile {
     }
 
     private static DotRenderer createDotRenderer(
-            @NonNull Context context, int size, @NonNull SparseArray<DotRenderer> cache) {
+            @NonNull ThemeManager themeManager, int size, @NonNull SparseArray<DotRenderer> cache) {
         DotRenderer renderer = cache.get(size);
         if (renderer == null) {
             renderer = new DotRenderer(
                     size,
-                    IconShape.INSTANCE.get(context).getShape().getPath(DEFAULT_DOT_SIZE),
+                    themeManager.getIconShape().getPath(DEFAULT_DOT_SIZE),
                     DEFAULT_DOT_SIZE);
             cache.put(size, renderer);
         }
@@ -1090,7 +1093,7 @@ public class DeviceProfile {
         dotRendererCache.put(iconSizePx, mDotRendererWorkSpace);
         dotRendererCache.put(allAppsIconSizePx, mDotRendererAllApps);
 
-        return new Builder(context, inv, mInfo)
+        return inv.newDPBuilder(context, mInfo)
                 .setWindowBounds(bounds)
                 .setIsMultiDisplay(isMultiDisplay)
                 .setMultiWindowMode(isMultiWindowMode)
@@ -1370,7 +1373,7 @@ public class DeviceProfile {
         updateHotseatSizes(iconSizePx);
 
         // Folder icon
-        folderIconSizePx = IconNormalizer.getNormalizedCircleSize(iconSizePx);
+        folderIconSizePx = Math.round(iconSizePx * ICON_VISIBLE_AREA_FACTOR);
         folderIconOffsetYPx = (iconSizePx - folderIconSizePx) / 2;
 
         // Update widget padding:
@@ -2473,9 +2476,11 @@ public class DeviceProfile {
     }
 
     public static class Builder {
-        private Context mContext;
-        private InvariantDeviceProfile mInv;
-        private Info mInfo;
+        private final Context mContext;
+        private final InvariantDeviceProfile mInv;
+        private final Info mInfo;
+        private final WindowManagerProxy mWMProxy;
+        private final ThemeManager mThemeManager;
 
         private WindowBounds mWindowBounds;
         private boolean mIsMultiDisplay;
@@ -2491,10 +2496,13 @@ public class DeviceProfile {
 
         private boolean mIsTransientTaskbar;
 
-        public Builder(Context context, InvariantDeviceProfile inv, Info info) {
+        public Builder(Context context, InvariantDeviceProfile inv, Info info,
+                WindowManagerProxy wmProxy, ThemeManager themeManager) {
             mContext = context;
             mInv = inv;
             mInfo = info;
+            mWMProxy = wmProxy;
+            mThemeManager = themeManager;
             mIsTransientTaskbar = info.isTransientTaskbar();
         }
 
@@ -2575,7 +2583,8 @@ public class DeviceProfile {
             if (mOverrideProvider == null) {
                 mOverrideProvider = DEFAULT_DIMENSION_PROVIDER;
             }
-            return new DeviceProfile(mContext, mInv, mInfo, mWindowBounds, mDotRendererCache,
+            return new DeviceProfile(mContext, mInv, mInfo, mWMProxy, mThemeManager,
+                    mWindowBounds, mDotRendererCache,
                     mIsMultiWindowMode, mTransposeLayoutWithOrientation, mIsMultiDisplay,
                     mIsGestureMode, mViewScaleProvider, mOverrideProvider, mIsTransientTaskbar);
         }

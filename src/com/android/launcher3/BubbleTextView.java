@@ -27,6 +27,7 @@ import static com.android.launcher3.icons.BitmapInfo.FLAG_NO_BADGE;
 import static com.android.launcher3.icons.BitmapInfo.FLAG_SKIP_USER_BADGE;
 import static com.android.launcher3.icons.BitmapInfo.FLAG_THEMED;
 import static com.android.launcher3.icons.GraphicsUtils.setColorAlphaBound;
+import static com.android.launcher3.icons.IconNormalizer.ICON_VISIBLE_AREA_FACTOR;
 import static com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_INCREMENTAL_DOWNLOAD_ACTIVE;
 import static com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_INSTALL_SESSION_ACTIVE;
 import static com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_SHOW_DOWNLOAD_PROGRESS_MASK;
@@ -75,9 +76,7 @@ import com.android.launcher3.dot.DotInfo;
 import com.android.launcher3.dragndrop.DragOptions.PreDragCondition;
 import com.android.launcher3.dragndrop.DraggableView;
 import com.android.launcher3.folder.FolderIcon;
-import com.android.launcher3.graphics.IconShape;
 import com.android.launcher3.graphics.PreloadIconDrawable;
-import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.icons.DotRenderer;
 import com.android.launcher3.icons.FastBitmapDrawable;
 import com.android.launcher3.icons.IconCache.ItemInfoUpdateReceiver;
@@ -484,9 +483,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     }
 
     private void setNonPendingIcon(ItemInfoWithIcon info) {
-        ThemeManager themeManager = ThemeManager.INSTANCE.get(getContext());
-        int flags = (shouldUseTheme()
-                && themeManager.isMonoThemeEnabled()) ? FLAG_THEMED : 0;
+        int flags = shouldUseTheme() ? FLAG_THEMED : 0;
         // Remove badge on icons smaller than 48dp.
         if (mHideBadge || mDisplay == DISPLAY_SEARCH_RESULT_SMALL) {
             flags |= FLAG_NO_BADGE;
@@ -726,8 +723,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     protected void drawDotIfNecessary(Canvas canvas) {
         if (!mForceHideDot && (hasDot() || mDotParams.scale > 0)) {
             getIconBounds(mDotParams.iconBounds);
-            Utilities.scaleRectAboutCenter(mDotParams.iconBounds,
-                    IconShape.INSTANCE.get(getContext()).getNormalizationScale());
+            Utilities.scaleRectAboutCenter(mDotParams.iconBounds, ICON_VISIBLE_AREA_FACTOR);
             final int scrollX = getScrollX();
             final int scrollY = getScrollY();
             canvas.translate(scrollX, scrollY);
@@ -776,9 +772,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
             return;
         }
         getIconBounds(mRunningAppIconBounds);
-        Utilities.scaleRectAboutCenter(
-                mRunningAppIconBounds,
-                IconShape.INSTANCE.get(getContext()).getNormalizationScale());
+        Utilities.scaleRectAboutCenter(mRunningAppIconBounds, ICON_VISIBLE_AREA_FACTOR);
 
         final boolean isMinimized = mRunningAppState == RunningAppState.MINIMIZED;
         final int indicatorTop = mRunningAppIconBounds.bottom + mRunningAppIndicatorTopMargin;
@@ -967,7 +961,8 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
 
     @Override
     public void setTextColor(ColorStateList colors) {
-        mTextColor = shouldDrawAppContrastTile() ? PillColorProvider.getInstance(
+        mTextColor = (shouldDrawAppContrastTile() && !TextUtils.isEmpty(getText()))
+                ? PillColorProvider.getInstance(
                 getContext()).getAppTitleTextPaint().getColor()
                 : colors.getDefaultColor();
         mTextColorStateList = colors;
@@ -992,7 +987,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     public boolean shouldDrawAppContrastTile() {
         return mDisplay == DISPLAY_WORKSPACE && shouldTextBeVisible()
                 && PillColorProvider.getInstance(getContext()).isMatchaEnabled()
-                && enableContrastTiles() && !TextUtils.isEmpty(getText());
+                && enableContrastTiles();
     }
 
     public void setTextVisibility(boolean visible) {

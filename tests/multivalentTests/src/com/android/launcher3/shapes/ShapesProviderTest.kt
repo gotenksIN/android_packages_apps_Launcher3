@@ -22,7 +22,7 @@ import androidx.core.graphics.PathParser
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.launcher3.Flags.FLAG_ENABLE_LAUNCHER_ICON_SHAPES
-import com.android.launcher3.graphics.IconShape.GenericPathShape
+import com.android.launcher3.graphics.ShapeDelegate.GenericPathShape
 import com.android.systemui.shared.Flags.FLAG_NEW_CUSTOMIZATION_PICKER_UI
 import org.junit.Rule
 import org.junit.Test
@@ -56,15 +56,6 @@ class ShapesProviderTest {
     @EnableFlags(FLAG_ENABLE_LAUNCHER_ICON_SHAPES, FLAG_NEW_CUSTOMIZATION_PICKER_UI)
     fun `verify valid path seven_sided_cookie`() {
         ShapesProvider.iconShapes["seven_sided_cookie"]?.apply {
-            GenericPathShape(pathString)
-            PathParser.createPathFromPathData(pathString)
-        }
-    }
-
-    @Test
-    @EnableFlags(FLAG_ENABLE_LAUNCHER_ICON_SHAPES, FLAG_NEW_CUSTOMIZATION_PICKER_UI)
-    fun `verify valid path sunny`() {
-        ShapesProvider.iconShapes["sunny"]?.apply {
             GenericPathShape(pathString)
             PathParser.createPathFromPathData(pathString)
         }
