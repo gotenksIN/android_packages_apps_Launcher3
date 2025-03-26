@@ -15,7 +15,6 @@
  */
 package com.android.launcher3.model;
 
-import static com.android.launcher3.Flags.enableCategorizedWidgetSuggestions;
 import static com.android.launcher3.Flags.enableTieredWidgetsByDefaultInPicker;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_WIDGETS_PREDICTION;
 import static com.android.launcher3.model.ModelUtils.WIDGET_FILTER;
@@ -45,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /** Task to update model as a result of predicted widgets update */
@@ -68,8 +66,6 @@ public final class WidgetsPredictionUpdateTask implements ModelUpdateTask {
     @Override
     public void execute(@NonNull ModelTaskController taskController, @NonNull BgDataModel dataModel,
             @NonNull AllAppsList apps) {
-        Predicate<WidgetItem> predictedWidgetsFilter = enableTieredWidgetsByDefaultInPicker()
-                ? dataModel.widgetsModel.getPredictedWidgetsFilter() : null;
         Set<ComponentKey> widgetsInWorkspace = dataModel.itemsIdMap
                 .stream()
                 .filter(WIDGET_FILTER)
@@ -84,8 +80,6 @@ public final class WidgetsPredictionUpdateTask implements ModelUpdateTask {
                         .stream()
                         .filter(entry -> entry.getValue().widgetInfo != null
                                 && !widgetsInWorkspace.contains(entry.getValue())
-                                && (predictedWidgetsFilter == null
-                                || predictedWidgetsFilter.test(entry.getValue()))
                         ).collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         Context context = taskController.getApp().getContext();
@@ -134,20 +128,12 @@ public final class WidgetsPredictionUpdateTask implements ModelUpdateTask {
             }
         }
 
-        List<ItemInfo> items;
-        if (enableCategorizedWidgetSuggestions()) {
-            WidgetRecommendationCategoryProvider categoryProvider =
-                    new WidgetRecommendationCategoryProvider();
-            items = servicePredictedItems.stream()
-                    .map(it -> new PendingAddWidgetInfo(it.widgetInfo, CONTAINER_WIDGETS_PREDICTION,
-                            categoryProvider.getWidgetRecommendationCategory(context, it)))
-                    .collect(Collectors.toList());
-        } else {
-            items = servicePredictedItems.stream()
-                    .map(it -> new PendingAddWidgetInfo(it.widgetInfo,
-                            CONTAINER_WIDGETS_PREDICTION)).collect(
-                            Collectors.toList());
-        }
+        WidgetRecommendationCategoryProvider categoryProvider =
+                new WidgetRecommendationCategoryProvider();
+        List<ItemInfo> items = servicePredictedItems.stream()
+                .map(it -> new PendingAddWidgetInfo(it.widgetInfo, CONTAINER_WIDGETS_PREDICTION,
+                        categoryProvider.getWidgetRecommendationCategory(context, it)))
+                .collect(Collectors.toList());
         FixedContainerItems fixedContainerItems =
                 new FixedContainerItems(mPredictorState.containerId, items);
 

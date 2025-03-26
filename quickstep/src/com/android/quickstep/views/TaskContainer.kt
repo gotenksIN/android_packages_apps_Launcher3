@@ -18,6 +18,7 @@ package com.android.quickstep.views
 
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.util.Log
 import android.view.View
 import android.view.View.OnClickListener
 import com.android.launcher3.Flags.enableRefactorTaskThumbnail
@@ -26,8 +27,10 @@ import com.android.launcher3.util.SplitConfigurationOptions
 import com.android.launcher3.util.TransformingTouchDelegate
 import com.android.quickstep.TaskOverlayFactory
 import com.android.quickstep.ViewUtils.addAccessibleChildToList
+import com.android.quickstep.recents.domain.usecase.ThumbnailPosition
 import com.android.quickstep.recents.ui.mapper.TaskUiStateMapper
 import com.android.quickstep.recents.ui.viewmodel.TaskData
+import com.android.quickstep.task.thumbnail.TaskContentView
 import com.android.quickstep.task.thumbnail.TaskThumbnailView
 import com.android.systemui.shared.recents.model.Task
 import com.android.systemui.shared.recents.model.ThumbnailData
@@ -36,6 +39,7 @@ import com.android.systemui.shared.recents.model.ThumbnailData
 class TaskContainer(
     val taskView: TaskView,
     val task: Task,
+    val taskContentView: TaskContentView,
     val snapshotView: View,
     val iconView: TaskViewIcon,
     /**
@@ -52,6 +56,8 @@ class TaskContainer(
     taskOverlayFactory: TaskOverlayFactory,
 ) {
     val overlay: TaskOverlayFactory.TaskOverlay<*> = taskOverlayFactory.createOverlay(this)
+    var thumbnailPosition: ThumbnailPosition? = null
+    private var overlayEnabledStatus = false
 
     init {
         if (enableRefactorTaskThumbnail()) {
@@ -99,14 +105,13 @@ class TaskContainer(
         if (!enableRefactorTaskThumbnail()) {
             thumbnailViewDeprecated.bind(task, overlay, taskView)
         }
-        overlay.init()
     }
 
     fun destroy() {
         digitalWellBeingToast?.destroy()
-        snapshotView.scaleX = 1f
-        snapshotView.scaleY = 1f
-        overlay.destroy()
+        taskContentView.scaleX = 1f
+        taskContentView.scaleY = 1f
+        overlay.reset()
         if (enableRefactorTaskThumbnail()) {
             isThumbnailValid = false
             thumbnailData = null
@@ -119,6 +124,34 @@ class TaskContainer(
     fun setOverlayEnabled(enabled: Boolean) {
         if (!enableRefactorTaskThumbnail()) {
             thumbnailViewDeprecated.setOverlayEnabled(enabled)
+        }
+    }
+
+    fun setOverlayEnabled(enabled: Boolean, thumbnailPosition: ThumbnailPosition?) {
+        if (enableRefactorTaskThumbnail()) {
+            if (overlayEnabledStatus != enabled || this.thumbnailPosition != thumbnailPosition) {
+                overlayEnabledStatus = enabled
+
+                refreshOverlay(thumbnailPosition)
+            }
+        }
+    }
+
+    fun refreshOverlay(thumbnailPosition: ThumbnailPosition?) {
+        this.thumbnailPosition = thumbnailPosition
+        when {
+            !overlayEnabledStatus -> overlay.reset()
+            thumbnailPosition == null -> {
+                Log.e(TAG, "Thumbnail position was null during overlay refresh", Exception())
+                overlay.reset()
+            }
+            else ->
+                overlay.initOverlay(
+                    task,
+                    thumbnailData?.thumbnail,
+                    thumbnailPosition.matrix,
+                    thumbnailPosition.isRotated,
+                )
         }
     }
 
@@ -136,16 +169,13 @@ class TaskContainer(
         hasHeader: Boolean,
         clickCloseListener: OnClickListener?,
     ) {
-        thumbnailView.setState(
-            TaskUiStateMapper.toTaskThumbnailUiState(
-                state,
-                liveTile,
-                hasHeader,
-                clickCloseListener,
-            ),
+        taskContentView.setState(
+            TaskUiStateMapper.toTaskHeaderState(state, hasHeader, clickCloseListener),
+            TaskUiStateMapper.toTaskThumbnailUiState(state, liveTile),
             state?.taskId,
         )
         thumbnailData = if (state is TaskData.Data) state.thumbnailData else null
+        overlay.setThumbnailState(thumbnailData)
     }
 
     fun updateTintAmount(tintAmount: Float) {
@@ -185,5 +215,9 @@ class TaskContainer(
 
     fun updateThumbnailMatrix(matrix: Matrix) {
         thumbnailView.setImageMatrix(matrix)
+    }
+
+    companion object {
+        const val TAG = "TaskContainer"
     }
 }

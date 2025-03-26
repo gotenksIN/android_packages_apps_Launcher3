@@ -26,11 +26,11 @@ import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.util.AllModulesMinusWMProxy
 import com.android.launcher3.util.DaggerSingletonTracker
 import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.FakePrefsModule
-import com.android.launcher3.util.MainThreadInitializedObject.ObjectSandbox
 import com.android.launcher3.util.SandboxApplication
 import com.android.launcher3.util.SettingsCache
 import com.android.launcher3.util.SettingsCacheSandbox
@@ -40,12 +40,14 @@ import dagger.Binds
 import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
+import dagger.Provides
 import javax.inject.Inject
 import org.junit.rules.ExternalResource
 import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.mockito.kotlin.spy
 
 /**
  * [SandboxApplication] for running Taskbar tests.
@@ -58,7 +60,7 @@ private constructor(
     private val base: SandboxApplication,
     val virtualDisplay: VirtualDisplay,
     private val params: SandboxParams,
-) : ContextWrapper(base), ObjectSandbox by base, TestRule {
+) : ContextWrapper(base), TestRule {
 
     val settingsCacheSandbox = SettingsCacheSandbox()
 
@@ -136,6 +138,20 @@ abstract class DisplayControllerModule {
     @Binds abstract fun bindDisplayController(controller: DisplayControllerSpy): DisplayController
 }
 
+@Module
+object DesktopVisibilityControllerModule {
+    @JvmStatic
+    @Provides
+    @LauncherAppSingleton
+    fun provideDesktopVisibilityController(
+        @ApplicationContext context: Context,
+        systemUiProxy: SystemUiProxy,
+        lifecycleTracker: DaggerSingletonTracker,
+    ): DesktopVisibilityController {
+        return spy(DesktopVisibilityController(context, systemUiProxy, lifecycleTracker))
+    }
+}
+
 @LauncherAppSingleton
 @Component(
     modules =
@@ -144,6 +160,7 @@ abstract class DisplayControllerModule {
             FakePrefsModule::class,
             DisplayControllerModule::class,
             TaskbarSandboxModule::class,
+            DesktopVisibilityControllerModule::class,
         ]
 )
 interface TaskbarSandboxComponent : LauncherAppComponent {
