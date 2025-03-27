@@ -29,6 +29,7 @@ import android.view.View.OnClickListener;
 import android.view.ViewAnimationUtils;
 import android.view.inputmethod.InputMethodManager;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
 
 import com.android.launcher3.AbstractFloatingView;
@@ -93,27 +94,6 @@ public class SecondaryDisplayLauncher extends BaseActivity
         mModel = LauncherAppState.getInstance(this).getModel();
         mDragController = new SecondaryDragController(this);
         mSecondaryDisplayPredictions = SecondaryDisplayPredictions.newInstance(this);
-        if (getWindow().getDecorView().isAttachedToWindow()) {
-            initUi();
-        }
-    }
-
-    @Override
-    public void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        initUi();
-    }
-
-    @Override
-    public void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
-        this.getDragController().removeDragListener(this);
-    }
-
-    private void initUi() {
-        if (mDragLayer != null) {
-            return;
-        }
 
         mDeviceProfile = InvariantDeviceProfile.INSTANCE.get(this)
                 .createDeviceProfileForSecondaryDisplay(this);
@@ -129,8 +109,7 @@ public class SecondaryDisplayLauncher extends BaseActivity
         }
 
         mDragController.addDragListener(this);
-        mPopupDataProvider = new PopupDataProvider(
-                mAppsView.getAppsStore()::updateNotificationDots);
+        mPopupDataProvider = new PopupDataProvider(this);
 
         mModel.addCallbacksAndLoad(this);
     }
@@ -293,6 +272,8 @@ public class SecondaryDisplayLauncher extends BaseActivity
         mStringCache = cache;
     }
 
+    @Override
+    @NonNull
     public PopupDataProvider getPopupDataProvider() {
         return mPopupDataProvider;
     }

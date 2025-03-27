@@ -71,7 +71,6 @@ import android.os.Process;
 import android.os.Trace;
 import android.provider.Settings;
 import android.util.Log;
-import android.view.Display;
 import android.view.Gravity;
 import android.view.Surface;
 import android.view.View;
@@ -81,6 +80,7 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 import android.window.DesktopExperienceFlags;
 import android.window.DesktopModeFlags;
+import android.window.DesktopModeFlags.DesktopModeFlag;
 import android.window.RemoteTransition;
 
 import androidx.annotation.NonNull;
@@ -94,15 +94,16 @@ import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.BubbleTextView.RunningAppState;
 import com.android.launcher3.DeviceProfile;
+import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherSettings.Favorites;
 import com.android.launcher3.R;
+import com.android.launcher3.allapps.ActivityAllAppsContainerView;
 import com.android.launcher3.anim.AnimatorPlaybackController;
 import com.android.launcher3.apppairs.AppPairIcon;
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.desktop.DesktopAppLaunchTransition;
 import com.android.launcher3.desktop.DesktopAppLaunchTransition.AppLaunchType;
-import com.android.launcher3.dot.DotInfo;
 import com.android.launcher3.folder.Folder;
 import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.logger.LauncherAtom;
@@ -149,6 +150,7 @@ import com.android.launcher3.util.ApplicationInfoWrapper;
 import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.Executors;
+import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.MultiPropertyFactory;
 import com.android.launcher3.util.NavigationMode;
 import com.android.launcher3.util.RunnableList;
@@ -156,7 +158,6 @@ import com.android.launcher3.util.SettingsCache;
 import com.android.launcher3.util.SplitConfigurationOptions.SplitSelectSource;
 import com.android.launcher3.util.TraceHelper;
 import com.android.launcher3.util.VibratorWrapper;
-import com.android.launcher3.util.ViewCache;
 import com.android.launcher3.views.ActivityContext;
 import com.android.quickstep.NavHandle;
 import com.android.quickstep.RecentsModel;
@@ -196,6 +197,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     private static final String WINDOW_TITLE = "Taskbar";
 
+    private static final DesktopModeFlag ENABLE_TASKBAR_BEHIND_SHADE = new DesktopModeFlag(
+            Flags::enableTaskbarBehindShade, false);
+
     private final @Nullable Context mNavigationBarPanelContext;
 
     private final TaskbarDragLayer mDragLayer;
@@ -219,7 +223,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     private NavigationMode mNavMode;
     private boolean mImeDrawsImeNavBar;
-    private final ViewCache mViewCache = new ViewCache();
 
     private final boolean mIsSafeModeEnabled;
     private final boolean mIsUserSetupComplete;
@@ -279,7 +282,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mIsNavBarForceVisible = mIsNavBarKidsMode;
 
         // Get display and corners first, as views might use them in constructor.
-        Display display = windowContext.getDisplay();
         Context c = getApplicationContext();
         mWindowManager = c.getSystemService(WindowManager.class);
 
@@ -325,11 +327,11 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                     new BubbleBarViewController(this, bubbleBarView, bubbleBarContainer),
                     bubbleStashController,
                     bubbleHandleController,
-                    new BubbleDragController(this),
+                    new BubbleDragController(this, mDragLayer),
                     new BubbleDismissController(this, mDragLayer),
-                    new BubbleBarPinController(this, mDragLayer,
+                    new BubbleBarPinController(this, bubbleBarContainer,
                             () -> DisplayController.INSTANCE.get(this).getInfo().currentSize),
-                    new BubblePinController(this, mDragLayer,
+                    new BubblePinController(this, bubbleBarContainer,
                             () -> DisplayController.INSTANCE.get(this).getInfo().currentSize),
                     bubbleBarSwipeController,
                     new BubbleCreator(this)
@@ -381,6 +383,14 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                         DesktopVisibilityController.INSTANCE.get(this)));
 
         mLauncherPrefs = LauncherPrefs.get(this);
+        onViewCreated();
+    }
+
+    /**
+     * Returns whether this is a primary display.
+     */
+    public boolean isPrimaryDisplay() {
+        return mIsPrimaryDisplay;
     }
 
     /** Updates {@link DeviceProfile} instances for any Taskbar windows. */
@@ -607,16 +617,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mControllers.taskbarStashController.updateAndAnimateTransientTaskbar(false);
     }
 
-    /** Toggles Taskbar All Apps overlay. */
-    public void toggleAllApps() {
-        mControllers.taskbarAllAppsController.toggle();
-    }
-
-    /** Toggles Taskbar All Apps overlay with keyboard ready for search. */
-    public void toggleAllAppsSearch() {
-        mControllers.taskbarAllAppsController.toggleSearch();
-    }
-
     @Override
     public DeviceProfile getDeviceProfile() {
         return mDeviceProfile;
@@ -805,11 +805,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     }
 
     @Override
-    public ViewCache getViewCache() {
-        return mViewCache;
-    }
-
-    @Override
     public View.OnClickListener getItemOnClickListener() {
         return this::onTaskbarIconClicked;
     }
@@ -877,15 +872,21 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         }
     }
 
-    @Override
-    public DotInfo getDotInfoForItem(ItemInfo info) {
-        return getPopupDataProvider().getDotInfoForItem(info);
-    }
-
     @NonNull
     @Override
     public PopupDataProvider getPopupDataProvider() {
         return mControllers.taskbarPopupController.getPopupDataProvider();
+    }
+
+    @NonNull
+    @Override
+    public LauncherBindableItemsContainer getContent() {
+        return mControllers.taskbarViewController.getContent();
+    }
+
+    @Override
+    public ActivityAllAppsContainerView<?> getAppsView() {
+        return mControllers.taskbarAllAppsController.getAppsView();
     }
 
     @Override
@@ -925,7 +926,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         options.setSplashScreenStyle(splashScreenStyle);
         options.setPendingIntentBackgroundActivityStartMode(
                 ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
-        IRemoteCallback endCallback = completeRunnableListCallback(callbacks);
+        IRemoteCallback endCallback = completeRunnableListCallback(callbacks, this);
         options.setOnAnimationAbortListener(endCallback);
         options.setOnAnimationFinishedListener(endCallback);
 
@@ -992,6 +993,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      * Called when this instance of taskbar is no longer needed
      */
     public void onDestroy() {
+        onViewDestroyed();
         mIsDestroyed = true;
         mTaskbarFeatureEvaluator.onDestroy();
         setUIController(TaskbarUIController.DEFAULT);
@@ -1399,14 +1401,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                             AppLaunchType.UNMINIMIZE, Cuj.CUJ_DESKTOP_MODE_APP_LAUNCH_FROM_ICON)
                     : null;
 
-            TaskView taskView = null;
-            if (recents != null) {
-                taskView = recents.getTaskViewByTaskId(info.getTaskId());
-            }
 
-            if (areDesktopTasksVisible() && taskView != null
-                    && mControllers.uiController.isInOverviewUi()) {
-                RunnableList runnableList = taskView.launchWithAnimation();
+            if (areDesktopTasksVisible() && mControllers.uiController.isInOverviewUi()) {
+                RunnableList runnableList = recents.launchRunningDesktopTaskView();
                 if (runnableList != null) {
                     runnableList.add(() ->
                             // wrapped it in runnable here since we need the post for DW to be
@@ -1577,6 +1574,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     public boolean canUnminimizeDesktopTask(int taskId) {
         BubbleTextView.RunningAppState runningAppState =
                 mControllers.taskbarRecentAppsController.getRunningAppState(taskId);
+        Log.d(TAG, "Task id=" + taskId + ", Running app state=" + runningAppState);
         return runningAppState == RunningAppState.MINIMIZED
                 && DesktopModeFlags.ENABLE_DESKTOP_APP_LAUNCH_ALTTAB_TRANSITIONS_BUGFIX.isTrue();
     }
@@ -1787,7 +1785,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             folder.animateOpen();
             getStatsLogManager().logger().withItemInfo(folder.mInfo).log(LAUNCHER_FOLDER_OPEN);
 
-            folder.iterateOverItems((itemInfo, itemView) -> {
+            folder.mapOverItems((itemInfo, itemView) -> {
                 mControllers.taskbarViewController
                         .setClickAndLongClickListenersForIcon(itemView);
                 // To play haptic when dragging, like other Taskbar items do.
@@ -2061,10 +2059,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     /** Closes the KeyboardQuickSwitchView without an animation if open. */
     public void closeKeyboardQuickSwitchView() {
         mControllers.keyboardQuickSwitchController.closeQuickSwitchView(false);
-    }
-
-    boolean canToggleHomeAllApps() {
-        return mControllers.uiController.canToggleHomeAllApps();
     }
 
     boolean isIconAlignedWithHotseat() {

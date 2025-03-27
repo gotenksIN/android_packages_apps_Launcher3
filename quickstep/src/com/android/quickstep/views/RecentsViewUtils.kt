@@ -28,6 +28,7 @@ import com.android.quickstep.util.isExternalDisplay
 import com.android.quickstep.views.RecentsView.RUNNING_TASK_ATTACH_ALPHA
 import com.android.systemui.shared.recents.model.ThumbnailData
 import java.util.function.BiConsumer
+import kotlin.reflect.KMutableProperty1
 
 /**
  * Helper class for [RecentsView]. This util class contains refactored and extracted functions from
@@ -81,6 +82,25 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) {
 
     /** Returns a list of all large TaskView Ids from [TaskView]s */
     fun getLargeTaskViewIds(): List<Int> = taskViews.filter { it.isLargeTile }.map { it.taskViewId }
+
+    /** Returns a list of all large TaskViews [TaskView]s */
+    fun getLargeTaskViews(): List<TaskView> = taskViews.filter { it.isLargeTile }
+
+    /** Returns all the TaskViews in the top row, without the focused task */
+    fun getTopRowTaskViews(): List<TaskView> =
+        taskViews.filter { recentsView.mTopRowIdSet.contains(it.taskViewId) }
+
+    /** Returns all the task Ids in the top row, without the focused task */
+    fun getTopRowIdArray(): IntArray = getTopRowTaskViews().map { it.taskViewId }.toIntArray()
+
+    /** Returns all the TaskViews in the bottom row, without the focused task */
+    fun getBottomRowTaskViews(): List<TaskView> =
+        taskViews.filter { !recentsView.mTopRowIdSet.contains(it.taskViewId) && !it.isLargeTile }
+
+    /** Returns all the task Ids in the bottom row, without the focused task */
+    fun getBottomRowIdArray(): IntArray = getBottomRowTaskViews().map { it.taskViewId }.toIntArray()
+
+    private fun List<Int>.toIntArray() = IntArray(size).apply { this@toIntArray.forEach(::add) }
 
     /** Counts [TaskView]s that are large tiles. */
     fun getLargeTileCount(): Int = taskViews.count { it.isLargeTile }
@@ -265,8 +285,8 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) {
             return
         }
         getRowRect(getFirstLargeTaskView(), getLastLargeTaskView(), outTaskViewRowRect)
-        getRowRect(recentsView.getTopRowIdArray(), outTopRowRect)
-        getRowRect(recentsView.getBottomRowIdArray(), outBottomRowRect)
+        getRowRect(getTopRowIdArray(), outTopRowRect)
+        getRowRect(getBottomRowIdArray(), outBottomRowRect)
 
         // Expand large tile Rect to include space between top/bottom row.
         val nonEmptyRowRect =
@@ -305,16 +325,19 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) {
         }
 
     companion object {
-        @JvmField
-        val DESK_EXPLODE_PROGRESS =
-            object : FloatProperty<RecentsView<*, *>>("deskExplodeProgress") {
-                override fun setValue(recentsView: RecentsView<*, *>, value: Float) {
-                    recentsView.mUtils.deskExplodeProgress = value
-                }
+        class RecentsViewFloatProperty(
+            private val utilsProperty: KMutableProperty1<RecentsViewUtils, Float>
+        ) : FloatProperty<RecentsView<*, *>>(utilsProperty.name) {
+            override fun get(recentsView: RecentsView<*, *>): Float =
+                utilsProperty.get(recentsView.mUtils)
 
-                override fun get(recentsView: RecentsView<*, *>) =
-                    recentsView.mUtils.deskExplodeProgress
+            override fun setValue(recentsView: RecentsView<*, *>, value: Float) {
+                utilsProperty.set(recentsView.mUtils, value)
             }
+        }
+
+        @JvmField
+        val DESK_EXPLODE_PROGRESS = RecentsViewFloatProperty(RecentsViewUtils::deskExplodeProgress)
 
         val TEMP_RECT = Rect()
     }

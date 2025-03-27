@@ -71,9 +71,11 @@ import static com.android.launcher3.LauncherState.NO_OFFSET;
 import static com.android.launcher3.LauncherState.NO_SCALE;
 import static com.android.launcher3.LauncherState.SPRING_LOADED;
 import static com.android.launcher3.Utilities.postAsyncCallback;
+import static com.android.launcher3.Workspace.mapOverCellLayouts;
 import static com.android.launcher3.anim.AnimatorListeners.forEndCallback;
 import static com.android.launcher3.config.FeatureFlags.FOLDABLE_SINGLE_PAGE;
 import static com.android.launcher3.config.FeatureFlags.MULTI_SELECT_EDIT_MODE;
+import static com.android.launcher3.icons.BitmapRenderer.createHardwareBitmap;
 import static com.android.launcher3.logging.KeyboardStateManager.KeyboardState.HIDE;
 import static com.android.launcher3.logging.KeyboardStateManager.KeyboardState.SHOW;
 import static com.android.launcher3.logging.StatsLogManager.EventEnum;
@@ -125,7 +127,6 @@ import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -163,7 +164,6 @@ import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
-import androidx.annotation.StringRes;
 import androidx.annotation.UiThread;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.os.BuildCompat;
@@ -172,7 +172,6 @@ import androidx.window.embedding.RuleController;
 import com.android.launcher3.DropTarget.DragObject;
 import com.android.launcher3.accessibility.LauncherAccessibilityDelegate;
 import com.android.launcher3.allapps.ActivityAllAppsContainerView;
-import com.android.launcher3.allapps.AllAppsRecyclerView;
 import com.android.launcher3.allapps.AllAppsTransitionController;
 import com.android.launcher3.allapps.DiscoveryBounce;
 import com.android.launcher3.anim.AnimationSuccessListener;
@@ -185,7 +184,6 @@ import com.android.launcher3.compat.AccessibilityManagerCompat;
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.debug.TestEventEmitter;
 import com.android.launcher3.debug.TestEventEmitter.TestEvent;
-import com.android.launcher3.dot.DotInfo;
 import com.android.launcher3.dragndrop.DragController;
 import com.android.launcher3.dragndrop.DragLayer;
 import com.android.launcher3.dragndrop.DragView;
@@ -237,6 +235,7 @@ import com.android.launcher3.util.IntArray;
 import com.android.launcher3.util.IntSet;
 import com.android.launcher3.util.ItemInflater;
 import com.android.launcher3.util.KeyboardShortcutsDelegate;
+import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.LockedUserState;
 import com.android.launcher3.util.MSDLPlayerWrapper;
 import com.android.launcher3.util.PackageUserKey;
@@ -253,7 +252,6 @@ import com.android.launcher3.util.Thunk;
 import com.android.launcher3.util.TouchController;
 import com.android.launcher3.util.TraceHelper;
 import com.android.launcher3.views.ActivityContext;
-import com.android.launcher3.views.ComposeInitializer;
 import com.android.launcher3.views.FloatingIconView;
 import com.android.launcher3.views.FloatingSurfaceView;
 import com.android.launcher3.views.OptionsPopupView;
@@ -544,8 +542,8 @@ public class Launcher extends StatefulActivity<LauncherState>
         mItemInflater = new ItemInflater<>(this, mAppWidgetHolder, getItemOnClickListener(),
                 mFocusHandler, new CellLayout(mWorkspace.getContext(), mWorkspace));
 
-        mPopupDataProvider = new PopupDataProvider(this::updateNotificationDots);
-        mWidgetPickerDataProvider = new WidgetPickerDataProvider();
+        mPopupDataProvider = new PopupDataProvider(this);
+        mWidgetPickerDataProvider = new WidgetPickerDataProvider(this);
         PillColorProvider.getInstance(mWorkspace.getContext()).registerObserver();
 
         boolean internalStateHandled = ACTIVITY_TRACKER.handleCreate(this);
@@ -579,7 +577,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         setDefaultKeyMode(DEFAULT_KEYS_SEARCH_LOCAL);
 
         setContentView(getRootView());
-        ComposeInitializer.initCompose(this);
 
         if (mOnInitialBindListener != null) {
             getRootView().getViewTreeObserver().addOnPreDrawListener(mOnInitialBindListener);
@@ -1485,7 +1482,7 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     @Override
     public @Nullable FolderIcon findFolderIcon(final int folderIconId) {
-        return (FolderIcon) mWorkspace.getHomescreenIconByItemId(folderIconId);
+        return (FolderIcon) mWorkspace.getViewByItemId(folderIconId);
     }
 
     /**
@@ -1598,11 +1595,6 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     private final ScreenOnListener mScreenOnListener = this::onScreenOnChanged;
 
-    private void updateNotificationDots(Predicate<PackageUserKey> updatedDots) {
-        mWorkspace.updateNotificationDots(updatedDots);
-        mAppsView.getAppsStore().updateNotificationDots(updatedDots);
-    }
-
     @Override
     public void onAttachedToWindow() {
         super.onAttachedToWindow();
@@ -1674,7 +1666,7 @@ public class Launcher extends StatefulActivity<LauncherState>
         } else if (Intent.ACTION_ALL_APPS.equals(intent.getAction())) {
             showAllAppsFromIntent(alreadyOnHome);
         } else if (INTENT_ACTION_ALL_APPS_TOGGLE.equals(intent.getAction())) {
-            toggleAllAppsSearch(alreadyOnHome);
+            toggleAllApps(alreadyOnHome, true);
         } else if (Intent.ACTION_SHOW_WORK_APPS.equals(intent.getAction())) {
             showAllAppsWithSelectedTabFromIntent(alreadyOnHome,
                     ActivityAllAppsContainerView.AdapterHolder.WORK);
@@ -1688,12 +1680,15 @@ public class Launcher extends StatefulActivity<LauncherState>
         // Overridden
     }
 
-    /** Toggles Launcher All Apps with keyboard ready for search. */
-    public void toggleAllAppsSearch() {
-        toggleAllAppsSearch(/* alreadyOnHome= */ true);
+    /**
+     * Toggles Launcher All Apps.
+     * @param focusSearch Indicates whether to make All Apps keyboard ready for search.
+     */
+    public void toggleAllApps(boolean focusSearch) {
+        toggleAllApps(/* alreadyOnHome= */ true, focusSearch);
     }
 
-    protected void toggleAllAppsSearch(boolean alreadyOnHome) {
+    private void toggleAllApps(boolean alreadyOnHome, boolean focusSearch) {
         if (getStateManager().isInStableState(ALL_APPS)) {
             getStateManager().goToState(NORMAL, alreadyOnHome);
         } else {
@@ -1705,7 +1700,8 @@ public class Launcher extends StatefulActivity<LauncherState>
                     new AnimationSuccessListener() {
                         @Override
                         public void onAnimationSuccess(Animator animator) {
-                            if (mAppsView.getSearchUiManager().getEditText() != null) {
+                            if (focusSearch
+                                    && mAppsView.getSearchUiManager().getEditText() != null) {
                                 mAppsView.getSearchUiManager().getEditText().requestFocus();
                             }
                         }
@@ -1804,6 +1800,7 @@ public class Launcher extends StatefulActivity<LauncherState>
 
         mAppWidgetHolder.stopListening();
         mAppWidgetHolder.destroy();
+        mWidgetPickerDataProvider.destroy();
 
         TextKeyListener.getInstance().release();
         mModelCallbacks.clearPendingBinds();
@@ -1884,7 +1881,8 @@ public class Launcher extends StatefulActivity<LauncherState>
             if (dropView != null && dropView.containsAppWidgetHostView()) {
                 // Extracting Bitmap from dropView instead of its content view produces the correct
                 // bitmap.
-                widgetPreviewBitmap = getBitmapFromView(dropView);
+                widgetPreviewBitmap = createHardwareBitmap(
+                        dropView.getWidth(), dropView.getHeight(), dropView::draw);
             }
         }
 
@@ -2054,7 +2052,7 @@ public class Launcher extends StatefulActivity<LauncherState>
     public boolean removeItem(View v, final ItemInfo itemInfo, boolean deleteFromDb,
             @Nullable final String reason) {
         if (itemInfo instanceof WorkspaceItemInfo) {
-            View collectionIcon = mWorkspace.getHomescreenIconByItemId(itemInfo.container);
+            View collectionIcon = mWorkspace.getViewByItemId(itemInfo.container);
             if (collectionIcon instanceof FolderIcon) {
                 // Remove the shortcut from the folder before removing it from launcher
                 ((FolderInfo) collectionIcon.getTag()).remove((WorkspaceItemInfo) itemInfo, true);
@@ -2433,52 +2431,25 @@ public class Launcher extends StatefulActivity<LauncherState>
     }
 
     /**
-     * Similar to {@link #getFirstMatch} but optimized to finding a suitable view for the app close
-     * animation.
+     * Finds the first view on homescreen matching the provided parameters, optimized to finding a
+     * suitable view for the app close animation.
      *
      * @param svi The StableViewInfo of the preferred item to match to if it exists or null
      * @param packageName The package name of the app to match.
      * @param user The user of the app to match.
-     * @param supportsAllAppsState If true and we are in All Apps state, looks for view in All Apps.
-     *                             Else we only looks on the workspace.
      */
-    public @Nullable View getFirstMatchForAppClose(
-            @Nullable StableViewInfo svi, String packageName,
-            UserHandle user, boolean supportsAllAppsState) {
+    public @Nullable View getFirstHomeElementForAppClose(
+            @Nullable StableViewInfo svi, String packageName, UserHandle user) {
         final Predicate<ItemInfo> preferredItem = svi == null ? i -> false : svi::matches;
-        final Predicate<ItemInfo> packageAndUserAndApp = info ->
-                info != null
-                        && info.itemType == ITEM_TYPE_APPLICATION
-                        && info.user.equals(user)
-                        && info.getTargetComponent() != null
-                        && TextUtils.equals(info.getTargetComponent().getPackageName(),
-                        packageName);
-
-        if (supportsAllAppsState && isInState(LauncherState.ALL_APPS)) {
-            AllAppsRecyclerView activeRecyclerView = mAppsView.getActiveRecyclerView();
-            View v = getFirstMatch(Collections.singletonList(activeRecyclerView),
-                    preferredItem, packageAndUserAndApp);
-
-            if (v != null && activeRecyclerView.computeVerticalScrollOffset() > 0) {
-                RectF locationBounds = new RectF();
-                FloatingIconView.getLocationBoundsForView(this, v, false, locationBounds,
-                        new Rect());
-                if (locationBounds.top < mAppsView.getHeaderBottom()) {
-                    // Icon is covered by scrim, return null to play fallback animation.
-                    return null;
-                }
-            }
-
-            return v;
-        }
+        final Predicate<ItemInfo> packageAndUserAndApp = info -> info != null
+                && info.itemType == ITEM_TYPE_APPLICATION
+                && info.user.equals(user)
+                && TextUtils.equals(info.getTargetPackage(), packageName);
 
         // Look for the item inside the folder at the current page
         Folder folder = Folder.getOpen(this);
         if (folder != null) {
-            View v = getFirstMatch(Collections.singletonList(
-                    folder.getContent().getCurrentCellLayout().getShortcutsAndWidgets()),
-                    preferredItem,
-                    packageAndUserAndApp);
+            View v = folder.getFirstMatch(preferredItem, packageAndUserAndApp);
             if (v == null) {
                 folder.close(isStarted() && !isForceInvisible());
             } else {
@@ -2486,70 +2457,17 @@ public class Launcher extends StatefulActivity<LauncherState>
             }
         }
 
-        List<ViewGroup> containers = new ArrayList<>(mWorkspace.getPanelCount() + 1);
-        containers.add(mWorkspace.getHotseat().getShortcutsAndWidgets());
-        mWorkspace.forEachVisiblePage(page
-                -> containers.add(((CellLayout) page).getShortcutsAndWidgets()));
+        List<CellLayout> containers = new ArrayList<>(mWorkspace.getPanelCount() + 1);
+        containers.add(mWorkspace.getHotseat());
+        mWorkspace.forEachVisiblePage(page -> containers.add((CellLayout) page));
+        CellLayout[] containerArray = containers.toArray(new CellLayout[0]);
+        LauncherBindableItemsContainer visibleContainer =
+                op -> mapOverCellLayouts(containerArray, op);
 
         // Order: Preferred item by itself or in folder, then by matching package/user
-        return getFirstMatch(containers, preferredItem, forFolderMatch(preferredItem),
+        return visibleContainer.getFirstMatch(
+                preferredItem, forFolderMatch(preferredItem),
                 packageAndUserAndApp, forFolderMatch(packageAndUserAndApp));
-    }
-
-    /**
-     * Finds the first view matching the ordered operators across the given viewgroups in order.
-     * @param containers List of ViewGroups to scan, in order of preference.
-     * @param operators List of operators, in order starting from best matching operator.
-     */
-    @Nullable
-    private static View getFirstMatch(Iterable<ViewGroup> containers,
-            final Predicate<ItemInfo>... operators) {
-        for (Predicate<ItemInfo> operator : operators) {
-            for (ViewGroup container : containers) {
-                View match = mapOverViewGroup(container, operator);
-                if (match != null) {
-                    return match;
-                }
-            }
-        }
-        return null;
-    }
-
-    /** Convert a {@link View} to {@link Bitmap}. */
-    private static Bitmap getBitmapFromView(@Nullable View view) {
-        if (view == null) {
-            return null;
-        }
-        Bitmap returnedBitmap =
-                Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(returnedBitmap);
-        view.draw(canvas);
-        return returnedBitmap;
-    }
-
-    /**
-     * Returns the first view matching the operator in the given ViewGroups, or null if none.
-     * Forward iteration matters.
-     */
-    @Nullable
-    private static View mapOverViewGroup(ViewGroup container, Predicate<ItemInfo> op) {
-        final int itemCount = container.getChildCount();
-        for (int itemIdx = 0; itemIdx < itemCount; itemIdx++) {
-            View item = container.getChildAt(itemIdx);
-            if (item.getVisibility() != View.VISIBLE) {
-                continue;
-            }
-            if (item instanceof ViewGroup viewGroup) {
-                View view = mapOverViewGroup(viewGroup, op);
-                if (view != null) {
-                    return view;
-                }
-            }
-            if (item.getTag() instanceof ItemInfo itemInfo && op.test(itemInfo)) {
-                return item;
-            }
-        }
-        return null;
     }
 
     private ValueAnimator createNewAppBounceAnimation(View v, int i) {
@@ -2558,10 +2476,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         bounceAnim.setStartDelay(i * ItemInstallQueue.NEW_SHORTCUT_STAGGER_DELAY);
         bounceAnim.setInterpolator(new OvershootInterpolator(BOUNCE_ANIMATION_TENSION));
         return bounceAnim;
-    }
-
-    private void announceForAccessibility(@StringRes int stringResId) {
-        getDragLayer().announceForAccessibility(getString(stringResId));
     }
 
     /**
@@ -2630,9 +2544,8 @@ public class Launcher extends StatefulActivity<LauncherState>
      * See {@code LauncherBindingDelegate}
      */
     @Override
-    public void bindAllWidgets(@NonNull final List<WidgetsListBaseEntry> allWidgets,
-            @NonNull final List<WidgetsListBaseEntry> defaultWidgets) {
-        mModelCallbacks.bindAllWidgets(allWidgets, defaultWidgets);
+    public void bindAllWidgets(@NonNull final List<WidgetsListBaseEntry> allWidgets) {
+        mModelCallbacks.bindAllWidgets(allWidgets);
     }
 
     @Override
@@ -3022,11 +2935,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         return mWidgetPickerDataProvider;
     }
 
-    @Override
-    public DotInfo getDotInfoForItem(ItemInfo info) {
-        return mPopupDataProvider.getDotInfoForItem(info);
-    }
-
     @NonNull
     public LauncherOverlayManager getOverlayManager() {
         return mOverlayManager;
@@ -3039,6 +2947,12 @@ public class Launcher extends StatefulActivity<LauncherState>
     @Override
     public DragLayer getDragLayer() {
         return mDragLayer;
+    }
+
+    @NonNull
+    @Override
+    public LauncherBindableItemsContainer getContent() {
+        return mWorkspace;
     }
 
     @Override

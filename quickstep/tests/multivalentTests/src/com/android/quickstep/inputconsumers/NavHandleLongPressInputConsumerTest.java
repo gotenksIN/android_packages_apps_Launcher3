@@ -55,7 +55,7 @@ import com.android.launcher3.dagger.LauncherAppSingleton;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.util.AllModulesForTest;
 import com.android.launcher3.util.DisplayController;
-import com.android.launcher3.util.MainThreadInitializedObject.SandboxContext;
+import com.android.launcher3.util.SandboxContext;
 import com.android.quickstep.DeviceConfigWrapper;
 import com.android.quickstep.GestureState;
 import com.android.quickstep.InputConsumer;
@@ -308,6 +308,18 @@ public class NavHandleLongPressInputConsumerTest {
         verify(mNavHandleLongPressHandler, times(1)).onTouchFinished(any(), any());
         verifyNoMoreInteractions(mStatsLogger);
         verify(mStatsLatencyLogger).log(LAUNCHER_LATENCY_CONTEXTUAL_SEARCH_LPNH_ABANDON);
+    }
+
+    @Test
+    public void testTouchCancelWithoutTouchDown() {
+        mUnderTest.onMotionEvent(generateCenteredMotionEvent(ACTION_CANCEL));
+
+        assertThat(mUnderTest.mState).isEqualTo(DelegateInputConsumer.STATE_INACTIVE);
+        assertFalse(mLongPressTriggered.get());
+        verify(mNavHandleLongPressHandler, never()).onTouchStarted(any());
+        verify(mNavHandleLongPressHandler, times(1)).onTouchFinished(any(), any());
+        verifyNoMoreInteractions(mStatsLogger);
+        verifyNoMoreInteractions(mStatsLatencyLogger);
     }
 
     @Test
