@@ -255,7 +255,7 @@ class PortraitPagedViewHandler : DefaultPagedViewHandler(), RecentsPagedOrientat
                 }
             } else {
                 if (desiredTaskId == splitBounds.leftTopTaskId) {
-                    val snapshotParams = thumbnailViews[0].layoutParams as FrameLayout.LayoutParams
+                    val snapshotParams = thumbnailViews[0].layoutParams as LinearLayout.LayoutParams
                     val bottomRightTaskPlusDividerPercent =
                         (splitBounds.rightBottomTaskPercent + splitBounds.dividerPercent)
                     translationY =
@@ -283,6 +283,14 @@ class PortraitPagedViewHandler : DefaultPagedViewHandler(), RecentsPagedOrientat
 
     // Ignore rtl since it only affects X value displacement, Y displacement doesn't change
     override fun getTaskDragDisplacementFactor(isRtl: Boolean): Int = 1
+
+    override fun getTaskDismissVerticalDirection(): Int = -1
+
+    override fun getTaskDismissLength(secondaryDimension: Int, taskThumbnailBounds: Rect): Int =
+        taskThumbnailBounds.bottom
+
+    override fun getTaskLaunchLength(secondaryDimension: Int, taskThumbnailBounds: Rect): Int =
+        secondaryDimension - taskThumbnailBounds.bottom
 
     /* -------------------- */
 
@@ -718,7 +726,11 @@ class PortraitPagedViewHandler : DefaultPagedViewHandler(), RecentsPagedOrientat
                         val secondarySnapshotWidth = groupedTaskViewWidth - primarySnapshotWidth
                         primaryAppChipView.setSplitTranslationX(-secondarySnapshotWidth.toFloat())
                     } else {
-                        secondaryAppChipView.setSplitTranslationX(primarySnapshotWidth.toFloat())
+                        val dividerSize =
+                            Math.round(groupedTaskViewWidth * splitConfig.dividerPercent)
+                        secondaryAppChipView.setSplitTranslationX(
+                            primarySnapshotWidth.toFloat() + dividerSize
+                        )
                     }
                 } else {
                     primaryAppChipView.setSplitTranslationX(0f)

@@ -28,13 +28,14 @@ import com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_NOT_PINNABLE
 import com.android.launcher3.model.data.TaskViewItemInfo.Companion.createTaskViewAtom
 import com.android.launcher3.pm.UserCache
 import com.android.launcher3.util.AllModulesForTest
-import com.android.launcher3.util.MainThreadInitializedObject.SandboxContext
+import com.android.launcher3.util.SandboxContext
 import com.android.launcher3.util.SplitConfigurationOptions
 import com.android.launcher3.util.TransformingTouchDelegate
 import com.android.launcher3.util.UserIconInfo
 import com.android.quickstep.TaskOverlayFactory
 import com.android.quickstep.TaskOverlayFactory.TaskOverlay
 import com.android.quickstep.recents.di.RecentsDependencies
+import com.android.quickstep.task.thumbnail.TaskContentView
 import com.android.quickstep.task.thumbnail.TaskThumbnailView
 import com.android.quickstep.views.RecentsView
 import com.android.quickstep.views.TaskContainer
@@ -76,12 +77,12 @@ class TaskViewItemInfoTest {
         context.initDaggerComponent(
             DaggerTaskViewItemInfoTest_TestComponent.builder().bindUserCache(userCache)
         )
-        RecentsDependencies.initialize(context)
+        RecentsDependencies.maybeInitialize(context)
     }
 
     @After
     fun tearDown() {
-        RecentsDependencies.destroy()
+        RecentsDependencies.destroy(context)
     }
 
     @Test
@@ -198,6 +199,7 @@ class TaskViewItemInfoTest {
         return TaskContainer(
             taskView,
             task,
+            mock<TaskContentView>(),
             if (enableRefactorTaskThumbnail()) mock<TaskThumbnailView>()
             else mock<TaskThumbnailViewDeprecated>(),
             mock<TaskViewIcon>(),

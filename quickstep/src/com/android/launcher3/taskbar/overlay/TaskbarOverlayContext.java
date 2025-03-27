@@ -18,12 +18,11 @@ package com.android.launcher3.taskbar.overlay;
 import android.content.Context;
 import android.view.View;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.R;
-import com.android.launcher3.dot.DotInfo;
-import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.popup.PopupDataProvider;
 import com.android.launcher3.taskbar.BaseTaskbarContext;
 import com.android.launcher3.taskbar.TaskbarActivityContext;
@@ -65,6 +64,7 @@ public class TaskbarOverlayContext extends BaseTaskbarContext {
         mStashedTaskbarHeight = controllers.taskbarStashController.getStashedHeight();
 
         mUiController = controllers.uiController;
+        onViewCreated();
     }
 
     public @Nullable TaskbarSearchSessionController getSearchSessionController() {
@@ -125,6 +125,7 @@ public class TaskbarOverlayContext extends BaseTaskbarContext {
         return mDragController::startDragOnLongClick;
     }
 
+    @NonNull
     @Override
     public PopupDataProvider getPopupDataProvider() {
         return mTaskbarContext.getPopupDataProvider();
@@ -133,11 +134,6 @@ public class TaskbarOverlayContext extends BaseTaskbarContext {
     @Override
     public void startSplitSelection(SplitSelectSource splitSelectSource) {
         mUiController.startSplitSelection(splitSelectSource);
-    }
-
-    @Override
-    public DotInfo getDotInfoForItem(ItemInfo info) {
-        return mTaskbarContext.getDotInfoForItem(info);
     }
 
     @Override

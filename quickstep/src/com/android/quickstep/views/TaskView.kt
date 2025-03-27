@@ -61,8 +61,9 @@ import com.android.launcher3.testing.TestLogging
 import com.android.launcher3.testing.shared.TestProtocol
 import com.android.launcher3.util.CancellableTask
 import com.android.launcher3.util.Executors
+import com.android.launcher3.util.KFloatProperty
+import com.android.launcher3.util.MultiPropertyDelegate
 import com.android.launcher3.util.MultiPropertyFactory
-import com.android.launcher3.util.MultiPropertyFactory.MULTI_PROPERTY_VALUE
 import com.android.launcher3.util.MultiValueAlpha
 import com.android.launcher3.util.RunnableList
 import com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_UNDEFINED
@@ -81,9 +82,11 @@ import com.android.quickstep.orientation.RecentsPagedOrientationHandler
 import com.android.quickstep.recents.di.RecentsDependencies
 import com.android.quickstep.recents.di.get
 import com.android.quickstep.recents.di.inject
+import com.android.quickstep.recents.domain.usecase.ThumbnailPosition
 import com.android.quickstep.recents.ui.viewmodel.TaskData
 import com.android.quickstep.recents.ui.viewmodel.TaskTileUiState
 import com.android.quickstep.recents.ui.viewmodel.TaskViewModel
+import com.android.quickstep.task.thumbnail.TaskContentView
 import com.android.quickstep.util.ActiveGestureErrorDetector
 import com.android.quickstep.util.ActiveGestureLog
 import com.android.quickstep.util.BorderAnimator
@@ -99,7 +102,6 @@ import com.android.systemui.shared.recents.model.ThumbnailData
 import com.android.systemui.shared.system.ActivityManagerWrapper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -220,7 +222,7 @@ constructor(
                 SPLIT_SELECT_TRANSLATION_Y,
             )
 
-    protected val primaryDismissTranslationProperty: FloatProperty<TaskView>
+    val primaryDismissTranslationProperty: FloatProperty<TaskView>
         get() =
             pagedOrientationHandler.getPrimaryValue(DISMISS_TRANSLATION_X, DISMISS_TRANSLATION_Y)
 
@@ -308,6 +310,7 @@ constructor(
     // progress: 0 = show icon and no insets; 1 = don't show icon and show full insets.
     protected var fullscreenProgress = 0f
         set(value) {
+            if (value == field && enableOverviewIconMenu()) return
             field = Utilities.boundToRange(value, 0f, 1f)
             onFullscreenProgressChanged(field)
         }
@@ -440,28 +443,10 @@ constructor(
             applyTranslationX()
         }
 
-    private val taskViewAlpha = MultiValueAlpha(this, NUM_ALPHA_CHANNELS)
-
-    protected var stableAlpha
-        set(value) {
-            taskViewAlpha.get(ALPHA_INDEX_STABLE).value = value
-        }
-        get() = taskViewAlpha.get(ALPHA_INDEX_STABLE).value
-
-    var attachAlpha
-        set(value) {
-            taskViewAlpha.get(ALPHA_INDEX_ATTACH).value = value
-        }
-        get() = taskViewAlpha.get(ALPHA_INDEX_ATTACH).value
-
-    var splitAlpha
-        set(value) {
-            splitAlphaProperty.value = value
-        }
-        get() = splitAlphaProperty.value
-
-    val splitAlphaProperty: MultiPropertyFactory<View>.MultiProperty
-        get() = taskViewAlpha.get(ALPHA_INDEX_SPLIT)
+    private val taskViewAlpha = MultiValueAlpha(this, Alpha.entries.size)
+    protected var stableAlpha by MultiPropertyDelegate(taskViewAlpha, Alpha.STABLE)
+    var attachAlpha by MultiPropertyDelegate(taskViewAlpha, Alpha.ATTACH)
+    var splitAlpha by MultiPropertyDelegate(taskViewAlpha, Alpha.SPLIT)
 
     protected var shouldShowScreenshot = false
         get() = !isRunningTask || field
@@ -507,6 +492,7 @@ constructor(
     // 1 = The TaskView is settled and no longer transitioning
     private var settledProgress = 1f
         set(value) {
+            if (value == field && enableOverviewIconMenu()) return
             field = value
             onSettledProgressUpdated(field)
         }
@@ -515,20 +501,20 @@ constructor(
         MultiPropertyFactory(
             this,
             SETTLED_PROGRESS,
-            SETTLED_PROGRESS_INDEX_COUNT,
+            SettledProgress.entries.size,
             { x: Float, y: Float -> x * y },
             1f,
         )
-    private val settledProgressFullscreen =
-        settledProgressPropertyFactory.get(SETTLED_PROGRESS_INDEX_FULLSCREEN)
-    private val settledProgressGesture =
-        settledProgressPropertyFactory.get(SETTLED_PROGRESS_INDEX_GESTURE)
-    private val settledProgressDismiss =
-        settledProgressPropertyFactory.get(SETTLED_PROGRESS_INDEX_DISMISS)
+    private var settledProgressFullscreen by
+        MultiPropertyDelegate(settledProgressPropertyFactory, SettledProgress.Fullscreen)
+    private var settledProgressGesture by
+        MultiPropertyDelegate(settledProgressPropertyFactory, SettledProgress.Gesture)
+    private var settledProgressDismiss by
+        MultiPropertyDelegate(settledProgressPropertyFactory, SettledProgress.Dismiss)
 
     private var viewModel: TaskViewModel? = null
     private val dispatcherProvider: DispatcherProvider by RecentsDependencies.inject()
-    private val coroutineScope by lazy { CoroutineScope(SupervisorJob() + dispatcherProvider.main) }
+    private val coroutineScope: CoroutineScope by RecentsDependencies.inject()
     private val coroutineJobs = mutableListOf<Job>()
 
     /**
@@ -536,7 +522,7 @@ constructor(
      * interpolator.
      */
     fun getDismissIconFadeInAnimator(): ObjectAnimator =
-        ObjectAnimator.ofFloat(settledProgressDismiss, MULTI_PROPERTY_VALUE, 1f).apply {
+        ObjectAnimator.ofFloat(this, SETTLED_PROGRESS_DISMISS, 1f).apply {
             duration = FADE_IN_ICON_DURATION
             interpolator = FADE_IN_ICON_INTERPOLATOR
         }
@@ -548,8 +534,7 @@ constructor(
      */
     fun getDismissIconFadeOutAnimator(): ObjectAnimator =
         AnimatedFloat { v ->
-                settledProgressDismiss.value =
-                    SETTLED_PROGRESS_FAST_OUT_INTERPOLATOR.getInterpolation(v)
+                settledProgressDismiss = SETTLED_PROGRESS_FAST_OUT_INTERPOLATOR.getInterpolation(v)
             }
             .animateToValue(1f, 0f)
 
@@ -736,13 +721,10 @@ constructor(
     }
 
     protected open fun inflateViewStubs() {
-        findViewById<ViewStub>(R.id.snapshot)
-            ?.apply {
-                layoutResource =
-                    if (enableRefactorTaskThumbnail()) R.layout.task_thumbnail
-                    else R.layout.task_thumbnail_deprecated
-            }
+        findViewById<ViewStub>(R.id.task_content_view)
+            ?.apply { layoutResource = R.layout.task_content_view }
             ?.inflate()
+
         findViewById<ViewStub>(R.id.icon)
             ?.apply {
                 layoutResource =
@@ -759,7 +741,9 @@ constructor(
             // onRecycle. So it should be initialized at this point. TaskView Lifecycle:
             // `bind` -> `onBind` ->  onAttachedToWindow() -> onDetachFromWindow -> onRecycle
             coroutineJobs +=
-                coroutineScope.launch { viewModel!!.state.collectLatest(::updateTaskViewState) }
+                coroutineScope.launch(dispatcherProvider.main) {
+                    viewModel!!.state.collectLatest(::updateTaskViewState)
+                }
         }
     }
 
@@ -792,11 +776,13 @@ constructor(
                     },
             )
             updateThumbnailValidity(container)
-            updateThumbnailMatrix(
-                container = container,
-                width = container.thumbnailView.width,
-                height = container.thumbnailView.height,
-            )
+            val thumbnailPosition =
+                updateThumbnailMatrix(
+                    container = container,
+                    width = container.thumbnailView.width,
+                    height = container.thumbnailView.height,
+                )
+            container.setOverlayEnabled(state.taskOverlayEnabled, thumbnailPosition)
 
             if (enableOverviewIconMenu()) {
                 setIconState(container, containerState)
@@ -825,11 +811,16 @@ constructor(
      * @param width The desired width of the thumbnail's container.
      * @param height The desired height of the thumbnail's container.
      */
-    private fun updateThumbnailMatrix(container: TaskContainer, width: Int, height: Int) {
+    private fun updateThumbnailMatrix(
+        container: TaskContainer,
+        width: Int,
+        height: Int,
+    ): ThumbnailPosition? {
         val thumbnailPosition =
             viewModel?.getThumbnailPosition(container.thumbnailData, width, height, isLayoutRtl)
-                ?: return
+                ?: return null
         container.updateThumbnailMatrix(thumbnailPosition.matrix)
+        return thumbnailPosition
     }
 
     override fun onDetachedFromWindow() {
@@ -853,10 +844,12 @@ constructor(
         taskOverlayFactory: TaskOverlayFactory,
     ) {
         cancelPendingLoadTasks()
+        this.orientedState = orientedState // Needed for dependencies
         taskContainers =
             listOf(
                 createTaskContainer(
                     task,
+                    R.id.task_content_view,
                     R.id.snapshot,
                     R.id.icon,
                     R.id.show_windows,
@@ -870,15 +863,17 @@ constructor(
 
     protected open fun onBind(orientedState: RecentsOrientedState) {
         if (enableRefactorTaskThumbnail()) {
+            val scopeId = context
+            Log.d(TAG, "onBind $scopeId ${orientedState.containerInterface}")
             viewModel =
                 TaskViewModel(
                         taskViewType = type,
-                        recentsViewData = RecentsDependencies.get(),
-                        getTaskUseCase = RecentsDependencies.get(),
-                        getSysUiStatusNavFlagsUseCase = RecentsDependencies.get(),
-                        isThumbnailValidUseCase = RecentsDependencies.get(),
-                        getThumbnailPositionUseCase = RecentsDependencies.get(),
-                        dispatcherProvider = RecentsDependencies.get(),
+                        recentsViewData = RecentsDependencies.get(scopeId),
+                        getTaskUseCase = RecentsDependencies.get(scopeId),
+                        getSysUiStatusNavFlagsUseCase = RecentsDependencies.get(scopeId),
+                        isThumbnailValidUseCase = RecentsDependencies.get(scopeId),
+                        getThumbnailPositionUseCase = RecentsDependencies.get(scopeId),
+                        dispatcherProvider = RecentsDependencies.get(scopeId),
                     )
                     .apply { bind(*taskIds) }
         }
@@ -886,10 +881,12 @@ constructor(
         taskContainers.forEach { container ->
             container.bind()
             if (enableRefactorTaskThumbnail()) {
-                container.thumbnailView.cornerRadius = thumbnailFullscreenParams.currentCornerRadius
-                container.thumbnailView.doOnSizeChange { width, height ->
+                container.taskContentView.cornerRadius =
+                    thumbnailFullscreenParams.currentCornerRadius
+                container.taskContentView.doOnSizeChange { width, height ->
                     updateThumbnailValidity(container)
-                    updateThumbnailMatrix(container, width, height)
+                    val thumbnailPosition = updateThumbnailMatrix(container, width, height)
+                    container.refreshOverlay(thumbnailPosition)
                 }
             }
         }
@@ -913,6 +910,7 @@ constructor(
 
     protected fun createTaskContainer(
         task: Task,
+        @IdRes taskContentViewId: Int,
         @IdRes thumbnailViewId: Int,
         @IdRes iconViewId: Int,
         @IdRes showWindowViewId: Int,
@@ -921,10 +919,12 @@ constructor(
         taskOverlayFactory: TaskOverlayFactory,
     ): TaskContainer {
         val iconView = findViewById<View>(iconViewId) as TaskViewIcon
+        val taskContentView = findViewById<TaskContentView>(taskContentViewId)
         return TaskContainer(
             this,
             task,
-            findViewById(thumbnailViewId),
+            taskContentView,
+            taskContentView.findViewById(thumbnailViewId),
             iconView,
             TransformingTouchDelegate(iconView.asView()),
             stagePosition,
@@ -1012,7 +1012,7 @@ constructor(
     protected open fun updateThumbnailSize() {
         // TODO(b/271468547), we should default to setting translations only on the snapshot instead
         //  of a hybrid of both margins and translations
-        firstTaskContainer?.snapshotView?.updateLayoutParams<LayoutParams> {
+        firstTaskContainer?.taskContentView?.updateLayoutParams<LayoutParams> {
             topMargin = container.deviceProfile.overviewTaskThumbnailTopMarginPx
         }
         taskContainers.forEach { it.digitalWellBeingToast?.setupLayout() }
@@ -1026,11 +1026,11 @@ constructor(
             val thumbnailBounds = Rect()
             if (relativeToDragLayer) {
                 container.dragLayer.getDescendantRectRelativeToSelf(
-                    it.snapshotView,
+                    it.taskContentView,
                     thumbnailBounds,
                 )
             } else {
-                thumbnailBounds.set(it.snapshotView)
+                thumbnailBounds.set(it.taskContentView)
             }
             bounds.union(thumbnailBounds)
         }
@@ -1603,7 +1603,7 @@ constructor(
     fun startIconFadeInOnGestureComplete() {
         iconFadeInOnGestureCompleteAnimator?.cancel()
         iconFadeInOnGestureCompleteAnimator =
-            ObjectAnimator.ofFloat(settledProgressGesture, MULTI_PROPERTY_VALUE, 1f).apply {
+            ObjectAnimator.ofFloat(this, SETTLED_PROGRESS_GESTURE, 1f).apply {
                 duration = FADE_IN_ICON_DURATION
                 interpolator = Interpolators.LINEAR
                 addListener(
@@ -1619,7 +1619,7 @@ constructor(
 
     fun setIconVisibleForGesture(isVisible: Boolean) {
         iconFadeInOnGestureCompleteAnimator?.cancel()
-        settledProgressGesture.value = if (isVisible) 1f else 0f
+        settledProgressGesture = if (isVisible) 1f else 0f
     }
 
     /** Set a color tint on the snapshot and supporting views. */
@@ -1667,7 +1667,7 @@ constructor(
     protected fun getScrollAdjustment(gridEnabled: Boolean) =
         if (gridEnabled) gridTranslationX else nonGridTranslationX
 
-    protected fun getOffsetAdjustment(gridEnabled: Boolean) = getScrollAdjustment(gridEnabled)
+    fun getOffsetAdjustment(gridEnabled: Boolean) = getScrollAdjustment(gridEnabled)
 
     fun getSizeAdjustment(fullscreenEnabled: Boolean) = if (fullscreenEnabled) nonGridScale else 1f
 
@@ -1705,10 +1705,12 @@ constructor(
 
     protected open fun onFullscreenProgressChanged(fullscreenProgress: Float) {
         taskContainers.forEach {
-            it.iconView.setVisibility(if (fullscreenProgress < 1) VISIBLE else INVISIBLE)
+            if (!enableOverviewIconMenu()) {
+                it.iconView.setVisibility(if (fullscreenProgress < 1) VISIBLE else INVISIBLE)
+            }
             it.overlay.setFullscreenProgress(fullscreenProgress)
         }
-        settledProgressFullscreen.value =
+        settledProgressFullscreen =
             SETTLED_PROGRESS_FAST_OUT_INTERPOLATOR.getInterpolation(1 - fullscreenProgress)
         updateFullscreenParams()
     }
@@ -1717,7 +1719,7 @@ constructor(
         updateFullscreenParams(thumbnailFullscreenParams)
         taskContainers.forEach {
             if (enableRefactorTaskThumbnail()) {
-                it.thumbnailView.cornerRadius = thumbnailFullscreenParams.currentCornerRadius
+                it.taskContentView.cornerRadius = thumbnailFullscreenParams.currentCornerRadius
             } else {
                 it.thumbnailViewDeprecated.setFullscreenParams(thumbnailFullscreenParams)
             }
@@ -1766,7 +1768,7 @@ constructor(
         dismissScale = 1f
         translationZ = 0f
         setIconVisibleForGesture(true)
-        settledProgressDismiss.value = 1f
+        settledProgressDismiss = 1f
         setColorTint(0f, 0)
     }
 
@@ -1788,22 +1790,24 @@ constructor(
 
     companion object {
         private const val TAG = "TaskView"
+
+        private enum class Alpha {
+            STABLE,
+            ATTACH,
+            SPLIT,
+        }
+
+        private enum class SettledProgress {
+            Fullscreen,
+            Gesture,
+            Dismiss,
+        }
+
         const val FLAG_UPDATE_ICON = 1
         const val FLAG_UPDATE_THUMBNAIL = FLAG_UPDATE_ICON shl 1
         const val FLAG_UPDATE_CORNER_RADIUS = FLAG_UPDATE_THUMBNAIL shl 1
         const val FLAG_UPDATE_ALL =
             (FLAG_UPDATE_ICON or FLAG_UPDATE_THUMBNAIL or FLAG_UPDATE_CORNER_RADIUS)
-
-        const val SETTLED_PROGRESS_INDEX_FULLSCREEN = 0
-        const val SETTLED_PROGRESS_INDEX_GESTURE = 1
-        const val SETTLED_PROGRESS_INDEX_DISMISS = 2
-        const val SETTLED_PROGRESS_INDEX_COUNT = 3
-
-        private const val ALPHA_INDEX_STABLE = 0
-        private const val ALPHA_INDEX_ATTACH = 1
-        private const val ALPHA_INDEX_SPLIT = 2
-
-        private const val NUM_ALPHA_CHANNELS = 3
 
         /** The maximum amount that a task view can be scrimmed, dimmed or tinted. */
         const val MAX_PAGE_SCRIM_ALPHA = 0.4f
@@ -1821,104 +1825,45 @@ constructor(
         private val SYSTEM_GESTURE_EXCLUSION_RECT = listOf(Rect())
 
         private val SETTLED_PROGRESS: FloatProperty<TaskView> =
-            object : FloatProperty<TaskView>("settleTransition") {
-                override fun setValue(taskView: TaskView, v: Float) {
-                    taskView.settledProgress = v
-                }
+            KFloatProperty(TaskView::settledProgress)
 
-                override fun get(taskView: TaskView) = taskView.settledProgress
-            }
+        private val SETTLED_PROGRESS_GESTURE: FloatProperty<TaskView> =
+            KFloatProperty(TaskView::settledProgressGesture)
+
+        private val SETTLED_PROGRESS_DISMISS: FloatProperty<TaskView> =
+            KFloatProperty(TaskView::settledProgressDismiss)
 
         private val SPLIT_SELECT_TRANSLATION_X: FloatProperty<TaskView> =
-            object : FloatProperty<TaskView>("splitSelectTranslationX") {
-                override fun setValue(taskView: TaskView, v: Float) {
-                    taskView.splitSelectTranslationX = v
-                }
-
-                override fun get(taskView: TaskView) = taskView.splitSelectTranslationX
-            }
+            KFloatProperty(TaskView::splitSelectTranslationX)
 
         private val SPLIT_SELECT_TRANSLATION_Y: FloatProperty<TaskView> =
-            object : FloatProperty<TaskView>("splitSelectTranslationY") {
-                override fun setValue(taskView: TaskView, v: Float) {
-                    taskView.splitSelectTranslationY = v
-                }
-
-                override fun get(taskView: TaskView) = taskView.splitSelectTranslationY
-            }
+            KFloatProperty(TaskView::splitSelectTranslationY)
 
         private val DISMISS_TRANSLATION_X: FloatProperty<TaskView> =
-            object : FloatProperty<TaskView>("dismissTranslationX") {
-                override fun setValue(taskView: TaskView, v: Float) {
-                    taskView.dismissTranslationX = v
-                }
-
-                override fun get(taskView: TaskView) = taskView.dismissTranslationX
-            }
+            KFloatProperty(TaskView::dismissTranslationX)
 
         private val DISMISS_TRANSLATION_Y: FloatProperty<TaskView> =
-            object : FloatProperty<TaskView>("dismissTranslationY") {
-                override fun setValue(taskView: TaskView, v: Float) {
-                    taskView.dismissTranslationY = v
-                }
-
-                override fun get(taskView: TaskView) = taskView.dismissTranslationY
-            }
+            KFloatProperty(TaskView::dismissTranslationY)
 
         private val TASK_OFFSET_TRANSLATION_X: FloatProperty<TaskView> =
-            object : FloatProperty<TaskView>("taskOffsetTranslationX") {
-                override fun setValue(taskView: TaskView, v: Float) {
-                    taskView.taskOffsetTranslationX = v
-                }
-
-                override fun get(taskView: TaskView) = taskView.taskOffsetTranslationX
-            }
+            KFloatProperty(TaskView::taskOffsetTranslationX)
 
         private val TASK_OFFSET_TRANSLATION_Y: FloatProperty<TaskView> =
-            object : FloatProperty<TaskView>("taskOffsetTranslationY") {
-                override fun setValue(taskView: TaskView, v: Float) {
-                    taskView.taskOffsetTranslationY = v
-                }
-
-                override fun get(taskView: TaskView) = taskView.taskOffsetTranslationY
-            }
+            KFloatProperty(TaskView::taskOffsetTranslationY)
 
         private val TASK_RESISTANCE_TRANSLATION_X: FloatProperty<TaskView> =
-            object : FloatProperty<TaskView>("taskResistanceTranslationX") {
-                override fun setValue(taskView: TaskView, v: Float) {
-                    taskView.taskResistanceTranslationX = v
-                }
-
-                override fun get(taskView: TaskView) = taskView.taskResistanceTranslationX
-            }
+            KFloatProperty(TaskView::taskResistanceTranslationX)
 
         private val TASK_RESISTANCE_TRANSLATION_Y: FloatProperty<TaskView> =
-            object : FloatProperty<TaskView>("taskResistanceTranslationY") {
-                override fun setValue(taskView: TaskView, v: Float) {
-                    taskView.taskResistanceTranslationY = v
-                }
-
-                override fun get(taskView: TaskView) = taskView.taskResistanceTranslationY
-            }
+            KFloatProperty(TaskView::taskResistanceTranslationY)
 
         @JvmField
         val GRID_END_TRANSLATION_X: FloatProperty<TaskView> =
-            object : FloatProperty<TaskView>("gridEndTranslationX") {
-                override fun setValue(taskView: TaskView, v: Float) {
-                    taskView.gridEndTranslationX = v
-                }
-
-                override fun get(taskView: TaskView) = taskView.gridEndTranslationX
-            }
+            KFloatProperty(TaskView::gridEndTranslationX)
 
         @JvmField
-        val DISMISS_SCALE: FloatProperty<TaskView> =
-            object : FloatProperty<TaskView>("dismissScale") {
-                override fun setValue(taskView: TaskView, v: Float) {
-                    taskView.dismissScale = v
-                }
+        val DISMISS_SCALE: FloatProperty<TaskView> = KFloatProperty(TaskView::dismissScale)
 
-                override fun get(taskView: TaskView) = taskView.dismissScale
-            }
+        @JvmField val SPLIT_ALPHA: FloatProperty<TaskView> = KFloatProperty(TaskView::splitAlpha)
     }
 }
