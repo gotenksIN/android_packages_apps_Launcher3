@@ -275,7 +275,7 @@ open class LandscapePagedViewHandler : RecentsPagedOrientationHandler {
         desiredTaskId: Int,
         banner: View,
     ): Pair<Float, Float> {
-        val snapshotParams = thumbnailViews[0].layoutParams as FrameLayout.LayoutParams
+        val snapshotParams = thumbnailViews[0].layoutParams as LinearLayout.LayoutParams
         val translationX = banner.height.toFloat()
         val translationY: Float
         if (splitBounds == null) {
@@ -310,6 +310,14 @@ open class LandscapePagedViewHandler : RecentsPagedOrientationHandler {
         if (isRtl) displacement < 0 else displacement > 0
 
     override fun getTaskDragDisplacementFactor(isRtl: Boolean): Int = if (isRtl) 1 else -1
+
+    override fun getTaskDismissVerticalDirection(): Int = 1
+
+    override fun getTaskDismissLength(secondaryDimension: Int, taskThumbnailBounds: Rect): Int =
+        secondaryDimension - taskThumbnailBounds.left
+
+    override fun getTaskLaunchLength(secondaryDimension: Int, taskThumbnailBounds: Rect): Int =
+        taskThumbnailBounds.left
 
     /* -------------------- */
 

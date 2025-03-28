@@ -56,6 +56,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.savedstate.SavedStateRegistryOwner;
 
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.DeviceProfile;
@@ -80,11 +81,13 @@ import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.PopupDataProvider;
 import com.android.launcher3.util.ActivityOptionsWrapper;
 import com.android.launcher3.util.ApplicationInfoWrapper;
+import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.Preconditions;
 import com.android.launcher3.util.RunnableList;
 import com.android.launcher3.util.SplitConfigurationOptions;
 import com.android.launcher3.util.SystemUiController;
 import com.android.launcher3.util.ViewCache;
+import com.android.launcher3.util.WeakCleanupSet;
 import com.android.launcher3.widget.picker.model.WidgetPickerDataProvider;
 
 import java.util.List;
@@ -93,16 +96,12 @@ import java.util.List;
  * An interface to be used along with a context for various activities in Launcher. This allows a
  * generic class to depend on Context subclass instead of an Activity.
  */
-public interface ActivityContext {
+public interface ActivityContext extends SavedStateRegistryOwner {
 
     String TAG = "ActivityContext";
 
     default boolean finishAutoCancelActionMode() {
         return false;
-    }
-
-    default DotInfo getDotInfoForItem(ItemInfo info) {
-        return null;
     }
 
     default AccessibilityDelegate getAccessibilityDelegate() {
@@ -194,6 +193,14 @@ public interface ActivityContext {
     }
 
     /**
+     * Returns the primary content of this context
+     */
+    @NonNull
+    default LauncherBindableItemsContainer getContent() {
+        return op -> null;
+    }
+
+    /**
      * The all apps container, if it exists in this context.
      */
     default ActivityAllAppsContainerView<?> getAppsView() {
@@ -224,9 +231,7 @@ public interface ActivityContext {
         getOnDeviceProfileChangeListeners().remove(listener);
     }
 
-    default ViewCache getViewCache() {
-        return new ViewCache();
-    }
+    ViewCache getViewCache();
 
     /**
      * Controller for supporting item drag-and-drop
@@ -281,9 +286,13 @@ public interface ActivityContext {
         return v -> false;
     }
 
-    @Nullable
+    @NonNull
     default PopupDataProvider getPopupDataProvider() {
-        return null;
+        return new PopupDataProvider(this);
+    }
+
+    default DotInfo getDotInfoForItem(ItemInfo info) {
+        return getPopupDataProvider().getDotInfoForItem(info);
     }
 
     /**
@@ -511,6 +520,9 @@ public interface ActivityContext {
         DeviceProfile dp = getDeviceProfile();
         return new CellPosMapper(dp.isVerticalBarLayout(), dp.numShownHotseatIcons);
     }
+
+    /** Set to manage objects that can be cleaned up along with the context */
+    WeakCleanupSet getOwnerCleanupSet();
 
     /** Whether bubbles are enabled. */
     default boolean isBubbleBarEnabled() {

@@ -56,11 +56,12 @@ import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimatorListeners;
-import com.android.launcher3.taskbar.TypefaceUtils;
 import com.android.launcher3.views.ClipIconView;
 import com.android.quickstep.interaction.EdgeBackGestureHandler.BackGestureAttemptCallback;
 import com.android.quickstep.interaction.NavBarGestureHandler.NavBarGestureAttemptCallback;
 import com.android.systemui.shared.system.QuickStepContract;
+import com.android.wm.shell.shared.TypefaceUtils;
+import com.android.wm.shell.shared.TypefaceUtils.FontFamily;
 
 import com.airbnb.lottie.LottieAnimationView;
 import com.airbnb.lottie.LottieComposition;
@@ -109,7 +110,6 @@ abstract class TutorialController implements BackGestureAttemptCallback,
     final AnimatedTaskView mFakePreviousTaskView;
     final View mRippleView;
     final RippleDrawable mRippleDrawable;
-    final TutorialStepIndicator mTutorialStepView;
     final ImageView mFingerDotView;
     private final Rect mExitingAppRect = new Rect();
     protected View mExitingAppView;
@@ -152,8 +152,6 @@ abstract class TutorialController implements BackGestureAttemptCallback,
         mRippleView = rootView.findViewById(R.id.gesture_tutorial_ripple_view);
         mRippleDrawable = (RippleDrawable) mRippleView.getBackground();
         mDoneButton = rootView.findViewById(R.id.gesture_tutorial_fragment_action_button);
-        mTutorialStepView =
-                rootView.findViewById(R.id.gesture_tutorial_fragment_feedback_tutorial_step);
         mFingerDotView = rootView.findViewById(R.id.gesture_tutorial_finger_dot);
         mSkipTutorialDialog = createSkipTutorialDialog();
 
@@ -412,7 +410,7 @@ abstract class TutorialController implements BackGestureAttemptCallback,
             if (mTutorialFragment.isAtFinalStep()) {
                 TypefaceUtils.setTypeface(
                         mDoneButton,
-                        TypefaceUtils.FONT_FAMILY_LABEL_LARGE_BASELINE
+                        FontFamily.GSF_LABEL_LARGE
                 );
                 showActionButton();
             }
@@ -488,7 +486,6 @@ abstract class TutorialController implements BackGestureAttemptCallback,
     @CallSuper
     void transitToController() {
         updateCloseButton();
-        updateSubtext();
         updateDrawables();
         updateLayout();
 
@@ -521,11 +518,11 @@ abstract class TutorialController implements BackGestureAttemptCallback,
         TypefaceUtils.setTypeface(
                 mFeedbackTitleView,
                 mTutorialFragment.isLargeScreen()
-                        ? TypefaceUtils.FONT_FAMILY_DISPLAY_MEDIUM_EMPHASIZED
-                        : TypefaceUtils.FONT_FAMILY_DISPLAY_SMALL_EMPHASIZED);
+                        ? FontFamily.GSF_DISPLAY_MEDIUM_EMPHASIZED
+                        : FontFamily.GSF_DISPLAY_SMALL_EMPHASIZED);
         TypefaceUtils.setTypeface(
                 mFeedbackSubtitleView,
-                TypefaceUtils.FONT_FAMILY_BODY_LARGE_BASELINE
+                FontFamily.GSF_BODY_LARGE
         );
     }
 
@@ -603,11 +600,6 @@ abstract class TutorialController implements BackGestureAttemptCallback,
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT));
         }
-    }
-
-    private void updateSubtext() {
-        mTutorialStepView.setTutorialProgress(
-                mTutorialFragment.getCurrentStep(), mTutorialFragment.getNumSteps());
     }
 
     private void updateHotseatChildViewColor(@Nullable View child) {

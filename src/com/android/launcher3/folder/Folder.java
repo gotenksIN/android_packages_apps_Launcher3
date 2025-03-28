@@ -65,6 +65,7 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.TextView;
 
 import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.content.res.ResourcesCompat;
@@ -100,6 +101,7 @@ import com.android.launcher3.model.data.WorkspaceItemFactory;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pageindicators.PageIndicatorDots;
 import com.android.launcher3.util.Executors;
+import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.LauncherBindableItemsContainer.ItemOperator;
 import com.android.launcher3.util.Thunk;
 import com.android.launcher3.views.ActivityContext;
@@ -122,7 +124,8 @@ import java.util.stream.Stream;
  */
 public class Folder extends AbstractFloatingView implements ClipPathView, DragSource,
         View.OnLongClickListener, DropTarget, FolderListener, TextView.OnEditorActionListener,
-        View.OnFocusChangeListener, DragListener, ExtendedEditText.OnBackKeyListener {
+        View.OnFocusChangeListener, DragListener, ExtendedEditText.OnBackKeyListener,
+        LauncherBindableItemsContainer {
     private static final String TAG = "Launcher.Folder";
     private static final boolean DEBUG = false;
 
@@ -261,7 +264,7 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     @Nullable
     private KeyboardInsetAnimationCallback mKeyboardInsetAnimationCallback;
 
-    private GradientDrawable mBackground;
+    private final @NonNull GradientDrawable mBackground;
 
     /**
      * Used to inflate the Workspace from XML.
@@ -283,6 +286,10 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         // click).
         setFocusableInTouchMode(true);
 
+        mBackground = (GradientDrawable) Objects.requireNonNull(
+                ResourcesCompat.getDrawable(getResources(),
+                        R.drawable.round_rect_folder, getContext().getTheme()));
+        mBackground.setCallback(this);
     }
 
     @Override
@@ -295,9 +302,6 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         super.onFinishInflate();
         final DeviceProfile dp = mActivityContext.getDeviceProfile();
         final int paddingLeftRight = dp.folderContentPaddingLeftRight;
-
-        mBackground = (GradientDrawable) ResourcesCompat.getDrawable(getResources(),
-                R.drawable.round_rect_folder, getContext().getTheme());
 
         mContent = findViewById(R.id.folder_content);
         mContent.setPadding(paddingLeftRight, dp.folderContentPaddingTop, paddingLeftRight, 0);
@@ -343,6 +347,11 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
             callBeginDragShared(v, options);
         }
         return true;
+    }
+
+    @Override
+    protected boolean verifyDrawable(@NonNull Drawable who) {
+        return super.verifyDrawable(who) || (who == mBackground);
     }
 
     void callBeginDragShared(View v, DragOptions options) {
@@ -1506,8 +1515,10 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     /**
      * Utility methods to iterate over items of the view
      */
-    public void iterateOverItems(ItemOperator op) {
-        mContent.iterateOverItems(op);
+    @Override
+    @Nullable
+    public View mapOverItems(@NonNull ItemOperator op) {
+        return mContent.iterateOverItems(op);
     }
 
     /**
