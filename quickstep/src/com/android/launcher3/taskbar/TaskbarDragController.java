@@ -80,7 +80,6 @@ import com.android.launcher3.shortcuts.ShortcutDragPreviewProvider;
 import com.android.launcher3.taskbar.bubbles.BubbleBarViewController;
 import com.android.launcher3.testing.TestLogging;
 import com.android.launcher3.testing.shared.TestProtocol;
-import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.IntSet;
 import com.android.launcher3.util.ItemInfoMatcher;
 import com.android.launcher3.views.BubbleTextHolder;
@@ -132,6 +131,14 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
 
     public void init(TaskbarControllers controllers) {
         mControllers = controllers;
+        mControllers.bubbleControllers.ifPresent(
+                c -> c.bubbleBarViewController.addBubbleBarDropTargets(this));
+    }
+
+    /** Called when the controller is destroyed. */
+    public void onDestroy() {
+        mControllers.bubbleControllers.ifPresent(
+                c -> c.bubbleBarViewController.removeBubbleBarDropTargets(this));
     }
 
     public void setDisallowGlobalDrag(boolean disallowGlobalDrag) {
@@ -463,7 +470,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
             com.android.launcher3.logging.InstanceId launcherInstanceId = instanceIds.second;
 
             intent.putExtra(ClipDescription.EXTRA_LOGGING_INSTANCE_ID, internalInstanceId);
-            if (DisplayController.isTransientTaskbar(mActivity)) {
+            if (mActivity.isTransientTaskbar()) {
                 // Tell WM Shell to ignore drag events in the provided transient taskbar region.
                 TaskbarDragLayer dragLayer = mControllers.taskbarActivityContext.getDragLayer();
                 int[] locationOnScreen = dragLayer.getLocationOnScreen();
@@ -503,6 +510,8 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
                     } else {
                         // This will take care of calling maybeOnDragEnd() after the animation
                         animateGlobalDragViewToOriginalPosition(btv, dragEvent);
+                        //TODO(b/399678274): hide drop target in shell
+                        notifyBubbleBarItemDragCanceled();
                     }
                     mActivity.getDragLayer().setOnDragListener(null);
 
@@ -529,10 +538,10 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
             mControllers.taskbarAutohideSuspendController.updateFlag(
                     TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_DRAGGING, false);
             mActivity.onDragEnd();
+            // If an item is dropped on the bubble bar, the bubble bar handles the drop,
+            // so it should not collapse along with the taskbar.
+            boolean droppedOnBubbleBar = notifyBubbleBarItemDropped();
             if (mReturnAnimator == null) {
-                // If an item is dropped on the bubble bar, the bubble bar handles the drop,
-                // so it should not collapse along with the taskbar.
-                boolean droppedOnBubbleBar = notifyBubbleBarItemDropped();
                 // Upon successful drag, immediately stash taskbar.
                 // Note, this must be done last to ensure no AutohideSuspendFlags are active, as
                 // that will prevent us from stashing until the timeout.
@@ -556,10 +565,15 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
             BubbleBarViewController bubbleBarViewController = bc.bubbleBarViewController;
             boolean showingDropTarget = bubbleBarViewController.isShowingDropTarget();
             if (showingDropTarget) {
-                bubbleBarViewController.onItemDroppedInBubbleBarDragZone();
+                bubbleBarViewController.onItemDragCompleted();
             }
             return showingDropTarget;
         }).orElse(false);
+    }
+
+    private void notifyBubbleBarItemDragCanceled() {
+        mControllers.bubbleControllers.ifPresent(bc ->
+                bc.bubbleBarViewController.onItemDraggedOutsideBubbleBarDropZone());
     }
 
     @Override

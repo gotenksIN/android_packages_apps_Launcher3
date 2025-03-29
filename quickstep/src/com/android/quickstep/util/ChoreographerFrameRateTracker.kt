@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-package com.android.quickstep.task.thumbnail
+package com.android.quickstep.util
 
-import android.graphics.drawable.Drawable
-import android.view.View
+import android.util.TimeUtils
+import android.view.Choreographer
+import com.android.launcher3.util.window.RefreshRateTracker
 
-sealed class TaskHeaderUiState {
-    data class ShowHeader(val header: ThumbnailHeader) : TaskHeaderUiState()
+/** [RefreshRateTracker] using main thread [Choreographer] */
+object ChoreographerFrameRateTracker : RefreshRateTracker {
 
-    data object HideHeader : TaskHeaderUiState()
-
-    data class ThumbnailHeader(
-        val icon: Drawable,
-        val title: String,
-        val clickCloseListener: View.OnClickListener,
-    )
+    override val singleFrameMs: Int
+        get() =
+            Choreographer.getMainThreadInstance()?.let {
+                (it.frameIntervalNanos / TimeUtils.NANOS_PER_MS).toInt().coerceAtLeast(1)
+            } ?: 1
 }
