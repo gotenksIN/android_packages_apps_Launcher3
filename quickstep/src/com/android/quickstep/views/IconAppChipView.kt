@@ -122,6 +122,9 @@ constructor(
             field = max(value, minMaxWidth)
         }
 
+    var status: AppChipStatus = AppChipStatus.Collapsed
+        private set
+
     override fun onFinishInflate() {
         super.onFinishInflate()
         iconView = findViewById(R.id.icon_view)
@@ -355,7 +358,8 @@ constructor(
                 ObjectAnimator.ofFloat(iconArrowView, TRANSLATION_X, arrowTranslationWithRtl),
                 ObjectAnimator.ofFloat(iconArrowView, SCALE_Y, -1f),
             )
-            animator!!.setDuration(MENU_BACKGROUND_REVEAL_DURATION.toLong())
+            animator!!.duration = MENU_BACKGROUND_REVEAL_DURATION.toLong()
+            status = AppChipStatus.Expanded
         } else {
             // Clip expanded text with reveal animation so it doesn't go beyond the edge of the menu
             val expandedTextClipAnim =
@@ -389,7 +393,8 @@ constructor(
                 ObjectAnimator.ofFloat(iconArrowView, TRANSLATION_X, 0f),
                 ObjectAnimator.ofFloat(iconArrowView, SCALE_Y, 1f),
             )
-            animator!!.setDuration(MENU_BACKGROUND_HIDE_DURATION.toLong())
+            animator!!.duration = MENU_BACKGROUND_HIDE_DURATION.toLong()
+            status = AppChipStatus.Collapsed
         }
 
         if (!animated) animator!!.duration = 0
@@ -416,7 +421,28 @@ constructor(
         }
     }
 
+    override fun focusSearch(direction: Int): View? {
+        if (mParent == null) return null
+        return when (direction) {
+            FOCUS_RIGHT,
+            FOCUS_DOWN -> mParent.focusSearch(this, View.FOCUS_FORWARD)
+            FOCUS_UP,
+            FOCUS_LEFT -> mParent.focusSearch(this, View.FOCUS_BACKWARD)
+            else -> super.focusSearch(direction)
+        }
+    }
+
+    fun reset() {
+        setText(null)
+        setDrawable(null)
+    }
+
     override fun asView(): View = this
+
+    enum class AppChipStatus {
+        Expanded,
+        Collapsed,
+    }
 
     private companion object {
         private val SUM_AGGREGATOR = FloatBiFunction { a: Float, b: Float -> a + b }

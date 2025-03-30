@@ -42,12 +42,12 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
 import com.android.internal.util.ArrayUtils;
-import com.android.launcher3.Flags;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.taskbar.TaskbarUIController;
 import com.android.launcher3.util.DisplayController;
 import com.android.quickstep.fallback.window.RecentsDisplayModel;
+import com.android.quickstep.fallback.window.RecentsWindowFlags;
 import com.android.quickstep.fallback.window.RecentsWindowManager;
 import com.android.quickstep.util.ActiveGestureProtoLogProxy;
 import com.android.quickstep.util.SystemUiFlagUtils;
@@ -59,11 +59,11 @@ import com.android.systemui.shared.system.TaskStackChangeListeners;
 
 import java.io.PrintWriter;
 import java.util.HashMap;
+import java.util.Locale;
 
 public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAnimationListener {
     public static final boolean SHELL_TRANSITIONS_ROTATION =
             SystemProperties.getBoolean("persist.wm.debug.shell_transit_rotate", false);
-
     private final Context mCtx;
     private RecentsAnimationController mController;
     private RecentsAnimationCallbacks mCallbacks;
@@ -78,6 +78,7 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
 
     private boolean mRecentsAnimationStartPending = false;
     private boolean mShouldIgnoreMotionEvents = false;
+    private final int mDisplayId;
 
     private final TaskStackChangeListener mLiveTileRestartListener = new TaskStackChangeListener() {
         @Override
@@ -102,10 +103,13 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
         }
     };
 
-    TaskAnimationManager(Context ctx, RecentsAnimationDeviceState deviceState) {
+    public TaskAnimationManager(Context ctx, RecentsAnimationDeviceState deviceState,
+            int displayId) {
         mCtx = ctx;
         mDeviceState = deviceState;
+        mDisplayId = displayId;
     }
+
     SystemUiProxy getSystemUiProxy() {
         return SystemUiProxy.INSTANCE.get(mCtx);
     }
@@ -129,6 +133,17 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
     public RecentsAnimationCallbacks startRecentsAnimation(@NonNull GestureState gestureState,
             Intent intent, RecentsAnimationCallbacks.RecentsAnimationListener listener) {
         ActiveGestureProtoLogProxy.logStartRecentsAnimation();
+        // Check displayId
+        if (mDisplayId != gestureState.getDisplayId()) {
+            String msg = String.format(Locale.ENGLISH,
+                    "Constructor displayId %d does not equal gestureState display id %d",
+                    mDisplayId, gestureState.getDisplayId());
+            if (FeatureFlags.IS_STUDIO_BUILD) {
+                throw new IllegalArgumentException(msg);
+            } else {
+                Log.e("TaskAnimationManager", msg, new Exception());
+            }
+        }
         // Notify if recents animation is still running
         if (mController != null) {
             String msg = "New recents animation started before old animation completed";
@@ -236,11 +251,11 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
                 RemoteAnimationTarget appearedTaskTarget = appearedTaskTargets[0];
                 BaseContainerInterface containerInterface =
                         mLastGestureState.getContainerInterface();
-
                 for (RemoteAnimationTarget compat : appearedTaskTargets) {
                     if (compat.windowConfiguration.getActivityType() == ACTIVITY_TYPE_HOME
                             && containerInterface.getCreatedContainer() instanceof RecentsActivity
-                            && DisplayController.getNavigationMode(mCtx) != NO_BUTTON) {
+                            && DisplayController.INSTANCE.get(mCtx).getInfoForDisplay(
+                            mDisplayId).getNavigationMode() != NO_BUTTON) {
                         // The only time we get onTasksAppeared() in button navigation with a
                         // 3p launcher is if the user goes to overview first, and in this case we
                         // can immediately finish the transition
@@ -313,8 +328,7 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
         }
 
         if(containerInterface.getCreatedContainer() instanceof RecentsWindowManager
-                && (Flags.enableFallbackOverviewInWindow()
-                        || Flags.enableLauncherOverviewInWindow())) {
+                && RecentsWindowFlags.Companion.getEnableOverviewInWindow()) {
             mRecentsAnimationStartPending = getSystemUiProxy().startRecentsActivity(intent, options,
                     mCallbacks, gestureState.useSyntheticRecentsTransition());
             RecentsDisplayModel.getINSTANCE().get(mCtx)
@@ -491,6 +505,7 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
 
     public void dump(String prefix, PrintWriter pw) {
         pw.println(prefix + "TaskAnimationManager:");
+        pw.println(prefix + "\tmDisplayId=" + mDisplayId);
 
         if (enableHandleDelayedGestureCallbacks()) {
             pw.println(prefix + "\tmRecentsAnimationStartPending=" + mRecentsAnimationStartPending);

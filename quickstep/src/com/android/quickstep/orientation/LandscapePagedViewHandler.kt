@@ -275,7 +275,7 @@ open class LandscapePagedViewHandler : RecentsPagedOrientationHandler {
         desiredTaskId: Int,
         banner: View,
     ): Pair<Float, Float> {
-        val snapshotParams = thumbnailViews[0].layoutParams as LinearLayout.LayoutParams
+        val snapshotParams = thumbnailViews[0].layoutParams as FrameLayout.LayoutParams
         val translationX = banner.height.toFloat()
         val translationY: Float
         if (splitBounds == null) {
@@ -661,7 +661,7 @@ open class LandscapePagedViewHandler : RecentsPagedOrientationHandler {
     ): SplitIconPositions {
         return if (Flags.enableOverviewIconMenu()) {
             if (isRtl) {
-                SplitIconPositions(0, -(totalThumbnailHeight - primarySnapshotHeight))
+                SplitIconPositions(-(totalThumbnailHeight - primarySnapshotHeight), 0)
             } else {
                 SplitIconPositions(0, primarySnapshotHeight + dividerSize)
             }

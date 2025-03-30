@@ -166,6 +166,9 @@ public class StatsLogManager implements ResourceBasedOverride {
         @UiEvent(doc = "User tapped or long pressed on settings icon inside launcher settings.")
         LAUNCHER_SETTINGS_BUTTON_TAP_OR_LONGPRESS(463),
 
+        @UiEvent(doc = "User tapped or long pressed on apps icon inside launcher settings.")
+        LAUNCHER_ALL_APPS_TAP_OR_LONGPRESS(2204),
+
         @UiEvent(doc = "User tapped or long pressed on widget tray icon inside launcher settings.")
         LAUNCHER_WIDGETSTRAY_BUTTON_TAP_OR_LONGPRESS(464),
 
@@ -862,6 +865,9 @@ public class StatsLogManager implements ResourceBasedOverride {
         @UiEvent(doc = "User long press nav handle and a long press runnable was created.")
         LAUNCHER_OMNI_GET_LONG_PRESS_RUNNABLE(1545),
 
+        @UiEvent(doc = "User tapped on \"change aspect ratio\" system shortcut.")
+        LAUNCHER_ASPECT_RATIO_SETTINGS_SYSTEM_SHORTCUT_TAP(2219),
+
         // One Grid Flags
         @UiEvent(doc = "User sets the device in Fixed Landscape")
         FIXED_LANDSCAPE_TOGGLE_ENABLE(2014),
@@ -880,6 +886,19 @@ public class StatsLogManager implements ResourceBasedOverride {
 
         @UiEvent(doc = "Work utility view shrink animation ended")
         LAUNCHER_WORK_UTILITY_VIEW_SHRINK_ANIMATION_END(2078),
+
+        @UiEvent(doc = "Standard grid migration occurred")
+        LAUNCHER_STANDARD_GRID_MIGRATION(2200),
+
+        @UiEvent(doc = "Row shift grid migration occurred")
+        LAUNCHER_ROW_SHIFT_GRID_MIGRATION(2201),
+
+        @UiEvent(doc = "Do standard migration when upgrading to one grid")
+        LAUNCHER_STANDARD_ONE_GRID_MIGRATION(2205),
+
+        @UiEvent(doc = "Do row shift migration when upgrading to one grid")
+        LAUNCHER_ROW_SHIFT_ONE_GRID_MIGRATION(2206),
+
         // ADD MORE
         ;
 

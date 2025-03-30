@@ -28,6 +28,7 @@ import com.android.launcher3.graphics.GridCustomizationsProxy;
 import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.icons.LauncherIcons.IconPool;
 import com.android.launcher3.model.ItemInstallQueue;
+import com.android.launcher3.model.LoaderCursor.LoaderCursorFactory;
 import com.android.launcher3.model.WidgetsFilterDataProvider;
 import com.android.launcher3.pm.InstallSessionHelper;
 import com.android.launcher3.pm.UserCache;
@@ -45,6 +46,7 @@ import com.android.launcher3.util.VibratorWrapper;
 import com.android.launcher3.util.WallpaperColorHints;
 import com.android.launcher3.util.window.RefreshRateTracker;
 import com.android.launcher3.util.window.WindowManagerProxy;
+import com.android.launcher3.widget.LauncherWidgetHolder.WidgetHolderFactory;
 import com.android.launcher3.widget.custom.CustomWidgetManager;
 
 import dagger.BindsInstance;
@@ -86,6 +88,10 @@ public interface LauncherBaseAppComponent {
     LauncherAppState getLauncherAppState();
     GridCustomizationsProxy getGridCustomizationsProxy();
     WidgetsFilterDataProvider getWidgetsFilterDataProvider();
+
+    LoaderCursorFactory getLoaderCursorFactory();
+    WidgetHolderFactory getWidgetHolderFactory();
+    RefreshRateTracker getFrameRateProvider();
 
     /** Builder for LauncherBaseAppComponent. */
     interface Builder {

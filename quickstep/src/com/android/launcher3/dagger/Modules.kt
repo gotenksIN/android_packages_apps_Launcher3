@@ -16,11 +16,15 @@
 
 package com.android.launcher3.dagger
 
+import com.android.launcher3.uioverrides.QuickstepWidgetHolder.QuickstepWidgetHolderFactory
 import com.android.launcher3.uioverrides.SystemApiWrapper
 import com.android.launcher3.uioverrides.plugins.PluginManagerWrapperImpl
 import com.android.launcher3.util.ApiWrapper
 import com.android.launcher3.util.PluginManagerWrapper
+import com.android.launcher3.util.window.RefreshRateTracker
 import com.android.launcher3.util.window.WindowManagerProxy
+import com.android.launcher3.widget.LauncherWidgetHolder.WidgetHolderFactory
+import com.android.quickstep.util.ChoreographerFrameRateTracker
 import com.android.quickstep.util.GestureExclusionManager
 import com.android.quickstep.util.SystemWindowManagerProxy
 import dagger.Binds
@@ -40,6 +44,13 @@ abstract class ApiWrapperModule {
 }
 
 @Module
+abstract class WidgetModule {
+
+    @Binds
+    abstract fun bindWidgetHolderFactory(factor: QuickstepWidgetHolderFactory): WidgetHolderFactory
+}
+
+@Module
 abstract class PluginManagerWrapperModule {
     @Binds
     abstract fun bindPluginManagerWrapper(impl: PluginManagerWrapperImpl): PluginManagerWrapper
@@ -51,4 +62,8 @@ object StaticObjectModule {
     @Provides
     @JvmStatic
     fun provideGestureExclusionManager(): GestureExclusionManager = GestureExclusionManager.INSTANCE
+
+    @Provides
+    @JvmStatic
+    fun provideRefreshRateTracker(): RefreshRateTracker = ChoreographerFrameRateTracker
 }

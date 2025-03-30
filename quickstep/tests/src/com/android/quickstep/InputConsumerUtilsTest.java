@@ -22,12 +22,13 @@ import static com.android.quickstep.InputConsumerUtils.newConsumer;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.kotlin.StubberKt.doCallRealMethod;
 
 import android.annotation.NonNull;
-import android.annotation.Nullable;
 import android.os.Looper;
 import android.view.Choreographer;
 import android.view.Display;
@@ -100,12 +101,13 @@ public class InputConsumerUtilsTest {
 
     @Rule public final SandboxApplication mContext = new SandboxApplication();
 
+    private final int mDisplayId = Display.DEFAULT_DISPLAY;
     @NonNull private final InputMonitorCompat mInputMonitorCompat =
-            new InputMonitorCompat("", Display.DEFAULT_DISPLAY);
+            new InputMonitorCompat("", mDisplayId);
 
     private TaskAnimationManager mTaskAnimationManager;
     private InputChannelCompat.InputEventReceiver mInputEventReceiver;
-    @Nullable private ResetGestureInputConsumer mResetGestureInputConsumer;
+    private boolean mUserUnlocked = true;
     @NonNull private Function<GestureState, AnimatedFloat> mSwipeUpProxyProvider = (state) -> null;
 
     @NonNull @Mock private TaskbarActivityContext mTaskbarActivityContext;
@@ -126,8 +128,7 @@ public class InputConsumerUtilsTest {
 
     @Before
     public void setupTaskAnimationManager() {
-        mTaskAnimationManager = new TaskAnimationManager(
-                mContext, mDeviceState);
+        mTaskAnimationManager = new TaskAnimationManager(mContext, mDeviceState, mDisplayId);
     }
 
     @Before
@@ -161,12 +162,6 @@ public class InputConsumerUtilsTest {
     @Before
     public void setUpTaskbarManager() {
         when(mTaskbarManager.getCurrentActivityContext()).thenReturn(mTaskbarActivityContext);
-    }
-
-    @Before
-    public void setUpResetGestureInputConsumer() {
-        mResetGestureInputConsumer = new ResetGestureInputConsumer(
-                mTaskAnimationManager, mTaskbarManager::getCurrentActivityContext);
     }
 
     @Before
@@ -300,7 +295,7 @@ public class InputConsumerUtilsTest {
     @Test
     public void testNewBaseConsumer_launcherChildActivityResumed_returnsDefaultInputConsumer() {
         when(mRunningTask.isHomeTask()).thenReturn(true);
-        when(mOverviewComponentObserver.isHomeAndOverviewSame()).thenReturn(true);
+        when(mOverviewComponentObserver.isHomeAndOverviewSameActivity()).thenReturn(true);
 
         assertEqualsDefaultInputConsumer(this::createBaseInputConsumer);
     }
@@ -313,9 +308,17 @@ public class InputConsumerUtilsTest {
     }
 
     @Test
+    public void testNewBaseConsumer_noGestureBlockedTask_returnsOtherActivityInputConsumer() {
+        doCallRealMethod().when(mDeviceState).setGestureBlockingTaskId(anyInt());
+        mDeviceState.setGestureBlockingTaskId(-1);
+        when(mDeviceState.isGestureBlockedTask(any())).thenCallRealMethod();
+
+        assertCorrectInputConsumer(this::createBaseInputConsumer, OtherActivityInputConsumer.class,
+                InputConsumer.TYPE_OTHER_ACTIVITY);
+    }
+
+    @Test
     public void testNewBaseConsumer_containsOtherActivityInputConsumer() {
-        // OtherActivityInputConsumer needs to be initialized on the main thread because of
-        // MotionPauseDetector.mForcePauseTimeout
         assertCorrectInputConsumer(
                 this::createBaseInputConsumer,
                 OtherActivityInputConsumer.class,
@@ -486,7 +489,7 @@ public class InputConsumerUtilsTest {
         MotionEvent event = MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 0, 0, 0);
         InputConsumer inputConsumer = newConsumer(
                 mContext,
-                mResetGestureInputConsumer,
+                mUserUnlocked,
                 mOverviewComponentObserver,
                 mDeviceState,
                 mPreviousGestureState,
@@ -510,7 +513,8 @@ public class InputConsumerUtilsTest {
         MotionEvent event = MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 0, 0, 0);
         InputConsumer inputConsumer = newBaseConsumer(
                 mContext,
-                mResetGestureInputConsumer,
+                mUserUnlocked,
+                mTaskbarManager,
                 mOverviewComponentObserver,
                 mDeviceState,
                 mPreviousGestureState,
@@ -535,12 +539,15 @@ public class InputConsumerUtilsTest {
                 ResetGestureInputConsumer.class,
                 InputConsumer.TYPE_RESET_GESTURE);
 
-        mResetGestureInputConsumer = null;
+        mUserUnlocked = false;
 
-        runOnMainSync(() -> assertThat(inputConsumerProvider.get()).isEqualTo(InputConsumer.NO_OP));
+        assertCorrectInputConsumer(
+                inputConsumerProvider,
+                InputConsumer.class,
+                InputConsumer.TYPE_NO_OP);
     }
 
-    private static void assertCorrectInputConsumer(
+    private void assertCorrectInputConsumer(
             @NonNull Provider<InputConsumer> inputConsumerProvider,
             @NonNull Class<? extends InputConsumer> expectedOutputConsumer,
             int expectedType) {
@@ -551,11 +558,13 @@ public class InputConsumerUtilsTest {
                 expectedType);
     }
 
-    private static void assertCorrectInputConsumer(
+    private void assertCorrectInputConsumer(
             @NonNull Provider<InputConsumer> inputConsumerProvider,
             @NonNull Class<? extends InputConsumer> expectedOutputConsumer,
             @NonNull Class<? extends InputConsumer> expectedActiveConsumer,
             int expectedType) {
+        when(mCurrentGestureState.getDisplayId()).thenReturn(mDisplayId);
+
         runOnMainSync(() -> {
             InputConsumer inputConsumer = inputConsumerProvider.get();
 
@@ -563,7 +572,14 @@ public class InputConsumerUtilsTest {
             assertThat(inputConsumer.getActiveConsumerInHierarchy())
                     .isInstanceOf(expectedActiveConsumer);
             assertThat(inputConsumer.getType()).isEqualTo(expectedType);
+            assertThat(inputConsumer.getDisplayId()).isEqualTo(mDisplayId);
         });
+        int expectedDisplayId = mDisplayId + 1;
+
+        when(mCurrentGestureState.getDisplayId()).thenReturn(expectedDisplayId);
+
+        runOnMainSync(() -> assertThat(inputConsumerProvider.get().getDisplayId())
+                .isEqualTo(expectedDisplayId));
     }
 
     private static void runOnMainSync(@NonNull Runnable runnable) {
