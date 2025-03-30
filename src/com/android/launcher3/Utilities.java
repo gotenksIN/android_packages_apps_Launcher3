@@ -100,6 +100,7 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
@@ -276,8 +277,12 @@ public final class Utilities {
      */
     public static void mapCoordInSelfToDescendant(View descendant, View root, float[] coord) {
         sMatrix.reset();
+        //TODO(b/307488755) when implemented this check should be removed
+        if (!Objects.equals(descendant.getWindowId(), root.getWindowId())) {
+            return;
+        }
         View v = descendant;
-        while(v != root) {
+        while (v != root) {
             sMatrix.postTranslate(-v.getScrollX(), -v.getScrollY());
             sMatrix.postConcat(v.getMatrix());
             sMatrix.postTranslate(v.getLeft(), v.getTop());
@@ -957,6 +962,17 @@ public final class Utilities {
                     .getPath(DEFAULT_PATH_SIZE);
         } else {
             return null;
+        }
+    }
+
+    /**
+     * Logs with DEBUG priority if the current device is a debug device.
+     *
+     * <p>Debug devices by default include -eng and -userdebug builds, but not -user builds.
+     */
+    public static void debugLog(String tag, String message) {
+        if (BuildConfig.IS_DEBUG_DEVICE) {
+            Log.d(tag, message);
         }
     }
 }

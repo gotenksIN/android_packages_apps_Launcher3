@@ -16,18 +16,34 @@
 
 package com.android.quickstep.views
 
+import android.graphics.PointF
 import android.graphics.Rect
 import android.util.FloatProperty
+import android.view.KeyEvent
 import android.view.View
+import android.view.View.LAYOUT_DIRECTION_LTR
+import android.view.View.LAYOUT_DIRECTION_RTL
 import androidx.core.view.children
+import com.android.launcher3.AbstractFloatingView.TYPE_TASK_MENU
+import com.android.launcher3.AbstractFloatingView.getTopOpenViewWithType
+import com.android.launcher3.Flags.enableGridOnlyOverview
 import com.android.launcher3.Flags.enableLargeDesktopWindowingTile
+import com.android.launcher3.Flags.enableOverviewIconMenu
 import com.android.launcher3.Flags.enableSeparateExternalDisplayTasks
+import com.android.launcher3.Utilities.getPivotsForScalingRectToRect
+import com.android.launcher3.statehandlers.DesktopVisibilityController
+import com.android.launcher3.statehandlers.DesktopVisibilityController.Companion.INACTIVE_DESK_ID
 import com.android.launcher3.util.IntArray
+import com.android.quickstep.util.DesksUtils.Companion.areMultiDesksFlagsEnabled
+import com.android.quickstep.util.DesktopTask
 import com.android.quickstep.util.GroupTask
 import com.android.quickstep.util.isExternalDisplay
 import com.android.quickstep.views.RecentsView.RUNNING_TASK_ATTACH_ALPHA
+import com.android.systemui.shared.recents.model.Task
 import com.android.systemui.shared.recents.model.ThumbnailData
+import com.android.wm.shell.shared.GroupedTaskInfo
 import java.util.function.BiConsumer
+import kotlin.math.min
 import kotlin.reflect.KMutableProperty1
 
 /**
@@ -52,7 +68,12 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) {
      * @return Sorted list of GroupTasks to be used in the RecentsView.
      */
     fun sortDesktopTasksToFront(tasks: List<GroupTask>): List<GroupTask> {
-        val (desktopTasks, otherTasks) = tasks.partition { it.taskViewType == TaskViewType.DESKTOP }
+        var (desktopTasks, otherTasks) = tasks.partition { it.taskViewType == TaskViewType.DESKTOP }
+        if (areMultiDesksFlagsEnabled()) {
+            // Desk IDs of newer desks are larger than those of older desks, hence we can use them
+            // to sort desks from old to new.
+            desktopTasks = desktopTasks.sortedBy { (it as DesktopTask).deskId }
+        }
         return otherTasks + desktopTasks
     }
 
@@ -114,6 +135,22 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) {
             it.isLargeTile && !(recentsView.isSplitSelectionActive && it is DesktopTaskView)
         }
 
+    /**
+     * Returns the [DesktopTaskView] that matches the given [deskId], or null if it doesn't exist.
+     */
+    fun getDesktopTaskViewForDeskId(deskId: Int): DesktopTaskView? {
+        if (deskId == INACTIVE_DESK_ID) {
+            return null
+        }
+        return taskViews.firstOrNull { it is DesktopTaskView && it.deskId == deskId }
+            as? DesktopTaskView
+    }
+
+    /** Returns the active desk ID of the display that contains the [recentsView] instance. */
+    fun getActiveDeskIdOnThisDisplay(): Int =
+        DesktopVisibilityController.INSTANCE.get(recentsView.context)
+            .getActiveDeskId(recentsView.mContainer.display.displayId)
+
     /** Returns the expected focus task. */
     fun getFirstNonDesktopTaskView(): TaskView? =
         if (enableLargeDesktopWindowingTile()) taskViews.firstOrNull { it !is DesktopTaskView }
@@ -140,6 +177,17 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) {
     private fun getDeviceProfile() = (recentsView.mContainer as RecentsViewContainer).deviceProfile
 
     fun getRunningTaskExpectedIndex(runningTaskView: TaskView): Int {
+        if (areMultiDesksFlagsEnabled() && runningTaskView is DesktopTaskView) {
+            // Use the [deskId] to keep desks in the order of their creation, as a newer desk
+            // always has a larger [deskId] than the older desks.
+            val desktopTaskView =
+                taskViews.firstOrNull {
+                    it is DesktopTaskView &&
+                        it.deskId != INACTIVE_DESK_ID &&
+                        it.deskId <= runningTaskView.deskId
+                }
+            if (desktopTaskView != null) return recentsView.indexOfChild(desktopTaskView)
+        }
         val firstTaskViewIndex = recentsView.indexOfChild(getFirstTaskView())
         return if (getDeviceProfile().isTablet) {
             var index = firstTaskViewIndex
@@ -318,11 +366,116 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) {
         }
     }
 
+    private fun getTaskMenu(): TaskMenuView? =
+        getTopOpenViewWithType(recentsView.mContainer, TYPE_TASK_MENU) as? TaskMenuView
+
+    fun shouldInterceptKeyEvent(event: KeyEvent): Boolean {
+        if (enableOverviewIconMenu()) {
+            return getTaskMenu()?.isOpen == true || event.keyCode == KeyEvent.KEYCODE_TAB
+        }
+        return false
+    }
+
+    fun updateChildTaskOrientations() {
+        with(recentsView) {
+            taskViews.forEach { it.setOrientationState(mOrientationState) }
+            if (enableOverviewIconMenu()) {
+                children.forEach {
+                    it.layoutDirection = if (isRtl) LAYOUT_DIRECTION_LTR else LAYOUT_DIRECTION_RTL
+                }
+            }
+
+            // Return when it's not fake landscape
+            if (mOrientationState.isRecentsActivityRotationAllowed) return@with
+
+            // Rotation is supported on phone (details at b/254198019#comment4)
+            getTaskMenu()?.onRotationChanged()
+        }
+    }
+
+    fun updateCentralTask() {
+        val isTablet: Boolean = getDeviceProfile().isTablet
+        val actionsViewCanRelateToTaskView = !(isTablet && enableGridOnlyOverview())
+        val focusedTaskView = recentsView.focusedTaskView
+        val currentPageTaskView = recentsView.currentPageTaskView
+
+        fun isInExpectedScrollPosition(taskView: TaskView?) =
+            taskView?.let { recentsView.isTaskInExpectedScrollPosition(it) } ?: false
+
+        val centralTaskIds: Set<Int> =
+            when {
+                !actionsViewCanRelateToTaskView -> emptySet()
+                isTablet && isInExpectedScrollPosition(focusedTaskView) ->
+                    focusedTaskView!!.taskIdSet
+                isInExpectedScrollPosition(currentPageTaskView) -> currentPageTaskView!!.taskIdSet
+                else -> emptySet()
+            }
+
+        recentsView.mRecentsViewModel.updateCentralTaskIds(centralTaskIds)
+    }
+
     var deskExplodeProgress: Float = 0f
         set(value) {
             field = value
             taskViews.filterIsInstance<DesktopTaskView>().forEach { it.explodeProgress = field }
         }
+
+    var selectedTaskView: TaskView? = null
+        set(newValue) {
+            val oldValue = field
+            field = newValue
+            if (oldValue != newValue) {
+                onSelectedTaskViewUpdated(oldValue, newValue)
+            }
+        }
+
+    private fun onSelectedTaskViewUpdated(
+        oldSelectedTaskView: TaskView?,
+        newSelectedTaskView: TaskView?,
+    ) {
+        if (!enableGridOnlyOverview()) return
+        with(recentsView) {
+            oldSelectedTaskView?.modalScale = 1f
+            oldSelectedTaskView?.modalPivot = null
+
+            if (newSelectedTaskView == null) return
+
+            val modalTaskBounds = mTempRect
+            getModalTaskSize(modalTaskBounds)
+            val selectedTaskBounds = getTaskBounds(newSelectedTaskView)
+
+            // Map bounds to selectedTaskView's coordinate system.
+            modalTaskBounds.offset(-selectedTaskBounds.left, -selectedTaskBounds.top)
+            selectedTaskBounds.offset(-selectedTaskBounds.left, -selectedTaskBounds.top)
+
+            val modalScale =
+                min(
+                    (modalTaskBounds.height().toFloat() / selectedTaskBounds.height()),
+                    (modalTaskBounds.width().toFloat() / selectedTaskBounds.width()),
+                )
+            val modalPivot = PointF()
+            getPivotsForScalingRectToRect(modalTaskBounds, selectedTaskBounds, modalPivot)
+
+            newSelectedTaskView.modalScale = modalScale
+            newSelectedTaskView.modalPivot = modalPivot
+        }
+    }
+
+    /**
+     * Creates a [DesktopTaskView] for the currently active desk on this display, which contains the
+     * tasks with the given [groupedTaskInfo].
+     */
+    fun createDesktopTaskViewForActiveDesk(groupedTaskInfo: GroupedTaskInfo): DesktopTaskView {
+        val desktopTaskView =
+            recentsView.getTaskViewFromPool(TaskViewType.DESKTOP) as DesktopTaskView
+        val tasks: List<Task> = groupedTaskInfo.taskInfoList.map { taskInfo -> Task.from(taskInfo) }
+        desktopTaskView.bind(
+            DesktopTask(groupedTaskInfo.deskId, groupedTaskInfo.deskDisplayId, tasks),
+            recentsView.mOrientationState,
+            recentsView.mTaskOverlayFactory,
+        )
+        return desktopTaskView
+    }
 
     companion object {
         class RecentsViewFloatProperty(

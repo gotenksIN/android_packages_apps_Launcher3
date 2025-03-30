@@ -17,6 +17,7 @@ package com.android.launcher3.uioverrides.states;
 
 import static com.android.app.animation.Interpolators.DECELERATE_2;
 import static com.android.launcher3.Flags.enableDesktopExplodedView;
+import static com.android.launcher3.Flags.enableOverviewBackgroundWallpaperBlur;
 import static com.android.launcher3.Flags.enableScalingRevealHomeAnimation;
 import static com.android.launcher3.logging.StatsLogManager.LAUNCHER_STATE_OVERVIEW;
 
@@ -35,6 +36,7 @@ import com.android.quickstep.util.BaseDepthController;
 import com.android.quickstep.util.LayoutUtils;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.TaskView;
+import com.android.systemui.shared.system.BlurUtils;
 
 /**
  * Definition for overview state
@@ -158,7 +160,9 @@ public class OverviewState extends LauncherState {
 
     @Override
     public int getWorkspaceScrimColor(Launcher launcher) {
-        return Themes.getAttrColor(launcher, R.attr.overviewScrimColor);
+        return enableOverviewBackgroundWallpaperBlur() && BlurUtils.supportsBlursOnWindows()
+                ? Themes.getAttrColor(launcher, R.attr.overviewScrimColorOverBlur)
+                : Themes.getAttrColor(launcher, R.attr.overviewScrimColor);
     }
 
     @Override

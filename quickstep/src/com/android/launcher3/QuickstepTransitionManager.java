@@ -40,12 +40,14 @@ import static com.android.app.animation.Interpolators.DECELERATE_1_5;
 import static com.android.app.animation.Interpolators.DECELERATE_1_7;
 import static com.android.app.animation.Interpolators.EXAGGERATED_EASE;
 import static com.android.app.animation.Interpolators.LINEAR;
+import static com.android.launcher3.BaseActivity.EVENT_DESTROYED;
 import static com.android.launcher3.BaseActivity.INVISIBLE_ALL;
 import static com.android.launcher3.BaseActivity.INVISIBLE_BY_APP_TRANSITIONS;
 import static com.android.launcher3.BaseActivity.INVISIBLE_BY_PENDING_FLAGS;
 import static com.android.launcher3.BaseActivity.PENDING_INVISIBLE_BY_WALLPAPER_ANIMATION;
 import static com.android.launcher3.Flags.enableContainerReturnAnimations;
 import static com.android.launcher3.Flags.enableScalingRevealHomeAnimation;
+import static com.android.launcher3.Flags.syncAppLaunchWithTaskbarStash;
 import static com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY;
 import static com.android.launcher3.LauncherState.ALL_APPS;
 import static com.android.launcher3.LauncherState.BACKGROUND_APP;
@@ -66,6 +68,7 @@ import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.systemui.shared.Flags.returnAnimationFrameworkLibrary;
 import static com.android.systemui.shared.system.QuickStepContract.getWindowCornerRadius;
 import static com.android.systemui.shared.system.QuickStepContract.supportsRoundedCornersOnWindows;
+import static com.android.wm.shell.Flags.enableDynamicInsetsForAppLaunch;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -92,6 +95,7 @@ import android.os.Looper;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.provider.Settings;
+import android.util.Log;
 import android.util.Pair;
 import android.util.Size;
 import android.view.CrossWindowBlurListeners;
@@ -182,6 +186,7 @@ import java.util.Map.Entry;
  * Manages the opening and closing app transitions from Launcher
  */
 public class QuickstepTransitionManager implements OnDeviceProfileChangeListener {
+    private static final String TAG = "QuickstepTransitionManager";
 
     private static final boolean ENABLE_SHELL_STARTING_SURFACE =
             SystemProperties.getBoolean("persist.debug.shell_starting_surface", true);
@@ -279,6 +284,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     private final Interpolator mOpeningXInterpolator;
     private final Interpolator mOpeningInterpolator;
 
+    private final SystemUiProxy mSystemUiProxy;
+
     public QuickstepTransitionManager(Context context) {
         mLauncher = Launcher.cast(Launcher.getLauncher(context));
         mDragLayer = mLauncher.getDragLayer();
@@ -293,6 +300,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         mMaxShadowRadius = res.getDimensionPixelSize(R.dimen.max_shadow_radius);
 
         mLauncher.addOnDeviceProfileChangeListener(this);
+        mSystemUiProxy = SystemUiProxy.INSTANCE.get(mLauncher);
 
         if (ENABLE_SHELL_STARTING_SURFACE) {
             mTaskStartParams = new LinkedHashMap<>(MAX_NUM_TASKS) {
@@ -302,8 +310,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 }
             };
 
-            SystemUiProxy.INSTANCE.get(mLauncher).setStartingWindowListener(
-                    mStartingWindowListener);
+            mSystemUiProxy.setStartingWindowListener(mStartingWindowListener);
         }
 
         mOpeningXInterpolator = AnimationUtils.loadInterpolator(context, R.interpolator.app_open_x);
@@ -356,6 +363,20 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         options.setOnAnimationAbortListener(endCallback);
         options.setOnAnimationFinishedListener(endCallback);
         options.setLaunchCookie(StableViewInfo.toLaunchCookie(itemInfo));
+
+        // Prepare taskbar for animation synchronization. This needs to happen here before any
+        // app transition is created.
+        LauncherTaskbarUIController taskbarController = mLauncher.getTaskbarUIController();
+        if (syncAppLaunchWithTaskbarStash()
+                && enableScalingRevealHomeAnimation()
+                && taskbarController != null) {
+            taskbarController.setIgnoreInAppFlagForSync(true);
+            mLauncher.addEventCallback(EVENT_DESTROYED, onEndCallback::executeAllAndDestroy);
+            onEndCallback.add(() -> {
+                taskbarController.setIgnoreInAppFlagForSync(false);
+            });
+        }
+
         return new ActivityOptionsWrapper(options, onEndCallback);
     }
 
@@ -503,12 +524,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 Utilities.rotateBounds(bounds, mDeviceProfile.widthPx, mDeviceProfile.heightPx,
                         4 - rotationChange);
             }
-        }
-        if (mDeviceProfile.isTaskbarPresentInApps
-                && !target.willShowImeOnTarget
-                && !isTransientTaskbar(mLauncher)) {
-            // Animate to above the taskbar.
-            bounds.bottom -= target.contentInsets.bottom;
         }
         return bounds;
     }
@@ -676,6 +691,13 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         };
     }
 
+    private boolean shouldCropToInset(RemoteAnimationTarget target) {
+        return enableDynamicInsetsForAppLaunch()
+                && mDeviceProfile.isTaskbarPresentInApps
+                && target != null && !target.willShowImeOnTarget
+                && !isTransientTaskbar(mLauncher);
+    }
+
     /**
      * @return Animator that controls the window of the opening targets from app icons.
      */
@@ -684,8 +706,19 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             RemoteAnimationTarget[] wallpaperTargets,
             RemoteAnimationTarget[] nonAppTargets,
             boolean launcherClosing) {
+        RemoteAnimationTargets openingTargets = new RemoteAnimationTargets(appTargets,
+                wallpaperTargets, nonAppTargets, MODE_OPENING);
         int rotationChange = getRotationChange(appTargets);
         Rect windowTargetBounds = getWindowTargetBounds(appTargets, rotationChange);
+        final int[] bottomInsetPos = new int[]{
+                mSystemUiProxy.getHomeVisibilityState().getNavbarInsetPosition()};
+        final RemoteAnimationTarget target = openingTargets.getFirstAppTarget();
+        final boolean cropToInset = shouldCropToInset(target);
+        if (cropToInset) {
+            // Animate to above the taskbar.
+            windowTargetBounds.bottom = Math.min(bottomInsetPos[0],
+                    windowTargetBounds.bottom);
+        }
         boolean appTargetsAreTranslucent = areAllTargetsTranslucent(appTargets);
 
         RectF launcherIconBounds = new RectF();
@@ -698,8 +731,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         Rect crop = new Rect();
         Matrix matrix = new Matrix();
 
-        RemoteAnimationTargets openingTargets = new RemoteAnimationTargets(appTargets,
-                wallpaperTargets, nonAppTargets, MODE_OPENING);
         SurfaceTransactionApplier surfaceApplier =
                 new SurfaceTransactionApplier(floatingView);
         openingTargets.addReleaseCheck(surfaceApplier);
@@ -805,6 +836,39 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
             @Override
             public void onUpdate(float percent, boolean initOnly) {
+                if (cropToInset && bottomInsetPos[0] != mSystemUiProxy.getHomeVisibilityState()
+                        .getNavbarInsetPosition()) {
+                    final RemoteAnimationTarget target = openingTargets.getFirstAppTarget();
+                    bottomInsetPos[0] = mSystemUiProxy.getHomeVisibilityState()
+                            .getNavbarInsetPosition();
+                    final Rect bounds = target != null
+                            ? target.screenSpaceBounds : windowTargetBounds;
+                    // Animate to above the taskbar.
+                    int bottomLevel = Math.min(bottomInsetPos[0], bounds.bottom);
+                    windowTargetBounds.bottom = bottomLevel;
+                    final int endHeight = bottomLevel - bounds.top;
+
+                    AnimOpenProperties prop = new AnimOpenProperties(mLauncher.getResources(),
+                            mDeviceProfile, windowTargetBounds, launcherIconBounds, v,
+                            dragLayerBounds[0], dragLayerBounds[1], hasSplashScreen,
+                            floatingView.isDifferentFromAppIcon());
+                    mCropRectCenterY = new FloatProp(prop.cropCenterYStart, prop.cropCenterYEnd,
+                            mOpeningInterpolator);
+                    mCropRectHeight = new FloatProp(prop.cropHeightStart, prop.cropHeightEnd,
+                            mOpeningInterpolator);
+                    mDy = new FloatProp(0, prop.dY, mOpeningInterpolator);
+                    mIconScaleToFitScreen = new FloatProp(prop.initialAppIconScale,
+                            prop.finalAppIconScale, mOpeningInterpolator);
+                    float interpolatedPercent = mOpeningInterpolator.getInterpolation(percent);
+                    mCropRectHeight.value = Utilities.mapRange(interpolatedPercent,
+                            prop.cropHeightStart, prop.cropHeightEnd);
+                    mCropRectCenterY.value = Utilities.mapRange(interpolatedPercent,
+                            prop.cropCenterYStart, prop.cropCenterYEnd);
+                    mDy.value = Utilities.mapRange(interpolatedPercent, 0, prop.dY);
+                    mIconScaleToFitScreen.value = Utilities.mapRange(interpolatedPercent,
+                            prop.initialAppIconScale, prop.finalAppIconScale);
+                }
+
                 // Calculate the size of the scaled icon.
                 float iconWidth = launcherIconBounds.width() * mIconScaleToFitScreen.value;
                 float iconHeight = launcherIconBounds.height() * mIconScaleToFitScreen.value;
@@ -1207,7 +1271,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         mLauncher.removeOnDeviceProfileChangeListener(this);
         SystemUiProxy.INSTANCE.get(mLauncher).setStartingWindowListener(null);
         if (BuildConfig.IS_STUDIO_BUILD && !mRegisteredTaskStackChangeListener.isEmpty()) {
-            throw new IllegalStateException("Failed to run onEndCallback created from"
+            Log.e(TAG, "IllegalState: Failed to run onEndCallback created from"
                     + " getActivityLaunchOptions()");
         }
         mRegisteredTaskStackChangeListener.forEach(TaskRestartedDuringLaunchListener::unregister);
@@ -1901,6 +1965,21 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
             if (launcherClosing) {
                 anim.addListener(mForceInvisibleListener);
+            }
+
+            // Syncs the app launch animation and taskbar stash animation (if exists).
+            if (syncAppLaunchWithTaskbarStash() && enableScalingRevealHomeAnimation()) {
+                LauncherTaskbarUIController taskbarController = mLauncher.getTaskbarUIController();
+                if (taskbarController != null) {
+                    taskbarController.setIgnoreInAppFlagForSync(false);
+
+                    if (launcherClosing) {
+                        Animator taskbar = taskbarController.createAnimToApp();
+                        if (taskbar != null) {
+                            anim.play(taskbar);
+                        }
+                    }
+                }
             }
 
             result.setAnimation(anim, mLauncher, mOnEndCallback::executeAllAndDestroy,
