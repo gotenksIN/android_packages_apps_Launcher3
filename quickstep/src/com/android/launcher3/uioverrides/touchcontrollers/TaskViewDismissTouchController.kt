@@ -25,6 +25,7 @@ import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.R
 import com.android.launcher3.Utilities.EDGE_NAV_BAR
 import com.android.launcher3.Utilities.boundToRange
+import com.android.launcher3.Utilities.debugLog
 import com.android.launcher3.Utilities.isRtl
 import com.android.launcher3.Utilities.mapToRange
 import com.android.launcher3.touch.SingleAxisSwipeDetector
@@ -63,12 +64,14 @@ CONTAINER : RecentsViewContainer {
     private var hasDismissThresholdHapticRun = false
     private var initialDisplacement: Float = 0f
     private var recentsScaleAnimation: SpringAnimation? = null
+    private var isBlockedDuringDismissal = false
 
     private fun canInterceptTouch(ev: MotionEvent): Boolean =
         when {
             // Don't intercept swipes on the nav bar, as user might be trying to go home during a
             // task dismiss animation.
             (ev.edgeFlags and EDGE_NAV_BAR) != 0 -> {
+                debugLog(TAG, "Not intercepting edge swipe on nav bar.")
                 false
             }
 
@@ -76,14 +79,23 @@ CONTAINER : RecentsViewContainer {
             AbstractFloatingView.getTopOpenViewWithType(
                 container,
                 AbstractFloatingView.TYPE_TOUCH_CONTROLLER_NO_INTERCEPT,
-            ) != null -> false
-
-            // Disable swiping if the task overlay is modal.
-            taskViewRecentsTouchContext.isRecentsModal -> {
+            ) != null -> {
+                debugLog(TAG, "Not intercepting, open floating view blocking touch.")
                 false
             }
 
-            else -> taskViewRecentsTouchContext.isRecentsInteractive
+            // Disable swiping if the task overlay is modal.
+            taskViewRecentsTouchContext.isRecentsModal -> {
+                debugLog(TAG, "Not intercepting touch in modal overlay.")
+                false
+            }
+
+            else ->
+                taskViewRecentsTouchContext.isRecentsInteractive.also { isRecentsInteractive ->
+                    if (!isRecentsInteractive) {
+                        debugLog(TAG, "Not intercepting touch, recents not interactive.")
+                    }
+                }
         }
 
     override fun onControllerInterceptTouchEvent(ev: MotionEvent): Boolean {
@@ -137,7 +149,9 @@ CONTAINER : RecentsViewContainer {
     }
 
     override fun onDragStart(start: Boolean, startDisplacement: Float) {
+        if (isBlockedDuringDismissal) return
         val taskBeingDragged = taskBeingDragged ?: return
+        debugLog(TAG, "Handling touch event.")
 
         initialDisplacement =
             taskBeingDragged.secondaryDismissTranslationProperty.get(taskBeingDragged)
@@ -149,6 +163,7 @@ CONTAINER : RecentsViewContainer {
     }
 
     override fun onDrag(displacement: Float): Boolean {
+        if (isBlockedDuringDismissal) return true
         val taskBeingDragged = taskBeingDragged ?: return false
         val currentDisplacement = displacement + initialDisplacement
         val boundedDisplacement =
@@ -204,14 +219,11 @@ CONTAINER : RecentsViewContainer {
     }
 
     override fun onDragEnd(velocity: Float) {
+        if (isBlockedDuringDismissal) return
         val taskBeingDragged = taskBeingDragged ?: return
 
         val currentDisplacement =
             taskBeingDragged.secondaryDismissTranslationProperty.get(taskBeingDragged)
-        if (currentDisplacement == 0f) {
-            clearState()
-            return
-        }
         val isBeyondDismissThreshold =
             abs(currentDisplacement) > abs(DISMISS_THRESHOLD_FRACTION * dismissLength)
         val velocityIsGoingUp = recentsView.pagedOrientationHandler.isGoingUp(velocity, isRtl)
@@ -225,7 +237,6 @@ CONTAINER : RecentsViewContainer {
                     taskBeingDragged,
                     velocity,
                     isDismissing,
-                    detector,
                     dismissLength,
                     this::clearState,
                 )
@@ -234,6 +245,7 @@ CONTAINER : RecentsViewContainer {
                         if (isDismissing) (dismissLength * verticalFactor).toFloat() else 0f
                     )
                 }
+        isBlockedDuringDismissal = true
         recentsScaleAnimation =
             recentsView.animateRecentsScale(RECENTS_SCALE_DEFAULT).addEndListener { _, _, _, _ ->
                 recentsScaleAnimation = null
@@ -246,6 +258,7 @@ CONTAINER : RecentsViewContainer {
         taskBeingDragged?.translationZ = 0f
         taskBeingDragged = null
         springAnimation = null
+        isBlockedDuringDismissal = false
     }
 
     private fun getRecentsScale(dismissFraction: Float): Float {
@@ -288,6 +301,8 @@ CONTAINER : RecentsViewContainer {
     }
 
     companion object {
+        private const val TAG = "TaskViewDismissTouchController"
+
         private const val DISMISS_THRESHOLD_FRACTION = 0.5f
         private const val DISMISS_THRESHOLD_HAPTIC_RANGE = 10f
 

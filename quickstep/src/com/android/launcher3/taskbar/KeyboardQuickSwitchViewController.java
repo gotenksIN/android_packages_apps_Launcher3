@@ -34,13 +34,13 @@ import androidx.annotation.Nullable;
 
 import com.android.internal.jank.Cuj;
 import com.android.launcher3.DeviceProfile;
+import com.android.launcher3.Flags;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimatorListeners;
 import com.android.launcher3.desktop.DesktopAppLaunchTransition;
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayContext;
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayDragLayer;
-import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.views.BaseDragLayer;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.util.GroupTask;
@@ -106,8 +106,7 @@ public class KeyboardQuickSwitchViewController {
             boolean hasDesktopTask,
             boolean wasDesktopTaskFilteredOut,
             boolean wasOpenedFromTaskbar) {
-        final boolean isTransientTaskBar = DisplayController.isTransientTaskbar(
-                mControllers.taskbarActivityContext);
+        final boolean isTransientTaskBar = mControllers.taskbarActivityContext.isTransientTaskbar();
         positionView(wasOpenedFromTaskbar, isTransientTaskBar);
 
         // Keep the taskbar unstashed if the KQS is opened.
@@ -120,6 +119,10 @@ public class KeyboardQuickSwitchViewController {
         mOnDesktop = onDesktop;
         mWasDesktopTaskFilteredOut = wasDesktopTaskFilteredOut;
         mWasOpenedFromTaskbar = wasOpenedFromTaskbar;
+
+        if (Flags.taskbarOverflow() && wasOpenedFromTaskbar) {
+            mKeyboardQuickSwitchView.enableScrollArrowSupport();
+        }
 
         mKeyboardQuickSwitchView.applyLoadPlan(
                 mOverlayContext,

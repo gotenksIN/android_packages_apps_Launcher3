@@ -27,6 +27,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
+import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder.DeathRecipient;
@@ -113,6 +114,7 @@ public class GridCustomizationsProxy implements ProxyProvider {
     private static final String KEY_SHAPE_OPTIONS = "/shape_options";
     // default_grid is for setting grid and shape to system settings
     private static final String KEY_DEFAULT_GRID = "/default_grid";
+    private static final String SET_SHAPE = "/shape";
 
     private static final String METHOD_GET_PREVIEW = "get_preview";
 
@@ -130,6 +132,7 @@ public class GridCustomizationsProxy implements ProxyProvider {
     private static final int MESSAGE_ID_UPDATE_SHAPE = 2586;
     private static final int MESSAGE_ID_UPDATE_GRID = 7414;
     private static final int MESSAGE_ID_UPDATE_COLOR = 856;
+    private static final int MESSAGE_ID_UPDATE_ICON_THEMED = 311;
 
     // Set of all active previews used to track duplicate memory allocations
     private final Set<PreviewLifecycleObserver> mActivePreviews =
@@ -141,7 +144,7 @@ public class GridCustomizationsProxy implements ProxyProvider {
     private final InvariantDeviceProfile mIdp;
 
     @Inject
-    GridCustomizationsProxy(
+    protected GridCustomizationsProxy(
             @ApplicationContext Context context,
             ThemeManager themeManager,
             LauncherPrefs prefs,
@@ -264,6 +267,12 @@ public class GridCustomizationsProxy implements ProxyProvider {
                 mContext.getContentResolver().notifyChange(uri, null);
                 return 1;
             }
+            case SET_SHAPE:
+                if (Flags.newCustomizationPickerUi()) {
+                    mPrefs.put(PREF_ICON_SHAPE,
+                            requireNonNullElse(values.getAsString(KEY_SHAPE_KEY), ""));
+                }
+                return 1;
             case ICON_THEMED:
             case SET_ICON_THEMED: {
                 mThemeManager.setMonoThemeEnabled(values.getAsBoolean(BOOLEAN_VALUE));
@@ -305,7 +314,7 @@ public class GridCustomizationsProxy implements ProxyProvider {
         RunnableList lifeCycleTracker = new RunnableList();
         try {
             PreviewSurfaceRenderer renderer = new PreviewSurfaceRenderer(
-                    mContext, lifeCycleTracker, request);
+                    mContext, lifeCycleTracker, request, Binder.getCallingPid());
             PreviewLifecycleObserver observer =
                     new PreviewLifecycleObserver(lifeCycleTracker, renderer);
 
@@ -382,6 +391,12 @@ public class GridCustomizationsProxy implements ProxyProvider {
                 case MESSAGE_ID_UPDATE_COLOR:
                     if (Flags.newCustomizationPickerUi()) {
                         renderer.previewColor(message.getData());
+                    }
+                    break;
+                case MESSAGE_ID_UPDATE_ICON_THEMED:
+                    if (Flags.newCustomizationPickerUi()) {
+                        Boolean iconThemed = message.getData().getBoolean(BOOLEAN_VALUE);
+                        // TODO Update icon themed in the preview
                     }
                     break;
                 default:

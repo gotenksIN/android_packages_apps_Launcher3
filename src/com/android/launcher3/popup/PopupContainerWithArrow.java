@@ -16,12 +16,17 @@
 
 package com.android.launcher3.popup;
 
+import static android.multiuser.Flags.enableMovingContentIntoPrivateSpace;
+
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_SHORTCUTS;
 import static com.android.launcher3.Utilities.squaredHypot;
 import static com.android.launcher3.Utilities.squaredTouchSlop;
+import static com.android.launcher3.allapps.AlphabeticalAppsList.PRIVATE_SPACE_PACKAGE;
 import static com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_NOT_PINNABLE;
 import static com.android.launcher3.popup.PopupPopulator.MAX_SHORTCUTS;
+import static com.android.launcher3.shortcuts.DeepShortcutTextView.GOOGLE_SANS_FLEX_LABEL_LARGE;
 import static com.android.launcher3.util.Executors.MODEL_EXECUTOR;
+import static com.android.wm.shell.Flags.enableGsf;
 
 import android.animation.AnimatorSet;
 import android.animation.LayoutTransition;
@@ -29,6 +34,7 @@ import android.content.Context;
 import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
+import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.AttributeSet;
@@ -65,6 +71,7 @@ import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.BaseDragLayer;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -207,7 +214,10 @@ public class PopupContainerWithArrow<T extends Context & ActivityContext>
         container = (PopupContainerWithArrow) launcher.getLayoutInflater().inflate(
                 R.layout.popup_container, launcher.getDragLayer(), false);
         container.configureForLauncher(launcher, item);
-        container.populateAndShowRows(icon, deepShortcutCount, systemShortcuts);
+        boolean shouldHideSystemShortcuts = enableMovingContentIntoPrivateSpace()
+                && Objects.equals(item.getTargetPackage(), PRIVATE_SPACE_PACKAGE);
+        container.populateAndShowRows(icon, deepShortcutCount,
+                shouldHideSystemShortcuts ? Collections.emptyList() : systemShortcuts);
         launcher.refreshAndBindWidgetsForPackageUser(PackageUserKey.fromItemInfo(item));
         container.requestFocus();
         return container;
@@ -472,6 +482,10 @@ public class PopupContainerWithArrow<T extends Context & ActivityContext>
         if (view instanceof DeepShortcutView) {
             // System shortcut takes entire row with icon and text
             final DeepShortcutView shortcutView = (DeepShortcutView) view;
+            if (enableGsf()) {
+                shortcutView.getBubbleText().setTypeface(
+                        Typeface.create(GOOGLE_SANS_FLEX_LABEL_LARGE, Typeface.NORMAL));
+            }
             info.setIconAndLabelFor(shortcutView.getIconView(), shortcutView.getBubbleText());
         } else if (view instanceof ImageView) {
             // System shortcut is just an icon

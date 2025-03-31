@@ -21,7 +21,6 @@ import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPLICATION;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APP_PAIR;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT;
-import static com.android.launcher3.LauncherSettings.Favorites.TABLE_NAME;
 import static com.android.launcher3.Utilities.SHOULD_SHOW_FIRST_PAGE_WIDGET;
 import static com.android.launcher3.icons.cache.CacheLookupFlag.DEFAULT_LOOKUP_FLAG;
 import static com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_ARCHIVED;
@@ -45,13 +44,15 @@ import androidx.annotation.VisibleForTesting;
 
 import com.android.launcher3.Flags;
 import com.android.launcher3.InvariantDeviceProfile;
-import com.android.launcher3.LauncherAppState;
+import com.android.launcher3.LauncherModel;
+import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherSettings.Favorites;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.Workspace;
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger;
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger.RestoreError;
 import com.android.launcher3.config.FeatureFlags;
+import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.icons.IconCache;
 import com.android.launcher3.logging.FileLog;
 import com.android.launcher3.model.data.AppInfo;
@@ -70,6 +71,10 @@ import com.android.launcher3.util.IntSparseArrayMap;
 import com.android.launcher3.util.PackageManagerHelper;
 import com.android.launcher3.util.UserIconInfo;
 
+import dagger.assisted.Assisted;
+import dagger.assisted.AssistedFactory;
+import dagger.assisted.AssistedInject;
+
 import java.net.URISyntaxException;
 import java.security.InvalidParameterException;
 
@@ -82,8 +87,8 @@ public class LoaderCursor extends CursorWrapper {
 
     private final LongSparseArray<UserHandle> allUsers;
 
-    private final LauncherAppState mApp;
     private final Context mContext;
+    private final LauncherModel mModel;
     private final PackageManagerHelper mPmHelper;
     private final IconCache mIconCache;
     private final InvariantDeviceProfile mIDP;
@@ -130,17 +135,24 @@ public class LoaderCursor extends CursorWrapper {
     public int itemType;
     public int restoreFlag;
 
-    public LoaderCursor(Cursor cursor, LauncherAppState app, UserManagerState userManagerState,
-            PackageManagerHelper pmHelper,
-            @Nullable LauncherRestoreEventLogger restoreEventLogger) {
+    @AssistedInject
+    public LoaderCursor(
+            @Assisted Cursor cursor,
+            @Assisted UserManagerState userManagerState,
+            @Assisted @Nullable LauncherRestoreEventLogger restoreEventLogger,
+            @ApplicationContext Context context,
+            IconCache iconCache,
+            InvariantDeviceProfile idp,
+            LauncherModel model,
+            PackageManagerHelper pmHelper) {
         super(cursor);
-
-        mApp = app;
-        allUsers = userManagerState.allUsers;
-        mContext = app.getContext();
-        mIconCache = app.getIconCache();
+        mContext = context;
+        mIconCache = iconCache;
+        mIDP = idp;
+        mModel = model;
         mPmHelper = pmHelper;
-        mIDP = app.getInvariantDeviceProfile();
+
+        allUsers = userManagerState.allUsers;
         mRestoreEventLogger = restoreEventLogger;
 
         // Init column indices
@@ -315,6 +327,7 @@ public class LoaderCursor extends CursorWrapper {
 
         // the fallback icon
         if (!loadIconFromDb(info)) {
+            FileLog.d(TAG, "loadIconFromDb failed, getting from cache - intent=" + intent);
             mIconCache.getTitleAndIcon(info, DEFAULT_LOOKUP_FLAG);
         }
 
@@ -409,7 +422,8 @@ public class LoaderCursor extends CursorWrapper {
     ) {
         boolean isPreArchived = Flags.enableSupportForArchiving()
                 && Flags.restoreArchivedAppIconsFromDb()
-                && info.isInactiveArchive();
+                && info.isInactiveArchive()
+                && LauncherPrefs.get(mContext).get(LauncherPrefs.IS_FIRST_LOAD_AFTER_RESTORE);
         boolean preArchivedIconNotFound = isPreArchived && !loadIconFromDb(info);
         if (preArchivedIconNotFound) {
             Log.d(TAG, "loadIconFromDb failed for pre-archived icon, loading from cache."
@@ -432,7 +446,7 @@ public class LoaderCursor extends CursorWrapper {
      */
     public ContentWriter updater() {
        return new ContentWriter(mContext, new ContentWriter.CommitParams(
-               mApp.getModel().getModelDbController(),
+               mModel.getModelDbController(),
                BaseColumns._ID + "= ?", new String[]{Integer.toString(id)}));
     }
 
@@ -454,7 +468,7 @@ public class LoaderCursor extends CursorWrapper {
     public boolean commitDeleted() {
         if (mItemsToRemove.size() > 0) {
             // Remove dead items
-            mApp.getModel().getModelDbController().delete(TABLE_NAME,
+            mModel.getModelDbController().delete(
                     Utilities.createDbSelectionQuery(Favorites._ID, mItemsToRemove), null);
             return true;
         }
@@ -480,7 +494,7 @@ public class LoaderCursor extends CursorWrapper {
             // Update restored items that no longer require special handling
             ContentValues values = new ContentValues();
             values.put(Favorites.RESTORED, 0);
-            mApp.getModel().getModelDbController().update(TABLE_NAME, values,
+            mModel.getModelDbController().update(values,
                     Utilities.createDbSelectionQuery(Favorites._ID, mRestoredRows), null);
         }
         if (mRestoreEventLogger != null) {
@@ -644,5 +658,13 @@ public class LoaderCursor extends CursorWrapper {
                     + ") already occupied");
             return false;
         }
+    }
+
+    @AssistedFactory
+    public interface LoaderCursorFactory {
+
+        LoaderCursor createLoaderCursor(Cursor cursor,
+                UserManagerState userManagerState,
+                @Nullable LauncherRestoreEventLogger restoreEventLogger);
     }
 }
