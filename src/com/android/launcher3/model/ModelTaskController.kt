@@ -16,26 +16,33 @@
 
 package com.android.launcher3.model
 
-import com.android.launcher3.LauncherAppState
+import android.content.Context
 import com.android.launcher3.LauncherModel
 import com.android.launcher3.LauncherModel.CallbackTask
 import com.android.launcher3.celllayout.CellPosMapper
+import com.android.launcher3.dagger.ApplicationContext
+import com.android.launcher3.icons.IconCache
 import com.android.launcher3.model.BgDataModel.FixedContainerItems
 import com.android.launcher3.model.data.ItemInfo
+import com.android.launcher3.util.Executors.MAIN_EXECUTOR
 import com.android.launcher3.util.PackageUserKey
 import com.android.launcher3.widget.model.WidgetsListBaseEntriesBuilder
 import java.util.Objects
-import java.util.concurrent.Executor
 import java.util.function.Predicate
+import javax.inject.Inject
 
 /** Class with utility methods and properties for running a LauncherModel Task */
-class ModelTaskController(
-    val app: LauncherAppState,
+class ModelTaskController
+@Inject
+constructor(
+    @ApplicationContext val context: Context,
+    val iconCache: IconCache,
     val dataModel: BgDataModel,
     val allAppsList: AllAppsList,
-    private val model: LauncherModel,
-    private val uiExecutor: Executor,
+    val model: LauncherModel,
 ) {
+
+    private val uiExecutor = MAIN_EXECUTOR
 
     /** Schedules a {@param task} to be executed on the current callbacks. */
     fun scheduleCallbackTask(task: CallbackTask) {
@@ -77,19 +84,10 @@ class ModelTaskController(
     }
 
     fun bindUpdatedWidgets(dataModel: BgDataModel) {
-        val widgetsByPackageItem = dataModel.widgetsModel.widgetsByPackageItem
-        val allWidgets = WidgetsListBaseEntriesBuilder(app.context).build(widgetsByPackageItem)
-
-        val defaultWidgetsFilter = dataModel.widgetsModel.defaultWidgetsFilter
-        val defaultWidgets =
-            if (defaultWidgetsFilter != null) {
-                WidgetsListBaseEntriesBuilder(app.context)
-                    .build(widgetsByPackageItem, defaultWidgetsFilter)
-            } else {
-                emptyList()
-            }
-
-        scheduleCallbackTask { it.bindAllWidgets(allWidgets, defaultWidgets) }
+        val allWidgets =
+            WidgetsListBaseEntriesBuilder(context)
+                .build(dataModel.widgetsModel.widgetsByPackageItemForPicker)
+        scheduleCallbackTask { it.bindAllWidgets(allWidgets) }
     }
 
     fun deleteAndBindComponentsRemoved(matcher: Predicate<ItemInfo?>, reason: String?) {

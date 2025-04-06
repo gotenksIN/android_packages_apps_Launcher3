@@ -101,7 +101,6 @@
     <string name="dismiss_prediction_label" msgid="3357562989568808658">"ऐप्लिकेशन का सुझाव न दें"</string>
     <string name="pin_prediction" msgid="4196423321649756498">"सुझाए गए ऐप पिन करें"</string>
     <string name="bubble" msgid="3072951361014076670">"बबल"</string>
-    <string name="pin_to_taskbar" msgid="1281337899690299038">"टास्कबार में पिन करें"</string>
     <string name="permlab_install_shortcut" msgid="5632423390354674437">"शॉर्टकट इंस्‍टॉल करें"</string>
     <string name="permdesc_install_shortcut" msgid="923466509822011139">"ऐप को उपयोगकर्ता के हस्‍तक्षेप के बिना शॉर्टकट जोड़ने देती है."</string>
     <string name="permlab_read_settings" msgid="5136500343007704955">"होम स्क्रीन की सेटिंग और शॉर्टकट पढ़ने की अनुमति"</string>
@@ -118,6 +117,8 @@
     <string name="default_scroll_format" msgid="7475544710230993317">"पेज %2$d में से %1$d"</string>
     <string name="workspace_scroll_format" msgid="8458889198184077399">"होम स्क्रीन %2$d में से %1$d"</string>
     <string name="workspace_new_page" msgid="257366611030256142">"नया होम स्‍क्रीन पेज"</string>
+    <string name="app_running_state_description" msgid="5645053189564740904">"चालू है"</string>
+    <string name="app_minimized_state_description" msgid="710740620044902509">"छोटा किया गया"</string>
     <string name="folder_opened" msgid="94695026776264709">"फ़ोल्डर खोला गया, <xliff:g id="WIDTH">%1$d</xliff:g> गुणा <xliff:g id="HEIGHT">%2$d</xliff:g>"</string>
     <string name="folder_tap_to_close" msgid="4625795376335528256">"फ़ोल्डर बंद करने के लिए टैप करें"</string>
     <string name="folder_tap_to_rename" msgid="4017685068016979677">"नाम बदलना सहेजने के लिए टैप करें"</string>
@@ -130,6 +131,7 @@
     <string name="styles_wallpaper_button_text" msgid="8216961355289236794">"वॉलपेपर और स्टाइल"</string>
     <string name="edit_home_screen" msgid="8947858375782098427">"होम स्क्रीन में बदलाव करें"</string>
     <string name="settings_button_text" msgid="8873672322605444408">"होम स्क्रीन की सेटिंग"</string>
+    <string name="all_apps_home_screen" msgid="8658178652647896497">"ऐप्लिकेशन"</string>
     <string name="msg_disabled_by_admin" msgid="6898038085516271325">"आपके एडमिन ने बंद किया हुआ है"</string>
     <string name="allow_rotation_title" msgid="7222049633713050106">"होम स्क्रीन घुमाने की अनुमति दें"</string>
     <string name="allow_rotation_desc" msgid="8662546029078692509">"फ़ोन घुुमाए जाने पर"</string>
@@ -183,10 +185,14 @@
     <string name="action_decrease_height" msgid="282377193880900022">"ऊंचाई घटाएं"</string>
     <string name="widget_resized" msgid="9130327887929620">"विजेट का आकार बदलकर उसकी चौड़ाई <xliff:g id="NUMBER_0">%1$s</xliff:g> और ऊंचाई <xliff:g id="NUMBER_1">%2$s</xliff:g> कर दी गई"</string>
     <string name="action_deep_shortcut" msgid="4766835855579976045">"शॉर्टकट मेन्यू"</string>
+    <string name="widget_frame_name" msgid="8782828448471444270">"<xliff:g id="STRING">%1$s</xliff:g> के लिए, विजेट का साइज़ बदलने वाला फ़्रेम"</string>
+    <string name="action_close" msgid="1077760267194136901">"बंद करें"</string>
     <string name="action_dismiss_notification" msgid="5909461085055959187">"खारिज करें"</string>
     <string name="accessibility_close" msgid="2277148124685870734">"बंद करें"</string>
     <string name="all_apps_personal_tab" msgid="4190252696685155002">"निजी ऐप्लिकेशन"</string>
     <string name="all_apps_work_tab" msgid="4884822796154055118">"वर्क ऐप्लिकेशन"</string>
+    <string name="all_apps_personal_tab_content_description" msgid="6286808898381807242">"निजी ऐप्लिकेशन टैब"</string>
+    <string name="all_apps_work_tab_content_description" msgid="3835637212347968316">"वर्क ऐप्लिकेशन टैब"</string>
     <string name="work_profile_toggle_label" msgid="3081029915775481146">"वर्क प्रोफ़ाइल"</string>
     <string name="work_profile_edu_work_apps" msgid="7895468576497746520">"वर्क ऐप्लिकेशन बैज किए गए हैं. आईटी एडमिन इन्हें देख सकता है"</string>
     <string name="work_profile_edu_accept" msgid="6069788082535149071">"ठीक है"</string>
@@ -211,4 +217,5 @@
     <string name="ps_container_transition" msgid="8667331812048014412">"प्राइवेट स्पेस की सेटिंग में बदलाव किया जा रहा है"</string>
     <string name="ps_add_button_label" msgid="8127988716897128773">"इंस्टॉल करें"</string>
     <string name="ps_add_button_content_description" msgid="3254274107740952556">"प्राइवेट स्पेस में ऐप्लिकेशन इंस्टॉल करें"</string>
+    <string name="ps_app_content_description" msgid="1129133475892816226">"प्राइवेट स्पेस में फ़ाइलें और अन्य चीज़ें जोड़ें"</string>
 </resources>

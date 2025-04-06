@@ -37,6 +37,10 @@ import android.window.OnBackInvokedDispatcher;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.LifecycleRegistry;
+import androidx.savedstate.SavedStateRegistry;
+import androidx.savedstate.SavedStateRegistryController;
 
 import com.android.launcher3.DeviceProfile.OnDeviceProfileChangeListener;
 import com.android.launcher3.logging.StatsLogManager;
@@ -47,9 +51,11 @@ import com.android.launcher3.util.ActivityOptionsWrapper;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.DisplayController.DisplayInfoChangeListener;
 import com.android.launcher3.util.DisplayController.Info;
+import com.android.launcher3.util.LifecycleHelper;
 import com.android.launcher3.util.RunnableList;
 import com.android.launcher3.util.SystemUiController;
 import com.android.launcher3.util.ViewCache;
+import com.android.launcher3.util.WeakCleanupSet;
 import com.android.launcher3.util.WindowBounds;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.ScrimView;
@@ -97,10 +103,14 @@ public abstract class BaseActivity extends Activity implements ActivityContext,
     private final ArrayList<MultiWindowModeChangedListener> mMultiWindowModeChangedListeners =
             new ArrayList<>();
 
+    private final SavedStateRegistryController mSavedStateRegistryController =
+            SavedStateRegistryController.create(this);
+    private final LifecycleRegistry mLifecycleRegistry = new LifecycleRegistry(this);
+    private final WeakCleanupSet mCleanupSet = new WeakCleanupSet(this);
+
     protected DeviceProfile mDeviceProfile;
     protected SystemUiController mSystemUiController;
     private StatsLogManager mStatsLogManager;
-
 
     public static final int ACTIVITY_STATE_STARTED = 1 << 0;
     public static final int ACTIVITY_STATE_RESUMED = 1 << 1;
@@ -177,6 +187,12 @@ public abstract class BaseActivity extends Activity implements ActivityContext,
             {new RunnableList(), new RunnableList(), new RunnableList(), new RunnableList()};
 
     private ActionMode mCurrentActionMode;
+
+    public BaseActivity() {
+        mSavedStateRegistryController.performAttach();
+        registerActivityLifecycleCallbacks(
+                new LifecycleHelper(this, mSavedStateRegistryController, mLifecycleRegistry));
+    }
 
     @Override
     public ViewCache getViewCache() {
@@ -478,13 +494,28 @@ public abstract class BaseActivity extends Activity implements ActivityContext,
 
     protected void reapplyUi() {}
 
+    @NonNull
+    @Override
+    public SavedStateRegistry getSavedStateRegistry() {
+        return mSavedStateRegistryController.getSavedStateRegistry();
+    }
+
+    @NonNull
+    @Override
+    public Lifecycle getLifecycle() {
+        return mLifecycleRegistry;
+    }
+
+    @Override
+    public WeakCleanupSet getOwnerCleanupSet() {
+        return mCleanupSet;
+    }
+
     public static <T extends BaseActivity> T fromContext(Context context) {
         if (context instanceof BaseActivity) {
             return (T) context;
-        } else if (context instanceof ActivityContextDelegate) {
-            return (T) ((ActivityContextDelegate) context).mDelegate;
-        } else if (context instanceof ContextWrapper) {
-            return fromContext(((ContextWrapper) context).getBaseContext());
+        } else if (context instanceof ContextWrapper cw) {
+            return fromContext(cw.getBaseContext());
         } else {
             throw new IllegalArgumentException("Cannot find BaseActivity in parent tree");
         }

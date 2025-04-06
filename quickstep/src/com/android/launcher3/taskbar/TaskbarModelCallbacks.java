@@ -18,6 +18,7 @@ package com.android.launcher3.taskbar;
 import android.util.SparseArray;
 import android.view.View;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
 
 import com.android.launcher3.LauncherSettings.Favorites;
@@ -61,6 +62,7 @@ public class TaskbarModelCallbacks implements
     // Used to defer any UI updates during the SUW unstash animation.
     private boolean mDeferUpdatesForSUW;
     private Runnable mDeferredUpdates;
+    private boolean mBindingItems = false;
 
     public TaskbarModelCallbacks(
             TaskbarActivityContext context, TaskbarView container) {
@@ -74,14 +76,14 @@ public class TaskbarModelCallbacks implements
 
     @Override
     public void startBinding() {
-        mContext.setBindingItems(true);
+        mBindingItems = true;
         mHotseatItems.clear();
         mPredictedItems = Collections.emptyList();
     }
 
     @Override
     public void finishBindingItems(IntSet pagesBoundFirst) {
-        mContext.setBindingItems(false);
+        mBindingItems = false;
         commitItemsToUI();
     }
 
@@ -119,14 +121,15 @@ public class TaskbarModelCallbacks implements
     }
 
     @Override
-    public void mapOverItems(ItemOperator op) {
+    public View mapOverItems(@NonNull ItemOperator op) {
         final int itemCount = mContainer.getChildCount();
         for (int itemIdx = 0; itemIdx < itemCount; itemIdx++) {
             View item = mContainer.getChildAt(itemIdx);
             if (item.getTag() instanceof ItemInfo itemInfo && op.evaluate(itemInfo, item)) {
-                return;
+                return item;
             }
         }
+        return null;
     }
 
     @Override
@@ -167,7 +170,7 @@ public class TaskbarModelCallbacks implements
     }
 
     private void commitItemsToUI() {
-        if (mContext.isBindingItems()) {
+        if (mBindingItems) {
             return;
         }
 
@@ -203,6 +206,7 @@ public class TaskbarModelCallbacks implements
             ItemInfo[] hotseatItemInfos, List<GroupTask> recentTasks) {
         mContainer.updateItems(hotseatItemInfos, recentTasks);
         mControllers.taskbarViewController.updateIconViewsRunningStates();
+        mControllers.taskbarPopupController.setHotseatInfosList(mHotseatItems);
     }
 
     /**

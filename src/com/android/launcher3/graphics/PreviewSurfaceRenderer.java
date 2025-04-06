@@ -20,13 +20,18 @@ import static android.content.res.Configuration.UI_MODE_NIGHT_NO;
 import static android.content.res.Configuration.UI_MODE_NIGHT_YES;
 import static android.view.Display.DEFAULT_DISPLAY;
 
+import static com.android.launcher3.Flags.extendibleThemeManager;
 import static com.android.launcher3.LauncherPrefs.GRID_NAME;
-import static com.android.launcher3.LauncherSettings.Favorites.TABLE_NAME;
+import static com.android.launcher3.WorkspaceLayoutManager.FIRST_SCREEN_ID;
+import static com.android.launcher3.WorkspaceLayoutManager.SECOND_SCREEN_ID;
 import static com.android.launcher3.graphics.ThemeManager.PREF_ICON_SHAPE;
+import static com.android.launcher3.provider.LauncherDbUtils.selectionForWorkspaceScreen;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.MODEL_EXECUTOR;
+import static com.android.launcher3.widget.LauncherWidgetHolder.APPWIDGET_HOST_ID;
 
 import android.app.WallpaperColors;
+import android.appwidget.AppWidgetHost;
 import android.appwidget.AppWidgetProviderInfo;
 import android.content.Context;
 import android.content.res.Configuration;
@@ -34,6 +39,7 @@ import android.database.Cursor;
 import android.hardware.display.DisplayManager;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.Size;
 import android.util.SparseArray;
@@ -57,23 +63,22 @@ import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherSettings;
-import com.android.launcher3.Workspace;
+import com.android.launcher3.dagger.LauncherComponentProvider;
+import com.android.launcher3.graphics.LauncherPreviewRenderer.PreviewAppComponent;
 import com.android.launcher3.graphics.LauncherPreviewRenderer.PreviewContext;
-import com.android.launcher3.model.BaseLauncherBinder;
 import com.android.launcher3.model.BgDataModel;
 import com.android.launcher3.model.BgDataModel.Callbacks;
 import com.android.launcher3.model.LoaderTask;
 import com.android.launcher3.model.ModelDbController;
-import com.android.launcher3.provider.LauncherDbUtils;
+import com.android.launcher3.model.UserManagerState;
 import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.RunnableList;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.widget.LocalColorExtractor;
 import com.android.systemui.shared.Flags;
 
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /** Render preview using surface view. */
@@ -90,48 +95,57 @@ public class PreviewSurfaceRenderer {
     private static final String KEY_COLOR_RESOURCE_IDS = "color_resource_ids";
     private static final String KEY_COLOR_VALUES = "color_values";
     private static final String KEY_DARK_MODE = "use_dark_mode";
+    private static final String KEY_LAYOUT_XML = "layout_xml";
+    public static final String KEY_SKIP_ANIMATIONS = "skip_animations";
 
-    private Context mContext;
+    private final Context mContext;
     private SparseIntArray mPreviewColorOverride;
     private String mGridName;
     private String mShapeKey;
+    private String mLayoutXml;
 
     @Nullable private Boolean mDarkMode;
     private boolean mDestroyed = false;
     private boolean mHideQsb;
     @Nullable private FrameLayout mViewRoot = null;
+    private boolean mDeletingHostOnExit = false;
 
+    private final int mCallingPid;
     private final IBinder mHostToken;
     private final int mWidth;
     private final int mHeight;
+    private final boolean mSkipAnimations;
     private final int mDisplayId;
     private final Display mDisplay;
     private final WallpaperColors mWallpaperColors;
     private final RunnableList mLifeCycleTracker;
     private final SurfaceControlViewHost mSurfaceControlViewHost;
 
-
-    public PreviewSurfaceRenderer(
-            Context context, RunnableList lifecycleTracker, Bundle bundle) throws Exception {
+    public PreviewSurfaceRenderer(Context context, RunnableList lifecycleTracker, Bundle bundle,
+            int callingPid) throws Exception {
         mContext = context;
         mLifeCycleTracker = lifecycleTracker;
+        mCallingPid = callingPid;
         mGridName = bundle.getString("name");
         bundle.remove("name");
         if (mGridName == null) {
             mGridName = LauncherPrefs.get(context).get(GRID_NAME);
         }
+        mShapeKey = LauncherPrefs.get(context).get(PREF_ICON_SHAPE);
         mWallpaperColors = bundle.getParcelable(KEY_COLORS);
         if (Flags.newCustomizationPickerUi()) {
             updateColorOverrides(bundle);
         }
-        mHideQsb = bundle.getBoolean(GridCustomizationsProvider.KEY_HIDE_BOTTOM_ROW);
+        mHideQsb = bundle.getBoolean(GridCustomizationsProxy.KEY_HIDE_BOTTOM_ROW);
 
         mHostToken = bundle.getBinder(KEY_HOST_TOKEN);
         mWidth = bundle.getInt(KEY_VIEW_WIDTH);
         mHeight = bundle.getInt(KEY_VIEW_HEIGHT);
+        mSkipAnimations = bundle.getBoolean(KEY_SKIP_ANIMATIONS, false);
         mDisplayId = bundle.getInt(KEY_DISPLAY_ID);
         mDisplay = context.getSystemService(DisplayManager.class)
                 .getDisplay(mDisplayId);
+        mLayoutXml = bundle.getString(KEY_LAYOUT_XML);
         if (mDisplay == null) {
             throw new IllegalArgumentException("Display ID does not match any displays.");
         }
@@ -175,7 +189,7 @@ public class PreviewSurfaceRenderer {
 
         ModelDbController mainController =
                 LauncherAppState.getInstance(mContext).getModel().getModelDbController();
-        try (Cursor c = mainController.query(TABLE_NAME,
+        try (Cursor c = mainController.query(
                 new String[] {
                         LauncherSettings.Favorites.APPWIDGET_ID,
                         LauncherSettings.Favorites.SPANX,
@@ -225,8 +239,8 @@ public class PreviewSurfaceRenderer {
      *
      * @param shapeKey key for the IconShape model
      */
-    public void updateShape(@Nullable String shapeKey) {
-        if (Objects.equals(mShapeKey, shapeKey)) {
+    public void updateShape(String shapeKey) {
+        if (shapeKey.equals(mShapeKey)) {
             Log.w(TAG, "Preview shape already set, skipping. shape=" + mShapeKey);
             return;
         }
@@ -332,61 +346,52 @@ public class PreviewSurfaceRenderer {
     private void loadModelData() {
         final Context inflationContext = getPreviewContext();
         if (!mGridName.equals(LauncherPrefs.INSTANCE.get(mContext).get(GRID_NAME))
-                || mShapeKey != null) {
+                || !mShapeKey.equals(LauncherPrefs.INSTANCE.get(mContext).get(PREF_ICON_SHAPE))
+                || !TextUtils.isEmpty(mLayoutXml)) {
+
+            boolean isCustomLayout = extendibleThemeManager() &&  !TextUtils.isEmpty(mLayoutXml);
+            int widgetHostId = isCustomLayout ? APPWIDGET_HOST_ID + mCallingPid : APPWIDGET_HOST_ID;
+
             // Start the migration
-            PreviewContext previewContext = new PreviewContext(inflationContext, mGridName);
-            if (mShapeKey != null) {
-                LauncherPrefs.INSTANCE.get(previewContext).put(PREF_ICON_SHAPE, mShapeKey);
+            PreviewContext previewContext = new PreviewContext(
+                    inflationContext, mGridName, mShapeKey, widgetHostId, mLayoutXml);
+            PreviewAppComponent appComponent =
+                    (PreviewAppComponent) LauncherComponentProvider.get(previewContext);
+
+            if (extendibleThemeManager() && isCustomLayout && !mDeletingHostOnExit) {
+                mDeletingHostOnExit = true;
+                mLifeCycleTracker.add(() -> {
+                    AppWidgetHost host = new AppWidgetHost(mContext, widgetHostId);
+                    // Start listening here, so that any previous active host is disabled
+                    host.startListening();
+                    host.stopListening();
+                    host.deleteHost();
+                });
             }
-            // Copy existing data to preview DB
-            LauncherDbUtils.copyTable(LauncherAppState.getInstance(mContext)
-                            .getModel().getModelDbController().getDb(),
-                    TABLE_NAME,
-                    LauncherAppState.getInstance(previewContext)
-                            .getModel().getModelDbController().getDb(),
-                    TABLE_NAME,
-                    mContext);
-            LauncherAppState.getInstance(previewContext)
-                    .getModel().getModelDbController().clearEmptyDbFlag();
 
-            BgDataModel bgModel = new BgDataModel();
-            new LoaderTask(
-                    LauncherAppState.getInstance(previewContext),
-                    /* bgAllAppsList= */ null,
-                    bgModel,
-                    LauncherAppState.getInstance(previewContext).getModel().getModelDelegate(),
-                    new BaseLauncherBinder(LauncherAppState.getInstance(previewContext), bgModel,
-                            /* bgAllAppsList= */ null, new Callbacks[0]),
-                    LauncherAppState.getInstance(
-                            previewContext).getModel().getWidgetsFilterDataProvider()) {
+            LoaderTask task = appComponent.getLoaderTaskFactory().newLoaderTask(
+                    appComponent.getBaseLauncherBinderFactory().createBinder(new Callbacks[0]),
+                    new UserManagerState());
 
-                @Override
-                public void run() {
-                    InvariantDeviceProfile idp = LauncherAppState.getIDP(previewContext);
-                    DeviceProfile deviceProfile = idp.getDeviceProfile(previewContext);
-                    String query =
-                            LauncherSettings.Favorites.SCREEN + " = " + Workspace.FIRST_SCREEN_ID
-                                    + " or " + LauncherSettings.Favorites.CONTAINER + " = "
-                                    + LauncherSettings.Favorites.CONTAINER_HOTSEAT;
-                    if (deviceProfile.isTwoPanels) {
-                        query += " or " + LauncherSettings.Favorites.SCREEN + " = "
-                                + Workspace.SECOND_SCREEN_ID;
-                    }
-                    loadWorkspace(new ArrayList<>(), query, null, null);
-
-                    final SparseArray<Size> spanInfo = getLoadedLauncherWidgetInfo();
-                    MAIN_EXECUTOR.execute(() -> {
-                        renderView(previewContext, mBgDataModel, mWidgetProvidersMap, spanInfo,
-                                idp);
-                        mLifeCycleTracker.add(previewContext::onDestroy);
-                    });
-                }
-            }.run();
+            InvariantDeviceProfile idp = appComponent.getIDP();
+            DeviceProfile deviceProfile = idp.getDeviceProfile(previewContext);
+            String query = deviceProfile.isTwoPanels
+                    ? selectionForWorkspaceScreen(FIRST_SCREEN_ID, SECOND_SCREEN_ID)
+                    : selectionForWorkspaceScreen(FIRST_SCREEN_ID);
+            Map<ComponentKey, AppWidgetProviderInfo> widgetProviderInfoMap = new HashMap<>();
+            task.loadWorkspaceForPreview(query, widgetProviderInfoMap);
+            final SparseArray<Size> spanInfo = getLoadedLauncherWidgetInfo();
+            MAIN_EXECUTOR.execute(() -> {
+                renderView(previewContext, appComponent.getDataModel(), widgetHostId,
+                        widgetProviderInfoMap, spanInfo, idp);
+                mLifeCycleTracker.add(previewContext::onDestroy);
+            });
         } else {
             LauncherAppState.getInstance(inflationContext).getModel().loadAsync(dataModel -> {
                 if (dataModel != null) {
-                    MAIN_EXECUTOR.execute(() -> renderView(inflationContext, dataModel, null,
-                            null, LauncherAppState.getIDP(inflationContext)));
+                    MAIN_EXECUTOR.execute(() -> renderView(inflationContext, dataModel,
+                            APPWIDGET_HOST_ID, null, null,
+                            LauncherAppState.getIDP(inflationContext)));
                 } else {
                     Log.e(TAG, "Model loading failed");
                 }
@@ -395,7 +400,7 @@ public class PreviewSurfaceRenderer {
     }
 
     @UiThread
-    private void renderView(Context inflationContext, BgDataModel dataModel,
+    private void renderView(Context inflationContext, BgDataModel dataModel, int widgetHostId,
             Map<ComponentKey, AppWidgetProviderInfo> widgetProviderInfoMap,
             @Nullable final SparseArray<Size> launcherWidgetSpanInfo, InvariantDeviceProfile idp) {
         if (mDestroyed) {
@@ -403,10 +408,10 @@ public class PreviewSurfaceRenderer {
         }
         LauncherPreviewRenderer renderer;
         if (Flags.newCustomizationPickerUi()) {
-            renderer = new LauncherPreviewRenderer(inflationContext, idp, mPreviewColorOverride,
-                    mWallpaperColors, launcherWidgetSpanInfo);
+            renderer = new LauncherPreviewRenderer(inflationContext, idp, widgetHostId,
+                    mPreviewColorOverride, mWallpaperColors, launcherWidgetSpanInfo);
         } else {
-            renderer = new LauncherPreviewRenderer(inflationContext, idp,
+            renderer = new LauncherPreviewRenderer(inflationContext, idp, widgetHostId,
                     mWallpaperColors, launcherWidgetSpanInfo);
         }
         renderer.hideBottomRow(mHideQsb);
@@ -432,9 +437,8 @@ public class PreviewSurfaceRenderer {
             view.setTranslationY((mHeight - scale * view.getHeight()) / 2);
         }
 
-
         if (!Flags.newCustomizationPickerUi()) {
-            view.setAlpha(0);
+            view.setAlpha(mSkipAnimations ? 1 : 0);
             view.animate().alpha(1)
                     .setInterpolator(new AccelerateDecelerateInterpolator())
                     .setDuration(FADE_IN_ANIMATION_DURATION)
@@ -455,7 +459,7 @@ public class PreviewSurfaceRenderer {
             );
             mViewRoot.setLayoutParams(layoutParams);
             mViewRoot.addView(view);
-            mViewRoot.setAlpha(0);
+            mViewRoot.setAlpha(mSkipAnimations ? 1 : 0);
             mViewRoot.animate().alpha(1)
                     .setInterpolator(new AccelerateDecelerateInterpolator())
                     .setDuration(FADE_IN_ANIMATION_DURATION)
@@ -489,5 +493,4 @@ public class PreviewSurfaceRenderer {
             MAIN_EXECUTOR.execute(mLifecycleTracker::executeAllAndDestroy);
         }
     }
-
 }

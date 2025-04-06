@@ -53,6 +53,7 @@ import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.os.Bundle;
 import android.os.Parcelable;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -66,6 +67,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.ViewCompat;
@@ -82,7 +84,6 @@ import com.android.launcher3.celllayout.CellPosMapper.CellPos;
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.debug.TestEventEmitter;
 import com.android.launcher3.debug.TestEventEmitter.TestEvent;
-import com.android.launcher3.dot.FolderDotInfo;
 import com.android.launcher3.dragndrop.DragController;
 import com.android.launcher3.dragndrop.DragLayer;
 import com.android.launcher3.dragndrop.DragOptions;
@@ -118,7 +119,6 @@ import com.android.launcher3.util.IntSparseArrayMap;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.MSDLPlayerWrapper;
 import com.android.launcher3.util.OverlayEdgeEffect;
-import com.android.launcher3.util.PackageUserKey;
 import com.android.launcher3.util.RunnableList;
 import com.android.launcher3.util.Thunk;
 import com.android.launcher3.util.WallpaperOffsetInterpolator;
@@ -137,7 +137,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * The workspace is a wide area with a wallpaper and a finite number of pages.
@@ -299,6 +298,17 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     private final StatsLogManager mStatsLogManager;
 
     private final MSDLPlayerWrapper mMSDLPlayerWrapper;
+
+    private final StateManager.StateListener<LauncherState> mAccessibilityDropListener =
+            new StateListener<>() {
+                @Override
+                public void onStateTransitionComplete(LauncherState finalState) {
+                    if (finalState == NORMAL) {
+                        performAccessibilityActionOnViewTree(Workspace.this);
+                    }
+                }
+            };
+
     @Nullable
     private DragController.DragListener mAccessibilityDragListener;
 
@@ -648,7 +658,6 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         }
 
         // Remove the pages and clear the screen models
-        removeFolderListeners();
         removeAllViews();
         mScreenOrder.clear();
         mWorkspaceScreens.clear();
@@ -881,6 +890,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 mScreenOrder.removeValue(extraEmptyPageId);
             });
 
+            // Since we removed some screens, before moving to next page, update the state
+            // description with correct page numbers.
+            updateAccessibilityViewPageDescription();
             setCurrentPage(getNextPage());
 
             // Update the page indicator to reflect the removed page.
@@ -1106,6 +1118,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         if (pageShift >= 0) {
             setCurrentPage(currentPage - pageShift);
         }
+
+        // Now that we have removed some pages, ensure state description is up to date.
+        updateAccessibilityViewPageDescription();
     }
 
     /**
@@ -1454,11 +1469,13 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         super.onAttachedToWindow();
         mWallpaperOffset.setWindowToken(getWindowToken());
         computeScroll();
+        mLauncher.getStateManager().addStateListener(mAccessibilityDropListener);
     }
 
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         mWallpaperOffset.setWindowToken(null);
+        mLauncher.getStateManager().removeStateListener(mAccessibilityDropListener);
     }
 
     @Override
@@ -1895,7 +1912,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
         boolean aboveShortcut = Folder.willAccept(dropOverView.getTag())
                 && ((ItemInfo) dropOverView.getTag()).container != CONTAINER_HOTSEAT_PREDICTION;
-        boolean willBecomeShortcut = Folder.willAcceptItemType(info.itemType);
+        boolean willBecomeShortcut = FolderInfo.willAcceptItemType(info.itemType);
 
         return (aboveShortcut && willBecomeShortcut);
     }
@@ -1975,8 +1992,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 fi.performCreateAnimation(destInfo, v, sourceInfo, d, folderLocation, scale);
             } else {
                 fi.prepareCreateAnimation(v);
-                fi.addItem(destInfo);
-                fi.addItem(sourceInfo);
+                fi.getFolder().addFolderContent(destInfo);
+                fi.getFolder().addFolderContent(sourceInfo);
             }
             return true;
         }
@@ -2239,16 +2256,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 // the order of operations in this method related to the StateListener below, please
                 // test that accessibility moves retain focus after accessibility dropping an item.
                 // Accessibility focus must be requested after launcher is back to a normal state
-                mLauncher.getStateManager().addStateListener(new StateListener<LauncherState>() {
-                    @Override
-                    public void onStateTransitionComplete(LauncherState finalState) {
-                        if (finalState == NORMAL) {
-                            cell.performAccessibilityAction(
-                                    AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null);
-                            mLauncher.getStateManager().removeStateListener(this);
-                        }
-                    }
-                });
+                cell.setTag(R.id.perform_a11y_action_on_launcher_state_normal_tag,
+                        AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS);
             }
         }
 
@@ -3153,7 +3162,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                         + "Workspace#onDropCompleted. Please file a bug. ");
             }
         }
-        View cell = getHomescreenIconByItemId(d.originalDragInfo.id);
+        View cell = getViewByItemId(d.originalDragInfo.id);
         if (d.cancelled && cell != null) {
             cell.setVisibility(VISIBLE);
         }
@@ -3195,21 +3204,6 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 }
             }
             return false;
-        });
-    }
-
-    /**
-     * Removes all folder listeners
-     */
-    public void removeFolderListeners() {
-        mapOverItems(new ItemOperator() {
-            @Override
-            public boolean evaluate(ItemInfo info, View view) {
-                if (view instanceof FolderIcon) {
-                    ((FolderIcon) view).removeListeners();
-                }
-                return false;
-            }
         });
     }
 
@@ -3302,29 +3296,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         return layouts;
     }
 
-    public View getHomescreenIconByItemId(final int id) {
-        return getFirstMatch((info, v) -> info != null && info.id == id);
-    }
-
     public LauncherAppWidgetHostView getWidgetForAppWidgetId(final int appWidgetId) {
-        return (LauncherAppWidgetHostView) getFirstMatch((info, v) ->
-                (info instanceof LauncherAppWidgetInfo) &&
-                        ((LauncherAppWidgetInfo) info).appWidgetId == appWidgetId);
-    }
-
-    public View getFirstMatch(final ItemOperator operator) {
-        final View[] value = new View[1];
-        mapOverItems(new ItemOperator() {
-            @Override
-            public boolean evaluate(ItemInfo info, View v) {
-                if (operator.evaluate(info, v)) {
-                    value[0] = v;
-                    return true;
-                }
-                return false;
-            }
-        });
-        return value[0];
+        return (LauncherAppWidgetHostView) mapOverItems((info, v) ->
+                (info instanceof LauncherAppWidgetInfo lawi) && lawi.appWidgetId == appWidgetId);
     }
 
     void clearDropTargets() {
@@ -3358,15 +3332,15 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                     if (child instanceof DropTarget) {
                         mDragController.removeDropTarget((DropTarget) child);
                     }
-                } else if (child instanceof FolderIcon) {
+                } else if (child instanceof FolderIcon folderIcon) {
                     FolderInfo folderInfo = (FolderInfo) info;
-                    List<ItemInfo> matches = folderInfo.getContents().stream()
+                    ItemInfo[] matches = folderInfo.getContents().stream()
                             .filter(matcher)
-                            .collect(Collectors.toList());
-                    if (!matches.isEmpty()) {
-                        folderInfo.removeAll(matches, false);
-                        if (((FolderIcon) child).getFolder().isOpen()) {
-                            ((FolderIcon) child).getFolder().close(false /* animate */);
+                            .toArray(ItemInfo[]::new);
+                    if (matches.length > 0) {
+                        folderIcon.getFolder().removeFolderContent(false, matches);
+                        if (folderIcon.getFolder().isOpen()) {
+                            folderIcon.getFolder().close(false /* animate */);
                         }
                     }
                 } else if (info instanceof AppPairInfo api) {
@@ -3383,66 +3357,29 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     }
 
     @Override
-    public void mapOverItems(ItemOperator op) {
-        for (CellLayout layout : getWorkspaceAndHotseatCellLayouts()) {
-            if (mapOverCellLayout(layout, op) != null) {
-                return;
-            }
-        }
+    public View mapOverItems(@NonNull ItemOperator op) {
+        return mapOverCellLayouts(getWorkspaceAndHotseatCellLayouts(), op);
     }
 
     /**
-     * Perform {param operator} over all the items in a given {param layout}.
-     *
-     * @return The first item that satisfies the operator or null.
+     * Perform {param op} over all the items in the provided {param layouts} until a match is found
      */
-    public View mapOverCellLayout(CellLayout layout, ItemOperator operator) {
-        // TODO(b/128460496) Potential race condition where layout is not yet loaded
-        if (layout == null) {
-            return null;
-        }
-        ShortcutAndWidgetContainer container = layout.getShortcutsAndWidgets();
-        // map over all the shortcuts on the workspace
-        final int itemCount = container.getChildCount();
-        for (int itemIdx = 0; itemIdx < itemCount; itemIdx++) {
-            View item = container.getChildAt(itemIdx);
-            if (operator.evaluate((ItemInfo) item.getTag(), item)) {
-                return item;
+    public static View mapOverCellLayouts(CellLayout[] layouts, ItemOperator op) {
+        for (CellLayout layout : layouts) {
+            // TODO(b/128460496) Potential race condition where layout is not yet loaded
+            if (layout == null) continue;
+
+            ShortcutAndWidgetContainer container = layout.getShortcutsAndWidgets();
+            // map over all the shortcuts on the layout
+            final int itemCount = container.getChildCount();
+            for (int itemIdx = 0; itemIdx < itemCount; itemIdx++) {
+                View item = container.getChildAt(itemIdx);
+                if (op.evaluate((ItemInfo) item.getTag(), item)) {
+                    return item;
+                }
             }
         }
         return null;
-    }
-
-    public void updateNotificationDots(Predicate<PackageUserKey> updatedDots) {
-        final PackageUserKey packageUserKey = new PackageUserKey(null, null);
-        Predicate<ItemInfo> matcher = info -> !packageUserKey.updateFromItemInfo(info)
-                || updatedDots.test(packageUserKey);
-
-        ItemOperator op = (info, v) -> {
-            if (info instanceof WorkspaceItemInfo && v instanceof BubbleTextView) {
-                if (matcher.test(info)) {
-                    ((BubbleTextView) v).applyDotState(info, true /* animate */);
-                }
-            } else if (info instanceof FolderInfo && v instanceof FolderIcon) {
-                FolderInfo fi = (FolderInfo) info;
-                if (fi.anyMatch(matcher)) {
-                    FolderDotInfo folderDotInfo = new FolderDotInfo();
-                    for (ItemInfo si : fi.getContents()) {
-                        folderDotInfo.addDotInfo(mLauncher.getDotInfoForItem(si));
-                    }
-                    ((FolderIcon) v).setDotInfo(folderDotInfo);
-                }
-            }
-
-            // process all the shortcuts
-            return false;
-        };
-
-        mapOverItems(op);
-        Folder folder = Folder.getOpen(mLauncher);
-        if (folder != null) {
-            folder.iterateOverItems(op);
-        }
     }
 
     /**
@@ -3507,6 +3444,18 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     protected void announcePageForAccessibility() {
         // Talkback focuses on AccessibilityActionView by default, so we need to modify the state
         // description there in order for the change in page scroll to be announced.
+        updateAccessibilityViewPageDescription();
+    }
+
+    /**
+     * Updates the state description that is set on the accessibility actions view for the
+     * workspace.
+     * <p>The updated value is called out when talkback focuses on the view and is not disruptive.
+     * </p>
+     */
+    protected void updateAccessibilityViewPageDescription() {
+        // Set the state description on accessibility action view so that when it is focused,
+        // talkback describes the correct state of home screen pages.
         ViewCompat.setStateDescription(mLauncher.getAccessibilityActionView(),
                 getCurrentPageDescription());
     }
@@ -3578,6 +3527,24 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         @Override
         public void onAnimationEnd(Animator animation) {
             onEndStateTransition();
+        }
+    }
+
+    /**
+     * Recursively check view tag {@link R.id.perform_a11y_action_on_launcher_state_normal_tag} and
+     * call {@link View#performAccessibilityAction(int, Bundle)} on view tree. The tag is cleared
+     * after this call.
+     */
+    private static void performAccessibilityActionOnViewTree(View view) {
+        Object tag = view.getTag(R.id.perform_a11y_action_on_launcher_state_normal_tag);
+        if (tag instanceof Integer) {
+            view.performAccessibilityAction((int) tag, null);
+            view.setTag(R.id.perform_a11y_action_on_launcher_state_normal_tag, null);
+        }
+        if (view instanceof ViewGroup viewgroup) {
+            for (int i = 0; i < viewgroup.getChildCount(); i++) {
+                performAccessibilityActionOnViewTree(viewgroup.getChildAt(i));
+            }
         }
     }
 }

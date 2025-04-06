@@ -19,6 +19,7 @@ package com.android.quickstep;
 import static android.view.Display.DEFAULT_DISPLAY;
 
 import static com.android.launcher3.Flags.FLAG_ENABLE_SEPARATE_EXTERNAL_DISPLAY_TASKS;
+import static com.android.window.flags.Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -48,7 +49,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.internal.R;
+import com.android.launcher3.statehandlers.DesktopVisibilityController;
+import com.android.launcher3.util.DaggerSingletonTracker;
 import com.android.launcher3.util.LooperExecutor;
+import com.android.quickstep.util.DesktopTask;
 import com.android.quickstep.util.GroupTask;
 import com.android.quickstep.views.TaskViewType;
 import com.android.systemui.shared.recents.model.Task;
@@ -101,7 +105,9 @@ public class RecentTasksListTest {
                 .thenReturn(true);
 
         mRecentTasksList = new RecentTasksList(mContext, mockMainThreadExecutor,
-                mockKeyguardManager, mSystemUiProxy, mTopTaskTracker);
+                mockKeyguardManager, mSystemUiProxy, mTopTaskTracker,
+                mock(DesktopVisibilityController.class),
+                mock(DaggerSingletonTracker.class));
     }
 
     @Test
@@ -143,6 +149,66 @@ public class RecentTasksListTest {
     }
 
     @Test
+    @EnableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
+    public void loadTasksInBackground_freeformTask_multiDesksInMultiDisplays() throws Exception {
+        List<TaskInfo> tasksInDefaultDesk1 = Arrays.asList(
+                createRecentTaskInfo(/* taskId = */ 1, DEFAULT_DISPLAY),
+                createRecentTaskInfo(/* taskId = */ 4, DEFAULT_DISPLAY));
+        List<TaskInfo> tasksInDefaultDesk2 = Arrays.asList(
+                createRecentTaskInfo(/* taskId = */ 2, DEFAULT_DISPLAY),
+                createRecentTaskInfo(/* taskId = */ 3, DEFAULT_DISPLAY));
+        List<TaskInfo> tasksInExtend = Arrays.asList(
+                createRecentTaskInfo(/* taskId = */ 5, /* displayId = */ 1),
+                createRecentTaskInfo(/* taskId = */ 6, /* displayId = */ 1));
+        GroupedTaskInfo recentTaskInfosOfDesk1 = GroupedTaskInfo.forDeskTasks(/* deskId = */1,
+                DEFAULT_DISPLAY, tasksInDefaultDesk1, /* minimizedTaskIds = */
+                Collections.emptySet());
+        GroupedTaskInfo recentTaskInfosOfDesk2 = GroupedTaskInfo.forDeskTasks(/* deskId = */2,
+                DEFAULT_DISPLAY, tasksInDefaultDesk2, /* minimizedTaskIds = */
+                Collections.emptySet());
+        GroupedTaskInfo recentTaskInfosOfDesk3 = GroupedTaskInfo.forDeskTasks(/* deskId = */3,
+                /* displayId = */ 1, tasksInExtend, /* minimizedTaskIds = */
+                Collections.emptySet());
+        when(mSystemUiProxy.getRecentTasks(anyInt(), anyInt())).thenReturn(
+                new ArrayList<>(Arrays.asList(recentTaskInfosOfDesk1, recentTaskInfosOfDesk2,
+                        recentTaskInfosOfDesk3)));
+
+        List<GroupTask> taskList = mRecentTasksList.loadTasksInBackground(Integer.MAX_VALUE, -1,
+                false);
+
+        assertThat(taskList).hasSize(3);
+        assertThat(taskList.get(2).taskViewType).isEqualTo(TaskViewType.DESKTOP);
+        List<Task> actualFreeformTasksInDesk1 = taskList.get(2).getTasks();
+        assertThat(actualFreeformTasksInDesk1).hasSize(2);
+        assertThat(actualFreeformTasksInDesk1.get(0).key.id).isEqualTo(1);
+        assertThat(actualFreeformTasksInDesk1.get(0).isMinimized).isFalse();
+        assertThat(actualFreeformTasksInDesk1.get(1).key.id).isEqualTo(4);
+        assertThat(actualFreeformTasksInDesk1.get(1).isMinimized).isFalse();
+        assertThat(((DesktopTask) taskList.get(2)).getDeskId()).isEqualTo(1);
+        assertThat(((DesktopTask) taskList.get(2)).getDisplayId()).isEqualTo(DEFAULT_DISPLAY);
+
+        assertThat(taskList.get(1).taskViewType).isEqualTo(TaskViewType.DESKTOP);
+        List<Task> actualFreeformTasksInDesk2 = taskList.get(1).getTasks();
+        assertThat(actualFreeformTasksInDesk2).hasSize(2);
+        assertThat(actualFreeformTasksInDesk2.get(0).key.id).isEqualTo(2);
+        assertThat(actualFreeformTasksInDesk2.get(0).isMinimized).isFalse();
+        assertThat(actualFreeformTasksInDesk2.get(1).key.id).isEqualTo(3);
+        assertThat(actualFreeformTasksInDesk2.get(1).isMinimized).isFalse();
+        assertThat(((DesktopTask) taskList.get(1)).getDeskId()).isEqualTo(2);
+        assertThat(((DesktopTask) taskList.get(1)).getDisplayId()).isEqualTo(DEFAULT_DISPLAY);
+
+        assertThat(taskList.get(0).taskViewType).isEqualTo(TaskViewType.DESKTOP);
+        List<Task> actualFreeformTasksInDesk3 = taskList.get(0).getTasks();
+        assertThat(actualFreeformTasksInDesk3).hasSize(2);
+        assertThat(actualFreeformTasksInDesk3.get(0).key.id).isEqualTo(5);
+        assertThat(actualFreeformTasksInDesk3.get(0).isMinimized).isFalse();
+        assertThat(actualFreeformTasksInDesk3.get(1).key.id).isEqualTo(6);
+        assertThat(actualFreeformTasksInDesk3.get(1).isMinimized).isFalse();
+        assertThat(((DesktopTask) taskList.get(0)).getDeskId()).isEqualTo(3);
+        assertThat(((DesktopTask) taskList.get(0)).getDisplayId()).isEqualTo(1);
+    }
+
+    @Test
     public void loadTasksInBackground_moreThanKeys_hasValidTaskDescription() throws Exception  {
         String taskDescription = "Wheeee!";
         RecentTaskInfo task1 = new RecentTaskInfo();
@@ -170,15 +236,17 @@ public class RecentTasksListTest {
     }
 
     @Test
-    @DisableFlags(FLAG_ENABLE_SEPARATE_EXTERNAL_DISPLAY_TASKS)
+    @DisableFlags({FLAG_ENABLE_SEPARATE_EXTERNAL_DISPLAY_TASKS,
+            FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND})
     public void loadTasksInBackground_freeformTask_createsDesktopTask() throws Exception  {
         List<TaskInfo> tasks = Arrays.asList(
                 createRecentTaskInfo(1 /* taskId */, DEFAULT_DISPLAY),
                 createRecentTaskInfo(4 /* taskId */, DEFAULT_DISPLAY),
                 createRecentTaskInfo(5 /* taskId */, 1 /* displayId */),
                 createRecentTaskInfo(6 /* taskId */, 1 /* displayId */));
-        GroupedTaskInfo recentTaskInfos = GroupedTaskInfo.forFreeformTasks(
-                tasks, Collections.emptySet() /* minimizedTaskIds */);
+        GroupedTaskInfo recentTaskInfos = GroupedTaskInfo.forDeskTasks(
+                0 /* deskId */, DEFAULT_DISPLAY, tasks,
+                Collections.emptySet() /* minimizedTaskIds */);
         when(mSystemUiProxy.getRecentTasks(anyInt(), anyInt()))
                 .thenReturn(new ArrayList<>(Collections.singletonList(recentTaskInfos)));
 
@@ -201,14 +269,16 @@ public class RecentTasksListTest {
 
     @Test
     @EnableFlags(FLAG_ENABLE_SEPARATE_EXTERNAL_DISPLAY_TASKS)
+    @DisableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
     public void loadTasksInBackground_freeformTask_createsDesktopTaskPerDisplay() throws Exception {
         List<TaskInfo> tasks = Arrays.asList(
                 createRecentTaskInfo(1 /* taskId */, DEFAULT_DISPLAY),
                 createRecentTaskInfo(4 /* taskId */, DEFAULT_DISPLAY),
                 createRecentTaskInfo(5 /* taskId */, 1 /* displayId */),
                 createRecentTaskInfo(6 /* taskId */, 1 /* displayId */));
-        GroupedTaskInfo recentTaskInfos = GroupedTaskInfo.forFreeformTasks(
-                tasks, Collections.emptySet() /* minimizedTaskIds */);
+        GroupedTaskInfo recentTaskInfos = GroupedTaskInfo.forDeskTasks(
+                0 /* deskId */, DEFAULT_DISPLAY, tasks,
+                Collections.emptySet() /* minimizedTaskIds */);
         when(mSystemUiProxy.getRecentTasks(anyInt(), anyInt()))
                 .thenReturn(new ArrayList<>(Collections.singletonList(recentTaskInfos)));
 
@@ -241,7 +311,8 @@ public class RecentTasksListTest {
                 createRecentTaskInfo(5 /* taskId */, DEFAULT_DISPLAY));
         Set<Integer> minimizedTaskIds =
                 Arrays.stream(new Integer[]{1, 4, 5}).collect(Collectors.toSet());
-        GroupedTaskInfo recentTaskInfos = GroupedTaskInfo.forFreeformTasks(tasks, minimizedTaskIds);
+        GroupedTaskInfo recentTaskInfos = GroupedTaskInfo.forDeskTasks(
+                0 /* deskId */, DEFAULT_DISPLAY, tasks, minimizedTaskIds);
         when(mSystemUiProxy.getRecentTasks(anyInt(), anyInt()))
                 .thenReturn(new ArrayList<>(Collections.singletonList(recentTaskInfos)));
 

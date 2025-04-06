@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherActivityInfo
+import android.database.sqlite.SQLiteDatabase
 import android.os.Process
 import android.os.UserHandle
 import android.platform.test.annotations.DisableFlags
@@ -14,8 +15,8 @@ import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.dx.mockito.inline.extended.ExtendedMockito
+import com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn
 import com.android.launcher3.Flags
-import com.android.launcher3.LauncherAppState
 import com.android.launcher3.LauncherModel
 import com.android.launcher3.LauncherModel.LoaderTransaction
 import com.android.launcher3.LauncherPrefs
@@ -25,11 +26,13 @@ import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APP_PAIR
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FOLDER
+import com.android.launcher3.LauncherSettings.Favorites.TABLE_NAME
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.icons.IconCache
 import com.android.launcher3.icons.cache.CachingLogic
 import com.android.launcher3.icons.cache.IconCacheUpdateHandler
+import com.android.launcher3.model.LoaderTask.LoaderTaskFactory
 import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.IconRequestInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
@@ -40,14 +43,13 @@ import com.android.launcher3.util.AllModulesForTest
 import com.android.launcher3.util.Executors.MODEL_EXECUTOR
 import com.android.launcher3.util.LauncherModelHelper.SandboxModelContext
 import com.android.launcher3.util.LooperIdleLock
+import com.android.launcher3.util.ModelTestExtensions
 import com.android.launcher3.util.TestUtil
 import com.android.launcher3.util.UserIconInfo
-import com.google.common.truth.Truth
 import com.google.common.truth.Truth.assertThat
 import dagger.BindsInstance
 import dagger.Component
 import java.util.concurrent.CountDownLatch
-import java.util.function.Predicate
 import junit.framework.Assert.assertEquals
 import org.junit.After
 import org.junit.Before
@@ -57,7 +59,6 @@ import org.junit.runner.RunWith
 import org.mockito.ArgumentCaptor
 import org.mockito.Mock
 import org.mockito.Mockito
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.times
 import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
@@ -65,9 +66,9 @@ import org.mockito.MockitoSession
 import org.mockito.Spy
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.spy
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.mockito.quality.Strictness
@@ -92,58 +93,79 @@ class LoaderTaskTest {
         )
     private lateinit var mockitoSession: MockitoSession
 
-    @Mock private lateinit var app: LauncherAppState
     @Mock private lateinit var bgAllAppsList: AllAppsList
     @Mock private lateinit var modelDelegate: ModelDelegate
-    @Mock private lateinit var launcherBinder: BaseLauncherBinder
-    private lateinit var launcherModel: LauncherModel
-    @Mock private lateinit var widgetsFilterDataProvider: WidgetsFilterDataProvider
-    @Mock private lateinit var transaction: LoaderTransaction
+    @Mock private lateinit var launcherModel: LauncherModel
     @Mock private lateinit var iconCache: IconCache
+    @Mock private lateinit var userCache: UserCache
+    @Mock private lateinit var modelDbController: ModelDbController
+
+    @Mock private lateinit var launcherBinder: BaseLauncherBinder
+    @Mock private lateinit var transaction: LoaderTransaction
     @Mock private lateinit var idleLock: LooperIdleLock
     @Mock private lateinit var iconCacheUpdateHandler: IconCacheUpdateHandler
-    @Mock private lateinit var userCache: UserCache
 
-    @Spy private var userManagerState: UserManagerState? = UserManagerState()
+    @Spy private var userManagerState: UserManagerState = UserManagerState()
 
     @get:Rule val setFlagsRule = SetFlagsRule()
+
+    private val testComponent: TestComponent
+        get() = context.appComponent as TestComponent
+
+    private val bgDataModel: BgDataModel
+        get() = testComponent.getDataModel()
+
+    private val inMemoryDb: SQLiteDatabase by lazy {
+        ModelTestExtensions.createInMemoryDb(INSERTION_STATEMENT_FILE)
+    }
 
     @Before
     fun setup() {
         MockitoAnnotations.initMocks(this)
-        setFlagsRule.enableFlags(Flags.FLAG_ENABLE_TIERED_WIDGETS_BY_DEFAULT_IN_PICKER)
-        launcherModel = mock(LauncherModel::class.java)
         mockitoSession =
             ExtendedMockito.mockitoSession()
                 .strictness(Strictness.LENIENT)
                 .mockStatic(FirstScreenBroadcastHelper::class.java)
                 .startMocking()
-        val idp =
-            context.appComponent.idp.apply {
-                numRows = 5
-                numColumns = 6
-                numDatabaseHotseatIcons = 5
-            }
-        context.putObject(LauncherAppState.INSTANCE, app)
-
         doReturn(TestViewHelpers.findWidgetProvider(false))
             .`when`(context.spyService(AppWidgetManager::class.java))
             .getAppWidgetInfo(any())
-        `when`(app.context).thenReturn(context)
-        `when`(app.model).thenReturn(launcherModel)
 
         `when`(launcherModel.beginLoader(any())).thenReturn(transaction)
-        `when`(app.iconCache).thenReturn(iconCache)
-        `when`(launcherModel.modelDbController)
-            .thenReturn(FactitiousDbController(context, INSERTION_STATEMENT_FILE))
-        `when`(app.invariantDeviceProfile).thenReturn(idp)
+
+        `when`(launcherModel.modelDbController).thenReturn(modelDbController)
+        doAnswer {}.whenever(modelDbController).loadDefaultFavoritesIfNecessary()
+        doAnswer { i ->
+                inMemoryDb.query(
+                    TABLE_NAME,
+                    i.getArgument(0),
+                    i.getArgument(1),
+                    i.getArgument(2),
+                    null,
+                    null,
+                    i.getArgument(3),
+                )
+            }
+            .whenever(modelDbController)
+            .query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull())
+
+        `when`(launcherModel.modelDelegate).thenReturn(modelDelegate)
         `when`(launcherBinder.newIdleLock(any())).thenReturn(idleLock)
         `when`(idleLock.awaitLocked(1000)).thenReturn(false)
         `when`(iconCache.getUpdateHandler()).thenReturn(iconCacheUpdateHandler)
-        `when`(widgetsFilterDataProvider.getDefaultWidgetsFilter()).thenReturn(Predicate { true })
+
         context.initDaggerComponent(
-            DaggerLoaderTaskTest_TestComponent.builder().bindUserCache(userCache)
+            DaggerLoaderTaskTest_TestComponent.builder()
+                .bindUserCache(userCache)
+                .bindIconCache(iconCache)
+                .bindLauncherModel(launcherModel)
+                .bindAllAppsList(bgAllAppsList)
         )
+        context.appComponent.idp.apply {
+            numRows = 5
+            numColumns = 6
+            numDatabaseHotseatIcons = 5
+        }
         TestUtil.grantWriteSecurePermission()
     }
 
@@ -151,27 +173,23 @@ class LoaderTaskTest {
     fun tearDown() {
         LauncherPrefs.get(context).removeSync(RESTORE_DEVICE)
         LauncherPrefs.get(context).putSync(IS_FIRST_LOAD_AFTER_RESTORE.to(false))
+        inMemoryDb.close()
         context.onDestroy()
         mockitoSession.finishMocking()
     }
 
     @Test
     fun loadsDataProperly() =
-        with(BgDataModel()) {
+        with(bgDataModel) {
             val MAIN_HANDLE = Process.myUserHandle()
             val mockUserHandles = arrayListOf<UserHandle>(MAIN_HANDLE)
             `when`(userCache.userProfiles).thenReturn(mockUserHandles)
             `when`(userCache.getUserInfo(MAIN_HANDLE)).thenReturn(UserIconInfo(MAIN_HANDLE, 1))
-            LoaderTask(
-                    app,
-                    bgAllAppsList,
-                    this,
-                    modelDelegate,
-                    launcherBinder,
-                    widgetsFilterDataProvider,
-                )
+            testComponent
+                .getLoaderTaskFactory()
+                .newLoaderTask(launcherBinder, userManagerState)
                 .runSyncOnBackgroundThread()
-            Truth.assertThat(
+            assertThat(
                     itemsIdMap
                         .filter {
                             it.container == CONTAINER_DESKTOP || it.container == CONTAINER_HOTSEAT
@@ -179,9 +197,8 @@ class LoaderTaskTest {
                         .size
                 )
                 .isAtLeast(32)
-            Truth.assertThat(itemsIdMap.filter { ModelUtils.WIDGET_FILTER.test(it) }.size)
-                .isAtLeast(7)
-            Truth.assertThat(
+            assertThat(itemsIdMap.filter { ModelUtils.WIDGET_FILTER.test(it) }.size).isAtLeast(7)
+            assertThat(
                     itemsIdMap
                         .filter {
                             it.itemType == ITEM_TYPE_FOLDER || it.itemType == ITEM_TYPE_APP_PAIR
@@ -189,20 +206,14 @@ class LoaderTaskTest {
                         .size
                 )
                 .isAtLeast(8)
-            Truth.assertThat(itemsIdMap.size()).isAtLeast(40)
-            Truth.assertThat(widgetsModel.defaultWidgetsFilter).isNotNull()
+            assertThat(itemsIdMap.size()).isAtLeast(40)
         }
 
     @Test
     fun bindsLoadedDataCorrectly() {
-        LoaderTask(
-                app,
-                bgAllAppsList,
-                BgDataModel(),
-                modelDelegate,
-                launcherBinder,
-                widgetsFilterDataProvider,
-            )
+        testComponent
+            .getLoaderTaskFactory()
+            .newLoaderTask(launcherBinder, userManagerState)
             .runSyncOnBackgroundThread()
 
         verify(launcherBinder).bindWorkspace(true, false)
@@ -211,7 +222,6 @@ class LoaderTaskTest {
         verify(launcherBinder).bindAllApps()
         verify(iconCacheUpdateHandler, times(4)).updateIcons(any(), any<CachingLogic<Any>>(), any())
         verify(launcherBinder).bindDeepShortcuts()
-        verify(widgetsFilterDataProvider).initPeriodicDataRefresh(any())
         verify(launcherBinder).bindWidgets()
         verify(modelDelegate).loadAndBindOtherItems(anyOrNull())
         verify(iconCacheUpdateHandler).finish()
@@ -221,7 +231,7 @@ class LoaderTaskTest {
 
     @Test
     fun setsQuietModeFlagCorrectlyForWorkProfile() =
-        with(BgDataModel()) {
+        with(bgDataModel) {
             setFlagsRule.enableFlags(Flags.FLAG_ENABLE_PRIVATE_SPACE)
             val MAIN_HANDLE = Process.myUserHandle()
             val mockUserHandles = arrayListOf<UserHandle>(MAIN_HANDLE)
@@ -229,15 +239,9 @@ class LoaderTaskTest {
             `when`(userManagerState?.isUserQuiet(MAIN_HANDLE)).thenReturn(true)
             `when`(userCache.getUserInfo(MAIN_HANDLE)).thenReturn(UserIconInfo(MAIN_HANDLE, 1))
 
-            LoaderTask(
-                    app,
-                    bgAllAppsList,
-                    this,
-                    modelDelegate,
-                    launcherBinder,
-                    widgetsFilterDataProvider,
-                    userManagerState,
-                )
+            testComponent
+                .getLoaderTaskFactory()
+                .newLoaderTask(launcherBinder, userManagerState)
                 .runSyncOnBackgroundThread()
 
             verify(bgAllAppsList)
@@ -250,7 +254,7 @@ class LoaderTaskTest {
 
     @Test
     fun setsQuietModeFlagCorrectlyForPrivateProfile() =
-        with(BgDataModel()) {
+        with(bgDataModel) {
             setFlagsRule.enableFlags(Flags.FLAG_ENABLE_PRIVATE_SPACE)
             val MAIN_HANDLE = Process.myUserHandle()
             val mockUserHandles = arrayListOf<UserHandle>(MAIN_HANDLE)
@@ -258,15 +262,9 @@ class LoaderTaskTest {
             `when`(userManagerState?.isUserQuiet(MAIN_HANDLE)).thenReturn(true)
             `when`(userCache.getUserInfo(MAIN_HANDLE)).thenReturn(UserIconInfo(MAIN_HANDLE, 3))
 
-            LoaderTask(
-                    app,
-                    bgAllAppsList,
-                    this,
-                    modelDelegate,
-                    launcherBinder,
-                    widgetsFilterDataProvider,
-                    userManagerState,
-                )
+            testComponent
+                .getLoaderTaskFactory()
+                .newLoaderTask(launcherBinder, userManagerState)
                 .runSyncOnBackgroundThread()
 
             verify(bgAllAppsList)
@@ -281,8 +279,8 @@ class LoaderTaskTest {
     @EnableFlags(Flags.FLAG_ENABLE_FIRST_SCREEN_BROADCAST_ARCHIVING_EXTRAS)
     fun `When broadcast flag on and is restore and secure setting off then send new broadcast`() {
         // Given
-        val spyContext = spy(context)
-        `when`(app.context).thenReturn(spyContext)
+        spyOn(context)
+        val spyContext = context
         whenever(
                 FirstScreenBroadcastHelper.createModelsForFirstScreenBroadcast(
                     any(),
@@ -305,14 +303,9 @@ class LoaderTaskTest {
         RestoreDbTask.setPending(spyContext)
 
         // When
-        LoaderTask(
-                app,
-                bgAllAppsList,
-                BgDataModel(),
-                modelDelegate,
-                launcherBinder,
-                widgetsFilterDataProvider,
-            )
+        testComponent
+            .getLoaderTaskFactory()
+            .newLoaderTask(launcherBinder, userManagerState)
             .runSyncOnBackgroundThread()
 
         // Then
@@ -357,8 +350,8 @@ class LoaderTaskTest {
     @EnableFlags(Flags.FLAG_ENABLE_FIRST_SCREEN_BROADCAST_ARCHIVING_EXTRAS)
     fun `When not a restore then installed item broadcast not sent`() {
         // Given
-        val spyContext = spy(context)
-        `when`(app.context).thenReturn(spyContext)
+        spyOn(context)
+        val spyContext = context
         whenever(
                 FirstScreenBroadcastHelper.createModelsForFirstScreenBroadcast(
                     any(),
@@ -380,14 +373,9 @@ class LoaderTaskTest {
         Settings.Secure.putInt(spyContext.contentResolver, "launcher_broadcast_installed_apps", 0)
 
         // When
-        LoaderTask(
-                app,
-                bgAllAppsList,
-                BgDataModel(),
-                modelDelegate,
-                launcherBinder,
-                widgetsFilterDataProvider,
-            )
+        testComponent
+            .getLoaderTaskFactory()
+            .newLoaderTask(launcherBinder, userManagerState)
             .runSyncOnBackgroundThread()
 
         // Then
@@ -398,8 +386,8 @@ class LoaderTaskTest {
     @DisableFlags(Flags.FLAG_ENABLE_FIRST_SCREEN_BROADCAST_ARCHIVING_EXTRAS)
     fun `When broadcast flag off then installed item broadcast not sent`() {
         // Given
-        val spyContext = spy(context)
-        `when`(app.context).thenReturn(spyContext)
+        spyOn(context)
+        val spyContext = context
         whenever(
                 FirstScreenBroadcastHelper.createModelsForFirstScreenBroadcast(
                     any(),
@@ -426,14 +414,9 @@ class LoaderTaskTest {
         RestoreDbTask.setPending(spyContext)
 
         // When
-        LoaderTask(
-                app,
-                bgAllAppsList,
-                BgDataModel(),
-                modelDelegate,
-                launcherBinder,
-                widgetsFilterDataProvider,
-            )
+        testComponent
+            .getLoaderTaskFactory()
+            .newLoaderTask(launcherBinder, userManagerState)
             .runSyncOnBackgroundThread()
 
         // Then
@@ -444,8 +427,8 @@ class LoaderTaskTest {
     @EnableFlags(Flags.FLAG_ENABLE_FIRST_SCREEN_BROADCAST_ARCHIVING_EXTRAS)
     fun `When failsafe secure setting on then installed item broadcast not sent`() {
         // Given
-        val spyContext = spy(context)
-        `when`(app.context).thenReturn(spyContext)
+        spyOn(context)
+        val spyContext = context
         whenever(
                 FirstScreenBroadcastHelper.createModelsForFirstScreenBroadcast(
                     any(),
@@ -472,14 +455,9 @@ class LoaderTaskTest {
         RestoreDbTask.setPending(spyContext)
 
         // When
-        LoaderTask(
-                app,
-                bgAllAppsList,
-                BgDataModel(),
-                modelDelegate,
-                launcherBinder,
-                widgetsFilterDataProvider,
-            )
+        testComponent
+            .getLoaderTaskFactory()
+            .newLoaderTask(launcherBinder, userManagerState)
             .runSyncOnBackgroundThread()
 
         // Then
@@ -488,8 +466,7 @@ class LoaderTaskTest {
 
     @Test
     @EnableFlags(Flags.FLAG_RESTORE_ARCHIVED_APP_ICONS_FROM_DB)
-    fun `When flag on then archived AllApps icons found on Workspace loaded from db`() {
-        // Given
+    fun `When flag on and restore then archived AllApps icons on Workspace load from db`() {
         // Given
         val activityInfo: LauncherActivityInfo = mock()
         val applicationInfo: ApplicationInfo = mock<ApplicationInfo>().apply { isArchived = true }
@@ -510,16 +487,14 @@ class LoaderTaskTest {
         val expectedAppInfo = AppInfo().apply { componentName = expectedComponent }
         // When
         val loader =
-            LoaderTask(
-                app,
-                bgAllAppsList,
-                BgDataModel(),
-                modelDelegate,
-                launcherBinder,
-                widgetsFilterDataProvider,
-            )
+            testComponent.getLoaderTaskFactory().newLoaderTask(launcherBinder, userManagerState)
         val actualIconRequest =
-            loader.getAppInfoIconRequestInfo(expectedAppInfo, activityInfo, workspaceIconRequests)
+            loader.getAppInfoIconRequestInfo(
+                expectedAppInfo,
+                activityInfo,
+                workspaceIconRequests,
+                /* isRestoreFromBackup */ true,
+            )
         // Then
         assertThat(actualIconRequest.iconBlob).isEqualTo(expectedIconBlob)
         assertThat(actualIconRequest.itemInfo).isEqualTo(expectedAppInfo)
@@ -527,7 +502,43 @@ class LoaderTaskTest {
 
     @Test
     @EnableFlags(Flags.FLAG_RESTORE_ARCHIVED_APP_ICONS_FROM_DB)
-    fun `When flag on then unarchived AllApps icons not loaded from db`() {
+    fun `When flag on and not restore then archived AllApps icons do not load from db`() {
+        // Given
+        val activityInfo: LauncherActivityInfo = mock()
+        val applicationInfo: ApplicationInfo = mock<ApplicationInfo>().apply { isArchived = true }
+        whenever(activityInfo.applicationInfo).thenReturn(applicationInfo)
+        val expectedIconBlob = byteArrayOf(0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08)
+        val expectedComponent = ComponentName("package", "class")
+        val workspaceIconRequests =
+            listOf(
+                IconRequestInfo<WorkspaceItemInfo>(
+                    WorkspaceItemInfo().apply {
+                        intent = Intent().apply { component = expectedComponent }
+                    },
+                    activityInfo,
+                    expectedIconBlob,
+                    false, /* useLowResIcon */
+                )
+            )
+        val expectedAppInfo = AppInfo().apply { componentName = expectedComponent }
+        // When
+        val loader =
+            testComponent.getLoaderTaskFactory().newLoaderTask(launcherBinder, userManagerState)
+        val actualIconRequest =
+            loader.getAppInfoIconRequestInfo(
+                expectedAppInfo,
+                activityInfo,
+                workspaceIconRequests,
+                /* isRestoreFromBackup */ false,
+            )
+        // Then
+        assertThat(actualIconRequest.iconBlob).isNull()
+        assertThat(actualIconRequest.itemInfo).isEqualTo(expectedAppInfo)
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_RESTORE_ARCHIVED_APP_ICONS_FROM_DB)
+    fun `When flag on and restore then unarchived AllApps icons not loaded from db`() {
         // Given
         val activityInfo: LauncherActivityInfo = mock()
         val applicationInfo: ApplicationInfo = mock<ApplicationInfo>().apply { isArchived = false }
@@ -548,16 +559,14 @@ class LoaderTaskTest {
         val expectedAppInfo = AppInfo().apply { componentName = expectedComponent }
         // When
         val loader =
-            LoaderTask(
-                app,
-                bgAllAppsList,
-                BgDataModel(),
-                modelDelegate,
-                launcherBinder,
-                widgetsFilterDataProvider,
-            )
+            testComponent.getLoaderTaskFactory().newLoaderTask(launcherBinder, userManagerState)
         val actualIconRequest =
-            loader.getAppInfoIconRequestInfo(expectedAppInfo, activityInfo, workspaceIconRequests)
+            loader.getAppInfoIconRequestInfo(
+                expectedAppInfo,
+                activityInfo,
+                workspaceIconRequests,
+                /* isRestoreFromBackup */ true,
+            )
         // Then
         assertThat(actualIconRequest.iconBlob).isNull()
         assertThat(actualIconRequest.itemInfo).isEqualTo(expectedAppInfo)
@@ -565,7 +574,7 @@ class LoaderTaskTest {
 
     @Test
     @EnableFlags(Flags.FLAG_RESTORE_ARCHIVED_APP_ICONS_FROM_DB)
-    fun `When flag on then archived AllApps icon not found on Workspace not loaded from db`() {
+    fun `When flag on and restore then all apps icon not on workspace is not loaded from db`() {
         // Given
         val activityInfo: LauncherActivityInfo = mock()
         val applicationInfo: ApplicationInfo = mock<ApplicationInfo>().apply { isArchived = true }
@@ -587,16 +596,14 @@ class LoaderTaskTest {
             AppInfo().apply { componentName = ComponentName("differentPkg", "differentClass") }
         // When
         val loader =
-            LoaderTask(
-                app,
-                bgAllAppsList,
-                BgDataModel(),
-                modelDelegate,
-                launcherBinder,
-                widgetsFilterDataProvider,
-            )
+            testComponent.getLoaderTaskFactory().newLoaderTask(launcherBinder, userManagerState)
         val actualIconRequest =
-            loader.getAppInfoIconRequestInfo(expectedAppInfo, activityInfo, workspaceIconRequests)
+            loader.getAppInfoIconRequestInfo(
+                expectedAppInfo,
+                activityInfo,
+                workspaceIconRequests,
+                /* isRestoreFromBackup */ true,
+            )
         // Then
         assertThat(actualIconRequest.iconBlob).isNull()
         assertThat(actualIconRequest.itemInfo).isEqualTo(expectedAppInfo)
@@ -604,7 +611,7 @@ class LoaderTaskTest {
 
     @Test
     @DisableFlags(Flags.FLAG_RESTORE_ARCHIVED_APP_ICONS_FROM_DB)
-    fun `When flag off then archived AllApps icons not loaded from db`() {
+    fun `When flag off and restore then archived AllApps icons not loaded from db`() {
         // Given
         val activityInfo: LauncherActivityInfo = mock()
         val applicationInfo: ApplicationInfo = mock<ApplicationInfo>().apply { isArchived = true }
@@ -622,16 +629,14 @@ class LoaderTaskTest {
         val expectedAppInfo = AppInfo()
         // When
         val loader =
-            LoaderTask(
-                app,
-                bgAllAppsList,
-                BgDataModel(),
-                modelDelegate,
-                launcherBinder,
-                widgetsFilterDataProvider,
-            )
+            testComponent.getLoaderTaskFactory().newLoaderTask(launcherBinder, userManagerState)
         val actualIconRequest =
-            loader.getAppInfoIconRequestInfo(expectedAppInfo, activityInfo, workspaceIconRequests)
+            loader.getAppInfoIconRequestInfo(
+                expectedAppInfo,
+                activityInfo,
+                workspaceIconRequests,
+                /* isRestoreFromBackup */ true,
+            )
         // Then
         assertThat(actualIconRequest.iconBlob).isNull()
         assertThat(actualIconRequest.itemInfo).isEqualTo(expectedAppInfo)
@@ -640,9 +645,20 @@ class LoaderTaskTest {
     @LauncherAppSingleton
     @Component(modules = [AllModulesForTest::class])
     interface TestComponent : LauncherAppComponent {
+
+        fun getLoaderTaskFactory(): LoaderTaskFactory
+
+        fun getDataModel(): BgDataModel
+
         @Component.Builder
         interface Builder : LauncherAppComponent.Builder {
             @BindsInstance fun bindUserCache(userCache: UserCache): Builder
+
+            @BindsInstance fun bindLauncherModel(model: LauncherModel): Builder
+
+            @BindsInstance fun bindIconCache(iconCache: IconCache): Builder
+
+            @BindsInstance fun bindAllAppsList(list: AllAppsList): Builder
 
             override fun build(): TestComponent
         }

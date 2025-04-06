@@ -16,6 +16,8 @@
 package com.android.launcher3.uioverrides.states;
 
 import static com.android.app.animation.Interpolators.DECELERATE_2;
+import static com.android.launcher3.Flags.enableDesktopExplodedView;
+import static com.android.launcher3.Flags.enableOverviewBackgroundWallpaperBlur;
 import static com.android.launcher3.Flags.enableScalingRevealHomeAnimation;
 import static com.android.launcher3.logging.StatsLogManager.LAUNCHER_STATE_OVERVIEW;
 
@@ -34,6 +36,7 @@ import com.android.quickstep.util.BaseDepthController;
 import com.android.quickstep.util.LayoutUtils;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.TaskView;
+import com.android.systemui.shared.system.BlurUtils;
 
 /**
  * Definition for overview state
@@ -110,7 +113,7 @@ public class OverviewState extends LauncherState {
 
     @Override
     public int getVisibleElements(Launcher launcher) {
-        int elements = CLEAR_ALL_BUTTON | OVERVIEW_ACTIONS;
+        int elements = CLEAR_ALL_BUTTON | OVERVIEW_ACTIONS | ADD_DESK_BUTTON;
         DeviceProfile dp = launcher.getDeviceProfile();
         boolean showFloatingSearch;
         if (dp.isPhone) {
@@ -124,7 +127,7 @@ public class OverviewState extends LauncherState {
             elements |= FLOATING_SEARCH_BAR;
         }
         if (launcher.isSplitSelectionActive()) {
-            elements &= ~CLEAR_ALL_BUTTON;
+            elements &= ~CLEAR_ALL_BUTTON & ~ADD_DESK_BUTTON;
         }
         return elements;
     }
@@ -157,7 +160,9 @@ public class OverviewState extends LauncherState {
 
     @Override
     public int getWorkspaceScrimColor(Launcher launcher) {
-        return Themes.getAttrColor(launcher, R.attr.overviewScrimColor);
+        return enableOverviewBackgroundWallpaperBlur() && BlurUtils.supportsBlursOnWindows()
+                ? Themes.getAttrColor(launcher, R.attr.overviewScrimColorOverBlur)
+                : Themes.getAttrColor(launcher, R.attr.overviewScrimColor);
     }
 
     @Override
@@ -168,6 +173,11 @@ public class OverviewState extends LauncherState {
     @Override
     public boolean detachDesktopCarousel() {
         return false;
+    }
+
+    @Override
+    public boolean showExplodedDesktopView() {
+        return enableDesktopExplodedView();
     }
 
     @Override

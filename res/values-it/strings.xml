@@ -46,7 +46,7 @@
     <string name="widget_accessible_dims_format" msgid="3640149169885301790">"%1$d di larghezza per %2$d di altezza"</string>
     <string name="widget_preview_context_description" msgid="9045841361655787574">"Widget <xliff:g id="WIDGET_NAME">%1$s</xliff:g>"</string>
     <string name="widget_preview_name_and_dims_content_description" msgid="8489038126122831595">"Widget <xliff:g id="WIDGET_NAME">%1$s</xliff:g>, %2$d di larghezza per %3$d di altezza"</string>
-    <string name="add_item_request_drag_hint" msgid="8730547755622776606">"Tocca e tieni premuto il widget per spostarlo nella schermata Home"</string>
+    <string name="add_item_request_drag_hint" msgid="8730547755622776606">"Tieni premuto il widget per spostarlo nella schermata Home"</string>
     <string name="add_to_home_screen" msgid="9168649446635919791">"Aggiungi alla schermata Home"</string>
     <string name="added_to_home_screen_accessibility_text" msgid="4451545765448884415">"Widget <xliff:g id="WIDGET_NAME">%1$s</xliff:g> aggiunto alla schermata Home"</string>
     <string name="suggested_widgets_header_title" msgid="1844314680798145222">"Suggerimenti"</string>
@@ -101,7 +101,6 @@
     <string name="dismiss_prediction_label" msgid="3357562989568808658">"Non suggerire app"</string>
     <string name="pin_prediction" msgid="4196423321649756498">"Blocca previsione"</string>
     <string name="bubble" msgid="3072951361014076670">"Fumetto"</string>
-    <string name="pin_to_taskbar" msgid="1281337899690299038">"Fissa alla barra app"</string>
     <string name="permlab_install_shortcut" msgid="5632423390354674437">"Aggiunta di scorciatoie"</string>
     <string name="permdesc_install_shortcut" msgid="923466509822011139">"Consente a un\'app di aggiungere scorciatoie automaticamente."</string>
     <string name="permlab_read_settings" msgid="5136500343007704955">"leggere le impostazioni e le scorciatoie nella schermata Home"</string>
@@ -118,6 +117,8 @@
     <string name="default_scroll_format" msgid="7475544710230993317">"Pagina %1$d di %2$d"</string>
     <string name="workspace_scroll_format" msgid="8458889198184077399">"Schermata Home %1$d di %2$d"</string>
     <string name="workspace_new_page" msgid="257366611030256142">"Nuova pagina Schermata Home"</string>
+    <string name="app_running_state_description" msgid="5645053189564740904">"Attiva"</string>
+    <string name="app_minimized_state_description" msgid="710740620044902509">"Ridotta a icona"</string>
     <string name="folder_opened" msgid="94695026776264709">"Cartella aperta, <xliff:g id="WIDTH">%1$d</xliff:g> per <xliff:g id="HEIGHT">%2$d</xliff:g>"</string>
     <string name="folder_tap_to_close" msgid="4625795376335528256">"Tocca per chiudere la cartella"</string>
     <string name="folder_tap_to_rename" msgid="4017685068016979677">"Tocca per salvare il nuovo nome"</string>
@@ -130,6 +131,7 @@
     <string name="styles_wallpaper_button_text" msgid="8216961355289236794">"Sfondo e stile"</string>
     <string name="edit_home_screen" msgid="8947858375782098427">"Modifica schermata Home"</string>
     <string name="settings_button_text" msgid="8873672322605444408">"Impostazioni schermata Home"</string>
+    <string name="all_apps_home_screen" msgid="8658178652647896497">"App"</string>
     <string name="msg_disabled_by_admin" msgid="6898038085516271325">"Disattivata dall\'amministratore"</string>
     <string name="allow_rotation_title" msgid="7222049633713050106">"Consenti rotazione della schermata Home"</string>
     <string name="allow_rotation_desc" msgid="8662546029078692509">"Con il telefono ruotato"</string>
@@ -183,10 +185,14 @@
     <string name="action_decrease_height" msgid="282377193880900022">"Riduci altezza"</string>
     <string name="widget_resized" msgid="9130327887929620">"Widget ridimensionato a larghezza <xliff:g id="NUMBER_0">%1$s</xliff:g>, altezza <xliff:g id="NUMBER_1">%2$s</xliff:g>"</string>
     <string name="action_deep_shortcut" msgid="4766835855579976045">"Menu scorciatoie"</string>
+    <string name="widget_frame_name" msgid="8782828448471444270">"Frame ridimensionamento widget per <xliff:g id="STRING">%1$s</xliff:g>"</string>
+    <string name="action_close" msgid="1077760267194136901">"Chiudi"</string>
     <string name="action_dismiss_notification" msgid="5909461085055959187">"Ignora"</string>
     <string name="accessibility_close" msgid="2277148124685870734">"Esci"</string>
     <string name="all_apps_personal_tab" msgid="4190252696685155002">"Personali"</string>
     <string name="all_apps_work_tab" msgid="4884822796154055118">"Lavoro"</string>
+    <string name="all_apps_personal_tab_content_description" msgid="6286808898381807242">"Scheda App personali"</string>
+    <string name="all_apps_work_tab_content_description" msgid="3835637212347968316">"Scheda App di lavoro"</string>
     <string name="work_profile_toggle_label" msgid="3081029915775481146">"Profilo di lavoro"</string>
     <string name="work_profile_edu_work_apps" msgid="7895468576497746520">"Le app di lavoro sono contrassegnate con un badge e visibili all\'amministratore IT"</string>
     <string name="work_profile_edu_accept" msgid="6069788082535149071">"OK"</string>
@@ -211,4 +217,5 @@
     <string name="ps_container_transition" msgid="8667331812048014412">"Transizione dello Spazio privato in corso…"</string>
     <string name="ps_add_button_label" msgid="8127988716897128773">"Installa"</string>
     <string name="ps_add_button_content_description" msgid="3254274107740952556">"Installa le app su spazi privati"</string>
+    <string name="ps_app_content_description" msgid="1129133475892816226">"Aggiungi file e altro allo spazio privato"</string>
 </resources>

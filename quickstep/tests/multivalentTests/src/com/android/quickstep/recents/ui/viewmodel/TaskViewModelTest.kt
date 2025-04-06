@@ -66,16 +66,7 @@ class TaskViewModelTest {
 
     @Before
     fun setUp() {
-        sut =
-            TaskViewModel(
-                taskViewType = TaskViewType.SINGLE,
-                recentsViewData = recentsViewData,
-                getTaskUseCase = getTaskUseCase,
-                getSysUiStatusNavFlagsUseCase = GetSysUiStatusNavFlagsUseCase(),
-                isThumbnailValidUseCase = isThumbnailValidUseCase,
-                getThumbnailPositionUseCase = getThumbnailPositionUseCase,
-                dispatcherProvider = TestDispatcherProvider(unconfinedTestDispatcher),
-            )
+        sut = createTaskViewModel(TaskViewType.SINGLE)
         whenever(getTaskUseCase.invoke(TASK_MODEL_1.id)).thenReturn(flow { emit(TASK_MODEL_1) })
         whenever(getTaskUseCase.invoke(TASK_MODEL_2.id)).thenReturn(flow { emit(TASK_MODEL_2) })
         whenever(getTaskUseCase.invoke(TASK_MODEL_3.id)).thenReturn(flow { emit(TASK_MODEL_3) })
@@ -93,6 +84,8 @@ class TaskViewModelTest {
                     isLiveTile = false,
                     hasHeader = false,
                     sysUiStatusNavFlags = FLAGS_APPEARANCE_LIGHT_THEME,
+                    taskOverlayEnabled = false,
+                    isCentralTask = false,
                 )
             assertThat(sut.state.first()).isEqualTo(expectedResult)
         }
@@ -139,6 +132,8 @@ class TaskViewModelTest {
                     isLiveTile = false,
                     hasHeader = false,
                     sysUiStatusNavFlags = FLAGS_APPEARANCE_LIGHT_THEME,
+                    taskOverlayEnabled = false,
+                    isCentralTask = false,
                 )
             assertThat(sut.state.first()).isEqualTo(expectedResult)
         }
@@ -161,6 +156,8 @@ class TaskViewModelTest {
                     isLiveTile = true,
                     hasHeader = false,
                     sysUiStatusNavFlags = FLAGS_APPEARANCE_LIGHT_THEME,
+                    taskOverlayEnabled = false,
+                    isCentralTask = false,
                 )
             assertThat(sut.state.first()).isEqualTo(expectedResult)
         }
@@ -183,6 +180,8 @@ class TaskViewModelTest {
                     isLiveTile = false,
                     hasHeader = false,
                     sysUiStatusNavFlags = FLAGS_APPEARANCE_LIGHT_THEME,
+                    taskOverlayEnabled = false,
+                    isCentralTask = false,
                 )
             assertThat(sut.state.first()).isEqualTo(expectedResult)
         }
@@ -204,6 +203,8 @@ class TaskViewModelTest {
                     isLiveTile = false,
                     hasHeader = false,
                     sysUiStatusNavFlags = FLAGS_APPEARANCE_LIGHT_THEME,
+                    taskOverlayEnabled = false,
+                    isCentralTask = false,
                 )
             assertThat(sut.state.first()).isEqualTo(expectedResult)
         }
@@ -221,6 +222,8 @@ class TaskViewModelTest {
                     isLiveTile = false,
                     hasHeader = false,
                     sysUiStatusNavFlags = FLAGS_APPEARANCE_LIGHT_THEME,
+                    taskOverlayEnabled = false,
+                    isCentralTask = false,
                 )
             assertThat(sut.state.first()).isEqualTo(expectedResult)
         }
@@ -235,8 +238,58 @@ class TaskViewModelTest {
                     isLiveTile = false,
                     hasHeader = false,
                     sysUiStatusNavFlags = FLAGS_APPEARANCE_DEFAULT,
+                    taskOverlayEnabled = false,
+                    isCentralTask = false,
                 )
             assertThat(sut.state.first()).isEqualTo(expectedResult)
+        }
+
+    @Test
+    fun taskOverlayEnabled_when_OverlayIsEnabledForVisibleSingleTask() =
+        testScope.runTest {
+            sut.bind(TASK_MODEL_1.id)
+            recentsViewData.overlayEnabled.value = true
+            recentsViewData.settledFullyVisibleTaskIds.value = setOf(1)
+
+            assertThat(sut.state.first().taskOverlayEnabled).isTrue()
+        }
+
+    @Test
+    fun taskOverlayDisabled_when_OverlayIsEnabledForInvisibleTask() =
+        testScope.runTest {
+            sut.bind(TASK_MODEL_1.id)
+            recentsViewData.overlayEnabled.value = true
+            recentsViewData.settledFullyVisibleTaskIds.value = setOf(2)
+
+            assertThat(sut.state.first().taskOverlayEnabled).isFalse()
+        }
+
+    @Test
+    fun taskOverlayDisabled_when_OverlayIsDisabledForVisibleTask() =
+        testScope.runTest {
+            sut.bind(TASK_MODEL_1.id)
+            recentsViewData.overlayEnabled.value = false
+            recentsViewData.settledFullyVisibleTaskIds.value = setOf(1)
+
+            assertThat(sut.state.first().taskOverlayEnabled).isFalse()
+        }
+
+    @Test
+    fun isCentralTask_when_CentralTaskIdsMatchTaskIds() =
+        testScope.runTest {
+            sut.bind(TASK_MODEL_1.id, TASK_MODEL_2.id)
+            recentsViewData.centralTaskIds.value = setOf(TASK_MODEL_1.id, TASK_MODEL_2.id)
+
+            assertThat(sut.state.first().isCentralTask).isTrue()
+        }
+
+    @Test
+    fun isNotCentralTask_when_CentralTaskIdsDoMatchTaskIds() =
+        testScope.runTest {
+            sut.bind(TASK_MODEL_1.id, TASK_MODEL_2.id)
+            recentsViewData.centralTaskIds.value = setOf(TASK_MODEL_3.id)
+
+            assertThat(sut.state.first().isCentralTask).isFalse()
         }
 
     @Test
@@ -254,6 +307,17 @@ class TaskViewModelTest {
             thumbnailData = thumbnail,
             backgroundColor = backgroundColor,
             isLocked = isLocked,
+        )
+
+    private fun createTaskViewModel(taskViewType: TaskViewType) =
+        TaskViewModel(
+            taskViewType = taskViewType,
+            recentsViewData = recentsViewData,
+            getTaskUseCase = getTaskUseCase,
+            getSysUiStatusNavFlagsUseCase = GetSysUiStatusNavFlagsUseCase(),
+            isThumbnailValidUseCase = isThumbnailValidUseCase,
+            getThumbnailPositionUseCase = getThumbnailPositionUseCase,
+            dispatcherProvider = TestDispatcherProvider(unconfinedTestDispatcher),
         )
 
     private companion object {

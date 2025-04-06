@@ -30,13 +30,15 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Outline;
 import android.graphics.Rect;
+import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.RippleDrawable;
+import android.os.SystemProperties;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
-import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -57,10 +59,13 @@ import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimatorListeners;
+import com.android.launcher3.util.SettingsCache;
 import com.android.launcher3.views.ClipIconView;
 import com.android.quickstep.interaction.EdgeBackGestureHandler.BackGestureAttemptCallback;
 import com.android.quickstep.interaction.NavBarGestureHandler.NavBarGestureAttemptCallback;
 import com.android.systemui.shared.system.QuickStepContract;
+import com.android.wm.shell.Flags;
+import com.android.wm.shell.shared.TypefaceUtils.FontFamily;
 
 import com.airbnb.lottie.LottieAnimationView;
 import com.airbnb.lottie.LottieComposition;
@@ -78,6 +83,10 @@ abstract class TutorialController implements BackGestureAttemptCallback,
 
     private static final String PIXEL_TIPS_APP_PACKAGE_NAME = "com.google.android.apps.tips";
     private static final CharSequence DEFAULT_PIXEL_TIPS_APP_NAME = "Pixel Tips";
+
+    private static final String SUW_THEME_SYSTEM_PROPERTY = "setupwizard.theme";
+    private static final String GLIF_EXPRESSIVE_THEME = "glif_expressive";
+    private static final String GLIF_EXPRESSIVE_LIGHT_THEME = "glif_expressive_light";
 
     private static final int FEEDBACK_ANIMATION_MS = 133;
     private static final int SUBTITLE_ANNOUNCE_DELAY_MS = 3000;
@@ -109,12 +118,12 @@ abstract class TutorialController implements BackGestureAttemptCallback,
     final AnimatedTaskView mFakePreviousTaskView;
     final View mRippleView;
     final RippleDrawable mRippleDrawable;
-    final TutorialStepIndicator mTutorialStepView;
     final ImageView mFingerDotView;
     private final Rect mExitingAppRect = new Rect();
     protected View mExitingAppView;
     protected int mExitingAppRadius;
     private final AlertDialog mSkipTutorialDialog;
+    private final boolean mIsExpressiveThemeEnabledInSUW;
 
     private boolean mGestureCompleted = false;
     protected LottieAnimationView mAnimatedGestureDemonstration;
@@ -123,13 +132,10 @@ abstract class TutorialController implements BackGestureAttemptCallback,
 
     // These runnables  should be used when posting callbacks to their views and cleared from their
     // views before posting new callbacks.
-    private final Runnable mTitleViewCallback;
-    private final Runnable mSubtitleViewCallback;
     @Nullable private Runnable mFeedbackViewCallback;
     @Nullable private Runnable mFakeTaskViewCallback;
     @Nullable private Runnable mFakeTaskbarViewCallback;
     private final Runnable mShowFeedbackRunnable;
-    private final AccessibilityManager mAccessibilityManager;
 
     TutorialController(TutorialFragment tutorialFragment, TutorialType tutorialType) {
         mTutorialFragment = tutorialFragment;
@@ -155,8 +161,6 @@ abstract class TutorialController implements BackGestureAttemptCallback,
         mRippleView = rootView.findViewById(R.id.gesture_tutorial_ripple_view);
         mRippleDrawable = (RippleDrawable) mRippleView.getBackground();
         mDoneButton = rootView.findViewById(R.id.gesture_tutorial_fragment_action_button);
-        mTutorialStepView =
-                rootView.findViewById(R.id.gesture_tutorial_fragment_feedback_tutorial_step);
         mFingerDotView = rootView.findViewById(R.id.gesture_tutorial_finger_dot);
         mSkipTutorialDialog = createSkipTutorialDialog();
 
@@ -178,6 +182,11 @@ abstract class TutorialController implements BackGestureAttemptCallback,
         mFeedbackTitleView.setText(getIntroductionTitle());
         mFeedbackSubtitleView.setText(getIntroductionSubtitle());
 
+        String SUWTheme = SystemProperties.get(SUW_THEME_SYSTEM_PROPERTY, "");
+        mIsExpressiveThemeEnabledInSUW = SUWTheme.equals(GLIF_EXPRESSIVE_THEME) || SUWTheme.equals(
+                GLIF_EXPRESSIVE_LIGHT_THEME);
+        maybeSetTitleTypefaces();
+
         mExitingAppView.setClipToOutline(true);
         mExitingAppView.setOutlineProvider(new ViewOutlineProvider() {
             @Override
@@ -185,17 +194,6 @@ abstract class TutorialController implements BackGestureAttemptCallback,
                 outline.setRoundRect(mExitingAppRect, mExitingAppRadius);
             }
         });
-
-        mAccessibilityManager = AccessibilityManager.getInstance(mContext);
-        mTitleViewCallback = () -> {
-            mFeedbackTitleView.requestFocus();
-            mFeedbackTitleView.sendAccessibilityEvent(
-                    AccessibilityEvent.TYPE_VIEW_FOCUSED);
-        };
-        mSubtitleViewCallback = () -> {
-            mFeedbackSubtitleView.requestFocus();
-            mFeedbackSubtitleView.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_FOCUSED);
-        };
         mShowFeedbackRunnable = () -> {
             mFeedbackView.setAlpha(0f);
             mFeedbackView.setScaleX(0.95f);
@@ -214,14 +212,14 @@ abstract class TutorialController implements BackGestureAttemptCallback,
                             mFeedbackViewCallback = mTutorialFragment::continueTutorial;
                             mFeedbackView.postDelayed(
                                     mFeedbackViewCallback,
-                                    mAccessibilityManager.getRecommendedTimeoutMillis(
-                                            ADVANCE_TUTORIAL_TIMEOUT_MS,
-                                            AccessibilityManager.FLAG_CONTENT_TEXT
+                                    AccessibilityManager.getInstance(mContext)
+                                            .getRecommendedTimeoutMillis(
+                                                    ADVANCE_TUTORIAL_TIMEOUT_MS,
+                                                    AccessibilityManager.FLAG_CONTENT_TEXT
                                                     | AccessibilityManager.FLAG_CONTENT_CONTROLS));
                         }
                     })
                     .start();
-            mFeedbackTitleView.postDelayed(mTitleViewCallback, FEEDBACK_ANIMATION_MS);
         };
     }
 
@@ -414,8 +412,6 @@ abstract class TutorialController implements BackGestureAttemptCallback,
             int titleResId,
             int subtitleResId,
             boolean isGestureSuccessful) {
-        mFeedbackTitleView.removeCallbacks(mTitleViewCallback);
-        mFeedbackSubtitleView.removeCallbacks(mSubtitleViewCallback);
         if (mFeedbackViewCallback != null) {
             mFeedbackView.removeCallbacks(mFeedbackViewCallback);
             mFeedbackViewCallback = null;
@@ -423,17 +419,21 @@ abstract class TutorialController implements BackGestureAttemptCallback,
 
         mFeedbackTitleView.setText(titleResId);
         mFeedbackSubtitleView.setText(subtitleResId);
-        mFeedbackTitleView.postDelayed(mTitleViewCallback, mAccessibilityManager
-                .getRecommendedTimeoutMillis(
-                        FEEDBACK_ANIMATION_MS,
-                        AccessibilityManager.FLAG_CONTENT_TEXT));
-        mFeedbackSubtitleView.postDelayed(mSubtitleViewCallback, mAccessibilityManager
-                .getRecommendedTimeoutMillis(
-                        SUBTITLE_ANNOUNCE_DELAY_MS,
-                        AccessibilityManager.FLAG_CONTENT_TEXT));
+
+        boolean isUserSetupComplete = SettingsCache.INSTANCE.get(mContext).getValue(
+                Settings.Secure.getUriFor(Settings.Secure.USER_SETUP_COMPLETE), 0);
+        boolean userSetupNotCompleteAndExpressiveThemeEnabled =
+                !isUserSetupComplete && mIsExpressiveThemeEnabledInSUW;
+        boolean userSetupCompleteAndNewFontsEnabled = isUserSetupComplete && Flags.enableGsf();
 
         if (isGestureSuccessful) {
             if (mTutorialFragment.isAtFinalStep()) {
+                if (userSetupCompleteAndNewFontsEnabled
+                        || userSetupNotCompleteAndExpressiveThemeEnabled) {
+                    mDoneButton.setTypeface(
+                            Typeface.create(FontFamily.GSF_LABEL_LARGE.getValue(),
+                                    Typeface.NORMAL));
+                }
                 showActionButton();
             }
 
@@ -458,7 +458,8 @@ abstract class TutorialController implements BackGestureAttemptCallback,
         pauseAndHideLottieAnimation();
         mCheckmarkAnimation.setVisibility(View.VISIBLE);
         mCheckmarkAnimation.playAnimation();
-        mFeedbackTitleView.setTextAppearance(mContext, getSuccessTitleTextAppearance());
+        mFeedbackTitleView.setTextAppearance(getSuccessTitleTextAppearance());
+        maybeSetTitleTypefaces();
     }
 
     public boolean isGestureCompleted() {
@@ -487,8 +488,6 @@ abstract class TutorialController implements BackGestureAttemptCallback,
             mFakeTaskbarView.removeCallbacks(mFakeTaskbarViewCallback);
             mFakeTaskbarViewCallback = null;
         }
-        mFeedbackTitleView.removeCallbacks(mTitleViewCallback);
-        mFeedbackSubtitleView.removeCallbacks(mSubtitleViewCallback);
     }
 
     private void playFeedbackAnimation() {
@@ -509,12 +508,13 @@ abstract class TutorialController implements BackGestureAttemptCallback,
     @CallSuper
     void transitToController() {
         updateCloseButton();
-        updateSubtext();
         updateDrawables();
         updateLayout();
 
-        mFeedbackTitleView.setTextAppearance(mContext, getTitleTextAppearance());
-        mDoneButton.setTextAppearance(mContext, getDoneButtonTextAppearance());
+        mFeedbackTitleView.setTextAppearance(getTitleTextAppearance());
+        mDoneButton.setTextAppearance(getDoneButtonTextAppearance());
+
+        maybeSetTitleTypefaces();
         mDoneButton.getBackground().setTint(getDoneButtonColor());
         mCheckmarkAnimation.setAnimation(mTutorialFragment.isAtFinalStep()
                 ? R.raw.checkmark_animation_end
@@ -530,6 +530,20 @@ abstract class TutorialController implements BackGestureAttemptCallback,
         mGestureCompleted = false;
         if (mFakeHotseatView != null) {
             mFakeHotseatView.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    /**
+     * Apply expressive typefaces to the feedback title and subtitle views.
+     */
+    private void maybeSetTitleTypefaces() {
+        if (mIsExpressiveThemeEnabledInSUW || Flags.enableGsf()) {
+            mFeedbackTitleView.setTypeface(Typeface.create(mTutorialFragment.isLargeScreen()
+                            ? FontFamily.GSF_DISPLAY_MEDIUM_EMPHASIZED.getValue()
+                            : FontFamily.GSF_DISPLAY_SMALL_EMPHASIZED.getValue(),
+                    Typeface.NORMAL));
+            mFeedbackSubtitleView.setTypeface(
+                    Typeface.create(FontFamily.GSF_BODY_LARGE.getValue(), Typeface.NORMAL));
         }
     }
 
@@ -564,13 +578,6 @@ abstract class TutorialController implements BackGestureAttemptCallback,
         mSkipButton.setVisibility(GONE);
         mDoneButton.setVisibility(View.VISIBLE);
         mDoneButton.setOnClickListener(this::onActionButtonClicked);
-        mDoneButton.postDelayed(() -> {
-            mDoneButton.requestFocus();
-            mDoneButton.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED);
-        }, mAccessibilityManager
-                .getRecommendedTimeoutMillis(
-                        DONE_BUTTON_ANNOUNCE_DELAY_MS,
-                        AccessibilityManager.FLAG_CONTENT_CONTROLS));
     }
 
     void hideFakeTaskbar(boolean animateToHotseat) {
@@ -614,11 +621,6 @@ abstract class TutorialController implements BackGestureAttemptCallback,
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT));
         }
-    }
-
-    private void updateSubtext() {
-        mTutorialStepView.setTutorialProgress(
-                mTutorialFragment.getCurrentStep(), mTutorialFragment.getNumSteps());
     }
 
     private void updateHotseatChildViewColor(@Nullable View child) {

@@ -23,8 +23,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import androidx.test.platform.app.InstrumentationRegistry.getInstrumentation
 import com.android.launcher3.Flags
+import com.android.launcher3.LauncherAppState
 import com.android.launcher3.LauncherPrefs
-import com.android.launcher3.model.ModelDbController
 import com.android.launcher3.model.ModelDelegate
 import com.android.launcher3.provider.RestoreDbTask
 import com.android.launcher3.util.Executors.MODEL_EXECUTOR
@@ -32,7 +32,6 @@ import com.android.launcher3.util.TestUtil
 import com.android.launcher3.util.rule.BackAndRestoreRule
 import com.android.launcher3.util.rule.setFlags
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,11 +45,8 @@ import org.mockito.kotlin.mock
 @MediumTest
 class BackupAndRestoreDBSelectionTest {
 
-    @JvmField @Rule var backAndRestoreRule = BackAndRestoreRule()
-
-    @JvmField
-    @Rule
-    val setFlagsRule = SetFlagsRule(SetFlagsRule.DefaultInitValueType.DEVICE_DEFAULT)
+    @get:Rule var backAndRestoreRule = BackAndRestoreRule()
+    @get:Rule val setFlagsRule = SetFlagsRule()
 
     val modelDelegate = mock<ModelDelegate>()
 
@@ -70,9 +66,9 @@ class BackupAndRestoreDBSelectionTest {
     }
 
     @Test
-    @Ignore("b/385147987")
     fun oldDatabasesNotPresentAfterRestore() {
-        val dbController = ModelDbController(getInstrumentation().targetContext)
+        val dbController =
+            LauncherAppState.getInstance(getInstrumentation().targetContext).model.modelDbController
         if (Flags.gridMigrationRefactor()) {
             dbController.attemptMigrateDb(null, modelDelegate)
         } else {

@@ -30,7 +30,6 @@ import com.android.launcher3.Utilities.mapToRange
 import com.android.launcher3.icons.GraphicsUtils.setColorAlphaBound
 import com.android.launcher3.taskbar.TaskbarPinningController.Companion.PINNING_PERSISTENT
 import com.android.launcher3.taskbar.TaskbarPinningController.Companion.PINNING_TRANSIENT
-import com.android.launcher3.util.DisplayController
 import kotlin.math.min
 
 /** Helps draw the taskbar background, made up of a rectangle plus two inverted rounded corners. */
@@ -43,13 +42,15 @@ class TaskbarBackgroundRenderer(private val context: TaskbarActivityContext) {
     private val maxPersistentTaskbarHeight =
         context.persistentTaskbarDeviceProfile.taskbarHeight.toFloat()
     var backgroundProgress =
-        if (DisplayController.isTransientTaskbar(context)) {
+        if (context.isTransientTaskbar) {
             PINNING_TRANSIENT
         } else {
             PINNING_PERSISTENT
         }
 
     var isAnimatingPinning = false
+    var isAnimatingPersistentTaskbar = false
+    var isAnimatingTransientTaskbar = false
 
     val paint = Paint()
     private val strokePaint = Paint()
@@ -100,7 +101,7 @@ class TaskbarBackgroundRenderer(private val context: TaskbarActivityContext) {
 
         fullCornerRadius = context.cornerRadius.toFloat()
         cornerRadius = fullCornerRadius
-        if (!context.areDesktopTasksVisible()) {
+        if (!context.isInDesktopMode()) {
             setCornerRoundness(MAX_ROUNDNESS)
         }
     }
@@ -122,7 +123,7 @@ class TaskbarBackgroundRenderer(private val context: TaskbarActivityContext) {
      * @param cornerRoundness 0 has no round corner, 1 has complete round corner.
      */
     fun setCornerRoundness(cornerRoundness: Float) {
-        if (DisplayController.isTransientTaskbar(context) && !transientBackgroundBounds.isEmpty) {
+        if (context.isTransientTaskbar && !transientBackgroundBounds.isEmpty) {
             return
         }
 
@@ -144,7 +145,7 @@ class TaskbarBackgroundRenderer(private val context: TaskbarActivityContext) {
     /** Draws the background with the given paint and height, on the provided canvas. */
     fun draw(canvas: Canvas) {
         if (isInSetup) return
-        val isTransientTaskbar = backgroundProgress == 0f
+        val isTransientTaskbar = context.isTransientTaskbar
         canvas.save()
         if (!isTransientTaskbar || transientBackgroundBounds.isEmpty || isAnimatingPinning) {
             drawPersistentBackground(canvas)
@@ -158,7 +159,7 @@ class TaskbarBackgroundRenderer(private val context: TaskbarActivityContext) {
     }
 
     private fun drawPersistentBackground(canvas: Canvas) {
-        if (isAnimatingPinning) {
+        if (isAnimatingPinning || isAnimatingPersistentTaskbar) {
             val persistentTaskbarHeight = maxPersistentTaskbarHeight * backgroundProgress
             canvas.translate(0f, canvas.height - persistentTaskbarHeight)
             // Draw the background behind taskbar content.
@@ -181,12 +182,13 @@ class TaskbarBackgroundRenderer(private val context: TaskbarActivityContext) {
     private fun drawTransientBackground(canvas: Canvas) {
         val res = context.resources
         val transientTaskbarHeight = maxTransientTaskbarHeight * (1f - backgroundProgress)
+        val isAnimating = isAnimatingPinning || isAnimatingTransientTaskbar
         val heightProgressWhileAnimating =
-            if (isAnimatingPinning) transientTaskbarHeight else backgroundHeight
+            if (isAnimating) transientTaskbarHeight else backgroundHeight
 
         var progress = heightProgressWhileAnimating / maxTransientTaskbarHeight
         progress = Math.round(progress * 100f) / 100f
-        if (isAnimatingPinning) {
+        if (isAnimating) {
             var scale = transientTaskbarHeight / maxTransientTaskbarHeight
             scale = Math.round(scale * 100f) / 100f
             bottomMargin =

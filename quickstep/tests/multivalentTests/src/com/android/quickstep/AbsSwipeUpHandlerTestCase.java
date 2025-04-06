@@ -16,6 +16,8 @@
 
 package com.android.quickstep;
 
+import static android.view.Display.DEFAULT_DISPLAY;
+
 import static com.android.quickstep.AbsSwipeUpHandler.STATE_HANDLER_INVALIDATED;
 import static com.android.wm.shell.shared.ShellSharedConstants.KEY_EXTRA_SHELL_CAN_HAND_OFF_ANIMATION;
 import static com.android.wm.shell.shared.split.SplitBounds.KEY_EXTRA_SPLIT_BOUNDS;
@@ -49,6 +51,7 @@ import android.os.SystemClock;
 import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
+import android.view.Display;
 import android.view.RemoteAnimationTarget;
 import android.view.SurfaceControl;
 import android.view.ViewTreeObserver;
@@ -100,7 +103,9 @@ public abstract class AbsSwipeUpHandlerTestCase<
     protected final ActivityManager.RunningTaskInfo mRunningTaskInfo =
             new ActivityManager.RunningTaskInfo();
     protected final TopTaskTracker.CachedTaskInfo mCachedTaskInfo =
-            new TopTaskTracker.CachedTaskInfo(Collections.singletonList(mRunningTaskInfo));
+            new TopTaskTracker.CachedTaskInfo(
+                    Collections.singletonList(mRunningTaskInfo), /* canEnterDesktop = */ false,
+                    DEFAULT_DISPLAY);
     protected final RemoteAnimationTarget mRemoteAnimationTarget = new RemoteAnimationTarget(
             /* taskId= */ 0,
             /* mode= */ RemoteAnimationTarget.MODE_CLOSING,
@@ -189,7 +194,7 @@ public abstract class AbsSwipeUpHandlerTestCase<
     @Before
     public void setUpRecentsContainer() {
         mTaskAnimationManager = new TaskAnimationManager(mContext,
-                RecentsAnimationDeviceState.INSTANCE.get(mContext));
+                RecentsAnimationDeviceState.INSTANCE.get(mContext), DEFAULT_DISPLAY);
         RecentsViewContainer recentsContainer = getRecentsContainer();
         RECENTS_VIEW recentsView = getRecentsView();
 
@@ -291,7 +296,7 @@ public abstract class AbsSwipeUpHandlerTestCase<
     public void testHomeGesture_invalidatesHandlerAfterParallelAnim() {
         ValueAnimator parallelAnim = new ValueAnimator();
         parallelAnim.setRepeatCount(ValueAnimator.INFINITE);
-        when(mActivityInterface.getParallelAnimationToLauncher(any(), anyLong(), any()))
+        when(mActivityInterface.getParallelAnimationToGestureEndTarget(any(), anyLong(), any()))
                 .thenReturn(parallelAnim);
         SWIPE_HANDLER handler = createSwipeUpHandlerForGesture(GestureState.GestureEndTarget.HOME);
         runOnMainSync(() -> {
@@ -305,7 +310,7 @@ public abstract class AbsSwipeUpHandlerTestCase<
 
     @Test
     public void testHomeGesture_invalidatesHandlerIfNoParallelAnim() {
-        when(mActivityInterface.getParallelAnimationToLauncher(any(), anyLong(), any()))
+        when(mActivityInterface.getParallelAnimationToGestureEndTarget(any(), anyLong(), any()))
                 .thenReturn(null);
         SWIPE_HANDLER handler = createSwipeUpHandlerForGesture(GestureState.GestureEndTarget.HOME);
         runOnMainSync(() -> {
@@ -364,7 +369,7 @@ public abstract class AbsSwipeUpHandlerTestCase<
         float xVelocityPxPerMs = isQuickSwitch ? 100 : 0;
         float yVelocityPxPerMs = isQuickSwitch ? 0 : -100;
         swipeHandler.onGestureEnded(
-                yVelocityPxPerMs, new PointF(xVelocityPxPerMs, yVelocityPxPerMs));
+                yVelocityPxPerMs, new PointF(xVelocityPxPerMs, yVelocityPxPerMs), isQuickSwitch);
         swipeHandler.onCalculateEndTarget();
         runOnMainSync(swipeHandler::onSettledOnEndTarget);
 

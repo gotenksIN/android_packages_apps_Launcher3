@@ -28,6 +28,7 @@ import com.android.launcher3.taskbar.TaskbarActivityContext
 import com.android.launcher3.taskbar.TaskbarControllers
 import com.android.launcher3.taskbar.TaskbarManager
 import com.android.launcher3.taskbar.TaskbarNavButtonController.TaskbarNavButtonCallbacks
+import com.android.launcher3.taskbar.TaskbarUIController
 import com.android.launcher3.taskbar.bubbles.BubbleControllers
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR
@@ -113,10 +114,12 @@ class TaskbarUnitTestRule(
                                 object : TaskbarNavButtonCallbacks {},
                                 RecentsDisplayModel.INSTANCE.get(context),
                             ) {
-                            override fun recreateTaskbar() {
-                                super.recreateTaskbar()
+                            override fun recreateTaskbars() {
+                                super.recreateTaskbars()
                                 if (currentActivityContext != null) {
                                     injectControllers()
+                                    // TODO(b/346394875): we should test a non-default uiController.
+                                    activityContext.setUIController(TaskbarUIController.DEFAULT)
                                     controllerInjectionCallback.invoke()
                                 }
                             }
@@ -146,7 +149,7 @@ class TaskbarUnitTestRule(
     }
 
     /** Simulates Taskbar recreation lifecycle. */
-    fun recreateTaskbar() = instrumentation.runOnMainSync { taskbarManager.recreateTaskbar() }
+    fun recreateTaskbar() = instrumentation.runOnMainSync { taskbarManager.recreateTaskbars() }
 
     private fun injectControllers() {
         val bubbleControllerTypes =

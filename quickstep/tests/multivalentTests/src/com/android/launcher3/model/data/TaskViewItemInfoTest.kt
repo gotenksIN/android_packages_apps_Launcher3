@@ -28,7 +28,7 @@ import com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_NOT_PINNABLE
 import com.android.launcher3.model.data.TaskViewItemInfo.Companion.createTaskViewAtom
 import com.android.launcher3.pm.UserCache
 import com.android.launcher3.util.AllModulesForTest
-import com.android.launcher3.util.MainThreadInitializedObject.SandboxContext
+import com.android.launcher3.util.SandboxContext
 import com.android.launcher3.util.SplitConfigurationOptions
 import com.android.launcher3.util.TransformingTouchDelegate
 import com.android.launcher3.util.UserIconInfo
@@ -76,12 +76,12 @@ class TaskViewItemInfoTest {
         context.initDaggerComponent(
             DaggerTaskViewItemInfoTest_TestComponent.builder().bindUserCache(userCache)
         )
-        RecentsDependencies.initialize(context)
+        RecentsDependencies.maybeInitialize(context)
     }
 
     @After
     fun tearDown() {
-        RecentsDependencies.destroy()
+        RecentsDependencies.destroy(context)
     }
 
     @Test

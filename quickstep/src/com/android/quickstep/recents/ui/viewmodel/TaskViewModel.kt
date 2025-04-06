@@ -65,6 +65,12 @@ class TaskViewModel(
             }
             .distinctUntilChanged()
 
+    private val isCentralTask =
+        combine(taskIds, recentsViewData.centralTaskIds) { taskIds, centralTaskIds ->
+                taskIds == centralTaskIds
+            }
+            .distinctUntilChanged()
+
     private val taskData =
         taskIds.flatMapLatest { ids ->
             // Combine Tasks requests
@@ -74,8 +80,16 @@ class TaskViewModel(
             )
         }
 
+    private val overlayEnabled =
+        combine(recentsViewData.overlayEnabled, recentsViewData.settledFullyVisibleTaskIds) {
+                isOverlayEnabled,
+                settledFullyVisibleTaskIds ->
+                isOverlayEnabled && settledFullyVisibleTaskIds.any { it in taskIds.value }
+            }
+            .distinctUntilChanged()
+
     val state: Flow<TaskTileUiState> =
-        combine(taskData, isLiveTile) { tasks, isLiveTile -> mapToTaskTile(tasks, isLiveTile) }
+        combine(taskData, isLiveTile, overlayEnabled, isCentralTask, ::mapToTaskTile)
             .distinctUntilChanged()
             .flowOn(dispatcherProvider.background)
 
@@ -99,13 +113,20 @@ class TaskViewModel(
             isRtl = isRtl,
         )
 
-    private fun mapToTaskTile(tasks: List<TaskData>, isLiveTile: Boolean): TaskTileUiState {
+    private fun mapToTaskTile(
+        tasks: List<TaskData>,
+        isLiveTile: Boolean,
+        overlayEnabled: Boolean,
+        isCentralTask: Boolean,
+    ): TaskTileUiState {
         val firstThumbnailData = (tasks.firstOrNull() as? TaskData.Data)?.thumbnailData
         return TaskTileUiState(
             tasks = tasks,
             isLiveTile = isLiveTile,
             hasHeader = taskViewType == TaskViewType.DESKTOP,
             sysUiStatusNavFlags = getSysUiStatusNavFlagsUseCase(firstThumbnailData),
+            taskOverlayEnabled = overlayEnabled,
+            isCentralTask = isCentralTask,
         )
     }
 

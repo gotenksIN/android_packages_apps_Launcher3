@@ -17,6 +17,7 @@ package com.android.launcher3.taskbar;
 
 import static com.android.launcher3.Flags.enableAltTabKqsOnConnectedDisplays;
 
+import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.pm.ActivityInfo;
 import android.view.MotionEvent;
@@ -164,12 +165,12 @@ public final class KeyboardQuickSwitchController implements
                         processLoadedTasks(tasks, taskIdsToExclude);
                         mQuickSwitchViewController.updateQuickSwitchView(
                                 mTasks,
-                                mNumHiddenTasks,
+                                wasOpenedFromTaskbar ? 0 : mNumHiddenTasks,
                                 currentFocusIndexOverride,
                                 mHasDesktopTask,
                                 mWasDesktopTaskFilteredOut);
                     }, shouldShowDesktopTasks ? RecentsFilterState.EMPTY_FILTER
-                            : RecentsFilterState.getEmptyDesktopTaskFilter());
+                            : RecentsFilterState.getDesktopTaskFilter());
                 }
 
                 mQuickSwitchViewController.updateLayoutForSurface(wasOpenedFromTaskbar,
@@ -204,7 +205,7 @@ public final class KeyboardQuickSwitchController implements
             // running. If not, focus that first task.
             mQuickSwitchViewController.openQuickSwitchView(
                     mTasks,
-                    mNumHiddenTasks,
+                    wasOpenedFromTaskbar ? 0 : mNumHiddenTasks,
                     /* updateTasks= */ false,
                     currentFocusedIndex == -1 && !mControllerCallbacks.isFirstTaskRunning()
                             ? 0 : currentFocusedIndex,
@@ -222,7 +223,7 @@ public final class KeyboardQuickSwitchController implements
             // the correct index.
             mQuickSwitchViewController.openQuickSwitchView(
                     mTasks,
-                    mNumHiddenTasks,
+                    wasOpenedFromTaskbar ? 0 : mNumHiddenTasks,
                     /* updateTasks= */ true,
                     currentFocusedIndex == -1 && !mControllerCallbacks.isFirstTaskRunning()
                             ? 0 : currentFocusedIndex,
@@ -231,7 +232,7 @@ public final class KeyboardQuickSwitchController implements
                     mWasDesktopTaskFilteredOut,
                     wasOpenedFromTaskbar);
         }, shouldShowDesktopTasks ? RecentsFilterState.EMPTY_FILTER
-                : RecentsFilterState.getEmptyDesktopTaskFilter());
+                : RecentsFilterState.getDesktopTaskFilter());
     }
 
     private boolean shouldExcludeTask(GroupTask task, Set<Integer> taskIdsToExclude) {
@@ -354,6 +355,27 @@ public final class KeyboardQuickSwitchController implements
         }
     }
 
+    @VisibleForTesting
+    boolean isShownFromTaskbar() {
+        return isShown() && mQuickSwitchViewController.wasOpenedFromTaskbar();
+    }
+
+    @VisibleForTesting
+    boolean isShown() {
+        return mQuickSwitchViewController != null
+                && !mQuickSwitchViewController.isCloseAnimationRunning();
+    }
+
+    @VisibleForTesting
+    List<Integer> shownTaskIds() {
+        if (!isShown()) {
+            return Collections.emptyList();
+        }
+
+        return mTasks.stream().flatMap(
+                groupTask -> groupTask.getTasks().stream().map(task -> task.key.id)).toList();
+    }
+
     @Override
     public void dumpLogs(String prefix, PrintWriter pw) {
         pw.println(prefix + "KeyboardQuickSwitchController:");
@@ -423,7 +445,13 @@ public final class KeyboardQuickSwitchController implements
             if (task == null) {
                 return false;
             }
-            int runningTaskId = ActivityManagerWrapper.getInstance().getRunningTask().taskId;
+            ActivityManager.RunningTaskInfo runningTaskInfo =
+                    ActivityManagerWrapper.getInstance().getRunningTask();
+            if (runningTaskInfo == null) {
+                return false;
+            }
+
+            int runningTaskId = runningTaskInfo.taskId;
             return task.containsTask(runningTaskId);
         }
 

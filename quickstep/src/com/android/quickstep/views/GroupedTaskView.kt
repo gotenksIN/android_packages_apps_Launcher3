@@ -185,23 +185,35 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         val splitBoundsConfig = splitBoundsConfig ?: return
         val deviceProfile = container.deviceProfile
         val taskIconHeight = deviceProfile.overviewTaskIconSizePx
-        val isRtl = layoutDirection == LAYOUT_DIRECTION_RTL
         val inSplitSelection = getThisTaskCurrentlyInSplitSelection() != INVALID_TASK_ID
+        var oneIconHiddenDueToSmallWidth = false
 
         if (enableFlexibleTwoAppSplit()) {
-            val topLeftTaskPercent =
-                if (deviceProfile.isLeftRightSplit) splitBoundsConfig.leftTaskPercent
-                else splitBoundsConfig.topTaskPercent
-            val bottomRightTaskPercent = 1 - topLeftTaskPercent
-            leftTopTaskContainer.iconView.setFlexSplitAlpha(
-                if (topLeftTaskPercent < MINIMUM_RATIO_TO_SHOW_ICON) 0f else 1f
-            )
-            rightBottomTaskContainer.iconView.setFlexSplitAlpha(
-                if (bottomRightTaskPercent < MINIMUM_RATIO_TO_SHOW_ICON) 0f else 1f
-            )
+            // Update values for both icons' setFlexSplitAlpha. Mainly, we want to hide an icon if
+            // its app tile is too small. But we also have to set the alphas back if we go to
+            // split selection.
+            val hideLeftTopIcon: Boolean
+            val hideRightBottomIcon: Boolean
+            if (inSplitSelection) {
+                hideLeftTopIcon =
+                    getThisTaskCurrentlyInSplitSelection() == splitBoundsConfig.leftTopTaskId
+                hideRightBottomIcon =
+                    getThisTaskCurrentlyInSplitSelection() == splitBoundsConfig.rightBottomTaskId
+            } else {
+                hideLeftTopIcon = splitBoundsConfig.leftTopTaskPercent < MINIMUM_RATIO_TO_SHOW_ICON
+                hideRightBottomIcon =
+                    splitBoundsConfig.rightBottomTaskPercent < MINIMUM_RATIO_TO_SHOW_ICON
+                if (hideLeftTopIcon || hideRightBottomIcon) {
+                    oneIconHiddenDueToSmallWidth = true
+                }
+            }
+
+            leftTopTaskContainer.iconView.setFlexSplitAlpha(if (hideLeftTopIcon) 0f else 1f)
+            rightBottomTaskContainer.iconView.setFlexSplitAlpha(if (hideRightBottomIcon) 0f else 1f)
         }
 
         if (enableOverviewIconMenu()) {
+            val isDeviceRtl = Utilities.isRtl(resources)
             val groupedTaskViewSizes =
                 pagedOrientationHandler.getGroupedTaskViewSizes(
                     deviceProfile,
@@ -217,10 +229,11 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                 groupedTaskViewSizes.first.y,
                 layoutParams.height,
                 layoutParams.width,
-                isRtl,
+                isDeviceRtl,
                 deviceProfile,
                 splitBoundsConfig,
                 inSplitSelection,
+                oneIconHiddenDueToSmallWidth,
             )
         } else {
             pagedOrientationHandler.setSplitIconParams(
@@ -231,10 +244,11 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                 leftTopTaskContainer.snapshotView.measuredHeight,
                 measuredHeight,
                 measuredWidth,
-                isRtl,
+                isLayoutRtl,
                 deviceProfile,
                 splitBoundsConfig,
                 inSplitSelection,
+                oneIconHiddenDueToSmallWidth,
             )
         }
     }

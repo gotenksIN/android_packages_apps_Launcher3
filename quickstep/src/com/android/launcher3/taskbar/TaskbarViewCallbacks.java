@@ -16,7 +16,8 @@
 
 package com.android.launcher3.taskbar;
 
-import static com.android.launcher3.Flags.taskbarRecentsLayoutTransition;
+import static android.window.DesktopModeFlags.ENABLE_TASKBAR_RECENTS_LAYOUT_TRANSITION;
+
 import static com.android.launcher3.config.FeatureFlags.enableTaskbarPinning;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_TASKBAR_ALLAPPS_BUTTON_LONG_PRESS;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_TASKBAR_ALLAPPS_BUTTON_TAP;
@@ -35,7 +36,6 @@ import androidx.annotation.Nullable;
 
 import com.android.internal.jank.Cuj;
 import com.android.launcher3.taskbar.bubbles.BubbleBarViewController;
-import com.android.launcher3.util.DisplayController;
 import com.android.systemui.shared.system.InteractionJankMonitorWrapper;
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
 
@@ -66,7 +66,16 @@ public class TaskbarViewCallbacks {
         InteractionJankMonitorWrapper.begin(v, Cuj.CUJ_LAUNCHER_OPEN_ALL_APPS,
                 /* tag= */ "TASKBAR_BUTTON");
         mActivity.getStatsLogManager().logger().log(LAUNCHER_TASKBAR_ALLAPPS_BUTTON_TAP);
-        mControllers.taskbarAllAppsController.toggle();
+        if (mActivity.showLockedTaskbarOnHome()
+                || mActivity.showDesktopTaskbarForFreeformDisplay()) {
+            // If the taskbar can be shown on the home screen, use mAllAppsToggler to toggle all
+            // apps, which will toggle the launcher activity all apps when on home screen.
+            // TODO(b/395913143): Reconsider this if a gap in taskbar all apps functionality that
+            //  prevents users to drag items to workspace is addressed.
+            mControllers.uiController.toggleAllApps(false);
+        } else {
+            mControllers.taskbarAllAppsController.toggle();
+        }
     }
 
     /** Trigger All Apps button long click action. */
@@ -114,7 +123,7 @@ public class TaskbarViewCallbacks {
 
     /** Callback invoked before Taskbar icons are laid out. */
     void onPreLayoutChildren() {
-        if (enableTaskbarPinning() && taskbarRecentsLayoutTransition()) {
+        if (enableTaskbarPinning() && ENABLE_TASKBAR_RECENTS_LAYOUT_TRANSITION.isTrue()) {
             mControllers.taskbarViewController.updateTaskbarIconTranslationXForPinning();
         }
     }
@@ -238,8 +247,7 @@ public class TaskbarViewCallbacks {
 
         /** Returns true if the taskbar pinning popup view was shown for {@code event}. */
         private boolean maybeShowPinningView(@NonNull MotionEvent event) {
-            if (!DisplayController.isPinnedTaskbar(mActivity) || mTaskbarView.isEventOverAnyItem(
-                    event)) {
+            if (!mActivity.isPinnedTaskbar() || mTaskbarView.isEventOverAnyItem(event)) {
                 return false;
             }
             mControllers.taskbarPinningController.showPinningView(mTaskbarView, event.getRawX());

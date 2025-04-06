@@ -25,7 +25,6 @@ import static com.android.launcher3.util.Executors.MODEL_EXECUTOR;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static java.util.Collections.emptyList;
 
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProviderInfo;
@@ -48,7 +47,6 @@ import com.android.launcher3.dragndrop.SimpleDragLayer;
 import com.android.launcher3.model.StringCache;
 import com.android.launcher3.model.WidgetItem;
 import com.android.launcher3.model.WidgetPredictionsRequester;
-import com.android.launcher3.model.WidgetsFilterDataProvider;
 import com.android.launcher3.model.WidgetsModel;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.PackageItemInfo;
@@ -70,7 +68,8 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 /** An Activity that can host Launcher's widget picker. */
-public class WidgetPickerActivity extends BaseActivity {
+public class WidgetPickerActivity extends BaseActivity implements
+        WidgetPredictionsRequester.WidgetPredictionsListener {
     private static final String TAG = "WidgetPickerActivity";
     /**
      * Name of the extra that indicates that a widget being dragged.
@@ -121,9 +120,7 @@ public class WidgetPickerActivity extends BaseActivity {
     private LauncherAppState mApp;
     private StringCache mStringCache;
     private WidgetPredictionsRequester mWidgetPredictionsRequester;
-    private final WidgetPickerDataProvider mWidgetPickerDataProvider =
-            new WidgetPickerDataProvider();
-    private WidgetsFilterDataProvider mWidgetsFilterDataProvider;
+    private WidgetPickerDataProvider mWidgetPickerDataProvider;
 
     private int mDesiredWidgetWidth;
     private int mDesiredWidgetHeight;
@@ -169,8 +166,8 @@ public class WidgetPickerActivity extends BaseActivity {
         mApp = LauncherAppState.getInstance(this);
         InvariantDeviceProfile idp = mApp.getInvariantDeviceProfile();
         mDeviceProfile = idp.getDeviceProfile(this);
-        mModel = new WidgetsModel();
-        mWidgetsFilterDataProvider = WidgetsFilterDataProvider.Companion.newInstance(this);
+        mModel = new WidgetsModel(mApp.getContext());
+        mWidgetPickerDataProvider = new WidgetPickerDataProvider(this);
 
         setContentView(R.layout.widget_picker_activity);
         mDragLayer = findViewById(R.id.drag_layer);
@@ -312,24 +309,21 @@ public class WidgetPickerActivity extends BaseActivity {
      */
     private void refreshAndBindWidgets() {
         MODEL_EXECUTOR.execute(() -> {
-            LauncherAppState app = LauncherAppState.getInstance(this);
-            // Don't have to setup filters - its setup when launcher loads
-            // Just refresh filters with available cached info.
-            mModel.updateWidgetFilters(mWidgetsFilterDataProvider);
-            mModel.update(app, null);
+            mModel.update(null);
 
             StringCache stringCache = new StringCache();
             stringCache.loadStrings(this);
 
             bindStringCache(stringCache);
-            bindWidgets(mModel.getWidgetsByPackageItem(), mModel.getDefaultWidgetsFilter());
+            bindWidgets(mModel.getWidgetsByPackageItemForPicker());
             // Open sheet once widgets are available, so that it doesn't interrupt the open
             // animation.
             openWidgetsSheet();
             if (mUiSurface != null) {
-                mWidgetPredictionsRequester = new WidgetPredictionsRequester(app.getContext(),
-                        mUiSurface, mModel.getWidgetsByComponentKey());
-                mWidgetPredictionsRequester.request(mAddedWidgets, this::bindRecommendedWidgets);
+                mWidgetPredictionsRequester = new WidgetPredictionsRequester(
+                        getApplicationContext(), mUiSurface,
+                        mModel.getWidgetsByComponentKeyForPicker());
+                mWidgetPredictionsRequester.request(mAddedWidgets, this);
             }
         });
     }
@@ -338,26 +332,19 @@ public class WidgetPickerActivity extends BaseActivity {
         MAIN_EXECUTOR.execute(() -> mStringCache = stringCache);
     }
 
-    private void bindWidgets(Map<PackageItemInfo, List<WidgetItem>> widgets,
-            @Nullable Predicate<WidgetItem> defaultWidgetsFilter) {
+    private void bindWidgets(Map<PackageItemInfo, List<WidgetItem>> widgets) {
         WidgetsListBaseEntriesBuilder builder = new WidgetsListBaseEntriesBuilder(
                 mApp.getContext());
-
         final List<WidgetsListBaseEntry> allWidgets = builder.build(widgets, mNoShortcutsFilter);
 
-        // Default list is shown if either defaultWidgetsFilter exists or host has additionally
-        // enforced size filtering.
+        // Default list is shown if host has additionally enforced size filtering.
         @Nullable Predicate<WidgetItem> defaultListFilter =
                 hasHostSizeFilters() ? mHostSizeAndNoShortcutsFilter : null;
-        if (defaultWidgetsFilter != null) {
-            defaultListFilter = defaultListFilter != null ? defaultListFilter.and(
-                    defaultWidgetsFilter) : defaultWidgetsFilter;
-        }
-        final List<WidgetsListBaseEntry> defaultWidgets = defaultListFilter != null ? builder.build(
-                widgets, defaultListFilter) : emptyList();
 
-        MAIN_EXECUTOR.execute(
-                () -> mWidgetPickerDataProvider.setWidgets(allWidgets, defaultWidgets));
+        MAIN_EXECUTOR.execute(() -> {
+            mWidgetPickerDataProvider.setHostSpecifiedDefaultWidgetsFilter(defaultListFilter);
+            mWidgetPickerDataProvider.setWidgets(allWidgets);
+        });
     }
 
     private void openWidgetsSheet() {
@@ -369,7 +356,8 @@ public class WidgetPickerActivity extends BaseActivity {
         });
     }
 
-    private void bindRecommendedWidgets(List<ItemInfo> recommendedWidgets) {
+    @Override
+    public void onPredictionsAvailable(List<ItemInfo> recommendedWidgets) {
         // Bind recommendations once picker has finished open animation.
         MAIN_EXECUTOR.getHandler().postDelayed(
                 () -> mWidgetPickerDataProvider.setWidgetRecommendations(recommendedWidgets),
@@ -379,7 +367,7 @@ public class WidgetPickerActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        MODEL_EXECUTOR.execute(() -> mWidgetsFilterDataProvider.destroy());
+        mWidgetPickerDataProvider.destroy();
         if (mWidgetPredictionsRequester != null) {
             mWidgetPredictionsRequester.clear();
         }

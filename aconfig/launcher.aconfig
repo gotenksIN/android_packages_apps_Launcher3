@@ -235,7 +235,7 @@ flag {
 
 flag {
     name: "enable_fallback_overview_in_window"
-    namespace: "launcher"
+    namespace: "lse_desktop_experience"
     description: "Enables fallback recents opening inside of a window instead of an activity."
     bug: "292269949"
 }
@@ -308,6 +308,13 @@ flag {
     namespace: "launcher"
     description: "All Apps will be presented on a bottom sheet in handheld mode"
     bug: "374186088"
+}
+
+flag {
+    name: "all_apps_blur"
+    namespace: "launcher"
+    description: "Content behind the all apps panel in Launcher will be blurred."
+    bug: "400827727"
 }
 
 flag {
@@ -450,14 +457,14 @@ flag {
 
 flag {
     name: "enable_recents_window_proto_log"
-    namespace: "launcher"
+    namespace: "lse_desktop_experience"
     description: "Enables tracking recents window logs in ProtoLog"
     bug: "292269949"
 }
 
 flag {
     name: "enable_state_manager_proto_log"
-    namespace: "launcher"
+    namespace: "lse_desktop_experience"
     description: "Enables tracking state manager logs in ProtoLog"
     bug: "292269949"
 }
@@ -488,7 +495,7 @@ flag {
 
 flag {
     name: "enable_launcher_overview_in_window"
-    namespace: "launcher"
+    namespace: "lse_desktop_experience"
     description: "Enables launcher recents opening inside of a window instead of being hosted in launcher activity."
     bug: "292269949"
 }
@@ -515,13 +522,6 @@ flag {
   namespace: "launcher"
   description: "Enable MSDL feedback for Launcher interactions"
   bug: "377496684"
-}
-
-flag {
-    name: "taskbar_recents_layout_transition"
-    namespace: "launcher"
-    description: "Enable Taskbar LayoutTransition for Recent Apps"
-    bug: "343521765"
 }
 
 flag {
@@ -563,6 +563,17 @@ flag {
   namespace: "launcher"
   description: "Adds refresh for font family, app longpress menu icons, and pagination dots"
   bug: "395145453"
+}
+
+flag {
+  name: "gsf_res"
+  namespace: "launcher"
+  description: "Adds refresh for font family. Needs to be fixed to be used in resources."
+  bug: "395145453"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }
 
 flag {
@@ -628,4 +639,68 @@ flag {
   namespace: "lse_desktop_experience"
   description: "Enable Alt + Tab KQS view to show apps in flattened structure"
   bug: "382769617"
+}
+
+flag {
+  name: "enable_gesture_nav_on_connected_displays"
+  namespace: "lse_desktop_experience"
+  description: "Enables gesture navigation handling on connected displays"
+  bug: "382130680"
+}
+
+flag {
+  name: "enable_taskbar_behind_shade"
+  namespace: "lse_desktop_experience"
+  description: "Keeps taskbar behind notification shade when its pulled down"
+  bug: "343194358"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "enable_scalability_for_desktop_experience"
+  namespace: "launcher"
+  description: "Enable more grid scale options on the launcher for desktop experience"
+  bug: "375491272"
+}
+
+flag {
+  name: "enable_gesture_nav_horizontal_touch_slop"
+  namespace: "launcher"
+  description: "Enables horizontal touch slop checking in non-vertical fling navigation gestures"
+  bug: "394364217"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "sync_app_launch_with_taskbar_stash"
+  namespace: "launcher"
+  description: "Syncs the two animations (app launch, taskbar stash) so they play at the same time."
+  bug: "319162553"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "remove_apps_refresh_on_right_click"
+  namespace: "launcher"
+  description: "Remove predicted apps refresh on right click"
+  bug: "343650193"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "enable_taskbar_for_direct_boot"
+  namespace: "launcher"
+  description: "Initializes parts of Taskbar before onUserUnlocked"
+  bug: "324485921"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }

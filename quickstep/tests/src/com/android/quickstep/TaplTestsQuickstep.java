@@ -23,6 +23,7 @@ import static com.android.quickstep.TaskbarModeSwitchRule.Mode.TRANSIENT;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeFalse;
@@ -99,11 +100,9 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
 
     @After
     public void tearDown() {
-        runOnRecentsView(recentsView -> {
-            if (recentsView != null) {
-                recentsView.getPagedViewOrientedState().forceAllowRotationForTesting(false);
-            }
-        });
+        runOnRecentsView(recentsView ->
+                recentsView.getPagedViewOrientedState().forceAllowRotationForTesting(false),
+                /* forTearDown= */ true);
     }
 
     public static void startTestApps() throws Exception {
@@ -432,18 +431,17 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
                 (Math.abs(recentsView.getTopRowTaskCountForTablet()
                         - recentsView.getBottomRowTaskCountForTablet()) <= 1)));
 
-        // TODO(b/308841019): Re-enable after fixing Overview jank when dismiss
-//        // Test dismissing more tasks.
-//        assertIsInState(
-//                "Launcher internal state didn't remain in Overview", ExpectedState.OVERVIEW);
-//        overview.getCurrentTask().dismiss();
-//        assertIsInState(
-//                "Launcher internal state didn't remain in Overview", ExpectedState.OVERVIEW);
-//        overview.getCurrentTask().dismiss();
-//        runOnRecentsView(recentsView -> assertTrue(
-//                "Grid did not rebalance after multiple dismissals",
-//                (Math.abs(recentsView.getTopRowTaskCountForTablet()
-//                        - recentsView.getBottomRowTaskCountForTablet()) <= 1)));
+        // Test dismissing more tasks.
+        assertIsInState(
+                "Launcher internal state didn't remain in Overview", ExpectedState.OVERVIEW);
+        overview.getCurrentTask().dismiss();
+        assertIsInState(
+                "Launcher internal state didn't remain in Overview", ExpectedState.OVERVIEW);
+        overview.getCurrentTask().dismiss();
+        runOnRecentsView(recentsView -> assertTrue(
+                "Grid did not rebalance after multiple dismissals",
+                (Math.abs(recentsView.getTopRowTaskCountForTablet()
+                        - recentsView.getBottomRowTaskCountForTablet()) <= 1)));
 
         // Test dismissing all tasks.
         mLauncher.goHome().switchToOverview().dismissAllTasks();
@@ -581,6 +579,39 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
                 numTasks - 1, recentsView.getTaskViewCount()));
     }
 
+    @Test
+    @PortraitLandscape
+    public void testDismissLastGridRow() throws Exception {
+        assumeTrue(mLauncher.isTablet());
+        mLauncher.goHome().switchToOverview().dismissAllTasks();
+        startTestAppsWithCheck();
+        startTestActivity(3);
+        startTestActivity(4);
+        runOnRecentsView(
+                recentsView -> assertNotEquals("Grid overview should have unequal row counts",
+                        recentsView.getTopRowTaskCountForTablet(),
+                        recentsView.getBottomRowTaskCountForTablet()));
+        Overview overview = mLauncher.goHome().switchToOverview();
+        assertIsInState("Launcher internal state didn't switch to Overview",
+                ExpectedState.OVERVIEW);
+        overview.flingForwardUntilClearAllVisible();
+        assertTrue("Clear All not visible.", overview.isClearAllVisible());
+        final Integer numTasks = getFromRecentsView(RecentsView::getTaskViewCount);
+        OverviewTask lastGridTask = overview.getCurrentTasksForTablet().stream().min(
+                Comparator.comparingInt(OverviewTask::getTaskCenterX)).get();
+        assertNotNull("lastGridTask null.", lastGridTask);
+
+        lastGridTask.dismiss();
+
+        runOnRecentsView(recentsView -> assertEquals(
+                "Dismissing a lastGridTask didn't remove 1 lastGridTask from Overview",
+                numTasks - 1, recentsView.getTaskViewCount()));
+        runOnRecentsView(recentsView -> assertEquals("Grid overview should have equal row counts.",
+                recentsView.getTopRowTaskCountForTablet(),
+                recentsView.getBottomRowTaskCountForTablet()));
+        assertTrue("Clear All not visible.", overview.isClearAllVisible());
+    }
+
     private void startTestAppsWithCheck() throws Exception {
         startTestApps();
         expectLaunchedAppState();
@@ -628,18 +659,31 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     }
 
     private <T> T getFromRecentsView(Function<RecentsView, T> f) {
+        return getFromRecentsView(f, false);
+    }
+
+    private <T> T getFromRecentsView(Function<RecentsView, T> f, boolean forTearDown) {
         if (enableLauncherOverviewInWindow()) {
-            return getFromRecentsWindow(
-                    recentsWindowManager -> f.apply(recentsWindowManager.getOverviewPanel()));
+            return getFromRecentsWindow(recentsWindowManager ->
+                    (forTearDown && recentsWindowManager == null)
+                            ? null :  f.apply(recentsWindowManager.getOverviewPanel()));
         } else {
-            return getFromLauncher(launcher -> f.apply(launcher.getOverviewPanel()));
+            return getFromLauncher(launcher -> (forTearDown && launcher == null)
+                    ? null : f.apply(launcher.getOverviewPanel()));
         }
     }
 
     private void runOnRecentsView(Consumer<RecentsView> f) {
+        runOnRecentsView(f, false);
+    }
+
+    private void runOnRecentsView(Consumer<RecentsView> f, boolean forTearDown) {
         getFromRecentsView(recentsView -> {
+            if (forTearDown && recentsView == null) {
+                return null;
+            }
             f.accept(recentsView);
             return null;
-        });
+        }, forTearDown);
     }
 }

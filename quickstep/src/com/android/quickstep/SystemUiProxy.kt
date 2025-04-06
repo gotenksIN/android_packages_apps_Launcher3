@@ -655,25 +655,47 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
      * Tells SysUI to show a shortcut bubble.
      *
      * @param info the shortcut info used to create or identify the bubble.
+     * @param bubbleBarLocation the optional location of the bubble bar.
      */
-    fun showShortcutBubble(info: ShortcutInfo?) =
+    @JvmOverloads
+    fun showShortcutBubble(info: ShortcutInfo?, bubbleBarLocation: BubbleBarLocation? = null) =
         executeWithErrorLog({ "Failed call showShortcutBubble" }) {
-            bubbles?.showShortcutBubble(info)
+            bubbles?.showShortcutBubble(info, bubbleBarLocation)
         }
 
     /**
      * Tells SysUI to show a bubble of an app.
      *
      * @param intent the intent used to create the bubble.
+     * @param bubbleBarLocation the optional location of the bubble bar.
      */
-    fun showAppBubble(intent: Intent?, user: UserHandle) =
+    @JvmOverloads
+    fun showAppBubble(
+        intent: Intent?,
+        user: UserHandle,
+        bubbleBarLocation: BubbleBarLocation? = null,
+    ) =
         executeWithErrorLog({ "Failed call showAppBubble" }) {
-            bubbles?.showAppBubble(intent, user)
+            bubbles?.showAppBubble(intent, user, bubbleBarLocation)
         }
 
     /** Tells SysUI to show the expanded view. */
     fun showExpandedView() =
         executeWithErrorLog({ "Failed call showExpandedView" }) { bubbles?.showExpandedView() }
+
+    /** Tells SysUI to show the bubble drop target. */
+    @JvmOverloads
+    fun showBubbleDropTarget(show: Boolean, bubbleBarLocation: BubbleBarLocation? = null) =
+        executeWithErrorLog({ "Failed call showDropTarget" }) {
+            bubbles?.showDropTarget(show, bubbleBarLocation)
+        }
+
+    /** Tells SysUI to move the dragged bubble to full screen. */
+    fun moveDraggedBubbleToFullscreen(key: String, dropLocation: Point) {
+        executeWithErrorLog({ "Failed to call moveDraggedBubbleToFullscreen"}) {
+            bubbles?.moveDraggedBubbleToFullscreen(key, dropLocation)
+        }
+    }
 
     //
     // Splitscreen
@@ -1074,17 +1096,25 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
     // Desktop Mode
     //
     /** Calls shell to create a new desk (if possible) on the display whose ID is `displayId`. */
-    fun createDesktop(displayId: Int) =
+    fun createDesk(displayId: Int) =
         executeWithErrorLog({ "Failed call createDesk" }) { desktopMode?.createDesk(displayId) }
 
     /**
      * Calls shell to activate the desk whose ID is `deskId` on whatever display it exists on. This
      * will bring all tasks on this desk to the front.
      */
-    fun activateDesktop(deskId: Int, transition: RemoteTransition?) =
+    fun activateDesk(deskId: Int, transition: RemoteTransition?) =
         executeWithErrorLog({ "Failed call activateDesk" }) {
             desktopMode?.activateDesk(deskId, transition)
         }
+
+    /** Calls shell to remove the desk whose ID is `deskId`. */
+    fun removeDesk(deskId: Int) =
+        executeWithErrorLog({ "Failed call removeDesk" }) { desktopMode?.removeDesk(deskId) }
+
+    /** Calls shell to remove all the available desks on all displays. */
+    fun removeAllDesks() =
+        executeWithErrorLog({ "Failed call removeAllDesks" }) { desktopMode?.removeAllDesks() }
 
     /** Call shell to show all apps active on the desktop */
     fun showDesktopApps(displayId: Int, transition: RemoteTransition?) =
@@ -1137,9 +1167,9 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
         }
 
     /** Call shell to remove the desktop that is on given `displayId` */
-    fun removeDesktop(displayId: Int) =
-        executeWithErrorLog({ "Failed call removeDesktop" }) {
-            desktopMode?.removeDesktop(displayId)
+    fun removeDefaultDeskInDisplay(displayId: Int) =
+        executeWithErrorLog({ "Failed call removeDefaultDeskInDisplay" }) {
+            desktopMode?.removeDefaultDeskInDisplay(displayId)
         }
 
     /** Call shell to move a task with given `taskId` to external display. */

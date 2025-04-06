@@ -21,8 +21,11 @@ import static android.content.Intent.ACTION_PACKAGE_CHANGED;
 import static android.content.Intent.ACTION_PACKAGE_REMOVED;
 import static android.view.Display.DEFAULT_DISPLAY;
 
+import static com.android.launcher3.Flags.enableOverviewOnConnectedDisplays;
 import static com.android.launcher3.config.FeatureFlags.SEPARATE_RECENTS_ACTIVITY;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
+import static com.android.quickstep.fallback.window.RecentsWindowFlags.enableFallbackOverviewInWindow;
+import static com.android.quickstep.fallback.window.RecentsWindowFlags.enableLauncherOverviewInWindow;
 import static com.android.systemui.shared.system.PackageManagerWrapper.ACTION_PREFERRED_ACTIVITY_CHANGED;
 
 import android.content.ActivityNotFoundException;
@@ -40,7 +43,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
-import com.android.launcher3.Flags;
 import com.android.launcher3.R;
 import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.dagger.LauncherAppComponent;
@@ -87,7 +89,7 @@ public final class OverviewComponentObserver {
             new CopyOnWriteArrayList<>();
 
     private String mUpdateRegisteredPackage;
-    private BaseContainerInterface mContainerInterface;
+    private BaseContainerInterface mDefaultDisplayContainerInterface;
     private Intent mOverviewIntent;
     private boolean mIsHomeAndOverviewSame;
     private boolean mIsDefaultHome;
@@ -175,11 +177,11 @@ public final class OverviewComponentObserver {
         // Set assistant visibility to 0 from launcher's perspective, ensures any elements that
         // launcher made invisible become visible again before the new activity control helper
         // becomes active.
-        if (mContainerInterface != null) {
-            mContainerInterface.onAssistantVisibilityChanged(0.f);
+        if (mDefaultDisplayContainerInterface != null) {
+            mDefaultDisplayContainerInterface.onAssistantVisibilityChanged(0.f);
         }
 
-        if (SEPARATE_RECENTS_ACTIVITY.get() || Flags.enableLauncherOverviewInWindow()) {
+        if (SEPARATE_RECENTS_ACTIVITY.get()) {
             mIsDefaultHome = false;
             if (defaultHome == null) {
                 defaultHome = mMyHomeIntent.getComponent();
@@ -192,8 +194,13 @@ public final class OverviewComponentObserver {
                 + ", mIsDefaultHome=" + mIsDefaultHome);
 
         if (!mIsHomeDisabled && (defaultHome == null || mIsDefaultHome)) {
-            // User default home is same as out home app. Use Overview integrated in Launcher.
-            mContainerInterface = LauncherActivityInterface.INSTANCE;
+            // User default home is same as our home app. Use Overview integrated in Launcher.
+            if (enableLauncherOverviewInWindow.isTrue()) {
+                mDefaultDisplayContainerInterface =
+                        mRecentsDisplayModel.getFallbackWindowInterface(DEFAULT_DISPLAY);
+            } else {
+                mDefaultDisplayContainerInterface = LauncherActivityInterface.INSTANCE;
+            }
             mIsHomeAndOverviewSame = true;
             mOverviewIntent = mMyHomeIntent;
             mCurrentHomeIntent.setComponent(mMyHomeIntent.getComponent());
@@ -202,12 +209,11 @@ public final class OverviewComponentObserver {
             unregisterOtherHomeAppUpdateReceiver();
         } else {
             // The default home app is a different launcher. Use the fallback Overview instead.
-
-            if (Flags.enableLauncherOverviewInWindow() || Flags.enableFallbackOverviewInWindow()) {
-                mContainerInterface =
+            if (enableFallbackOverviewInWindow.isTrue()) {
+                mDefaultDisplayContainerInterface =
                         mRecentsDisplayModel.getFallbackWindowInterface(DEFAULT_DISPLAY);
             } else {
-                mContainerInterface = FallbackActivityInterface.INSTANCE;
+                mDefaultDisplayContainerInterface = FallbackActivityInterface.INSTANCE;
             }
             mIsHomeAndOverviewSame = false;
             mOverviewIntent = mFallbackIntent;
@@ -289,19 +295,27 @@ public final class OverviewComponentObserver {
     }
 
     /**
-     * Returns true if home and overview are same activity.
+     * Returns true if home and overview are same process.
      */
     public boolean isHomeAndOverviewSame() {
         return mIsHomeAndOverviewSame;
     }
 
+    public boolean isHomeAndOverviewSameActivity() {
+        return isHomeAndOverviewSame() && !enableLauncherOverviewInWindow.isTrue();
+    }
+
     /**
-     * Get the current control helper for managing interactions to the overview container.
+     * Get the current control helper for managing interactions to the overview container for
+     * the given displayId.
      *
-     * @return the current control helper
+     * @param displayId The display id
+     * @return the control helper for the given display
      */
-    public BaseContainerInterface<?,?> getContainerInterface() {
-        return mContainerInterface;
+    public BaseContainerInterface<?, ?> getContainerInterface(int displayId) {
+        return (enableOverviewOnConnectedDisplays() && displayId != DEFAULT_DISPLAY)
+                ? mRecentsDisplayModel.getFallbackWindowInterface(displayId)
+                : mDefaultDisplayContainerInterface;
     }
 
     public void dump(PrintWriter pw) {

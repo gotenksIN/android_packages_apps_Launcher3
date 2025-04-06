@@ -30,6 +30,7 @@ import static com.android.quickstep.util.ActiveGestureErrorDetector.GestureEvent
 
 import android.content.Intent;
 import android.os.SystemClock;
+import android.view.Display;
 import android.view.MotionEvent;
 import android.view.RemoteAnimationTarget;
 import android.window.TransitionInfo;
@@ -37,10 +38,10 @@ import android.window.TransitionInfo;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.android.launcher3.Flags;
 import com.android.launcher3.statemanager.BaseState;
 import com.android.launcher3.statemanager.StatefulContainer;
 import com.android.quickstep.TopTaskTracker.CachedTaskInfo;
+import com.android.quickstep.fallback.window.RecentsWindowFlags;
 import com.android.quickstep.util.ActiveGestureErrorDetector;
 import com.android.quickstep.util.ActiveGestureLog;
 import com.android.quickstep.util.ActiveGestureProtoLogProxy;
@@ -158,6 +159,7 @@ public class GestureState implements RecentsAnimationCallbacks.RecentsAnimationL
     private final BaseContainerInterface mContainerInterface;
     private final MultiStateCallback mStateCallback;
     private final int mGestureId;
+    private final int mDisplayId;
 
     public enum TrackpadGestureType {
         NONE,
@@ -190,16 +192,18 @@ public class GestureState implements RecentsAnimationCallbacks.RecentsAnimationL
     private boolean mHandlingAtomicEvent;
     private boolean mIsInExtendedSlopRegion;
 
-    public GestureState(OverviewComponentObserver componentObserver, int gestureId) {
+    public GestureState(OverviewComponentObserver componentObserver, int displayId, int gestureId) {
+        mDisplayId = displayId;
         mHomeIntent = componentObserver.getHomeIntent();
         mOverviewIntent = componentObserver.getOverviewIntent();
-        mContainerInterface = componentObserver.getContainerInterface();
+        mContainerInterface = componentObserver.getContainerInterface(displayId);
         mStateCallback = new MultiStateCallback(
                 STATE_NAMES.toArray(new String[0]), GestureState::getTrackedEventForState);
         mGestureId = gestureId;
     }
 
     public GestureState(GestureState other) {
+        mDisplayId = other.mDisplayId;
         mHomeIntent = other.mHomeIntent;
         mOverviewIntent = other.mOverviewIntent;
         mContainerInterface = other.mContainerInterface;
@@ -214,6 +218,7 @@ public class GestureState implements RecentsAnimationCallbacks.RecentsAnimationL
 
     public GestureState() {
         // Do nothing, only used for initializing the gesture state prior to user unlock
+        mDisplayId = Display.DEFAULT_DISPLAY;
         mHomeIntent = new Intent();
         mOverviewIntent = new Intent();
         mContainerInterface = null;
@@ -285,6 +290,13 @@ public class GestureState implements RecentsAnimationCallbacks.RecentsAnimationL
     }
 
     /**
+     * @return the id for the display this particular gesture was performed on.
+     */
+    public int getDisplayId() {
+        return mDisplayId;
+    }
+
+    /**
      * Sets if the gesture is is from the trackpad, if so, whether 3-finger, or 4-finger
      */
     public void setTrackpadGestureType(TrackpadGestureType trackpadGestureType) {
@@ -311,8 +323,7 @@ public class GestureState implements RecentsAnimationCallbacks.RecentsAnimationL
      */
     public boolean useSyntheticRecentsTransition() {
         return mRunningTask.isHomeTask()
-                && (Flags.enableFallbackOverviewInWindow()
-                        || Flags.enableLauncherOverviewInWindow());
+                && RecentsWindowFlags.Companion.getEnableOverviewInWindow();
     }
 
     /**
@@ -545,6 +556,7 @@ public class GestureState implements RecentsAnimationCallbacks.RecentsAnimationL
 
     public void dump(String prefix, PrintWriter pw) {
         pw.println(prefix + "GestureState:");
+        pw.println(prefix + "\tdisplayID=" + mDisplayId);
         pw.println(prefix + "\tgestureID=" + mGestureId);
         pw.println(prefix + "\trunningTask=" + mRunningTask);
         pw.println(prefix + "\tendTarget=" + mEndTarget);

@@ -64,18 +64,13 @@ class DesktopAppLaunchAnimatorHelper(
 
     fun createAnimators(info: TransitionInfo, finishCallback: (Animator) -> Unit): List<Animator> {
         val launchChange = getLaunchChange(info)
-        requireNotNull(launchChange) {
-            val changesString =
+        if (launchChange == null) {
+            val tasksInfo =
                 info.changes.joinToString(", ") { change ->
-                    "Change: mode=${change.mode}, " +
-                        "taskId=${change.taskInfo?.id}, " +
-                        "isFreeform=${change.taskInfo?.isFreeform}"
+                    "${change.taskInfo?.taskId}:${change.taskInfo?.isFreeform}"
                 }
-            Log.e(
-                TAG,
-                "No launch change found: Transition type=${info.type}, changes=$changesString",
-            )
-            "expected an app launch Change"
+            Log.e(TAG, "No launch change found: Transition info=$info, tasks state=$tasksInfo")
+            return emptyList()
         }
 
         val transaction = transactionSupplier.get()
@@ -98,22 +93,26 @@ class DesktopAppLaunchAnimatorHelper(
         }
         if (trampolineCloseChange != null) {
             val trampolineCloseAnimator =
-                createTrampolineCloseAnimator(trampolineCloseChange, transaction)
+                createTrampolineCloseAnimator(trampolineCloseChange, transaction, finishCallback)
             animatorsList.add(trampolineCloseAnimator)
         }
         return animatorsList
     }
 
     private fun getLaunchChange(info: TransitionInfo): Change? =
-        info.changes.firstOrNull { change -> change.mode in LAUNCH_CHANGE_MODES }
+        info.changes.firstOrNull { change ->
+            change.mode in LAUNCH_CHANGE_MODES && change.taskInfo?.isFreeform == true
+        }
 
     private fun getMinimizeChange(info: TransitionInfo): Change? =
-        info.changes.firstOrNull { change -> change.mode == TRANSIT_TO_BACK }
+        info.changes.firstOrNull { change ->
+            change.mode == TRANSIT_TO_BACK && change.taskInfo?.isFreeform == true
+        }
 
     private fun getTrampolineCloseChange(info: TransitionInfo): Change? {
         if (
             info.changes.size < 2 ||
-                !DesktopModeFlags.ENABLE_DESKTOP_TRAMPOLINE_CLOSE_ANIMATION_BUGFIX.isTrue
+            !DesktopModeFlags.ENABLE_DESKTOP_TRAMPOLINE_CLOSE_ANIMATION_BUGFIX.isTrue
         ) {
             return null
         }
@@ -186,20 +185,31 @@ class DesktopAppLaunchAnimatorHelper(
         onAnimFinish: (Animator) -> Unit,
     ): Animator {
         return MinimizeAnimator.create(
-            context.resources.displayMetrics,
+            context,
             change,
             transaction,
             onAnimFinish,
+            interactionJankMonitor,
+            context.mainThreadHandler,
         )
     }
 
-    private fun createTrampolineCloseAnimator(change: Change, transaction: Transaction): Animator {
+    private fun createTrampolineCloseAnimator(
+        change: Change,
+        transaction: Transaction,
+        onAnimFinish: (Animator) -> Unit,
+    ): Animator {
         return ValueAnimator.ofFloat(1f, 0f).apply {
             duration = 100L
             interpolator = Interpolators.LINEAR
             addUpdateListener { animation ->
                 transaction.setAlpha(change.leash, animation.animatedValue as Float).apply()
             }
+            addListener(
+                onEnd = { animation ->
+                    onAnimFinish(animation)
+                }
+            )
         }
     }
 

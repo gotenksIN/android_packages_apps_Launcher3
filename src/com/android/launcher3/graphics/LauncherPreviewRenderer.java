@@ -23,12 +23,15 @@ import static android.view.View.VISIBLE;
 import static com.android.launcher3.BubbleTextView.DISPLAY_TASKBAR;
 import static com.android.launcher3.BubbleTextView.DISPLAY_WORKSPACE;
 import static com.android.launcher3.DeviceProfile.DEFAULT_SCALE;
+import static com.android.launcher3.Flags.extendibleThemeManager;
 import static com.android.launcher3.Hotseat.ALPHA_CHANNEL_PREVIEW_RENDERER;
 import static com.android.launcher3.LauncherPrefs.GRID_NAME;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION;
 import static com.android.launcher3.Utilities.SHOULD_SHOW_FIRST_PAGE_WIDGET;
+import static com.android.launcher3.graphics.ThemeManager.PREF_ICON_SHAPE;
 import static com.android.launcher3.model.ModelUtils.currentScreenContentFilter;
+import static com.android.launcher3.widget.LauncherWidgetHolder.APPWIDGET_HOST_ID;
 
 import android.app.Fragment;
 import android.app.WallpaperColors;
@@ -37,13 +40,13 @@ import android.appwidget.AppWidgetHost;
 import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetProviderInfo;
 import android.content.Context;
-import android.content.ContextWrapper;
 import android.content.res.Configuration;
 import android.content.res.TypedArray;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Size;
 import android.util.SparseArray;
@@ -63,11 +66,9 @@ import androidx.annotation.Nullable;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.CellLayout;
 import com.android.launcher3.DeviceProfile;
-import com.android.launcher3.DeviceProfile.OnDeviceProfileChangeListener;
 import com.android.launcher3.Hotseat;
 import com.android.launcher3.InsettableFrameLayout;
 import com.android.launcher3.InvariantDeviceProfile;
-import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherSettings.Favorites;
 import com.android.launcher3.ProxyPrefs;
@@ -78,23 +79,34 @@ import com.android.launcher3.apppairs.AppPairIcon;
 import com.android.launcher3.celllayout.CellLayoutLayoutParams;
 import com.android.launcher3.celllayout.CellPosMapper;
 import com.android.launcher3.config.FeatureFlags;
+import com.android.launcher3.dagger.ApiWrapperModule;
+import com.android.launcher3.dagger.AppModule;
 import com.android.launcher3.dagger.LauncherAppComponent;
-import com.android.launcher3.dagger.LauncherAppModule;
 import com.android.launcher3.dagger.LauncherAppSingleton;
+import com.android.launcher3.dagger.LauncherComponentProvider;
+import com.android.launcher3.dagger.PluginManagerWrapperModule;
+import com.android.launcher3.dagger.StaticObjectModule;
+import com.android.launcher3.dagger.WindowManagerProxyModule;
 import com.android.launcher3.folder.FolderIcon;
+import com.android.launcher3.model.BaseLauncherBinder.BaseLauncherBinderFactory;
 import com.android.launcher3.model.BgDataModel;
 import com.android.launcher3.model.BgDataModel.FixedContainerItems;
+import com.android.launcher3.model.LayoutParserFactory;
+import com.android.launcher3.model.LayoutParserFactory.XmlLayoutParserFactory;
+import com.android.launcher3.model.LoaderTask.LoaderTaskFactory;
 import com.android.launcher3.model.data.AppPairInfo;
 import com.android.launcher3.model.data.CollectionInfo;
 import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
+import com.android.launcher3.util.BaseContext;
 import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.IntArray;
 import com.android.launcher3.util.IntSet;
-import com.android.launcher3.util.MainThreadInitializedObject.SandboxContext;
+import com.android.launcher3.util.SandboxContext;
+import com.android.launcher3.util.Themes;
 import com.android.launcher3.util.WindowBounds;
 import com.android.launcher3.util.window.WindowManagerProxy;
 import com.android.launcher3.views.ActivityContext;
@@ -102,6 +114,7 @@ import com.android.launcher3.views.BaseDragLayer;
 import com.android.launcher3.widget.BaseLauncherAppWidgetHostView;
 import com.android.launcher3.widget.LauncherAppWidgetProviderInfo;
 import com.android.launcher3.widget.LauncherWidgetHolder;
+import com.android.launcher3.widget.LauncherWidgetHolder.WidgetHolderFactory;
 import com.android.launcher3.widget.LocalColorExtractor;
 import com.android.launcher3.widget.util.WidgetSizes;
 import com.android.systemui.shared.Flags;
@@ -109,7 +122,8 @@ import com.android.systemui.shared.Flags;
 import dagger.BindsInstance;
 import dagger.Component;
 
-import java.util.ArrayList;
+import java.io.File;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -127,7 +141,7 @@ import java.util.stream.IntStream;
  *   3) Place appropriate elements like icons and first-page qsb
  *   4) Measure and draw the view on a canvas
  */
-public class LauncherPreviewRenderer extends ContextWrapper
+public class LauncherPreviewRenderer extends BaseContext
         implements ActivityContext, WorkspaceLayoutManager, LayoutInflater.Factory2 {
 
     /**
@@ -138,26 +152,66 @@ public class LauncherPreviewRenderer extends ContextWrapper
 
         private final String mPrefName;
 
-        public PreviewContext(Context base, String gridName) {
+        private final File mDbDir;
+
+        public PreviewContext(Context base, String gridName, String shapeKey) {
+            this(base, gridName, shapeKey, APPWIDGET_HOST_ID, null);
+        }
+
+        public PreviewContext(Context base, String gridName, String shapeKey,
+                int widgetHostId, @Nullable String layoutXml) {
             super(base);
-            mPrefName = "preview-" + UUID.randomUUID().toString();
+            String randomUid = UUID.randomUUID().toString();
+            mPrefName = "preview-" + randomUid;
             LauncherPrefs prefs =
                     new ProxyPrefs(this, getSharedPreferences(mPrefName, MODE_PRIVATE));
             prefs.put(GRID_NAME, gridName);
-            initDaggerComponent(
-                    DaggerLauncherPreviewRenderer_PreviewAppComponent.builder().bindPrefs(prefs));
-            putObject(LauncherAppState.INSTANCE,
-                    new LauncherAppState(this, null /* iconCacheFileName */));
+            prefs.put(PREF_ICON_SHAPE, shapeKey);
+
+            PreviewAppComponent.Builder builder =
+                    DaggerLauncherPreviewRenderer_PreviewAppComponent.builder().bindPrefs(prefs);
+            if (TextUtils.isEmpty(layoutXml) || !extendibleThemeManager()) {
+                mDbDir = null;
+                builder.bindParserFactory(new LayoutParserFactory(this))
+                        .bindWidgetsFactory(
+                                LauncherComponentProvider.get(base).getWidgetHolderFactory());
+            } else {
+                mDbDir = new File(base.getFilesDir(), randomUid);
+                emptyDbDir();
+                mDbDir.mkdirs();
+                builder.bindParserFactory(new XmlLayoutParserFactory(this, layoutXml))
+                        .bindWidgetsFactory(c -> new LauncherWidgetHolder(c, widgetHostId));
+            }
+            initDaggerComponent(builder);
+
+            if (!TextUtils.isEmpty(layoutXml)) {
+                // Use null the DB file so that we use a new in-memory DB
+                InvariantDeviceProfile.INSTANCE.get(this).dbFile = null;
+            }
+        }
+
+        private void emptyDbDir() {
+            if (mDbDir != null && mDbDir.exists()) {
+                Arrays.stream(mDbDir.listFiles()).forEach(File::delete);
+            }
         }
 
         @Override
         protected void cleanUpObjects() {
             super.cleanUpObjects();
             deleteSharedPreferences(mPrefName);
+            if (mDbDir != null) {
+                emptyDbDir();
+                mDbDir.delete();
+            }
+        }
+
+        @Override
+        public File getDatabasePath(String name) {
+            return mDbDir != null ? new File(mDbDir, name) :  super.getDatabasePath(name);
         }
     }
 
-    private final List<OnDeviceProfileChangeListener> mDpChangeListeners = new ArrayList<>();
     private final Handler mUiHandler;
     private final Context mContext;
     private final InvariantDeviceProfile mIdp;
@@ -174,18 +228,20 @@ public class LauncherPreviewRenderer extends ContextWrapper
 
     public LauncherPreviewRenderer(Context context,
             InvariantDeviceProfile idp,
+            int widgetHostId,
             WallpaperColors wallpaperColorsOverride,
             @Nullable final SparseArray<Size> launcherWidgetSpanInfo) {
-        this(context, idp, null, wallpaperColorsOverride, launcherWidgetSpanInfo);
+        this(context, idp, widgetHostId, null, wallpaperColorsOverride, launcherWidgetSpanInfo);
     }
 
     public LauncherPreviewRenderer(Context context,
             InvariantDeviceProfile idp,
+            int widgetHostId,
             SparseIntArray previewColorOverride,
             WallpaperColors wallpaperColorsOverride,
             @Nullable final SparseArray<Size> launcherWidgetSpanInfo) {
 
-        super(context);
+        super(context, Themes.getActivityThemeRes(context));
         mUiHandler = new Handler(Looper.getMainLooper());
         mContext = context;
         mIdp = idp;
@@ -263,7 +319,18 @@ public class LauncherPreviewRenderer extends ContextWrapper
                     wallpaperColors)
                     : null;
         }
-        mAppWidgetHost = new LauncherPreviewAppWidgetHost(context);
+        mAppWidgetHost = new LauncherPreviewAppWidgetHost(context, widgetHostId);
+
+        onViewCreated();
+
+        if (widgetHostId != APPWIDGET_HOST_ID) {
+            mAppWidgetHost.stopListening();
+        }
+    }
+
+    @Override
+    public InsettableFrameLayout getRootView() {
+        return mRootView;
     }
 
     /**
@@ -347,11 +414,6 @@ public class LauncherPreviewRenderer extends ContextWrapper
     @Override
     public DeviceProfile getDeviceProfile() {
         return mDp;
-    }
-
-    @Override
-    public List<OnDeviceProfileChangeListener> getOnDeviceProfileChangeListeners() {
-        return mDpChangeListeners;
     }
 
     @Override
@@ -566,8 +628,8 @@ public class LauncherPreviewRenderer extends ContextWrapper
 
     private class LauncherPreviewAppWidgetHost extends AppWidgetHost {
 
-        private LauncherPreviewAppWidgetHost(Context context) {
-            super(context, LauncherWidgetHolder.APPWIDGET_HOST_ID);
+        private LauncherPreviewAppWidgetHost(Context context, int hostId) {
+            super(context, hostId);
         }
 
         @Override
@@ -603,13 +665,24 @@ public class LauncherPreviewRenderer extends ContextWrapper
     }
 
     @LauncherAppSingleton
-    @Component(modules = LauncherAppModule.class)
+    // Exclude widget module since we bind widget holder separately
+    @Component(modules = {WindowManagerProxyModule.class,
+            ApiWrapperModule.class,
+            PluginManagerWrapperModule.class,
+            StaticObjectModule.class,
+            AppModule.class})
     public interface PreviewAppComponent extends LauncherAppComponent {
+
+        LoaderTaskFactory getLoaderTaskFactory();
+        BaseLauncherBinderFactory getBaseLauncherBinderFactory();
+        BgDataModel getDataModel();
 
         /** Builder for NexusLauncherAppComponent. */
         @Component.Builder
         interface Builder extends LauncherAppComponent.Builder {
             @BindsInstance Builder bindPrefs(LauncherPrefs prefs);
+            @BindsInstance Builder bindParserFactory(LayoutParserFactory parserFactory);
+            @BindsInstance Builder bindWidgetsFactory(WidgetHolderFactory holderFactory);
             PreviewAppComponent build();
         }
     }

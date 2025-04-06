@@ -38,7 +38,6 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.android.launcher3.Flags;
-import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.LauncherModel.ModelUpdateTask;
 import com.android.launcher3.LauncherSettings.Favorites;
 import com.android.launcher3.config.FeatureFlags;
@@ -106,9 +105,8 @@ public class PackageUpdatedTask implements ModelUpdateTask {
     @Override
     public void execute(@NonNull ModelTaskController taskController, @NonNull BgDataModel dataModel,
             @NonNull AllAppsList appsList) {
-        final LauncherAppState app = taskController.getApp();
-        final Context context = app.getContext();
-        final IconCache iconCache = app.getIconCache();
+        final Context context = taskController.getContext();
+        final IconCache iconCache = taskController.getIconCache();
 
         final String[] packages = mPackages;
         final int packageCount = packages.length;
@@ -239,25 +237,31 @@ public class PackageUpdatedTask implements ModelUpdateTask {
                             boolean isTargetValid = !cn.getClassName().equals(
                                     IconCache.EMPTY_CLASS_NAME);
                             if (itemInfo.itemType == ITEM_TYPE_DEEP_SHORTCUT) {
+                                int requestQuery = ShortcutRequest.PINNED;
+                                if (Flags.restoreArchivedShortcuts()) {
+                                    // Avoid race condition where shortcut service has no record of
+                                    // unarchived shortcut being pinned after restore.
+                                    // Launcher should be source-of-truth for if shortcut is pinned.
+                                    requestQuery = ShortcutRequest.ALL;
+                                }
                                 List<ShortcutInfo> shortcut =
                                         new ShortcutRequest(context, mUser)
                                                 .forPackage(cn.getPackageName(),
                                                         itemInfo.getDeepShortcutId())
-                                                .query(ShortcutRequest.PINNED);
-                                if (shortcut.isEmpty()
-                                        && !(Flags.restoreArchivedShortcuts()
-                                            && !itemInfo.isArchived())
-                                ) {
+                                                .query(requestQuery);
+                                if (shortcut.isEmpty()) {
                                     isTargetValid = false;
                                     if (DEBUG) {
-                                        Log.d(TAG, "Pinned Shortcut not found for updated"
-                                                + " package=" + itemInfo.getTargetPackage());
-                                    }
-                                } else if (!shortcut.isEmpty()) {
-                                    if (DEBUG) {
-                                        Log.d(TAG, "Found pinned shortcut for updated"
+                                        Log.d(TAG, "Shortcut not found for updated"
                                                 + " package=" + itemInfo.getTargetPackage()
-                                                + ", isTargetValid=" + isTargetValid);
+                                                + ", isArchived=" + itemInfo.isArchived());
+                                    }
+                                } else {
+                                    if (DEBUG) {
+                                        Log.d(TAG, "Found shortcut for updated"
+                                                + " package=" + itemInfo.getTargetPackage()
+                                                + ", isTargetValid=" + isTargetValid
+                                                + ", isArchived=" + itemInfo.isArchived());
                                     }
                                     itemInfo.updateFromDeepShortcutInfo(shortcut.get(0), context);
                                     infoUpdated = true;
@@ -427,7 +431,7 @@ public class PackageUpdatedTask implements ModelUpdateTask {
             // Load widgets for the new package. Changes due to app updates are handled through
             // AppWidgetHost events, this is just to initialize the long-press options.
             for (int i = 0; i < packageCount; i++) {
-                dataModel.widgetsModel.update(app, new PackageUserKey(packages[i], mUser));
+                dataModel.widgetsModel.update(new PackageUserKey(packages[i], mUser));
             }
             taskController.bindUpdatedWidgets(dataModel);
         }

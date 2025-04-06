@@ -139,9 +139,15 @@
     <string name="taskbar_overflow_a11y_title" msgid="7960342079198820179">"Overflow barra delle app"</string>
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Sposta in alto/a sinistra"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Sposta in basso/a destra"</string>
+    <string name="open_app_as_a_bubble" msgid="6642626287247807473">"Apri l\'app come fumetto"</string>
+    <string name="quick_switch_pane_title" msgid="4677158207760585812">"App recenti"</string>
+    <string name="quick_switch_content_description" msgid="2851244536728720005">"Elenco app recenti"</string>
     <string name="quick_switch_overflow" msgid="3679780650881041632">"{count,plural, =1{altra app}other{altre app}}"</string>
     <string name="quick_switch_desktop" msgid="8393802056024499749">"Desktop"</string>
     <string name="quick_switch_split_task" msgid="5598194724255333896">"<xliff:g id="APP_NAME_1">%1$s</xliff:g> e <xliff:g id="APP_NAME_2">%2$s</xliff:g>"</string>
+    <string name="quick_switch_task_with_position_in_parent" msgid="4968670948331508951">"<xliff:g id="TASK_DESCRIPTION">%1$s</xliff:g>, elemento <xliff:g id="INDEX_IN_PARENT">%2$d</xliff:g> di <xliff:g id="TOTAL_TASKS">%3$d</xliff:g>"</string>
+    <string name="quick_switch_scroll_arrow_left" msgid="6527033155534184309">"Scorri verso sinistra"</string>
+    <string name="quick_switch_scroll_arrow_right" msgid="7319779291086916348">"Scorri verso destra"</string>
     <string name="bubble_bar_bubble_fallback_description" msgid="7811684548953452009">"Fumetto"</string>
     <string name="bubble_bar_overflow_description" msgid="8617628132733151708">"Extra"</string>
     <string name="bubble_bar_bubble_description" msgid="1882466152448446446">"<xliff:g id="NOTIFICATION_TITLE">%1$s</xliff:g> da <xliff:g id="APP_NAME">%2$s</xliff:g>"</string>
@@ -155,4 +161,6 @@
     <string name="header_app_icon_description" msgid="2184625881433608027">"Icona dell\'app"</string>
     <string name="header_default_app_title" msgid="8308052350689531566">"Titolo dell\'app"</string>
     <string name="header_close_icon_description" msgid="5400033616675911319">"Pulsante Chiudi"</string>
+    <string name="pin_to_taskbar" msgid="6607778046321626950">"Fissa alla barra app"</string>
+    <string name="unpin_from_taskbar" msgid="2178811773165572676">"Sblocca da barra app"</string>
 </resources>

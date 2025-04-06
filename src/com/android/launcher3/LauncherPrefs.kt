@@ -20,6 +20,7 @@ import android.content.Context.MODE_PRIVATE
 import android.content.SharedPreferences
 import androidx.annotation.VisibleForTesting
 import com.android.launcher3.BuildConfig.WIDGET_ON_FIRST_SCREEN
+import com.android.launcher3.GridType.Companion.GRID_TYPE_ANY
 import com.android.launcher3.InvariantDeviceProfile.GRID_NAME_PREFS_KEY
 import com.android.launcher3.InvariantDeviceProfile.NON_FIXED_LANDSCAPE_GRID_NAME_PREFS_KEY
 import com.android.launcher3.LauncherFiles.DEVICE_PREFERENCES_KEY
@@ -75,18 +76,18 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
     @Suppress("IMPLICIT_CAST_TO_ANY", "UNCHECKED_CAST")
     private fun <T> getInner(item: Item, default: T): T {
         val sp = getSharedPrefs(item)
-
-        return when (item.type) {
-            String::class.java -> sp.getString(item.sharedPrefKey, default as? String)
-            Boolean::class.java,
-            java.lang.Boolean::class.java -> sp.getBoolean(item.sharedPrefKey, default as Boolean)
-            Int::class.java,
-            java.lang.Integer::class.java -> sp.getInt(item.sharedPrefKey, default as Int)
-            Float::class.java,
-            java.lang.Float::class.java -> sp.getFloat(item.sharedPrefKey, default as Float)
-            Long::class.java,
-            java.lang.Long::class.java -> sp.getLong(item.sharedPrefKey, default as Long)
-            Set::class.java -> sp.getStringSet(item.sharedPrefKey, default as? Set<String>)
+        return when {
+            item.type == String::class.java -> sp.getString(item.sharedPrefKey, default as? String)
+            item.type == Boolean::class.java || item.type == java.lang.Boolean::class.java ->
+                sp.getBoolean(item.sharedPrefKey, default as Boolean)
+            item.type == Int::class.java || item.type == java.lang.Integer::class.java ->
+                sp.getInt(item.sharedPrefKey, default as Int)
+            item.type == Float::class.java || item.type == java.lang.Float::class.java ->
+                sp.getFloat(item.sharedPrefKey, default as Float)
+            item.type == Long::class.java || item.type == java.lang.Long::class.java ->
+                sp.getLong(item.sharedPrefKey, default as Long)
+            Set::class.java.isAssignableFrom(item.type) ->
+                sp.getStringSet(item.sharedPrefKey, default as? Set<String>)
             else ->
                 throw IllegalArgumentException(
                     "item type: ${item.type}" + " is not compatible with sharedPref methods"
@@ -147,17 +148,18 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
         item: Item,
         value: Any?,
     ): SharedPreferences.Editor =
-        when (item.type) {
-            String::class.java -> putString(item.sharedPrefKey, value as? String)
-            Boolean::class.java,
-            java.lang.Boolean::class.java -> putBoolean(item.sharedPrefKey, value as Boolean)
-            Int::class.java,
-            java.lang.Integer::class.java -> putInt(item.sharedPrefKey, value as Int)
-            Float::class.java,
-            java.lang.Float::class.java -> putFloat(item.sharedPrefKey, value as Float)
-            Long::class.java,
-            java.lang.Long::class.java -> putLong(item.sharedPrefKey, value as Long)
-            Set::class.java -> putStringSet(item.sharedPrefKey, value as? Set<String>)
+        when {
+            item.type == String::class.java -> putString(item.sharedPrefKey, value as? String)
+            item.type == Boolean::class.java || item.type == java.lang.Boolean::class.java ->
+                putBoolean(item.sharedPrefKey, value as Boolean)
+            item.type == Int::class.java || item.type == java.lang.Integer::class.java ->
+                putInt(item.sharedPrefKey, value as Int)
+            item.type == Float::class.java || item.type == java.lang.Float::class.java ->
+                putFloat(item.sharedPrefKey, value as Float)
+            item.type == Long::class.java || item.type == java.lang.Long::class.java ->
+                putLong(item.sharedPrefKey, value as Long)
+            Set::class.java.isAssignableFrom(item.type) ->
+                putStringSet(item.sharedPrefKey, value as? Set<String>)
             else ->
                 throw IllegalArgumentException(
                     "item type: ${item.type} is not compatible with sharedPref methods"
@@ -264,6 +266,9 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
             )
         @JvmField
         val DB_FILE = backedUpItem(DeviceGridState.KEY_DB_FILE, "", EncryptionType.ENCRYPTED)
+        @JvmField
+        val GRID_TYPE =
+            backedUpItem(DeviceGridState.KEY_GRID_TYPE, GRID_TYPE_ANY, EncryptionType.ENCRYPTED)
         @JvmField
         val SHOULD_SHOW_SMARTSPACE =
             backedUpItem(

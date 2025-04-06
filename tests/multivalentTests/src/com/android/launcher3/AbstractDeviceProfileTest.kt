@@ -35,8 +35,8 @@ import com.android.launcher3.testing.shared.ResourceUtils
 import com.android.launcher3.util.AllModulesMinusWMProxy
 import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.FakePrefsModule
-import com.android.launcher3.util.MainThreadInitializedObject.SandboxContext
 import com.android.launcher3.util.NavigationMode
+import com.android.launcher3.util.SandboxContext
 import com.android.launcher3.util.WindowBounds
 import com.android.launcher3.util.rule.TestStabilityRule
 import com.android.launcher3.util.rule.setFlags
@@ -364,13 +364,8 @@ abstract class AbstractDeviceProfileTest {
         context.assets.open("dumpTests/$fileName").bufferedReader().use(BufferedReader::readText)
 
     private fun writeToDevice(context: Context, fileName: String, content: String) {
-        val dir =
-            File(context.filesDir, "dumpTests").also {
-                if (!it.exists()) {
-                    it.mkdirs()
-                }
-            }
-        File(dir, fileName).writeText(content)
+        val file = File(context.getDir("dumpTests", Context.MODE_PRIVATE), fileName)
+        file.writeText(content)
     }
 
     protected fun Float.dpToPx(): Float {

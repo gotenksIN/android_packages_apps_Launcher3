@@ -62,7 +62,7 @@
     <string name="widget_button_text" msgid="2880537293434387943">"Приспособления"</string>
     <string name="widgets_full_sheet_search_bar_hint" msgid="8484659090860596457">"Търсене"</string>
     <string name="widgets_full_sheet_cancel_button_description" msgid="5766167035728653605">"Изчистване на текста от полето за търсене"</string>
-    <string name="no_widgets_available" msgid="4337693382501046170">"Няма налице преки пътища и приспособления"</string>
+    <string name="no_widgets_available" msgid="4337693382501046170">"Няма налични преки пътища и приспособления"</string>
     <string name="no_search_results" msgid="3787956167293097509">"Няма открити преки пътища или приспособления"</string>
     <string name="widgets_full_sheet_personal_tab" msgid="2743540105607120182">"Лични"</string>
     <string name="widgets_full_sheet_work_tab" msgid="3767150027110633765">"Служебни"</string>
@@ -101,7 +101,6 @@
     <string name="dismiss_prediction_label" msgid="3357562989568808658">"Без предлагане на приложение"</string>
     <string name="pin_prediction" msgid="4196423321649756498">"Фиксиране на предвиждането"</string>
     <string name="bubble" msgid="3072951361014076670">"Балонче"</string>
-    <string name="pin_to_taskbar" msgid="1281337899690299038">"Фикс. в лентата на задач."</string>
     <string name="permlab_install_shortcut" msgid="5632423390354674437">"инсталиране на преки пътища"</string>
     <string name="permdesc_install_shortcut" msgid="923466509822011139">"Разрешава на приложението да добавя преки пътища без намеса на потребителя."</string>
     <string name="permlab_read_settings" msgid="5136500343007704955">"четене на настройките и преките пътища на началния екран"</string>
@@ -118,6 +117,8 @@
     <string name="default_scroll_format" msgid="7475544710230993317">"Страница %1$d от %2$d"</string>
     <string name="workspace_scroll_format" msgid="8458889198184077399">"Начален екран %1$d от %2$d"</string>
     <string name="workspace_new_page" msgid="257366611030256142">"Нова страница на началния екран"</string>
+    <string name="app_running_state_description" msgid="5645053189564740904">"Активно"</string>
+    <string name="app_minimized_state_description" msgid="710740620044902509">"Намалено"</string>
     <string name="folder_opened" msgid="94695026776264709">"Папката е отворена – <xliff:g id="WIDTH">%1$d</xliff:g> на <xliff:g id="HEIGHT">%2$d</xliff:g>"</string>
     <string name="folder_tap_to_close" msgid="4625795376335528256">"Докоснете, за да затворите папката"</string>
     <string name="folder_tap_to_rename" msgid="4017685068016979677">"Докоснете, за да запазите новото име"</string>
@@ -130,6 +131,7 @@
     <string name="styles_wallpaper_button_text" msgid="8216961355289236794">"Тапет и стил"</string>
     <string name="edit_home_screen" msgid="8947858375782098427">"Редактиране на началния екран"</string>
     <string name="settings_button_text" msgid="8873672322605444408">"Настройки за началния екран"</string>
+    <string name="all_apps_home_screen" msgid="8658178652647896497">"Приложения"</string>
     <string name="msg_disabled_by_admin" msgid="6898038085516271325">"Деактивирано от администратора ви"</string>
     <string name="allow_rotation_title" msgid="7222049633713050106">"Разрешаване на завъртането на началния екран"</string>
     <string name="allow_rotation_desc" msgid="8662546029078692509">"При завъртане на телефона"</string>
@@ -183,10 +185,14 @@
     <string name="action_decrease_height" msgid="282377193880900022">"Намаляване на височината"</string>
     <string name="widget_resized" msgid="9130327887929620">"Приспособлението е преоразмерено към ширина <xliff:g id="NUMBER_0">%1$s</xliff:g> и височина <xliff:g id="NUMBER_1">%2$s</xliff:g>"</string>
     <string name="action_deep_shortcut" msgid="4766835855579976045">"Меню за клавишните комбинации"</string>
+    <string name="widget_frame_name" msgid="8782828448471444270">"Рамка за преоразмеряване на приспособлението за <xliff:g id="STRING">%1$s</xliff:g>"</string>
+    <string name="action_close" msgid="1077760267194136901">"Затваряне"</string>
     <string name="action_dismiss_notification" msgid="5909461085055959187">"Отхвърляне"</string>
     <string name="accessibility_close" msgid="2277148124685870734">"Затваряне"</string>
     <string name="all_apps_personal_tab" msgid="4190252696685155002">"Лични"</string>
     <string name="all_apps_work_tab" msgid="4884822796154055118">"Служебни"</string>
+    <string name="all_apps_personal_tab_content_description" msgid="6286808898381807242">"Раздел „Лични приложения“"</string>
+    <string name="all_apps_work_tab_content_description" msgid="3835637212347968316">"Раздел „Служебни приложения“"</string>
     <string name="work_profile_toggle_label" msgid="3081029915775481146">"Служебен потребителски профил"</string>
     <string name="work_profile_edu_work_apps" msgid="7895468576497746520">"Служебните приложения са означени със значка и са видими за системния администратор"</string>
     <string name="work_profile_edu_accept" msgid="6069788082535149071">"Разбрах"</string>
@@ -211,4 +217,5 @@
     <string name="ps_container_transition" msgid="8667331812048014412">"Преминаване към частното пространство"</string>
     <string name="ps_add_button_label" msgid="8127988716897128773">"Инсталиране"</string>
     <string name="ps_add_button_content_description" msgid="3254274107740952556">"Инсталиране на приложения в частно пространство"</string>
+    <string name="ps_app_content_description" msgid="1129133475892816226">"Добавяне на файлове и др. в частно пространство"</string>
 </resources>

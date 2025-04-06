@@ -43,7 +43,6 @@ import android.os.IBinder;
 import android.os.Process;
 import android.os.UserHandle;
 import android.util.Log;
-import android.view.ContextThemeWrapper;
 import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -57,6 +56,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.savedstate.SavedStateRegistryOwner;
 
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.DeviceProfile;
@@ -81,11 +81,13 @@ import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.PopupDataProvider;
 import com.android.launcher3.util.ActivityOptionsWrapper;
 import com.android.launcher3.util.ApplicationInfoWrapper;
+import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.Preconditions;
 import com.android.launcher3.util.RunnableList;
 import com.android.launcher3.util.SplitConfigurationOptions;
 import com.android.launcher3.util.SystemUiController;
 import com.android.launcher3.util.ViewCache;
+import com.android.launcher3.util.WeakCleanupSet;
 import com.android.launcher3.widget.picker.model.WidgetPickerDataProvider;
 
 import java.util.List;
@@ -94,16 +96,12 @@ import java.util.List;
  * An interface to be used along with a context for various activities in Launcher. This allows a
  * generic class to depend on Context subclass instead of an Activity.
  */
-public interface ActivityContext {
+public interface ActivityContext extends SavedStateRegistryOwner {
 
     String TAG = "ActivityContext";
 
     default boolean finishAutoCancelActionMode() {
         return false;
-    }
-
-    default DotInfo getDotInfoForItem(ItemInfo info) {
-        return null;
     }
 
     default AccessibilityDelegate getAccessibilityDelegate() {
@@ -195,6 +193,14 @@ public interface ActivityContext {
     }
 
     /**
+     * Returns the primary content of this context
+     */
+    @NonNull
+    default LauncherBindableItemsContainer getContent() {
+        return op -> null;
+    }
+
+    /**
      * The all apps container, if it exists in this context.
      */
     default ActivityAllAppsContainerView<?> getAppsView() {
@@ -225,9 +231,7 @@ public interface ActivityContext {
         getOnDeviceProfileChangeListeners().remove(listener);
     }
 
-    default ViewCache getViewCache() {
-        return new ViewCache();
-    }
+    ViewCache getViewCache();
 
     /**
      * Controller for supporting item drag-and-drop
@@ -271,11 +275,6 @@ public interface ActivityContext {
      */
     default void applyOverwritesToLogItem(LauncherAtom.ItemInfo.Builder itemInfoBuilder) { }
 
-    /** Returns {@code true} if items are currently being bound within this context. */
-    default boolean isBindingItems() {
-        return false;
-    }
-
     default View.OnClickListener getItemOnClickListener() {
         return v -> {
             // No op.
@@ -287,9 +286,13 @@ public interface ActivityContext {
         return v -> false;
     }
 
-    @Nullable
+    @NonNull
     default PopupDataProvider getPopupDataProvider() {
-        return null;
+        return new PopupDataProvider(this);
+    }
+
+    default DotInfo getDotInfoForItem(ItemInfo info) {
+        return getPopupDataProvider().getDotInfoForItem(info);
     }
 
     /**
@@ -518,6 +521,9 @@ public interface ActivityContext {
         return new CellPosMapper(dp.isVerticalBarLayout(), dp.numShownHotseatIcons);
     }
 
+    /** Set to manage objects that can be cleaned up along with the context */
+    WeakCleanupSet getOwnerCleanupSet();
+
     /** Whether bubbles are enabled. */
     default boolean isBubbleBarEnabled() {
         return false;
@@ -552,21 +558,10 @@ public interface ActivityContext {
     static <T extends Context & ActivityContext> T lookupContextNoThrow(Context context) {
         if (context instanceof ActivityContext) {
             return (T) context;
-        } else if (context instanceof ActivityContextDelegate acd) {
-            return (T) acd.mDelegate;
-        } else if (context instanceof ContextWrapper) {
-            return lookupContextNoThrow(((ContextWrapper) context).getBaseContext());
+        } else if (context instanceof ContextWrapper cw) {
+            return lookupContextNoThrow(cw.getBaseContext());
         } else {
             return null;
-        }
-    }
-
-    class ActivityContextDelegate extends ContextThemeWrapper {
-        public final ActivityContext mDelegate;
-
-        public ActivityContextDelegate(Context base, int themeResId, ActivityContext delegate) {
-            super(base, themeResId);
-            mDelegate = delegate;
         }
     }
 }

@@ -15,7 +15,6 @@
  */
 package com.android.quickstep.views
 
-import android.animation.Animator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Matrix
@@ -26,6 +25,7 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.util.Log
 import android.util.Size
+import android.view.Display.INVALID_DISPLAY
 import android.view.Gravity
 import android.view.View
 import android.view.ViewStub
@@ -36,7 +36,7 @@ import com.android.launcher3.Flags.enableDesktopExplodedView
 import com.android.launcher3.Flags.enableOverviewIconMenu
 import com.android.launcher3.Flags.enableRefactorTaskThumbnail
 import com.android.launcher3.R
-import com.android.launcher3.anim.AnimatedFloat
+import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.testing.TestLogging
 import com.android.launcher3.testing.shared.TestProtocol
 import com.android.launcher3.util.RunnableList
@@ -59,6 +59,7 @@ import com.android.quickstep.recents.ui.viewmodel.TaskData
 import com.android.quickstep.task.thumbnail.TaskThumbnailView
 import com.android.quickstep.util.DesktopTask
 import com.android.quickstep.util.RecentsOrientedState
+import com.android.wm.shell.shared.desktopmode.DesktopModeStatus.enableMultipleDesktops
 import kotlin.math.roundToInt
 
 /** TaskView that contains all tasks that are part of the desktop. */
@@ -69,6 +70,11 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         type = TaskViewType.DESKTOP,
         thumbnailFullscreenParams = DesktopFullscreenDrawParams(context),
     ) {
+    val deskId
+        get() = desktopTask?.deskId ?: DesktopVisibilityController.INACTIVE_DESK_ID
+
+    private var desktopTask: DesktopTask? = null
+
     private val contentViewFullscreenParams = FullscreenDrawParams(context)
 
     private val taskThumbnailViewDeprecatedPool =
@@ -123,6 +129,14 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
             positionTaskWindows()
         }
 
+    override val displayId: Int
+        get() =
+            if (enableMultipleDesktops(context)) {
+                desktopTask?.displayId ?: INVALID_DISPLAY
+            } else {
+                super.displayId
+            }
+
     private fun getRemoteTargetHandle(taskId: Int): RemoteTargetHandle? =
         remoteTargetHandles?.firstOrNull {
             it.transformParams.targetSet.firstAppTargetTaskId == taskId
@@ -164,9 +178,6 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
             }
             ?.inflate()
     }
-
-    fun startWindowExplodeAnimation(): Animator =
-        AnimatedFloat { progress -> explodeProgress = progress }.animateToValue(0.0f, 1.0f)
 
     private fun positionTaskWindows() {
         if (taskContainers.isEmpty()) {
@@ -298,6 +309,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         orientedState: RecentsOrientedState,
         taskOverlayFactory: TaskOverlayFactory,
     ) {
+        this.desktopTask = desktopTask
         // TODO(b/370495260): Minimized tasks should not be filtered with desktop exploded view
         // support.
         // Minimized tasks should not be shown in Overview.
@@ -341,23 +353,22 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
 
         if (enableRefactorTaskThumbnail()) {
             viewModel =
-                DesktopTaskViewModel(organizeDesktopTasksUseCase = RecentsDependencies.get())
+                DesktopTaskViewModel(organizeDesktopTasksUseCase = RecentsDependencies.get(context))
         }
     }
 
     override fun onRecycle() {
         super.onRecycle()
+        desktopTask = null
         explodeProgress = 0.0f
         viewModel = null
         visibility = VISIBLE
-        taskContainers.forEach {
-            contentView.removeView(it.snapshotView)
-            if (enableRefactorTaskThumbnail()) {
-                taskThumbnailViewPool!!.recycle(it.thumbnailView)
-            } else {
-                taskThumbnailViewDeprecatedPool!!.recycle(it.thumbnailViewDeprecated)
-            }
-        }
+        taskContainers.forEach { removeAndRecycleThumbnailView(it) }
+    }
+
+    override fun setOrientationState(orientationState: RecentsOrientedState) {
+        super.setOrientationState(orientationState)
+        iconView.setIconOrientation(orientationState, isGridTask)
     }
 
     @SuppressLint("RtlHardcoded")
@@ -365,19 +376,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         super.updateTaskSize(lastComputedTaskSize, lastComputedGridTaskSize)
         this.lastComputedTaskSize.set(lastComputedTaskSize)
 
-        BaseContainerInterface.getTaskDimension(mContext, container.deviceProfile, tempPointF)
-        val desktopSize = Size(tempPointF.x.toInt(), tempPointF.y.toInt())
-        DEFAULT_BOUNDS.set(0, 0, desktopSize.width / 4, desktopSize.height / 4)
-
-        fullscreenTaskPositions =
-            taskContainers.map {
-                DesktopTaskBoundsData(it.task.key.id, it.task.appBounds ?: DEFAULT_BOUNDS)
-            }
-
-        if (enableDesktopExplodedView()) {
-            viewModel?.organizeDesktopTasks(desktopSize, fullscreenTaskPositions)
-        }
-        positionTaskWindows()
+        updateTaskPositions()
     }
 
     override fun onTaskListVisibilityChanged(visible: Boolean, changes: Int) {
@@ -461,6 +460,56 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
     override fun addChildrenForAccessibility(outChildren: ArrayList<View>) {
         super.addChildrenForAccessibility(outChildren)
         ViewUtils.addAccessibleChildToList(backgroundView, outChildren)
+    }
+
+    fun removeTaskFromExplodedView(taskId: Int, animate: Boolean) {
+        if (!enableDesktopExplodedView()) {
+            Log.e(
+                TAG,
+                "removeTaskFromExplodedView called when enableDesktopExplodedView flag is false",
+            )
+            return
+        }
+
+        // Remove the task's [taskContainer] and its associated Views.
+        val taskContainer = getTaskContainerById(taskId) ?: return
+        removeAndRecycleThumbnailView(taskContainer)
+        taskContainer.destroy()
+        taskContainers = taskContainers.filterNot { it == taskContainer }
+
+        // Dismiss the current DesktopTaskView if all its windows are closed.
+        if (taskContainers.isEmpty()) {
+            recentsView?.dismissTaskView(this, animate, /* removeTask= */ true)
+        } else {
+            // Otherwise, re-position the remaining task windows.
+            // TODO(b/353949276): Implement the re-layout animations.
+            updateTaskPositions()
+        }
+    }
+
+    private fun removeAndRecycleThumbnailView(taskContainer: TaskContainer) {
+        contentView.removeView(taskContainer.snapshotView)
+        if (enableRefactorTaskThumbnail()) {
+            taskThumbnailViewPool!!.recycle(taskContainer.thumbnailView)
+        } else {
+            taskThumbnailViewDeprecatedPool!!.recycle(taskContainer.thumbnailViewDeprecated)
+        }
+    }
+
+    private fun updateTaskPositions() {
+        BaseContainerInterface.getTaskDimension(mContext, container.deviceProfile, tempPointF)
+        val desktopSize = Size(tempPointF.x.toInt(), tempPointF.y.toInt())
+        DEFAULT_BOUNDS.set(0, 0, desktopSize.width / 4, desktopSize.height / 4)
+
+        fullscreenTaskPositions =
+            taskContainers.map {
+                DesktopTaskBoundsData(it.task.key.id, it.task.appBounds ?: DEFAULT_BOUNDS)
+            }
+
+        if (enableDesktopExplodedView()) {
+            viewModel?.organizeDesktopTasks(desktopSize, fullscreenTaskPositions)
+        }
+        positionTaskWindows()
     }
 
     companion object {

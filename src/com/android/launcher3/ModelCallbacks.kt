@@ -95,7 +95,7 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
         synchronouslyBoundPages = boundPages
         pagesToBindSynchronously = LIntSet()
         clearPendingBinds()
-        if (!launcher.isInState(LauncherState.ALL_APPS)) {
+        if (!launcher.isInState(LauncherState.ALL_APPS) && !Flags.enableWorkspaceInflation()) {
             launcher.appsView.appsStore.enableDeferUpdates(AllAppsStore.DEFER_UPDATES_NEXT_DRAW)
             pendingTasks.add {
                 launcher.appsView.appsStore.disableDeferUpdates(
@@ -234,11 +234,8 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
         PopupContainerWithArrow.dismissInvalidPopup(launcher)
     }
 
-    override fun bindAllWidgets(
-        allWidgets: List<WidgetsListBaseEntry>,
-        defaultWidgets: List<WidgetsListBaseEntry>,
-    ) {
-        launcher.widgetPickerDataProvider.setWidgets(allWidgets, defaultWidgets)
+    override fun bindAllWidgets(allWidgets: List<WidgetsListBaseEntry>) {
+        launcher.widgetPickerDataProvider.setWidgets(allWidgets)
     }
 
     /** Returns the ids of the workspaces to bind. */

@@ -26,12 +26,12 @@ import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.MODEL_EXECUTOR;
 import static com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_BOTTOM_OR_RIGHT;
 import static com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_TOP_OR_LEFT;
+import static com.android.systemui.shared.recents.utilities.Utilities.isFreeformTask;
 import static com.android.wm.shell.shared.split.SplitScreenConstants.SNAP_TO_2_50_50;
 import static com.android.wm.shell.shared.split.SplitScreenConstants.SNAP_TO_NONE;
 import static com.android.wm.shell.shared.split.SplitScreenConstants.getIndex;
 import static com.android.wm.shell.shared.split.SplitScreenConstants.isPersistentSnapPosition;
 
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.LauncherApps;
 import android.util.Log;
@@ -69,6 +69,7 @@ import com.android.quickstep.views.TaskContainer;
 import com.android.quickstep.views.TaskView;
 import com.android.systemui.shared.recents.model.Task;
 import com.android.systemui.shared.system.InteractionJankMonitorWrapper;
+import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.shared.split.SplitScreenConstants.PersistentSnapPosition;
 
 import java.util.Arrays;
@@ -91,10 +92,10 @@ public class AppPairsController {
     private static final int BITMASK_SIZE = 16;
     private static final int BITMASK_FOR_SNAP_POSITION = (1 << BITMASK_SIZE) - 1;
 
-    private Context mContext;
+    private ActivityContext mContext;
     private final SplitSelectStateController mSplitSelectStateController;
     private final StatsLogManager mStatsLogManager;
-    public AppPairsController(Context context,
+    public AppPairsController(ActivityContext context,
             SplitSelectStateController splitSelectStateController,
             StatsLogManager statsLogManager) {
         mContext = context;
@@ -206,7 +207,7 @@ public class AppPairsController {
         }
         AppPairInfo newAppPair = new AppPairInfo(apps);
 
-        IconCache iconCache = LauncherAppState.getInstance(mContext).getIconCache();
+        IconCache iconCache = LauncherAppState.getInstance(mContext.asContext()).getIconCache();
         MODEL_EXECUTOR.execute(() -> {
             newAppPair.getAppContents().forEach(member -> {
                 member.title = "";
@@ -214,8 +215,8 @@ public class AppPairsController {
                 iconCache.getTitleAndIcon(member, member.getMatchingLookupFlag());
             });
             MAIN_EXECUTOR.execute(() -> {
-                LauncherAccessibilityDelegate delegate =
-                        QuickstepLauncher.getLauncher(mContext).getAccessibilityDelegate();
+                LauncherAccessibilityDelegate delegate = QuickstepLauncher.getLauncher(
+                        mContext.asContext()).getAccessibilityDelegate();
                 if (delegate != null) {
                     delegate.addToWorkspace(newAppPair, true, (success) -> {
                         if (success) {
@@ -298,7 +299,7 @@ public class AppPairsController {
      */
     @Nullable
     private AppInfo resolveAppInfoByComponent(@NonNull ComponentKey key) {
-        AllAppsStore appsStore = ActivityContext.lookupContext(mContext)
+        AllAppsStore appsStore = ActivityContext.lookupContext(mContext.asContext())
                 .getAppsView().getAppsStore();
 
         // First look up the app info in order of:
@@ -324,7 +325,7 @@ public class AppPairsController {
         if (appInfo == null) {
             return null;
         }
-        return appInfo.makeWorkspaceItem(mContext);
+        return appInfo.makeWorkspaceItem(mContext.asContext());
     }
 
     /**
@@ -337,10 +338,12 @@ public class AppPairsController {
      *   c) App B is on-screen, but App A isn't.
      *   d) Neither is on-screen.
      *
-     * If the user tapped an app pair while inside a single app, there are 3 cases:
-     *   a) The on-screen app is App A of the app pair.
-     *   b) The on-screen app is App B of the app pair.
-     *   c) It is neither.
+     * If the user tapped an app pair while a fullscreen or freeform app is visible on screen,
+     * there are 4 cases:
+     *   a) At least one of the apps in the app pair is in freeform windowing mode.
+     *   b) The on-screen app is App A of the app pair.
+     *   c) The on-screen app is App B of the app pair.
+     *   d) It is neither.
      *
      * For each case, we call the appropriate animation and split launch type.
      */
@@ -414,7 +417,7 @@ public class AppPairsController {
         } else {
             // Tapped an app pair while in a single app
             final TopTaskTracker.CachedTaskInfo runningTask = topTaskTracker
-                    .getCachedTopTask(false /* filterOnlyVisibleRecents */);
+                    .getCachedTopTask(false /* filterOnlyVisibleRecents */, context.getDisplayId());
 
             mSplitSelectStateController.findLastActiveTasksAndRunCallback(
                     componentKeys,
@@ -422,6 +425,14 @@ public class AppPairsController {
                     foundTasks -> {
                         Task foundTask1 = foundTasks[0];
                         Task foundTask2 = foundTasks[1];
+
+                        if (DesktopModeStatus.canEnterDesktopMode(context) && (isFreeformTask(
+                                foundTask1) || isFreeformTask(foundTask2))) {
+                            launchAppPair(launchingIconView,
+                                    CUJ_LAUNCHER_LAUNCH_APP_PAIR_FROM_TASKBAR);
+                            return;
+                        }
+
                         boolean task1IsOnScreen;
                         boolean task2IsOnScreen;
                         if (com.android.wm.shell.Flags.enableShellTopTaskTracking()) {
@@ -536,6 +547,6 @@ public class AppPairsController {
      */
     @VisibleForTesting
     public TopTaskTracker getTopTaskTracker() {
-        return TopTaskTracker.INSTANCE.get(mContext);
+        return TopTaskTracker.INSTANCE.get(mContext.asContext());
     }
 }

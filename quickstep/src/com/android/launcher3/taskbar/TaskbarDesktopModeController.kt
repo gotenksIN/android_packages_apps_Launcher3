@@ -20,7 +20,6 @@ import android.content.Context
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.statehandlers.DesktopVisibilityController.TaskbarDesktopModeListener
 import com.android.launcher3.taskbar.TaskbarBackgroundRenderer.Companion.MAX_ROUNDNESS
-import com.android.launcher3.util.DisplayController
 
 /** Handles Taskbar in Desktop Windowing mode. */
 class TaskbarDesktopModeController(
@@ -42,15 +41,17 @@ class TaskbarDesktopModeController(
         desktopVisibilityController.isInDesktopModeAndNotInOverview(displayId)
 
     override fun onTaskbarCornerRoundingUpdate(doesAnyTaskRequireTaskbarRounding: Boolean) {
+        if (taskbarControllers.taskbarActivityContext.isDestroyed) return
         taskbarSharedState.showCornerRadiusInDesktopMode = doesAnyTaskRequireTaskbarRounding
         val cornerRadius = getTaskbarCornerRoundness(doesAnyTaskRequireTaskbarRounding)
         taskbarControllers.taskbarCornerRoundness.animateToValue(cornerRadius).start()
     }
 
     fun shouldShowDesktopTasksInTaskbar(): Boolean {
+        val activityContext = taskbarControllers.taskbarActivityContext
         return isInDesktopMode(context.displayId) ||
-            DisplayController.showDesktopTaskbarForFreeformDisplay(context) ||
-            (DisplayController.showLockedTaskbarOnHome(context) &&
+            activityContext.showDesktopTaskbarForFreeformDisplay() ||
+            (activityContext.showLockedTaskbarOnHome() &&
                 taskbarControllers.taskbarStashController.isOnHome)
     }
 

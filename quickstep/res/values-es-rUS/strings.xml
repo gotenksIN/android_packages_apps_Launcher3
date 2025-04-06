@@ -96,7 +96,7 @@
     <string name="action_share" msgid="2648470652637092375">"Compartir"</string>
     <string name="action_screenshot" msgid="8171125848358142917">"Captura de pantalla"</string>
     <string name="action_split" msgid="2098009717623550676">"Pantalla dividida"</string>
-    <string name="action_save_app_pair" msgid="5974823919237645229">"Guardar vinculación"</string>
+    <string name="action_save_app_pair" msgid="5974823919237645229">"Guardar grupo de apps"</string>
     <string name="toast_split_select_app" msgid="8464310533320556058">"Presiona otra app para usar la pantalla dividida"</string>
     <string name="toast_contextual_split_select_app" msgid="433510957123687090">"Elige otra app para usar la pantalla dividida"</string>
     <string name="toast_split_select_app_cancel" msgid="1939025102486630426">"Cancelar"</string>
@@ -139,9 +139,15 @@
     <string name="taskbar_overflow_a11y_title" msgid="7960342079198820179">"Barra de tareas ampliada"</string>
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Mover a la parte superior o izquierda"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Mover a la parte inferior o derecha"</string>
+    <string name="open_app_as_a_bubble" msgid="6642626287247807473">"Abrir app como burbuja"</string>
+    <string name="quick_switch_pane_title" msgid="4677158207760585812">"Apps recientes"</string>
+    <string name="quick_switch_content_description" msgid="2851244536728720005">"Lista de apps recientes"</string>
     <string name="quick_switch_overflow" msgid="3679780650881041632">"{count,plural, =1{app más}other{apps más}}"</string>
     <string name="quick_switch_desktop" msgid="8393802056024499749">"Escritorio"</string>
     <string name="quick_switch_split_task" msgid="5598194724255333896">"<xliff:g id="APP_NAME_1">%1$s</xliff:g> y <xliff:g id="APP_NAME_2">%2$s</xliff:g>"</string>
+    <string name="quick_switch_task_with_position_in_parent" msgid="4968670948331508951">"<xliff:g id="TASK_DESCRIPTION">%1$s</xliff:g>, elemento <xliff:g id="INDEX_IN_PARENT">%2$d</xliff:g> de <xliff:g id="TOTAL_TASKS">%3$d</xliff:g>"</string>
+    <string name="quick_switch_scroll_arrow_left" msgid="6527033155534184309">"Desplazarse hacia la izquierda"</string>
+    <string name="quick_switch_scroll_arrow_right" msgid="7319779291086916348">"Desplazarse hacia la derecha"</string>
     <string name="bubble_bar_bubble_fallback_description" msgid="7811684548953452009">"Burbuja"</string>
     <string name="bubble_bar_overflow_description" msgid="8617628132733151708">"Ampliada"</string>
     <string name="bubble_bar_bubble_description" msgid="1882466152448446446">"<xliff:g id="NOTIFICATION_TITLE">%1$s</xliff:g> de <xliff:g id="APP_NAME">%2$s</xliff:g>"</string>
@@ -155,4 +161,6 @@
     <string name="header_app_icon_description" msgid="2184625881433608027">"Ícono de la app"</string>
     <string name="header_default_app_title" msgid="8308052350689531566">"Título de la app"</string>
     <string name="header_close_icon_description" msgid="5400033616675911319">"Botón de cerrar"</string>
+    <string name="pin_to_taskbar" msgid="6607778046321626950">"Fijar a la barra"</string>
+    <string name="unpin_from_taskbar" msgid="2178811773165572676">"No fijar a la barra"</string>
 </resources>
