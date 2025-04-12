@@ -43,6 +43,7 @@ import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.TaskViewItemInfo
 import com.android.launcher3.util.RunnableList
 import com.android.launcher3.util.SplitConfigurationOptions
+import com.android.launcher3.util.TestDispatcherProvider
 import com.android.launcher3.util.TransformingTouchDelegate
 import com.android.launcher3.util.WindowBounds
 import com.android.quickstep.orientation.LandscapePagedViewHandler
@@ -61,6 +62,7 @@ import com.android.systemui.shared.recents.model.Task
 import com.android.systemui.shared.recents.model.Task.TaskKey
 import com.android.window.flags.Flags
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -124,8 +126,9 @@ class AspectRatioSystemShortcutTests {
     private val orientedState: RecentsOrientedState =
         mock(defaultAnswer = Mockito.RETURNS_DEEP_STUBS)
     private val taskView: TaskView =
-        LayoutInflater.from(context).cloneInContext(launcher).inflate(R.layout.task, null) as
-            TaskView
+        LayoutInflater.from(context).cloneInContext(launcher).inflate(R.layout.task, null)
+            as TaskView
+    private val dispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
@@ -139,17 +142,18 @@ class AspectRatioSystemShortcutTests {
         taskView.setLayoutParams(ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
         if (enableRefactorTaskThumbnail()) {
-            val recentsDependencies = RecentsDependencies.maybeInitialize(launcher)
+            val recentsDependencies =
+                RecentsDependencies.maybeInitialize(launcher, TestDispatcherProvider(dispatcher))
             val scopeId = recentsDependencies.createRecentsViewScope(launcher)
             recentsDependencies.provide(
                 RecentsRotationStateRepository::class.java,
                 scopeId,
-                { mock<RecentsRotationStateRepository>() }
+                { mock<RecentsRotationStateRepository>() },
             )
             recentsDependencies.provide(
                 RecentsDeviceProfileRepository::class.java,
                 scopeId,
-                { mock<RecentsDeviceProfileRepository>() }
+                { mock<RecentsDeviceProfileRepository>() },
             )
         }
     }

@@ -57,10 +57,11 @@
         android:gravity="start|center_vertical"
         android:maxLines="1"
         android:singleLine="true"
-        android:ellipsize="marquee"
+        android:ellipsize="none"
         android:textAlignment="viewStart"
         android:importantForAccessibility="no"
-        android:fadingEdge="horizontal"
+        android:requiresFadingEdge="horizontal"
+        android:fadingEdgeLength="@dimen/task_thumbnail_icon_menu_text_fading_size"
         android:marqueeRepeatLimit="1"
         android:scrollHorizontally="true"
         style="@style/IconAppChipMenuTextStyle" />

@@ -141,6 +141,7 @@ public abstract class AbsSwipeUpHandlerTestCase<
     @Mock protected SystemUiController mSystemUiController;
     @Mock protected GestureState mGestureState;
     @Mock protected MSDLPlayerWrapper mMSDLPlayerWrapper;
+    @Mock protected RecentsAnimationDeviceState mDeviceState;
 
     @Before
     public void setUpAnimationTargets() {
@@ -191,8 +192,7 @@ public abstract class AbsSwipeUpHandlerTestCase<
 
     @Before
     public void setUpRecentsContainer() {
-        mTaskAnimationManager = new TaskAnimationManager(mContext,
-                RecentsAnimationDeviceState.INSTANCE.get(mContext), DEFAULT_DISPLAY);
+        mTaskAnimationManager = new TaskAnimationManager(mContext, DEFAULT_DISPLAY);
         RecentsViewContainer recentsContainer = getRecentsContainer();
         RECENTS_VIEW recentsView = getRecentsView();
 

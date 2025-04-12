@@ -66,6 +66,8 @@
     <dimen name="task_thumbnail_icon_menu_background_margin_top_start">8dp</dimen>
     <!--  The margin between the app name + app icon and app name + arrow icon when collapsed  -->
     <dimen name="task_thumbnail_icon_menu_app_name_margin_horizontal_collapsed">8dp</dimen>
+    <!--  The margin between the app name + app icon and app name + arrow icon when expanded  -->
+    <dimen name="task_thumbnail_icon_menu_app_name_margin_horizontal_expanded">12dp</dimen>
     <!--  The gap at the top of the task icon menu when expanded  -->
     <dimen name="task_thumbnail_icon_menu_expanded_gap">2dp</dimen>
     <!--  The margin at the start of the task icon view in the icon menu  -->
@@ -81,6 +83,8 @@
     <!--  The size of the icon menu's icon touch target  -->
     <dimen name="task_thumbnail_icon_menu_drawable_touch_size">44dp</dimen>
     <dimen name="task_thumbnail_icon_menu_elevation">4dp</dimen>
+    <!--  The size of the text fading horizontally -->
+    <dimen name="task_thumbnail_icon_menu_text_fading_size">20dp</dimen>
     <!--  The size of the task thumbnail header  -->
     <dimen name="task_thumbnail_header_height">30dp</dimen>
     <dimen name="task_thumbnail_header_margin_edge">18dp</dimen>
@@ -489,7 +493,7 @@
     <dimen name="bubblebar_dismiss_target_size">@dimen/floating_dismiss_background_size</dimen>
     <dimen name="bubblebar_dismiss_target_small_size">60dp</dimen>
     <dimen name="bubblebar_dismiss_target_icon_size">@dimen/floating_dismiss_icon_size</dimen>
-    <dimen name="bubblebar_dismiss_target_bottom_margin">50dp</dimen>
+    <dimen name="bubblebar_dismiss_target_bottom_margin">60dp</dimen>
     <dimen name="bubblebar_dismiss_floating_gradient_height">548dp</dimen>
     <dimen name="bubblebar_dismiss_zone_width">192dp</dimen>
     <dimen name="bubblebar_dismiss_zone_height">242dp</dimen>

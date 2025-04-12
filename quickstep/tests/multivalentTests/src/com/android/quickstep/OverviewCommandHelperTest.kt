@@ -92,6 +92,7 @@ class OverviewCommandHelperTest {
                     dispatcherProvider = TestDispatcherProvider(dispatcher),
                     recentsDisplayModel = recentsDisplayModel,
                     taskbarManager = mock(),
+                    taskAnimationManagerRepository = mock(),
                 )
             )
 

@@ -184,6 +184,7 @@ import com.android.launcher3.util.TranslateEdgeEffect;
 import com.android.launcher3.util.VibratorWrapper;
 import com.android.launcher3.util.ViewPool;
 import com.android.launcher3.util.coroutines.DispatcherProvider;
+import com.android.launcher3.util.coroutines.ProductionDispatchers;
 import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.GestureState;
 import com.android.quickstep.HighResLoadingState;
@@ -889,7 +890,7 @@ public abstract class RecentsView<
         // Start Recents Dependency graph
         if (enableRefactorTaskThumbnail()) {
             RecentsDependencies recentsDependencies = RecentsDependencies.Companion.maybeInitialize(
-                    context);
+                    context, ProductionDispatchers.INSTANCE);
             String scopeId = recentsDependencies.createRecentsViewScope(context);
             mRecentsViewModel = new RecentsViewModel(
                     recentsDependencies.inject(RecentTasksRepository.class, scopeId),

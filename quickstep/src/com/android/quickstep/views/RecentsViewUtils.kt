@@ -548,7 +548,7 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
             when {
                 groupedTaskInfo.isBaseType(GroupedTaskInfo.TYPE_DESK) &&
                     enableMultipleDesktops(recentsView.context) ->
-                    getDesktopTaskViewForDeskId(groupedTaskInfo.deskDisplayId)
+                    getDesktopTaskViewForDeskId(groupedTaskInfo.deskId)
 
                 groupedTaskInfo.isBaseType(GroupedTaskInfo.TYPE_DESK) &&
                     groupedTaskInfo.taskInfoList.size == 1 ->

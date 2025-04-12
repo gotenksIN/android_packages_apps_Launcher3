@@ -66,12 +66,12 @@ import com.android.wm.shell.shared.GroupedTaskInfo;
 import com.android.wm.shell.splitscreen.ISplitScreenListener;
 
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
@@ -369,21 +369,22 @@ public class TopTaskTracker extends ISplitScreenListener.Stub implements TaskSta
                 Collections.addAll(mOrderedTaskList, tasks);
             }
 
-            List<TaskInfo> tasks = new ArrayList<>(mOrderedTaskList);
-            // Strip the pinned task and recents task.
-            tasks.removeIf(t -> t.taskId == mPinnedTaskId || isRecentsTask(t));
+            Stream<TaskInfo> taskStream = mOrderedTaskList.stream()
+                    // Strip the pinned task and recents task.
+                    .filter(t -> t.taskId != mPinnedTaskId && !isRecentsTask(t));
             if (enableOverviewOnConnectedDisplays()) {
-                tasks = tasks.stream().filter(
-                        info -> ExternalDisplaysKt.getSafeDisplayId(info) == displayId).toList();
+                taskStream = taskStream.filter(
+                        info -> ExternalDisplaysKt.getSafeDisplayId(info) == displayId);
             }
             if (enableMultipleDesktops(mContext)) {
-                tasks = tasks.stream().takeWhile(
-                        taskInfo -> !DesksUtils.isDesktopWallpaperTask(taskInfo)).toList();
+                taskStream = taskStream.takeWhile(
+                        taskInfo -> !DesksUtils.isDesktopWallpaperTask(taskInfo));
             } else {
-                tasks.removeIf(taskInfo -> DesksUtils.isDesktopWallpaperTask(taskInfo));
+                taskStream = taskStream.filter(
+                        taskInfo -> !DesksUtils.isDesktopWallpaperTask(taskInfo));
             }
 
-            return new CachedTaskInfo(tasks, mContext, displayId);
+            return new CachedTaskInfo(taskStream.toList(), mContext, displayId);
         }
     }
 

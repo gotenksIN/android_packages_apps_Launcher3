@@ -133,7 +133,6 @@
     <string name="styles_wallpaper_button_text" msgid="8216961355289236794">"वॉलपेपर और स्टाइल"</string>
     <string name="edit_home_screen" msgid="8947858375782098427">"होम स्क्रीन में बदलाव करें"</string>
     <string name="settings_button_text" msgid="8873672322605444408">"होम स्क्रीन की सेटिंग"</string>
-    <string name="all_apps_home_screen" msgid="8658178652647896497">"ऐप्लिकेशन"</string>
     <string name="msg_disabled_by_admin" msgid="6898038085516271325">"आपके एडमिन ने बंद किया हुआ है"</string>
     <string name="allow_rotation_title" msgid="7222049633713050106">"होम स्क्रीन घुमाने की अनुमति दें"</string>
     <string name="allow_rotation_desc" msgid="8662546029078692509">"फ़ोन घुुमाए जाने पर"</string>
@@ -220,4 +219,14 @@
     <string name="ps_add_button_label" msgid="8127988716897128773">"इंस्टॉल करें"</string>
     <string name="ps_add_button_content_description" msgid="3254274107740952556">"प्राइवेट स्पेस में ऐप्लिकेशन इंस्टॉल करें"</string>
     <string name="ps_app_content_description" msgid="1129133475892816226">"प्राइवेट स्पेस में फ़ाइलें और अन्य चीज़ें जोड़ें"</string>
+    <!-- no translation found for circle_shape_title (3582075061179674565) -->
+    <skip />
+    <!-- no translation found for square_shape_title (3085320803149569308) -->
+    <skip />
+    <!-- no translation found for four_sided_cookie_shape_title (3275212586290522151) -->
+    <skip />
+    <!-- no translation found for seven_sided_cookie_shape_title (4862560582029671668) -->
+    <skip />
+    <!-- no translation found for arch_shape_title (2213843822192871318) -->
+    <skip />
 </resources>

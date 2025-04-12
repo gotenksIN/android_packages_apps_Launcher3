@@ -61,10 +61,10 @@ class ItemInflater<T>(
             Favorites.ITEM_TYPE_DEEP_SHORTCUT,
             Favorites.ITEM_TYPE_SEARCH_ACTION -> {
                 var info =
-                    if (item is WorkspaceItemFactory) {
-                        (item as WorkspaceItemFactory).makeWorkspaceItem(context)
-                    } else {
-                        item as WorkspaceItemInfo
+                    when (item) {
+                        is WorkspaceItemFactory -> item.makeWorkspaceItem(context)
+                        is WorkspaceItemInfo -> item
+                        else -> return null
                     }
                 if (info.container == Favorites.CONTAINER_PREDICTION) {
                     // Came from all apps prediction row -- make a copy
@@ -104,12 +104,17 @@ class ItemInflater<T>(
      * @return A View inflated from layoutResId.
      */
     private fun createShortcut(info: WorkspaceItemInfo, parent: ViewGroup): View {
+        val layout =
+            if (info.container == Favorites.CONTAINER_HOTSEAT_PREDICTION)
+                R.layout.predicted_app_icon
+            else R.layout.app_icon
         val favorite =
-            LayoutInflater.from(parent.context).inflate(R.layout.app_icon, parent, false)
-                as BubbleTextView
+            LayoutInflater.from(parent.context).inflate(layout, parent, false) as BubbleTextView
         favorite.applyFromWorkspaceItem(info)
         favorite.setOnClickListener(clickListener)
         favorite.onFocusChangeListener = focusListener
+
+        if (info.container == Favorites.CONTAINER_HOTSEAT_PREDICTION) favorite.verifyHighRes()
         return favorite
     }
 

@@ -592,19 +592,18 @@ object InputConsumerUtils {
                 previousGestureState,
                 gestureState,
                 event,
-                reasonString.append(
-                    if (previousGestureAnimatedToLauncher)
-                        ("%sprevious gesture animated to launcher, " +
-                            "trying to use overview input consumer")
-                    else
-                        (if (launcherResumedThroughShellTransition)
-                            ("%slauncher resumed through a shell transition, " +
-                                "trying to use overview input consumer")
-                        else
-                            ("%sforceOverviewInputConsumer == true, " +
-                                "trying to use overview input consumer")),
-                    SUBSTRING_PREFIX,
-                ),
+                reasonString
+                    .append(
+                        if (previousGestureAnimatedToLauncher)
+                            (if (previousGestureState.isRunningAnimationToLauncher)
+                                "%sprevious gesture is still animating to launcher"
+                            else "%spredictive back animation is still in progress")
+                        else if (launcherResumedThroughShellTransition)
+                            "%slauncher resumed through a shell transition"
+                        else "%sforceOverviewInputConsumer == true",
+                        SUBSTRING_PREFIX,
+                    )
+                    .append(", trying to use overview input consumer"),
             )
         } else if (deviceState.isGestureBlockedTask(runningTask) || launcherChildActivityResumed) {
             getDefaultInputConsumer(
@@ -715,11 +714,12 @@ object InputConsumerUtils {
 
         reasonString.append(
             if (hasWindowFocus) "%sactivity has window focus"
-            else
-                (if (isPreviousGestureAnimatingToLauncher)
+            else if (isPreviousGestureAnimatingToLauncher)
+                (if (previousGestureState.isRunningAnimationToLauncher)
                     "%sprevious gesture is still animating to launcher"
-                else if (isInLiveTileMode) "%sdevice is in live mode"
-                else "%sall overview focus conditions failed"),
+                else "%spredictive back animation is still in progress")
+            else if (isInLiveTileMode) "%sdevice is in live mode"
+            else "%sall overview focus conditions failed",
             SUBSTRING_PREFIX,
         )
         return if (hasWindowFocus || isPreviousGestureAnimatingToLauncher || isInLiveTileMode) {

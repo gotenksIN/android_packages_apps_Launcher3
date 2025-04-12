@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,11 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.dagger;
+package com.android.quickstep
 
-import dagger.Module;
+import com.android.launcher3.util.DaggerSingletonObject
+import com.android.quickstep.dagger.QuickstepBaseAppComponent
 
-@Module(includes = {
-        WindowManagerProxyModule.class,
-        ApiWrapperModule.class,
-        PluginManagerWrapperModule.class,
-        StaticObjectModule.class,
-        WidgetModule.class,
-        AppModule.class,
-        PerDisplayModule.class,
-        LauncherConcurrencyModule.class,
-})
-public class LauncherAppModule {
+object LauncherDisplayRepository {
+    @JvmStatic val INSTANCE = DaggerSingletonObject(QuickstepBaseAppComponent::getDisplayRepository)
 }

@@ -133,7 +133,6 @@
     <string name="styles_wallpaper_button_text" msgid="8216961355289236794">"ওয়ালপেপার এবং স্টাইল"</string>
     <string name="edit_home_screen" msgid="8947858375782098427">"হোম স্ক্রিন এডিট করুন"</string>
     <string name="settings_button_text" msgid="8873672322605444408">"হোম সেটিংস"</string>
-    <string name="all_apps_home_screen" msgid="8658178652647896497">"অ্যাপ"</string>
     <string name="msg_disabled_by_admin" msgid="6898038085516271325">"আপনার প্রশাসক দ্বারা অক্ষম করা হয়েছে"</string>
     <string name="allow_rotation_title" msgid="7222049633713050106">"হোম স্ক্রিন রোটেট করার অনুমতি দিন"</string>
     <string name="allow_rotation_desc" msgid="8662546029078692509">"যখন ফোনটি ঘোরানো হয়"</string>
@@ -220,4 +219,14 @@
     <string name="ps_add_button_label" msgid="8127988716897128773">"ইনস্টল করুন"</string>
     <string name="ps_add_button_content_description" msgid="3254274107740952556">"প্রাইভেট স্পেসে অ্যাপ ইনস্টল করুন"</string>
     <string name="ps_app_content_description" msgid="1129133475892816226">"প্রাইভেট স্পেসে ফাইল ও আরও অনেক কিছু যোগ করুন"</string>
+    <!-- no translation found for circle_shape_title (3582075061179674565) -->
+    <skip />
+    <!-- no translation found for square_shape_title (3085320803149569308) -->
+    <skip />
+    <!-- no translation found for four_sided_cookie_shape_title (3275212586290522151) -->
+    <skip />
+    <!-- no translation found for seven_sided_cookie_shape_title (4862560582029671668) -->
+    <skip />
+    <!-- no translation found for arch_shape_title (2213843822192871318) -->
+    <skip />
 </resources>

@@ -181,6 +181,9 @@ constructor(
     val firstItemInfo: ItemInfo?
         get() = firstTaskContainer?.itemInfo
 
+    val isOnGridBottomRow: Boolean
+        get() = recentsView?.isOnGridBottomRow(this) == true
+
     /**
      * A [TaskViewItemInfo] of this TaskView. The [firstTaskContainer] will be used to get some
      * specific information like user, title etc of the Task. However, these task specific

@@ -28,6 +28,7 @@ import android.window.TransitionInfo
 import androidx.annotation.BinderThread
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
+import com.android.app.displaylib.PerDisplayRepository
 import com.android.app.tracing.traceSection
 import com.android.internal.jank.Cuj
 import com.android.launcher3.Flags.enableLargeDesktopWindowingTile
@@ -77,6 +78,7 @@ constructor(
     private val dispatcherProvider: DispatcherProvider = ProductionDispatchers,
     private val recentsDisplayModel: RecentsDisplayModel,
     private val taskbarManager: TaskbarManager,
+    private val taskAnimationManagerRepository: PerDisplayRepository<TaskAnimationManager>,
 ) {
     private val coroutineScope = CoroutineScope(SupervisorJob() + dispatcherProvider.background)
 
@@ -416,6 +418,12 @@ constructor(
             touchInteractionService
                 .getSwipeUpHandlerFactory(command.displayId)
                 .newHandler(gestureState, command.createTime)
+        if (interactionHandler == null) {
+            // Can happen e.g. when a display is disconnected, so try to handle gracefully.
+            Log.d(TAG, "AbsSwipeUpHandler not available for displayId=${command.displayId})")
+            ActiveGestureProtoLogProxy.logOnAbsSwipeUpHandlerNotAvailable(command.displayId)
+            return false
+        }
         interactionHandler.setGestureEndCallback {
             onTransitionComplete(command, interactionHandler, onCallbackResult)
         }
@@ -461,7 +469,7 @@ constructor(
             }
 
         val taskAnimationManager =
-            recentsDisplayModel.getTaskAnimationManager(command.displayId)
+            taskAnimationManagerRepository.get(command.displayId)
                 ?: run {
                     Log.e(TAG, "No TaskAnimationManager found for display ${command.displayId}")
                     ActiveGestureProtoLogProxy.logOnTaskAnimationManagerNotAvailable(

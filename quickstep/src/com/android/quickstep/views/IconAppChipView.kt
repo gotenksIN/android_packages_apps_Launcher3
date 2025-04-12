@@ -23,7 +23,7 @@ import android.content.Context
 import android.graphics.Outline
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
-import android.text.TextUtils
+import android.text.TextUtils.TruncateAt
 import android.util.AttributeSet
 import android.view.View
 import android.view.ViewAnimationUtils
@@ -87,9 +87,13 @@ constructor(
         )
 
     // Contents dimensions
-    private val appNameHorizontalMargin =
+    private val appNameHorizontalMarginCollapsed =
         resources.getDimensionPixelSize(
             R.dimen.task_thumbnail_icon_menu_app_name_margin_horizontal_collapsed
+        )
+    private val appNameHorizontalMarginExpanded =
+        resources.getDimensionPixelSize(
+            R.dimen.task_thumbnail_icon_menu_app_name_margin_horizontal_expanded
         )
     private val arrowMarginEnd =
         resources.getDimensionPixelSize(R.dimen.task_thumbnail_icon_menu_arrow_margin)
@@ -147,8 +151,12 @@ constructor(
 
     override fun getDrawable(): Drawable? = iconView?.drawable
 
+    private var currentIconDrawableHash: Int = 0
+
     override fun setDrawable(icon: Drawable?) {
+        if (icon.hashCode() == currentIconDrawableHash) return
         iconView?.drawable = icon
+        currentIconDrawableHash = icon.hashCode()
     }
 
     override fun setDrawableSize(iconWidth: Int, iconHeight: Int) {
@@ -206,18 +214,12 @@ constructor(
 
         // Layout Params for the collapsed Icon Text View
         val textMarginStart =
-            iconMarginStartRelativeToParent + appIconSize + appNameHorizontalMargin
+            iconMarginStartRelativeToParent + appIconSize + appNameHorizontalMarginCollapsed
         val iconTextCollapsedParams = appTitle!!.layoutParams as LayoutParams
         orientationHandler.setIconAppChipChildrenParams(iconTextCollapsedParams, textMarginStart)
         iconTextCollapsedParams.width =
             calculateCollapsedTextWidth(collapsedBackgroundBounds.width())
-        appTitle!!.layoutParams = iconTextCollapsedParams
-        // select to enable marquee and disable it when is running test harness.
-        if (Utilities.isRunningInTestHarness()) {
-            disableAppTitleMarquee()
-        } else {
-            appTitle!!.isSelected = true
-        }
+        appTitle?.layoutParams = iconTextCollapsedParams
 
         // Layout Params for the Icon Arrow View
         val iconArrowParams = iconArrowView!!.layoutParams as LayoutParams
@@ -237,12 +239,12 @@ constructor(
         )
     }
 
-    private fun disableAppTitleMarquee() {
+    private fun enableMarquee(isEnabled: Boolean) {
+        // Marquee should not be enabled when is running test harness.
+        val isMarqueeEnabled = isEnabled && !Utilities.isRunningInTestHarness()
         appTitle?.let {
-            it.isHorizontalFadingEdgeEnabled = false
-            it.ellipsize = TextUtils.TruncateAt.END
-            it.horizontallyScrolling = false
-            it.isSelected = false
+            it.ellipsize = if (isMarqueeEnabled) TruncateAt.MARQUEE else null
+            it.isSelected = isMarqueeEnabled
         }
     }
 
@@ -262,12 +264,20 @@ constructor(
                 iconViewMarginStart -
                 appIconSize -
                 arrowSize -
-                appNameHorizontalMargin -
+                appNameHorizontalMarginCollapsed -
                 arrowMarginEnd)
 
         val spaceLeftForText = maxWidth - minWidthAllowed
-        return minOf(collapsedTextWidth, spaceLeftForText)
+        return minOf(collapsedTextWidth, spaceLeftForText).coerceAtLeast(0)
     }
+
+    private fun calculateExpandedTextWidth(width: Int): Int =
+        width -
+            iconViewMarginStart -
+            iconViewDrawableExpandedSize -
+            arrowSize -
+            appNameHorizontalMarginExpanded -
+            arrowMarginEnd
 
     override fun setIconColorTint(color: Int, amount: Float) {
         // RecentsView's COLOR_TINT animates between 0 and 0.5f, we want to hide the app chip menu.
@@ -336,13 +346,14 @@ constructor(
             val isRtl = isLayoutRtl
             bringToFront()
             // Clip expanded text with reveal animation so it doesn't go beyond the edge of the menu
+            val expandedAppTitleWidth = calculateExpandedTextWidth(expandedBackgroundBounds.width())
             val expandedTextRevealAnim =
                 ViewAnimationUtils.createCircularReveal(
                     appTitle,
                     0,
                     appTitle!!.height / 2,
                     appTitle!!.width.toFloat(),
-                    expandedMaxTextWidth.toFloat(),
+                    expandedAppTitleWidth.toFloat(),
                 )
             // Animate background clipping
             val backgroundAnimator =
@@ -356,9 +367,9 @@ constructor(
             val iconViewScaling = iconViewDrawableExpandedSize / appIconSize.toFloat()
             val arrowTranslationX =
                 (expandedBackgroundBounds.right - collapsedBackgroundBounds.right).toFloat()
-            val iconCenterToTextCollapsed = appIconSize / 2f + appNameHorizontalMargin
+            val iconCenterToTextCollapsed = appIconSize / 2f + appNameHorizontalMarginCollapsed
             val iconCenterToTextExpanded =
-                iconViewDrawableExpandedSize / 2f + appNameHorizontalMargin
+                iconViewDrawableExpandedSize / 2f + appNameHorizontalMarginCollapsed
             val textTranslationX = iconCenterToTextExpanded - iconCenterToTextCollapsed
 
             val textTranslationXWithRtl = if (isRtl) -textTranslationX else textTranslationX
@@ -407,18 +418,28 @@ constructor(
             )
             animator!!.duration = MENU_BACKGROUND_HIDE_DURATION.toLong()
             status = AppChipStatus.Collapsed
+            sendToBack()
         }
 
         if (!animated) animator!!.duration = 0
         animator!!.interpolator = Interpolators.EMPHASIZED
+
+        // Increase the chip and appTitle size before the animation starts when it's expanding.
+        // And decrease the size after the animation when is collapsing.
         animator!!.addListener(
             onStart = {
-                appTitle!!.isSelected = false
-                if (status == AppChipStatus.Expanded) updateChipSize()
+                when (status) {
+                    AppChipStatus.Expanded -> updateChipSize()
+                    // Disable marquee before chip is collapsed
+                    AppChipStatus.Collapsed -> enableMarquee(false)
+                }
             },
             onEnd = {
-                if (status == AppChipStatus.Collapsed) updateChipSize()
-                appTitle!!.isSelected = true
+                when (status) {
+                    AppChipStatus.Collapsed -> updateChipSize()
+                    // Enable marquee after chip is fully expanded
+                    AppChipStatus.Expanded -> enableMarquee(true)
+                }
             },
         )
         animator!!.start()
@@ -441,7 +462,7 @@ constructor(
         when (status) {
             AppChipStatus.Expanded -> {
                 updateLayoutParams { width = chipWidth }
-                appTitle!!.updateLayoutParams { width = expandedMaxTextWidth }
+                appTitle!!.updateLayoutParams { width = calculateExpandedTextWidth(chipWidth) }
             }
             AppChipStatus.Collapsed -> {
                 appTitle!!.updateLayoutParams {
@@ -484,20 +505,38 @@ constructor(
         }
     }
 
+    override fun bringToFront() {
+        super.bringToFront()
+        z += Z_INDEX_FRONT
+        updateParentZIndex(Z_INDEX_FRONT)
+    }
+
+    private fun sendToBack() {
+        z -= Z_INDEX_FRONT
+        updateParentZIndex(-Z_INDEX_FRONT)
+    }
+
+    private fun updateParentZIndex(zIndex: Float) {
+        val parentView = parent as? TaskView
+        if (parentView?.isOnGridBottomRow == true) {
+            parentView.z += zIndex
+        }
+    }
+
     override fun focusSearch(direction: Int): View? {
         if (mParent == null) return null
         return when (direction) {
             FOCUS_RIGHT,
-            FOCUS_DOWN -> mParent.focusSearch(this, View.FOCUS_FORWARD)
+            FOCUS_DOWN -> mParent.focusSearch(this, FOCUS_FORWARD)
             FOCUS_UP,
-            FOCUS_LEFT -> mParent.focusSearch(this, View.FOCUS_BACKWARD)
+            FOCUS_LEFT -> mParent.focusSearch(this, FOCUS_BACKWARD)
             else -> super.focusSearch(direction)
         }
     }
 
     fun reset() {
         setText(null)
-        setDrawable(null)
+        drawable = null
     }
 
     override fun asView(): View = this
@@ -512,6 +551,8 @@ constructor(
 
         private const val MENU_BACKGROUND_REVEAL_DURATION = 417
         private const val MENU_BACKGROUND_HIDE_DURATION = 333
+
+        private const val Z_INDEX_FRONT = 10f
 
         private const val NUM_ALPHA_CHANNELS = 4
         private const val INDEX_CONTENT_ALPHA = 0
