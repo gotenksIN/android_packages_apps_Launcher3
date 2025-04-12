@@ -230,7 +230,10 @@ public class TouchInteractionService extends Service {
             executeForTouchInteractionService(tis -> {
                 if (triggeredFromAltTab) {
                     TaskUtils.closeSystemWindowsAsync(CLOSE_SYSTEM_WINDOWS_REASON_RECENTS);
-                    tis.mOverviewCommandHelper.addCommand(CommandType.KEYBOARD_INPUT);
+                    int displayId = Flags.enableAltTabKqsOnConnectedDisplays()
+                            ? SystemUiProxy.INSTANCE.get(tis).getFocusState().getFocusedDisplayId()
+                            : DEFAULT_DISPLAY;
+                    tis.mOverviewCommandHelper.addCommand(CommandType.KEYBOARD_INPUT, displayId);
                 } else {
                     tis.mOverviewCommandHelper.addCommand(CommandType.SHOW);
                 }
@@ -243,7 +246,10 @@ public class TouchInteractionService extends Service {
             executeForTouchInteractionService(tis -> {
                 if (triggeredFromAltTab && !triggeredFromHomeKey) {
                     // onOverviewShownFromAltTab hides the overview and ends at the target app
-                    tis.mOverviewCommandHelper.addCommand(CommandType.HIDE);
+                    int displayId = Flags.enableAltTabKqsOnConnectedDisplays()
+                            ? SystemUiProxy.INSTANCE.get(tis).getFocusState().getFocusedDisplayId()
+                            : DEFAULT_DISPLAY;
+                    tis.mOverviewCommandHelper.addCommand(CommandType.HIDE, displayId);
                 }
             });
         }
@@ -690,8 +696,7 @@ public class TouchInteractionService extends Service {
                 + " instance=" + System.identityHashCode(this));
         mOverviewComponentObserver = OverviewComponentObserver.INSTANCE.get(this);
         mOverviewCommandHelper = new OverviewCommandHelper(this,
-                mOverviewComponentObserver, mRecentsDisplayModel,
-                SystemUiProxy.INSTANCE.get(this).getFocusState(), mTaskbarManager);
+                mOverviewComponentObserver, mRecentsDisplayModel, mTaskbarManager);
         mUserUnlocked = true;
         mInputConsumer.registerInputConsumer();
         for (int displayId : mDeviceState.getDisplaysWithSysUIState()) {

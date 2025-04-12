@@ -854,6 +854,13 @@ constructor(
 
                 if (enableOverviewIconMenu()) {
                     setIconState(container, containerState)
+                    if (
+                        containerState is TaskData &&
+                            container.digitalWellBeingToast?.isDestroyed == false &&
+                            container.task.titleDescription != null
+                    ) {
+                        container.digitalWellBeingToast.initialize()
+                    }
                 }
             }
         }
@@ -1189,7 +1196,6 @@ constructor(
                 if (state is TaskData.Data) {
                     setIcon(container.iconView, state.icon)
                     container.iconView.setText(state.title)
-                    container.digitalWellBeingToast?.initialize()
                 } else {
                     setIcon(container.iconView, null)
                     container.iconView.setText(null)

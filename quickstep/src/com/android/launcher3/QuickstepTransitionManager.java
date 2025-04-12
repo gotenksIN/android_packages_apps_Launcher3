@@ -369,6 +369,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         LauncherTaskbarUIController taskbarController = mLauncher.getTaskbarUIController();
         if (syncAppLaunchWithTaskbarStash()
                 && enableScalingRevealHomeAnimation()
+                && mLauncher.getStateManager().getState() == NORMAL
                 && taskbarController != null) {
             taskbarController.setIgnoreInAppFlagForSync(true);
             mLauncher.addEventCallback(EVENT_DESTROYED, onEndCallback::executeAllAndDestroy);

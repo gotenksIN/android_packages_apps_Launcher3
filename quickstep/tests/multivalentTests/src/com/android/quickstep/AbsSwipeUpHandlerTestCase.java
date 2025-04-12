@@ -94,6 +94,15 @@ public abstract class AbsSwipeUpHandlerTestCase<
         SWIPE_HANDLER extends AbsSwipeUpHandler<RECENTS_CONTAINER, RECENTS_VIEW, STATE_TYPE>,
         CONTAINER_INTERFACE extends BaseContainerInterface<STATE_TYPE, RECENTS_CONTAINER>> {
 
+    @Rule
+    public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
+
+    @Rule
+    public final SandboxApplication mContext = new SandboxApplication();
+
     protected final InputConsumerController mInputConsumerController =
             InputConsumerController.getRecentsAnimationInputConsumer();
     protected final ActivityManager.RunningTaskInfo mRunningTaskInfo =
@@ -132,15 +141,6 @@ public abstract class AbsSwipeUpHandlerTestCase<
     @Mock protected SystemUiController mSystemUiController;
     @Mock protected GestureState mGestureState;
     @Mock protected MSDLPlayerWrapper mMSDLPlayerWrapper;
-
-    @Rule
-    public final MockitoRule mMockitoRule = MockitoJUnit.rule();
-
-    @Rule
-    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
-
-    @Rule
-    public final SandboxApplication mContext = new SandboxApplication();
 
     @Before
     public void setUpAnimationTargets() {

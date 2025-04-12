@@ -91,7 +91,6 @@ class OverviewCommandHelperTest {
                     overviewComponentObserver = mock(),
                     dispatcherProvider = TestDispatcherProvider(dispatcher),
                     recentsDisplayModel = recentsDisplayModel,
-                    focusState = mock(),
                     taskbarManager = mock(),
                 )
             )

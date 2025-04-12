@@ -144,18 +144,6 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
 
     override fun onFinishInflate() {
         super.onFinishInflate()
-        iconView =
-            (findViewById<View>(R.id.icon) as TaskViewIcon).apply {
-                setIcon(
-                    this,
-                    ResourcesCompat.getDrawable(
-                        context.resources,
-                        R.drawable.ic_desktop_with_bg,
-                        context.theme,
-                    ),
-                )
-                setText(resources.getText(R.string.recent_task_desktop))
-            }
         contentView =
             findViewById<DesktopTaskContentView>(R.id.desktop_content).apply {
                 updateLayoutParams<LayoutParams> {
@@ -317,6 +305,19 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
             tasks.forEach { sb.append(" key=${it.key}\n") }
             Log.d(TAG, sb.toString())
         }
+
+        iconView =
+            (findViewById<View>(R.id.icon) as TaskViewIcon).apply {
+                setIcon(
+                    this,
+                    ResourcesCompat.getDrawable(
+                        context.resources,
+                        R.drawable.ic_desktop_with_bg,
+                        context.theme,
+                    ),
+                )
+                setText(resources.getText(R.string.recent_task_desktop))
+            }
 
         cancelPendingLoadTasks()
         val backgroundViewIndex = contentView.indexOfChild(backgroundView)

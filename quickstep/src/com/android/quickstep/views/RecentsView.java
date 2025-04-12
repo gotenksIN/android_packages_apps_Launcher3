@@ -38,6 +38,7 @@ import static com.android.launcher3.BaseActivity.STATE_HANDLER_INVISIBILITY_FLAG
 import static com.android.launcher3.Flags.enableAdditionalHomeAnimations;
 import static com.android.launcher3.Flags.enableDesktopExplodedView;
 import static com.android.launcher3.Flags.enableDesktopTaskAlphaAnimation;
+import static com.android.launcher3.Flags.enableExpressiveDismissTaskMotion;
 import static com.android.launcher3.Flags.enableGridOnlyOverview;
 import static com.android.launcher3.Flags.enableLargeDesktopWindowingTile;
 import static com.android.launcher3.Flags.enableOverviewBackgroundWallpaperBlur;
@@ -1912,6 +1913,14 @@ public abstract class RecentsView<
     }
 
     protected void applyLoadPlan(List<GroupTask> taskGroups) {
+        if (enableRefactorTaskThumbnail() && !(isAttachedToWindow()
+                && RecentsDependencies.Companion.hasScope(mContext))) {
+            // This can happen if a TaskView callback is triggered after the view is destroyed
+            // (b/404920951). Prevent crashes by returning immediately.
+            Log.d(TAG, "applyLoadPlan - view invalid, isAttachedToWindow: " + isAttachedToWindow()
+                    + ", hasScope: " + RecentsDependencies.Companion.hasScope(mContext));
+            return;
+        }
         if (mPendingAnimation != null) {
             final List<GroupTask> finalTaskGroups = taskGroups;
             mPendingAnimation.addEndListener(success -> applyLoadPlan(finalTaskGroups));
@@ -4697,10 +4706,15 @@ public abstract class RecentsView<
 
     /** Dismisses the entire [taskView]. */
     public void dismissTaskView(TaskView taskView, boolean animateTaskView, boolean removeTask) {
-        PendingAnimation pa = new PendingAnimation(DISMISS_TASK_DURATION);
-        createTaskDismissAnimation(pa, taskView, animateTaskView, removeTask, DISMISS_TASK_DURATION,
-                false /* dismissingForSplitSelection*/, false /* isExpressiveDismiss */);
-        runDismissAnimation(pa);
+        if (enableExpressiveDismissTaskMotion()) {
+            mDismissUtils.createTaskDismissSettlingSpringAnimation(taskView);
+        } else {
+            PendingAnimation pa = new PendingAnimation(DISMISS_TASK_DURATION);
+            createTaskDismissAnimation(pa, taskView, animateTaskView, removeTask,
+                    DISMISS_TASK_DURATION, false /* dismissingForSplitSelection*/,
+                    false /* isExpressiveDismiss */);
+            runDismissAnimation(pa);
+        }
     }
 
     protected void expressiveDismissTaskView(TaskView taskView, Function0<Unit> onEndRunnable,
@@ -7089,17 +7103,17 @@ public abstract class RecentsView<
     }
 
     /**
-     * Creates the spring animations which run as a task settles back into its place in overview.
+     * Runs the spring animations as a task dismisses or settles back into its place in overview.
      *
      * <p>When a task dismiss is cancelled, the task will return to its original position via a
      * spring animation. As it passes the threshold of its settling state, its neighbors will
      * spring in response to the perceived impact of the settling task.
      */
-    public SpringAnimation createTaskDismissSettlingSpringAnimation(TaskView draggedTaskView,
-            float velocity, boolean isDismissing, int dismissLength,
-            Function0<Unit> onEndRunnable) {
+    public SpringAnimation runTaskDismissSettlingSpringAnimation(TaskView draggedTaskView,
+            float velocity, boolean isDismissing, int dismissLength, float finalPosition,
+            @NonNull Function0<Unit> onEndRunnable) {
         return mDismissUtils.createTaskDismissSettlingSpringAnimation(draggedTaskView, velocity,
-                isDismissing, dismissLength, onEndRunnable);
+                isDismissing, dismissLength, finalPosition, onEndRunnable);
     }
 
     /**

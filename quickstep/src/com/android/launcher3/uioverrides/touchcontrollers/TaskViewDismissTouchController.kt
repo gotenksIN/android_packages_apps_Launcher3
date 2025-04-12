@@ -236,20 +236,16 @@ CONTAINER : RecentsViewContainer {
         val isFlingingTowardsRestState = detector.isFling(velocity) && !velocityIsGoingUp
         val isDismissing =
             isFlingingTowardsDismiss || (isBeyondDismissThreshold && !isFlingingTowardsRestState)
+        val finalPosition = if (isDismissing) (dismissLength * verticalFactor).toFloat() else 0f
         springAnimation =
-            recentsView
-                .createTaskDismissSettlingSpringAnimation(
-                    taskBeingDragged,
-                    velocity,
-                    isDismissing,
-                    dismissLength,
-                    this::clearState,
-                )
-                .apply {
-                    animateToFinalPosition(
-                        if (isDismissing) (dismissLength * verticalFactor).toFloat() else 0f
-                    )
-                }
+            recentsView.runTaskDismissSettlingSpringAnimation(
+                taskBeingDragged,
+                velocity,
+                isDismissing,
+                dismissLength,
+                finalPosition,
+                this::clearState,
+            )
         isBlockedDuringDismissal = true
         recentsScaleAnimation =
             recentsView.animateRecentsScale(RECENTS_SCALE_DEFAULT).addEndListener { _, _, _, _ ->

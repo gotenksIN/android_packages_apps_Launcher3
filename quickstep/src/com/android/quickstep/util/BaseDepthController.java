@@ -122,6 +122,13 @@ public class BaseDepthController {
                 new MultiPropertyFactory<>(this, DEPTH, DEPTH_INDEX_COUNT, Float::max);
         stateDepth = depthProperty.get(DEPTH_INDEX_STATE_TRANSITION);
         widgetDepth = depthProperty.get(DEPTH_INDEX_WIDGET);
+        if (enableOverviewBackgroundWallpaperBlur()) {
+            mBlurSurface = new SurfaceControl.Builder()
+                    .setName("Overview Blur")
+                    .setHidden(false)
+                    .build();
+        }
+
     }
 
     protected void setCrossWindowBlursEnabled(boolean isEnabled) {
@@ -143,74 +150,75 @@ public class BaseDepthController {
     protected void onInvalidSurface() { }
 
     protected void applyDepthAndBlur() {
-        applyDepthAndBlur(createTransaction());
-    }
-
-    protected void applyDepthAndBlur(SurfaceControl.Transaction transaction) {
-        try (transaction) {
-            float depth = mDepth;
-            IBinder windowToken = mLauncher.getRootView().getWindowToken();
-            if (windowToken != null) {
-                if (enableScalingRevealHomeAnimation()) {
-                    mWallpaperManager.setWallpaperZoomOut(windowToken, depth);
-                } else {
-                    // The API's full zoom-out is three times larger than the zoom-out we apply
-                    // to the
-                    // icons. To keep the two consistent throughout the animation while keeping
-                    // Launcher's concept of full depth unchanged, we divide the depth by 3 here.
-                    mWallpaperManager.setWallpaperZoomOut(windowToken, depth / 3);
-                }
-            }
-
-            if (!BlurUtils.supportsBlursOnWindows()) {
-                return;
-            }
-            if (mBaseSurface == null) {
-                Log.d(TAG, "mSurface is null and mCurrentBlur is: " + mCurrentBlur);
-                return;
-            }
-            if (!mBaseSurface.isValid()) {
-                Log.d(TAG, "mSurface is not valid");
-                mWaitingOnSurfaceValidity = true;
-                onInvalidSurface();
-                return;
-            }
-            mWaitingOnSurfaceValidity = false;
-            boolean hasOpaqueBg = mLauncher.getScrimView().isFullyOpaque();
-            boolean isSurfaceOpaque = !mHasContentBehindLauncher && hasOpaqueBg && !mPauseBlurs;
-
-            float blurAmount;
+        float depth = mDepth;
+        IBinder windowToken = mLauncher.getRootView().getWindowToken();
+        if (windowToken != null) {
             if (enableScalingRevealHomeAnimation()) {
-                blurAmount = mapDepthToBlur(depth);
+                mWallpaperManager.setWallpaperZoomOut(windowToken, depth);
             } else {
-                blurAmount = depth;
+                // The API's full zoom-out is three times larger than the zoom-out we apply to the
+                // icons. To keep the two consistent throughout the animation while keeping
+                // Launcher's concept of full depth unchanged, we divide the depth by 3 here.
+                mWallpaperManager.setWallpaperZoomOut(windowToken, depth / 3);
             }
-            mCurrentBlur = !mCrossWindowBlursEnabled || hasOpaqueBg || mPauseBlurs
-                    ? 0 : (int) (blurAmount * mMaxBlurRadius);
+        }
 
-            SurfaceControl blurSurface =
-                    enableOverviewBackgroundWallpaperBlur() && mBlurSurface != null ? mBlurSurface
-                            : mBaseSurface;
+        if (!BlurUtils.supportsBlursOnWindows()) {
+            return;
+        }
+        if (mBaseSurface == null) {
+            Log.d(TAG, "mSurface is null and mCurrentBlur is: " + mCurrentBlur);
+            return;
+        }
+        if (!mBaseSurface.isValid()) {
+            Log.d(TAG, "mSurface is not valid");
+            mWaitingOnSurfaceValidity = true;
+            onInvalidSurface();
+            return;
+        }
+        mWaitingOnSurfaceValidity = false;
+        boolean hasOpaqueBg = mLauncher.getScrimView().isFullyOpaque();
+        boolean isSurfaceOpaque = !mHasContentBehindLauncher && hasOpaqueBg && !mPauseBlurs;
 
-            transaction.setBackgroundBlurRadius(blurSurface, mCurrentBlur)
-                    .setOpaque(blurSurface, isSurfaceOpaque);
+        float blurAmount;
+        if (enableScalingRevealHomeAnimation()) {
+            blurAmount = mapDepthToBlur(depth);
+        } else {
+            blurAmount = depth;
+        }
+        mCurrentBlur = !mCrossWindowBlursEnabled || hasOpaqueBg || mPauseBlurs
+                ? 0 : (int) (blurAmount * mMaxBlurRadius);
 
-            // Set early wake-up flags when we know we're executing an expensive operation, this way
-            // SurfaceFlinger will adjust its internal offsets to avoid jank.
-            boolean wantsEarlyWakeUp = depth > 0 && depth < 1;
-            if (wantsEarlyWakeUp && !mInEarlyWakeUp) {
-                transaction.setEarlyWakeupStart();
-                mInEarlyWakeUp = true;
-            } else if (!wantsEarlyWakeUp && mInEarlyWakeUp) {
-                transaction.setEarlyWakeupEnd();
-                mInEarlyWakeUp = false;
+        SurfaceControl.Transaction transaction = new SurfaceControl.Transaction();
+        if (enableOverviewBackgroundWallpaperBlur() && mBlurSurface != null) {
+            // Reparent to launcher for full screen blur.
+            transaction.setBackgroundBlurRadius(mBlurSurface, mCurrentBlur)
+                    .reparent(mBlurSurface, mBaseSurface);
+            // Set mBlurSurface to be 1 layer behind mBaseSurface or mBaseSurfaceOverride.
+            if (mBaseSurfaceOverride != null && mBaseSurfaceOverride.isValid()) {
+                transaction.setRelativeLayer(mBlurSurface, mBaseSurfaceOverride, -1);
+            } else {
+                transaction.setRelativeLayer(mBlurSurface, mBaseSurface, -1);
             }
+        } else {
+            transaction.setBackgroundBlurRadius(mBaseSurface, mCurrentBlur);
+        }
+        transaction.setOpaque(mBaseSurface, isSurfaceOpaque);
+        // Set early wake-up flags when we know we're executing an expensive operation, this way
+        // SurfaceFlinger will adjust its internal offsets to avoid jank.
+        boolean wantsEarlyWakeUp = depth > 0 && depth < 1;
+        if (wantsEarlyWakeUp && !mInEarlyWakeUp) {
+            transaction.setEarlyWakeupStart();
+            mInEarlyWakeUp = true;
+        } else if (!wantsEarlyWakeUp && mInEarlyWakeUp) {
+            transaction.setEarlyWakeupEnd();
+            mInEarlyWakeUp = false;
+        }
 
-            AttachedSurfaceControl rootSurfaceControl =
-                    mLauncher.getRootView().getRootSurfaceControl();
-            if (rootSurfaceControl != null) {
-                rootSurfaceControl.applyTransactionOnDraw(transaction);
-            }
+        AttachedSurfaceControl rootSurfaceControl =
+                mLauncher.getRootView().getRootSurfaceControl();
+        if (rootSurfaceControl != null) {
+            rootSurfaceControl.applyTransactionOnDraw(transaction);
         }
     }
 
@@ -236,10 +244,7 @@ public class BaseDepthController {
      */
     public void setBaseSurfaceOverride(@Nullable SurfaceControl baseSurfaceOverride) {
         this.mBaseSurfaceOverride = baseSurfaceOverride;
-        SurfaceControl.Transaction transaction = createTransaction();
-        Log.d(TAG, "setBaseSurfaceOverride: applying blur behind leash " + baseSurfaceOverride);
-        updateBlurSurfaceOrder(transaction);
-        applyDepthAndBlur(transaction);
+        applyDepthAndBlur();
     }
 
     /**
@@ -250,53 +255,7 @@ public class BaseDepthController {
             mBaseSurface = baseSurface;
             Log.d(TAG, "setSurface:\n\tmWaitingOnSurfaceValidity: " + mWaitingOnSurfaceValidity
                     + "\n\tmBaseSurface: " + mBaseSurface);
-            if (enableOverviewBackgroundWallpaperBlur()) {
-                SurfaceControl.Transaction transaction = createTransaction();
-                if (mBaseSurface != null) {
-                    if (mBlurSurface == null) {
-                        mBlurSurface = new SurfaceControl.Builder()
-                                .setName("Overview Blur")
-                                .setHidden(false)
-                                .build();
-                        Log.d(TAG,
-                                "setBaseSurface: creating Overview Blur surface " + mBlurSurface);
-                    }
-                    updateBlurSurfaceParent(transaction);
-                    updateBlurSurfaceOrder(transaction);
-                } else {
-                    if (mBlurSurface != null) {
-                        Log.d(TAG, "setBaseSurface: removing base surface " + mBlurSurface);
-                        transaction.remove(mBlurSurface);
-                        mBlurSurface = null;
-                    }
-                }
-            } else {
-                applyDepthAndBlur();
-            }
-        }
-    }
-
-    private void updateBlurSurfaceOrder(SurfaceControl.Transaction transaction) {
-        SurfaceControl baseSurface = null;
-        if (mBaseSurfaceOverride != null && mBaseSurfaceOverride.isValid()) {
-            Log.d(TAG, "updateBlurSurfaceOrder: relayering to leash " + mBaseSurfaceOverride);
-            baseSurface = mBaseSurfaceOverride;
-        } else if (mBaseSurface != null && mBaseSurface.isValid()) {
-            Log.d(TAG, "updateBlurSurfaceOrder: relayering to base " + mBaseSurface);
-            baseSurface = mBaseSurface;
-        }
-        if (baseSurface != null && mBlurSurface != null) {
-            // Set mBlurSurface to be 1 layer behind mBaseSurface or mBaseSurfaceOverride.
-            transaction.setRelativeLayer(mBlurSurface, baseSurface, -1);
-        }
-    }
-
-    private void updateBlurSurfaceParent(SurfaceControl.Transaction transaction) {
-        if (mBlurSurface != null) {
-            // Reparent to launcher for full screen blur.
-            Log.d(TAG,
-                    "updateBlurSurfaceParent: reparenting " + mBlurSurface + " to " + mBaseSurface);
-            transaction.reparent(mBlurSurface, mBaseSurface);
+            applyDepthAndBlur();
         }
     }
 
@@ -306,9 +265,5 @@ public class BaseDepthController {
      */
     private static float mapDepthToBlur(float depth) {
         return Math.min(3 * depth, 1f);
-    }
-
-    private SurfaceControl.Transaction createTransaction() {
-        return new SurfaceControl.Transaction();
     }
 }

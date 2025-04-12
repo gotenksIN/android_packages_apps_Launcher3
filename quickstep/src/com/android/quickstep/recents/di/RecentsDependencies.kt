@@ -38,6 +38,8 @@ import kotlinx.coroutines.SupervisorJob
 
 internal typealias RecentsScopeId = String
 
+fun Any.toScopeId(): String = this as? RecentsScopeId ?: this.hashCode().toString()
+
 class RecentsDependencies private constructor(appContext: Context) {
     private val scopes = mutableMapOf<RecentsScopeId, RecentsDependenciesScope>()
 
@@ -92,7 +94,7 @@ class RecentsDependencies private constructor(appContext: Context) {
      * @return the scope id associated with the new RecentsDependenciesScope.
      */
     fun createRecentsViewScope(viewContext: Context): String {
-        val scopeId = viewContext.hashCode().toString()
+        val scopeId = viewContext.toScopeId()
         Log.d(TAG, "createRecentsViewScope $scopeId")
         val scope =
             createScope(scopeId).apply {
@@ -168,16 +170,13 @@ class RecentsDependencies private constructor(appContext: Context) {
         return instance
     }
 
-    fun getScope(scope: Any): RecentsDependenciesScope {
-        val scopeId: RecentsScopeId = scope as? RecentsScopeId ?: scope.hashCode().toString()
-        return getScope(scopeId)
-    }
+    fun getScope(scope: Any) = getScope(scope.toScopeId())
 
     fun getScope(scopeId: RecentsScopeId): RecentsDependenciesScope =
         scopes[scopeId] ?: createScope(scopeId)
 
     fun removeScope(scope: Any) {
-        val scopeId: RecentsScopeId = scope as? RecentsScopeId ?: scope.hashCode().toString()
+        val scopeId = scope.toScopeId()
         scopes[scopeId]?.close()
         scopes.remove(scopeId)
         log("Scope $scopeId removed")
@@ -267,7 +266,7 @@ class RecentsDependencies private constructor(appContext: Context) {
         fun destroy(viewContext: Context) {
             synchronized(this) {
                 val localInstance = instance ?: return
-                val scopeId = viewContext.hashCode().toString()
+                val scopeId = viewContext.toScopeId()
                 val scope = localInstance.scopes[scopeId]
                 if (scope == null) {
                     Log.e(
@@ -290,6 +289,12 @@ class RecentsDependencies private constructor(appContext: Context) {
                 }
             }
         }
+
+        fun hasScope(scope: Any) =
+            synchronized(this) {
+                val localInstance = instance ?: return false
+                localInstance.scopes.containsKey(scope.toScopeId())
+            }
     }
 }
 
@@ -304,8 +309,7 @@ inline fun <reified T> RecentsDependencies.Companion.get(
     extras: RecentsDependenciesExtras = RecentsDependenciesExtras(),
     noinline factory: ((extras: RecentsDependenciesExtras) -> T)? = null,
 ): T {
-    val scopeId: RecentsScopeId = scope as? RecentsScopeId ?: scope.hashCode().toString()
-    return getInstance().inject(scopeId, extras, factory)
+    return getInstance().inject(scope.toScopeId(), extras, factory)
 }
 
 inline fun <reified T> RecentsDependencies.Companion.get(

@@ -18,6 +18,7 @@ package com.android.quickstep;
 import static android.app.ActivityTaskManager.INVALID_TASK_ID;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_HOME;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_RECENTS;
+import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.content.Intent.ACTION_CHOOSER;
 import static android.content.Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS;
 import static android.view.Display.DEFAULT_DISPLAY;
@@ -145,9 +146,11 @@ public class TopTaskTracker extends ISplitScreenListener.Stub implements TaskSta
         mOrderedTaskList.removeIf(rto -> rto.taskId == taskInfo.taskId);
         mOrderedTaskList.addFirst(taskInfo);
 
-        // Workaround for b/372067617, if the home task is being brought to front, then it will
-        // occlude all other tasks, so mark them as not-visible
-        if (taskInfo.getActivityType() == ACTIVITY_TYPE_HOME) {
+        // Workaround for b/372067617, b/390564114, if the home task or any fullscreen occluding
+        // task is brought to front, then mark other tasks behind as not-visible
+        if (taskInfo.getActivityType() == ACTIVITY_TYPE_HOME
+                || (taskInfo.getWindowingMode() == WINDOWING_MODE_FULLSCREEN
+                        && !taskInfo.isActivityStackTransparent)) {
             // We've moved the task to the front of the list above, so only iterate the tasks after
             for (int i = 1; i < mOrderedTaskList.size(); i++) {
                 final TaskInfo info = mOrderedTaskList.get(i);

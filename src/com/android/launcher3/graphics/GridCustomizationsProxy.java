@@ -178,7 +178,7 @@ public class GridCustomizationsProxy implements ProxyProvider {
                     for (IconShapeModel shape : ShapesProvider.INSTANCE.getIconShapes()) {
                         cursor.newRow()
                                 .add(KEY_SHAPE_KEY, shape.getKey())
-                                .add(KEY_SHAPE_TITLE, shape.getTitle())
+                                .add(KEY_SHAPE_TITLE, mContext.getString(shape.getTitleId()))
                                 .add(KEY_PATH, shape.getPathString())
                                 .add(KEY_IS_DEFAULT, shape.getKey().equals(currentShape));
                     }

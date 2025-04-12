@@ -30,7 +30,6 @@ import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
 import com.android.app.tracing.traceSection
 import com.android.internal.jank.Cuj
-import com.android.launcher3.Flags.enableAltTabKqsOnConnectedDisplays
 import com.android.launcher3.Flags.enableLargeDesktopWindowingTile
 import com.android.launcher3.Flags.enableOverviewCommandHelperTimeout
 import com.android.launcher3.PagedView
@@ -77,7 +76,6 @@ constructor(
     private val overviewComponentObserver: OverviewComponentObserver,
     private val dispatcherProvider: DispatcherProvider = ProductionDispatchers,
     private val recentsDisplayModel: RecentsDisplayModel,
-    private val focusState: FocusState,
     private val taskbarManager: TaskbarManager,
 ) {
     private val coroutineScope = CoroutineScope(SupervisorJob() + dispatcherProvider.background)
@@ -335,54 +333,19 @@ constructor(
         val recentsViewContainer = containerInterface.getCreatedContainer()
         val recentsView: RecentsView<*, *>? = recentsViewContainer?.getOverviewPanel()
         val deviceProfile = recentsViewContainer?.getDeviceProfile()
-        val uiController = containerInterface.getTaskbarController()
-
-        val focusedDisplayId = focusState.focusedDisplayId
-        val focusedDisplayUIController: TaskbarUIController? =
-            if (enableOverviewInWindow) {
-                Log.d(
-                    TAG,
-                    "Querying RecentsDisplayModel for TaskbarUIController for display: $focusedDisplayId",
-                )
-                recentsDisplayModel.getRecentsWindowManager(focusedDisplayId)?.taskbarUIController
-            } else {
-                Log.d(
-                    TAG,
-                    "Querying TaskbarManager for TaskbarUIController for display: $focusedDisplayId",
-                )
-                // TODO(b/395061396): Remove this path when overview in widow is enabled.
-                taskbarManager.getUIControllerForDisplay(focusedDisplayId)
-            }
-        Log.d(
-            TAG,
-            "TaskbarUIController for display $focusedDisplayId was" +
-                "${if (focusedDisplayUIController == null) " not" else ""} found",
-        )
+        val taskbarUIController: TaskbarUIController? = containerInterface.getTaskbarController()
 
         when (command.type) {
             HIDE -> {
-                if (uiController == null || deviceProfile?.isTablet == false) return true
-                keyboardTaskFocusIndex =
-                    if (
-                        enableAltTabKqsOnConnectedDisplays() && focusedDisplayUIController != null
-                    ) {
-                        focusedDisplayUIController.launchFocusedTask()
-                    } else {
-                        uiController.launchFocusedTask()
-                    }
+                if (taskbarUIController == null || deviceProfile?.isTablet == false) return true
+                keyboardTaskFocusIndex = taskbarUIController.launchFocusedTask()
 
                 if (keyboardTaskFocusIndex == -1) return true
             }
 
             KEYBOARD_INPUT ->
-                if (uiController != null && deviceProfile?.isTablet == true) {
-                    if (
-                        enableAltTabKqsOnConnectedDisplays() && focusedDisplayUIController != null
-                    ) {
-                        focusedDisplayUIController.openQuickSwitchView()
-                    } else {
-                        uiController.openQuickSwitchView()
-                    }
+                if (taskbarUIController != null && deviceProfile?.isTablet == true) {
+                    taskbarUIController.openQuickSwitchView()
                     return true
                 } else {
                     keyboardTaskFocusIndex = 0
@@ -451,8 +414,7 @@ constructor(
         gestureState.isHandlingAtomicEvent = true
         val interactionHandler =
             touchInteractionService
-                // TODO(b/404757863): use command.displayId instead of focusedDisplayId.
-                .getSwipeUpHandlerFactory(focusedDisplayId)
+                .getSwipeUpHandlerFactory(command.displayId)
                 .newHandler(gestureState, command.createTime)
         interactionHandler.setGestureEndCallback {
             onTransitionComplete(command, interactionHandler, onCallbackResult)

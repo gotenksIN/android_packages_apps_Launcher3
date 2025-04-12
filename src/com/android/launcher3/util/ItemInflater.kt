@@ -54,7 +54,7 @@ class ItemInflater<T>(
         WidgetInflater(context, LauncherAppState.getInstance(context).isSafeModeEnabled)
 
     @JvmOverloads
-    fun inflateItem(item: ItemInfo, writer: ModelWriter, nullableParent: ViewGroup? = null): View? {
+    fun inflateItem(item: ItemInfo, nullableParent: ViewGroup? = null): View? {
         val parent = nullableParent ?: defaultParent
         when (item.itemType) {
             Favorites.ITEM_TYPE_APPLICATION,
@@ -74,11 +74,12 @@ class ItemInflater<T>(
             }
             Favorites.ITEM_TYPE_FOLDER ->
                 return FolderIcon.inflateFolderAndIcon(
-                    R.layout.folder_icon,
-                    context,
-                    parent,
-                    item as FolderInfo,
-                )
+                        R.layout.folder_icon,
+                        context,
+                        parent,
+                        item as FolderInfo,
+                    )
+                    .apply { onFocusChangeListener = focusListener }
             Favorites.ITEM_TYPE_APP_PAIR ->
                 return AppPairIcon.inflateIcon(
                     R.layout.app_pair_icon,
@@ -89,7 +90,7 @@ class ItemInflater<T>(
                 )
             Favorites.ITEM_TYPE_APPWIDGET,
             Favorites.ITEM_TYPE_CUSTOM_APPWIDGET ->
-                return inflateAppWidget(item as LauncherAppWidgetInfo, writer)
+                return inflateAppWidget(item as LauncherAppWidgetInfo, context.modelWriter)
             else -> throw RuntimeException("Invalid Item Type")
         }
     }

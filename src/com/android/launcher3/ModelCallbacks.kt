@@ -21,6 +21,7 @@ import com.android.launcher3.popup.PopupContainerWithArrow
 import com.android.launcher3.util.ComponentKey
 import com.android.launcher3.util.IntArray as LIntArray
 import com.android.launcher3.util.IntSet as LIntSet
+import com.android.launcher3.util.ItemInfoMatcher
 import com.android.launcher3.util.PackageUserKey
 import com.android.launcher3.util.Preconditions
 import com.android.launcher3.util.RunnableList
@@ -216,10 +217,16 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
      * updated as well. In that scenario, we only remove specific components from the workspace and
      * hotseat, where as package-removal should clear all items by package name.
      */
-    override fun bindWorkspaceComponentsRemoved(matcher: Predicate<ItemInfo?>?) {
-        launcher.workspace.removeItemsByMatcher(matcher)
+    override fun bindWorkspaceComponentsRemoved(matcher: Predicate<ItemInfo?>) {
+        launcher.workspace.removeItemsByMatcher(matcher, true)
         launcher.dragController.onAppsRemoved(matcher)
         PopupContainerWithArrow.dismissInvalidPopup(launcher)
+    }
+
+    override fun bindItemsModified(items: MutableList<ItemInfo>) {
+        launcher.workspace.removeItemsByMatcher(ItemInfoMatcher.ofItems(items), false)
+        launcher.bindItems(items, false)
+        launcher.workspace.stripEmptyScreens()
     }
 
     override fun bindAllWidgets(allWidgets: List<WidgetsListBaseEntry>) {

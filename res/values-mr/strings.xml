@@ -29,6 +29,8 @@
     <string name="home_screen" msgid="5629429142036709174">"होम"</string>
     <string name="set_default_home_app" msgid="5808906607627586381">"सेटिंग्ज मध्ये <xliff:g id="LAUNCHER_NAME">%1$s</xliff:g> हे डीफॉल्ट होम अ‍ॅप म्हणून सेट करा"</string>
     <string name="recent_task_option_split_screen" msgid="6690461455618725183">"स्प्लिट स्क्रीन"</string>
+    <!-- no translation found for recent_task_option_aspect_ratio (7008605516391096989) -->
+    <skip />
     <string name="split_app_info_accessibility" msgid="5475288491241414932">"%1$s साठी ॲपशी संबंधित माहिती"</string>
     <string name="split_app_usage_settings" msgid="7214375263347964093">"%1$s साठी वापरासंबंधित सेटिंग्ज"</string>
     <string name="new_window_option_taskbar" msgid="6448780542727767211">"नवीन विंडो"</string>

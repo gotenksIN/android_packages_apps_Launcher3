@@ -26,6 +26,7 @@ import com.android.launcher3.R
 import com.android.launcher3.Utilities.boundToRange
 import com.android.launcher3.util.DynamicResource
 import com.android.launcher3.util.MSDLPlayerWrapper
+import com.android.launcher3.views.ActivityContext
 import com.android.quickstep.util.TaskGridNavHelper
 import com.android.quickstep.views.RecentsView.RECENTS_SCALE_PROPERTY
 import com.google.android.msdl.data.model.MSDLToken
@@ -41,7 +42,37 @@ import kotlin.math.sign
 class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
 
     /**
-     * Creates the spring animations which run when a dragged task view in overview is released.
+     * Runs the default spring animation when a dragged task view in overview is released.
+     *
+     * <p>When a task dismiss is cancelled, the task will return to its original position via a
+     * spring animation. As it passes the threshold of its settling state, its neighbors will spring
+     * in response to the perceived impact of the settling task.
+     */
+    fun createTaskDismissSettlingSpringAnimation(draggedTaskView: TaskView): SpringAnimation? {
+        with(recentsView) {
+            draggedTaskView.getThumbnailBounds(mTempRect, /* relativeToDragLayer= */ true)
+            val secondaryLayerDimension: Int =
+                pagedOrientationHandler.getSecondaryDimension(
+                    (mContainer as ActivityContext).getDragLayer()
+                )
+            val verticalFactor = pagedOrientationHandler.getTaskDismissVerticalDirection().toFloat()
+            val dismissLength =
+                (pagedOrientationHandler.getTaskDismissLength(secondaryLayerDimension, mTempRect) *
+                        verticalFactor)
+                    .toInt()
+            val velocity = mTempRect.height().toFloat()
+            return createTaskDismissSettlingSpringAnimation(
+                draggedTaskView,
+                velocity,
+                isDismissing = true,
+                dismissLength,
+                dismissLength.toFloat(),
+            )
+        }
+    }
+
+    /**
+     * Runs the spring animations when a dragged task view in overview is released.
      *
      * <p>When a task dismiss is cancelled, the task will return to its original position via a
      * spring animation. As it passes the threshold of its settling state, its neighbors will spring
@@ -52,7 +83,8 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
         velocity: Float,
         isDismissing: Boolean,
         dismissLength: Int,
-        onEndRunnable: () -> Unit,
+        finalPosition: Float,
+        onEndRunnable: () -> Unit = {},
     ): SpringAnimation? {
         draggedTaskView ?: return null
         val taskDismissFloatProperty =
@@ -109,7 +141,7 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                 minVelocity = startVelocity,
             )
         }
-        return draggedTaskViewSpringAnimation
+        return draggedTaskViewSpringAnimation.apply { animateToFinalPosition(finalPosition) }
     }
 
     private fun addNeighborSettlingSpringAnimations(
