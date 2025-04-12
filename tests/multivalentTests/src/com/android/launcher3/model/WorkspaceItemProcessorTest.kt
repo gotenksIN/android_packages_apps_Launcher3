@@ -54,10 +54,9 @@ import com.android.launcher3.pm.UserCache
 import com.android.launcher3.shortcuts.ShortcutKey
 import com.android.launcher3.util.ComponentKey
 import com.android.launcher3.util.ContentWriter
-import com.android.launcher3.util.LauncherModelHelper
-import com.android.launcher3.util.LauncherModelHelper.SandboxModelContext
 import com.android.launcher3.util.PackageManagerHelper
 import com.android.launcher3.util.PackageUserKey
+import com.android.launcher3.util.SandboxApplication
 import com.android.launcher3.util.UserIconInfo
 import com.android.launcher3.widget.LauncherAppWidgetProviderInfo
 import com.android.launcher3.widget.WidgetInflater
@@ -87,6 +86,7 @@ import org.mockito.kotlin.whenever
 class WorkspaceItemProcessorTest {
 
     @get:Rule val setFlagsRule: SetFlagsRule = SetFlagsRule()
+    @get:Rule val mContext = SandboxApplication()
 
     @Mock private lateinit var mockIconRequestInfo: IconRequestInfo<WorkspaceItemInfo>
     @Mock private lateinit var mockWorkspaceInfo: WorkspaceItemInfo
@@ -98,8 +98,6 @@ class WorkspaceItemProcessorTest {
     @Mock private lateinit var mockWidgetInflater: WidgetInflater
     @Mock private lateinit var mockIconCache: IconCache
 
-    lateinit var mModelHelper: LauncherModelHelper
-    lateinit var mContext: SandboxModelContext
     lateinit var mLauncherApps: LauncherApps
     private var mIntent: Intent = Intent()
     private var mUserHandle: UserHandle = Process.myUserHandle()
@@ -118,8 +116,6 @@ class WorkspaceItemProcessorTest {
     @Before
     fun setup() {
         MockitoAnnotations.initMocks(this)
-        mModelHelper = LauncherModelHelper()
-        mContext = mModelHelper.sandboxContext
         mLauncherApps =
             mContext.spyService(LauncherApps::class.java).apply {
                 doReturn(true).whenever(this).isPackageEnabled("package", mUserHandle)

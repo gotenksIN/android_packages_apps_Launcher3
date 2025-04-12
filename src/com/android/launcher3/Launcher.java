@@ -2236,11 +2236,6 @@ public class Launcher extends StatefulActivity<LauncherState>
     }
 
     @Override
-    public void preAddApps() {
-        mModelCallbacks.preAddApps();
-    }
-
-    @Override
     public void bindAppsAdded(IntArray newScreens, ArrayList<ItemInfo> addNotAnimated,
             ArrayList<ItemInfo> addAnimated) {
         mModelCallbacks.bindAppsAdded(newScreens, addNotAnimated, addAnimated);

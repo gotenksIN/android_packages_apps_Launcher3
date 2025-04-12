@@ -473,10 +473,10 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
      * Directly set the icon and label.
      */
     @UiThread
-    public void applyIconAndLabel(Drawable icon, CharSequence label) {
+    public void applyIconAndLabel(Drawable icon, CharSequence title, CharSequence description) {
         applyCompoundDrawables(icon);
-        setText(label);
-        setContentDescription(label);
+        setText(title);
+        setContentDescription(description);
     }
 
     /** Updates whether the app this view represents is currently running. */

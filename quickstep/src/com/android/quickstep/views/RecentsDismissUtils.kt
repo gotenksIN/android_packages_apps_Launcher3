@@ -68,14 +68,15 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                 .setSpring(createExpressiveDismissSpringForce())
                 .setStartVelocity(startVelocity)
                 .addUpdateListener { animation, value, _ ->
-                    if (isDismissing && abs(value) >= abs(dismissLength)) {
-                        animation.cancel()
-                    } else if (draggedTaskView.isRunningTask && recentsView.enableDrawingLiveTile) {
+                    if (draggedTaskView.isRunningTask && recentsView.enableDrawingLiveTile) {
                         recentsView.runActionOnRemoteHandles { remoteTargetHandle ->
                             remoteTargetHandle.taskViewSimulator.taskSecondaryTranslation.value =
                                 taskDismissFloatProperty.getValue(draggedTaskView)
                         }
                         recentsView.redrawLiveTile()
+                    }
+                    if (isDismissing && abs(value) >= abs(dismissLength)) {
+                        animation.cancel()
                     }
                 }
                 .addEndListener { _, _, _, _ ->
@@ -444,7 +445,17 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
             }
         }
 
-        if (tasksToReflow.isNotEmpty()) {
+        // Start animations and remove the dismissed task at the end, dismiss immediately if no
+        // neighboring tasks exist.
+        val runGridEndAnimationAndRelayout = { dismissDuration: Int ->
+            recentsView.expressiveDismissTaskView(dismissedTaskView, onEndRunnable, dismissDuration)
+        }
+        val runImmediately = tasksToReflow.isEmpty()
+        if (runImmediately) {
+            // Play the same haptic as when neighbors spring into place.
+            MSDLPlayerWrapper.INSTANCE.get(recentsView.context)?.playToken(MSDLToken.CANCEL)
+            runGridEndAnimationAndRelayout(DISMISS_IMMEDIATE_DURATION)
+        } else {
             addNeighborSettlingSpringAnimations(
                 dismissedTaskView,
                 springAnimationDriver,
@@ -453,50 +464,16 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                 isSpringDirectionVertical = false,
                 minVelocity = 0f,
             )
-        } else {
-            springAnimationDriver.addEndListener { _, _, _, _ ->
-                // Play the same haptic as when neighbors spring into place.
-                MSDLPlayerWrapper.INSTANCE.get(recentsView.context)?.playToken(MSDLToken.CANCEL)
+            springAnimationDriver.apply {
+                addEndListener { _, _, _, _ ->
+                    runGridEndAnimationAndRelayout(DISMISS_DEFAULT_DURATION)
+                }
+                animateToFinalPosition(dismissedTaskGap)
             }
         }
-
-        // Start animations and remove the dismissed task at the end, dismiss immediately if no
-        // neighboring tasks exist.
-        val runGridEndAnimationAndRelayout = {
-            recentsView.expressiveDismissTaskView(dismissedTaskView, onEndRunnable)
-        }
-        springAnimationDriver?.apply {
-            addEndListener { _, _, _, _ -> runGridEndAnimationAndRelayout() }
-            animateToFinalPosition(dismissedTaskGap)
-        } ?: runGridEndAnimationAndRelayout()
     }
 
     private fun getDismissedTaskGapForReflow(dismissedTaskView: TaskView): Float {
-        val screenStart = recentsView.pagedOrientationHandler.getPrimaryScroll(recentsView)
-        val screenEnd =
-            screenStart + recentsView.pagedOrientationHandler.getMeasuredSize(recentsView)
-        val taskStart =
-            recentsView.pagedOrientationHandler.getChildStart(dismissedTaskView) +
-                dismissedTaskView.getOffsetAdjustment(recentsView.showAsGrid())
-        val taskSize =
-            recentsView.pagedOrientationHandler.getMeasuredSize(dismissedTaskView) *
-                dismissedTaskView.getSizeAdjustment(recentsView.showAsFullscreen())
-        val taskEnd = taskStart + taskSize
-
-        val isDismissedTaskBeyondEndOfScreen =
-            if (recentsView.isRtl) taskEnd > screenEnd else taskStart < screenStart
-        if (
-            dismissedTaskView.isLargeTile &&
-                isDismissedTaskBeyondEndOfScreen &&
-                recentsView.mUtils.getLargeTileCount() == 1
-        ) {
-            return with(recentsView) {
-                    pagedOrientationHandler.getPrimaryScroll(this) -
-                        getScrollForPage(indexOfChild(mUtils.getFirstNonDesktopTaskView()))
-                }
-                .toFloat()
-        }
-
         // If current page is beyond last TaskView's index, use last TaskView to calculate offset.
         val lastTaskViewIndex = recentsView.indexOfChild(recentsView.mUtils.getLastTaskView())
         val currentPage = recentsView.currentPage.coerceAtMost(lastTaskViewIndex)
@@ -582,5 +559,7 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
         // The additional damping to apply to tasks further from the dismissed task.
         private const val ADDITIONAL_DISMISS_DAMPING_RATIO = 0.15f
         private const val RECENTS_SCALE_SPRING_MULTIPLIER = 1000f
+        private const val DISMISS_DEFAULT_DURATION = 300
+        private const val DISMISS_IMMEDIATE_DURATION = 10
     }
 }

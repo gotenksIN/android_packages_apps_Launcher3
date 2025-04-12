@@ -171,18 +171,6 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
         )
     }
 
-    override fun preAddApps() {
-        // If there's an undo snackbar, force it to complete to ensure empty screens are removed
-        // before trying to add new items.
-        launcher.modelWriter.commitDelete()
-        val snackbar =
-            AbstractFloatingView.getOpenView<AbstractFloatingView>(
-                launcher,
-                AbstractFloatingView.TYPE_SNACKBAR,
-            )
-        snackbar?.post { snackbar.close(true) }
-    }
-
     @UiThread
     override fun bindAllApplications(
         apps: Array<AppInfo?>?,

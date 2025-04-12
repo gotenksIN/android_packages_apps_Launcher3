@@ -23,6 +23,7 @@ import android.content.Context
 import android.graphics.Outline
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
+import android.text.TextUtils
 import android.util.AttributeSet
 import android.view.View
 import android.view.ViewAnimationUtils
@@ -30,6 +31,8 @@ import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.animation.addListener
+import androidx.core.view.updateLayoutParams
 import com.android.app.animation.Interpolators
 import com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY
 import com.android.launcher3.LauncherAnimUtils.VIEW_TRANSLATE_X
@@ -57,8 +60,8 @@ constructor(
     private var iconArrowView: ImageView? = null
     private var menuAnchorView: View? = null
     // Two textview so we can ellipsize the collapsed view and crossfade on expand to the full name.
-    private var iconTextCollapsedView: TextView? = null
-    private var iconTextExpandedView: TextView? = null
+    private var appTitle: TextView? = null
+    private var isLayoutNaturalToLauncher = true
 
     private val backgroundRelativeLtrLocation = Rect()
     private val backgroundAnimationRectEvaluator = RectEvaluator(backgroundRelativeLtrLocation)
@@ -94,6 +97,8 @@ constructor(
         resources.getDimensionPixelSize(R.dimen.task_thumbnail_icon_view_start_margin)
     private val appIconSize =
         resources.getDimensionPixelSize(R.dimen.task_thumbnail_icon_menu_app_icon_collapsed_size)
+    private val expandedMaxTextWidth =
+        resources.getDimensionPixelSize(R.dimen.task_thumbnail_icon_menu_text_expanded_max_width)
     private val arrowSize =
         resources.getDimensionPixelSize(R.dimen.task_thumbnail_icon_menu_arrow_size)
     private val iconViewDrawableExpandedSize =
@@ -110,7 +115,10 @@ constructor(
     private val viewTranslationY: MultiPropertyFactory<View> =
         MultiPropertyFactory(this, VIEW_TRANSLATE_Y, INDEX_COUNT_TRANSLATION, SUM_AGGREGATOR)
 
-    var maxWidth = Int.MAX_VALUE
+    // Width showing only the app icon and arrow. Max width should not be set to less than
+    // this.
+    private val minWidthAllowed = iconViewMarginStart + appIconSize + arrowSize + arrowMarginEnd
+    var maxWidth = Integer.MAX_VALUE
         /**
          * Sets the maximum width of this Icon Menu. This is usually used when space is limited for
          * split screen.
@@ -118,8 +126,7 @@ constructor(
         set(value) {
             // Width showing only the app icon and arrow. Max width should not be set to less than
             // this.
-            val minMaxWidth = iconViewMarginStart + appIconSize + arrowSize + arrowMarginEnd
-            field = max(value, minMaxWidth)
+            field = max(value, minWidthAllowed)
         }
 
     var status: AppChipStatus = AppChipStatus.Collapsed
@@ -128,15 +135,14 @@ constructor(
     override fun onFinishInflate() {
         super.onFinishInflate()
         iconView = findViewById(R.id.icon_view)
-        iconTextCollapsedView = findViewById(R.id.icon_text_collapsed)
-        iconTextExpandedView = findViewById(R.id.icon_text_expanded)
+        appTitle = findViewById(R.id.icon_title)
         iconArrowView = findViewById(R.id.icon_arrow)
         menuAnchorView = findViewById(R.id.icon_view_menu_anchor)
     }
 
     override fun setText(text: CharSequence?) {
-        iconTextCollapsedView?.text = text
-        iconTextExpandedView?.text = text
+        if (text == appTitle?.text) return
+        appTitle?.text = text
     }
 
     override fun getDrawable(): Drawable? = iconView?.drawable
@@ -151,6 +157,7 @@ constructor(
 
     override fun setIconOrientation(orientationState: RecentsOrientedState, isGridTask: Boolean) {
         val orientationHandler = orientationState.orientationHandler
+        isLayoutNaturalToLauncher = orientationHandler.isLayoutNaturalToLauncher
         // Layout params for anchor view
         val anchorLayoutParams = menuAnchorView!!.layoutParams as LayoutParams
         anchorLayoutParams.topMargin = expandedMenuDefaultHeight + menuToChipGap
@@ -158,7 +165,7 @@ constructor(
 
         // Layout Params for the Menu View (this)
         val iconMenuParams = layoutParams as LayoutParams
-        iconMenuParams.width = expandedMenuDefaultWidth
+        iconMenuParams.width = getChipWidth()
         iconMenuParams.height = expandedMenuDefaultHeight
         orientationHandler.setIconAppChipMenuParams(
             this,
@@ -200,30 +207,17 @@ constructor(
         // Layout Params for the collapsed Icon Text View
         val textMarginStart =
             iconMarginStartRelativeToParent + appIconSize + appNameHorizontalMargin
-        val iconTextCollapsedParams = iconTextCollapsedView!!.layoutParams as LayoutParams
+        val iconTextCollapsedParams = appTitle!!.layoutParams as LayoutParams
         orientationHandler.setIconAppChipChildrenParams(iconTextCollapsedParams, textMarginStart)
-        val collapsedTextWidth =
-            (collapsedBackgroundBounds.width() -
-                iconViewMarginStart -
-                appIconSize -
-                arrowSize -
-                appNameHorizontalMargin -
-                arrowMarginEnd)
-        iconTextCollapsedParams.width = collapsedTextWidth
-        iconTextCollapsedView!!.layoutParams = iconTextCollapsedParams
-        iconTextCollapsedView!!.alpha = 1f
-
-        // Layout Params for the expanded Icon Text View
-        val iconTextExpandedParams = iconTextExpandedView!!.layoutParams as LayoutParams
-        orientationHandler.setIconAppChipChildrenParams(iconTextExpandedParams, textMarginStart)
-        iconTextExpandedView!!.layoutParams = iconTextExpandedParams
-        iconTextExpandedView!!.alpha = 0f
-        iconTextExpandedView!!.setRevealClip(
-            true,
-            0f,
-            appIconSize / 2f,
-            collapsedTextWidth.toFloat(),
-        )
+        iconTextCollapsedParams.width =
+            calculateCollapsedTextWidth(collapsedBackgroundBounds.width())
+        appTitle!!.layoutParams = iconTextCollapsedParams
+        // select to enable marquee and disable it when is running test harness.
+        if (Utilities.isRunningInTestHarness()) {
+            disableAppTitleMarquee()
+        } else {
+            appTitle!!.isSelected = true
+        }
 
         // Layout Params for the Icon Arrow View
         val iconArrowParams = iconArrowView!!.layoutParams as LayoutParams
@@ -241,6 +235,38 @@ constructor(
             MeasureSpec.makeMeasureSpec(layoutParams.width, MeasureSpec.EXACTLY),
             MeasureSpec.makeMeasureSpec(layoutParams.height, MeasureSpec.EXACTLY),
         )
+    }
+
+    private fun disableAppTitleMarquee() {
+        appTitle?.let {
+            it.isHorizontalFadingEdgeEnabled = false
+            it.ellipsize = TextUtils.TruncateAt.END
+            it.horizontallyScrolling = false
+            it.isSelected = false
+        }
+    }
+
+    /**
+     * Calculates the width available for the collapsed text (app name) within the view.
+     *
+     * This function determines the maximum width that the app name can occupy when the view is in
+     * its collapsed state. It considers various factors such as the maximum allowed width, the
+     * bounds of the collapsed background, the size of the app icon, the arrow, and the margins
+     * around these elements.
+     *
+     * @return The calculated width available for the collapsed text (app name).
+     */
+    private fun calculateCollapsedTextWidth(width: Int): Int {
+        val collapsedTextWidth =
+            (width -
+                iconViewMarginStart -
+                appIconSize -
+                arrowSize -
+                appNameHorizontalMargin -
+                arrowMarginEnd)
+
+        val spaceLeftForText = maxWidth - minWidthAllowed
+        return minOf(collapsedTextWidth, spaceLeftForText)
     }
 
     override fun setIconColorTint(color: Int, amount: Float) {
@@ -312,11 +338,11 @@ constructor(
             // Clip expanded text with reveal animation so it doesn't go beyond the edge of the menu
             val expandedTextRevealAnim =
                 ViewAnimationUtils.createCircularReveal(
-                    iconTextExpandedView,
+                    appTitle,
                     0,
-                    iconTextExpandedView!!.height / 2,
-                    iconTextCollapsedView!!.width.toFloat(),
-                    iconTextExpandedView!!.width.toFloat(),
+                    appTitle!!.height / 2,
+                    appTitle!!.width.toFloat(),
+                    expandedMaxTextWidth.toFloat(),
                 )
             // Animate background clipping
             val backgroundAnimator =
@@ -343,18 +369,7 @@ constructor(
                 backgroundAnimator,
                 ObjectAnimator.ofFloat(iconView, SCALE_X, iconViewScaling),
                 ObjectAnimator.ofFloat(iconView, SCALE_Y, iconViewScaling),
-                ObjectAnimator.ofFloat(
-                    iconTextCollapsedView,
-                    TRANSLATION_X,
-                    textTranslationXWithRtl,
-                ),
-                ObjectAnimator.ofFloat(
-                    iconTextExpandedView,
-                    TRANSLATION_X,
-                    textTranslationXWithRtl,
-                ),
-                ObjectAnimator.ofFloat(iconTextCollapsedView, ALPHA, 0f),
-                ObjectAnimator.ofFloat(iconTextExpandedView, ALPHA, 1f),
+                ObjectAnimator.ofFloat(appTitle, TRANSLATION_X, textTranslationXWithRtl),
                 ObjectAnimator.ofFloat(iconArrowView, TRANSLATION_X, arrowTranslationWithRtl),
                 ObjectAnimator.ofFloat(iconArrowView, SCALE_Y, -1f),
             )
@@ -364,11 +379,11 @@ constructor(
             // Clip expanded text with reveal animation so it doesn't go beyond the edge of the menu
             val expandedTextClipAnim =
                 ViewAnimationUtils.createCircularReveal(
-                    iconTextExpandedView,
+                    appTitle,
                     0,
-                    iconTextExpandedView!!.height / 2,
-                    iconTextExpandedView!!.width.toFloat(),
-                    iconTextCollapsedView!!.width.toFloat(),
+                    appTitle!!.height / 2,
+                    appTitle!!.width.toFloat(),
+                    calculateCollapsedTextWidth(collapsedBackgroundBounds.width()).toFloat(),
                 )
 
             // Animate background clipping
@@ -386,10 +401,7 @@ constructor(
                 expandedTextClipAnim,
                 backgroundAnimator,
                 ObjectAnimator.ofFloat(iconView, SCALE_PROPERTY, 1f),
-                ObjectAnimator.ofFloat(iconTextCollapsedView, TRANSLATION_X, 0f),
-                ObjectAnimator.ofFloat(iconTextExpandedView, TRANSLATION_X, 0f),
-                ObjectAnimator.ofFloat(iconTextCollapsedView, ALPHA, 1f),
-                ObjectAnimator.ofFloat(iconTextExpandedView, ALPHA, 0f),
+                ObjectAnimator.ofFloat(appTitle, TRANSLATION_X, 0f),
                 ObjectAnimator.ofFloat(iconArrowView, TRANSLATION_X, 0f),
                 ObjectAnimator.ofFloat(iconArrowView, SCALE_Y, 1f),
             )
@@ -399,7 +411,46 @@ constructor(
 
         if (!animated) animator!!.duration = 0
         animator!!.interpolator = Interpolators.EMPHASIZED
+        animator!!.addListener(
+            onStart = {
+                appTitle!!.isSelected = false
+                if (status == AppChipStatus.Expanded) updateChipSize()
+            },
+            onEnd = {
+                if (status == AppChipStatus.Collapsed) updateChipSize()
+                appTitle!!.isSelected = true
+            },
+        )
         animator!!.start()
+    }
+
+    /**
+     * Updates the width of the app title based on the current [AppChipStatus].
+     *
+     * This function dynamically adjusts the width of the `appTitle` TextView depending on whether
+     * the app chip is in an expanded or collapsed state.
+     * - When the chip is [AppChipStatus.Expanded], the title width is set to
+     *   [expandedMaxTextWidth], allowing the title to potentially take up more space.
+     * - When the chip is [AppChipStatus.Collapsed], the title width is calculated based on the
+     *   width of the collapsed background. This ensures the title fits within the smaller,
+     *   collapsed chip boundaries. The width is then determined by calling
+     *   [calculateCollapsedTextWidth].
+     */
+    private fun updateChipSize() {
+        val chipWidth = getChipWidth()
+        when (status) {
+            AppChipStatus.Expanded -> {
+                updateLayoutParams { width = chipWidth }
+                appTitle!!.updateLayoutParams { width = expandedMaxTextWidth }
+            }
+            AppChipStatus.Collapsed -> {
+                appTitle!!.updateLayoutParams {
+                    val collapsedBackgroundWidth = getCollapsedBackgroundLtrBounds().width()
+                    width = calculateCollapsedTextWidth(collapsedBackgroundWidth)
+                }
+                updateLayoutParams { width = chipWidth }
+            }
+        }
     }
 
     private fun getCollapsedBackgroundLtrBounds(): Rect {
@@ -411,6 +462,18 @@ constructor(
 
     private fun getExpandedBackgroundLtrBounds() =
         Rect(0, 0, expandedMenuDefaultWidth, expandedMenuDefaultHeight)
+
+    private fun getCollapsedBackgroundWidth() = getCollapsedBackgroundLtrBounds().right
+
+    private fun getChipWidth(): Int {
+        // TODO(b/292269949): When in fake orientation, the width of the chip remains expanded
+        //  to prevent wrong translation due to chip rotation and anchor.
+        if (!isLayoutNaturalToLauncher) return expandedMenuDefaultWidth
+        return when (status) {
+            AppChipStatus.Expanded -> expandedMenuDefaultWidth
+            AppChipStatus.Collapsed -> getCollapsedBackgroundWidth()
+        }
+    }
 
     private fun cancelInProgressAnimations() {
         // We null the `AnimatorSet` because it holds references to the `Animators` which aren't

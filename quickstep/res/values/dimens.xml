@@ -94,6 +94,9 @@
     <dimen name="task_icon_cache_default_icon_size">72dp</dimen>
     <item name="overview_modal_max_scale" format="float" type="dimen">1.1</item>
 
+    <!-- The space between the app chip menu expanded and the taskbar -->
+    <dimen name="overview_app_chip_menu_bottom_margin">0dp</dimen>
+
     <!-- Overrideable in overlay that provides the Overview Actions. -->
     <dimen name="overview_actions_top_margin">24dp</dimen>
     <dimen name="overview_actions_height">48dp</dimen>
@@ -541,4 +544,21 @@
 
     <!-- Digital Wellbeing -->
     <dimen name="digital_wellbeing_toast_height">48dp</dimen>
+
+    <!-- Nudge -->
+    <dimen name="nudge_elevation">14dp</dimen>
+    <dimen name="nudge_horizontal_margin">32dp</dimen>
+    <dimen name="nudge_vertical_margin">24dp</dimen>
+
+    <dimen name="nudge_width">428dp</dimen>
+    <dimen name="nudge_paddingBottom">16dp</dimen>
+    <dimen name="nudge_content_elements_spacing">8dp</dimen>
+    <dimen name="nudge_buttons_margin_top">36dp</dimen>
+    <dimen name="nudge_buttons_spacing">8dp</dimen>
+    <dimen name="nudge_button_horizontal_padding">6dp</dimen>
+    <dimen name="nudge_button_vertical_padding">12dp</dimen>
+    <dimen name="nudge_enter_y_delta">20dp</dimen>
+    <dimen name="nudge_exit_y_delta">-10dp</dimen>
+
+    <dimen name="nudge_default_position_side_spacing">16dp</dimen>
 </resources>
