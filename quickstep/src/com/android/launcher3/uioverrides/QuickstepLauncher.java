@@ -177,6 +177,8 @@ import com.android.quickstep.RecentsModel;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.TaskUtils;
 import com.android.quickstep.TouchInteractionService.TISBinder;
+import com.android.quickstep.fallback.window.RecentsDisplayModel;
+import com.android.quickstep.fallback.window.RecentsWindowManager;
 import com.android.quickstep.util.ActiveGestureProtoLogProxy;
 import com.android.quickstep.util.AsyncClockEventDelegate;
 import com.android.quickstep.util.LauncherUnfoldAnimationController;
@@ -862,6 +864,13 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         if (overviewCommandHelper != null) {
             overviewCommandHelper.clearPendingCommands();
         }
+        RecentsDisplayModel recentsDisplayModel = RecentsDisplayModel.getINSTANCE().get(this);
+        recentsDisplayModel.getActiveDisplayResources().forEach(resource -> {
+            RecentsWindowManager recentsWindowManager = resource.getRecentsWindowManager();
+            if (recentsWindowManager != null) {
+                recentsWindowManager.onNewIntent();
+            }
+        });
     }
 
     public QuickstepTransitionManager getAppTransitionManager() {

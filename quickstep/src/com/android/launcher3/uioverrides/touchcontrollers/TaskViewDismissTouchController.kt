@@ -37,6 +37,7 @@ import com.android.quickstep.views.RecentsViewContainer
 import com.android.quickstep.views.TaskView
 import com.google.android.msdl.data.model.MSDLToken
 import kotlin.math.abs
+import kotlin.math.ceil
 
 /** Touch controller for handling task view card dismiss swipes */
 class TaskViewDismissTouchController<CONTAINER>(
@@ -135,12 +136,16 @@ CONTAINER : RecentsViewContainer {
                             container.dragLayer
                         )
                     // Dismiss length as bottom of task so it is fully off screen when dismissed.
+                    // Take into account the recents scale when fully zoomed out on dismiss.
                     it.getThumbnailBounds(tempTaskThumbnailBounds, relativeToDragLayer = true)
                     dismissLength =
-                        recentsView.pagedOrientationHandler.getTaskDismissLength(
-                            secondaryLayerDimension,
-                            tempTaskThumbnailBounds,
-                        )
+                        ceil(
+                                recentsView.pagedOrientationHandler.getTaskDismissLength(
+                                    secondaryLayerDimension,
+                                    tempTaskThumbnailBounds,
+                                ) / RECENTS_SCALE_ON_DISMISS_SUCCESS
+                            )
+                            .toInt()
                     verticalFactor =
                         recentsView.pagedOrientationHandler.getTaskDismissVerticalDirection()
                 }
@@ -231,20 +236,16 @@ CONTAINER : RecentsViewContainer {
         val isFlingingTowardsRestState = detector.isFling(velocity) && !velocityIsGoingUp
         val isDismissing =
             isFlingingTowardsDismiss || (isBeyondDismissThreshold && !isFlingingTowardsRestState)
+        val finalPosition = if (isDismissing) (dismissLength * verticalFactor).toFloat() else 0f
         springAnimation =
-            recentsView
-                .createTaskDismissSettlingSpringAnimation(
-                    taskBeingDragged,
-                    velocity,
-                    isDismissing,
-                    dismissLength,
-                    this::clearState,
-                )
-                .apply {
-                    animateToFinalPosition(
-                        if (isDismissing) (dismissLength * verticalFactor).toFloat() else 0f
-                    )
-                }
+            recentsView.runTaskDismissSettlingSpringAnimation(
+                taskBeingDragged,
+                velocity,
+                isDismissing,
+                dismissLength,
+                finalPosition,
+                this::clearState,
+            )
         isBlockedDuringDismissal = true
         recentsScaleAnimation =
             recentsView.animateRecentsScale(RECENTS_SCALE_DEFAULT).addEndListener { _, _, _, _ ->
