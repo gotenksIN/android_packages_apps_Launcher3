@@ -317,9 +317,10 @@ public class TaskViewSimulator implements TransformParams.BuilderProxy {
     /**
      * Adds animation for all the components corresponding to transition from an app to carousel.
      */
-    public void addAppToCarouselAnim(PendingAnimation pa, Interpolator interpolator) {
+    public void addAppToCarouselAnim(PendingAnimation pa, Interpolator interpolator,
+            boolean isHandlingAtomicEvent) {
         pa.addFloat(fullScreenProgress, AnimatedFloat.VALUE, 1, 0, interpolator);
-        if (enableGridOnlyOverview() && mDp.isTablet && mDp.isGestureMode) {
+        if (enableGridOnlyOverview() && mDp.isTablet && !isHandlingAtomicEvent) {
             mIsAnimatingToCarousel = true;
             carouselScale.value = mCarouselTaskSize.width() / (float) mFullTaskSize.width();
         }

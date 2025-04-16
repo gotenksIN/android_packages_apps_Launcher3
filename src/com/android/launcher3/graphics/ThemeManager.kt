@@ -129,7 +129,6 @@ constructor(
             iconMask = iconMask,
             folderShapeMask = folderShapeMask,
             themeController = iconControllerFactory.createThemeController(),
-            iconScale = shapeModel?.iconScale ?: 1f,
             iconShape = iconShape,
             folderShape = folderShape,
         )
@@ -140,7 +139,6 @@ constructor(
         val folderShapeMask: String,
         val themeController: IconThemeController?,
         val themeCode: String = themeController?.themeID ?: "no-theme",
-        val iconScale: Float = 1f,
         val iconShape: ShapeDelegate,
         val folderShape: ShapeDelegate,
     ) {

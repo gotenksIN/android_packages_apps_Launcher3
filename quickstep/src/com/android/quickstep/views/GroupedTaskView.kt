@@ -53,7 +53,7 @@ import com.android.wm.shell.shared.split.SplitScreenConstants.PersistentSnapPosi
 class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
     TaskView(context, attrs, type = TaskViewType.GROUPED) {
 
-    private val MINIMUM_RATIO_TO_SHOW_ICON = 0.2f
+    private val MINIMUM_RATIO_TO_SHOW_ICON = 0.25f
 
     val leftTopTaskContainer: TaskContainer
         get() = taskContainers[0]

@@ -471,7 +471,7 @@ public class PreviewItemManager {
                             setDrawable(p, newInfo);
                             mIcon.invalidate();
                         }
-                    }, info);
+                    }, info, DESKTOP_ICON_FLAG);
         }
     }
 
