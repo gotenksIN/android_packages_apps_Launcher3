@@ -57,9 +57,16 @@ public abstract class BaseTaskbarContext extends BaseContext
     public abstract NavigationMode getNavigationMode();
 
     /**
-     * Returns whether the taskbar is in desktop mode.
+     * Returns whether the taskbar is in desktop mode. Implies that some desktop tasks are currently
+     * visible.
      */
     public abstract boolean isInDesktopMode();
+
+    /**
+     * Returns whether the taskbar is showing desktop tasks, which may happen even outside desktop
+     * mode on freeform displays.
+     */
+    public abstract boolean isTaskbarShowingDesktopTasks();
 
     /**
      * Returns whether the taskbar is forced to be pinned when home is visible.

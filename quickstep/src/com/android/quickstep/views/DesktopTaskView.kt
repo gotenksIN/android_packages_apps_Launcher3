@@ -417,8 +417,22 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         val endCallback = RunnableList()
         val desktopController = recentsView.desktopRecentsController
         checkNotNull(desktopController) { "recentsController is null" }
-        desktopController.launchDesktopFromRecents(this, animated) {
-            endCallback.executeAllAndDestroy()
+
+        val launchDesktopFromRecents = {
+            desktopController.launchDesktopFromRecents(this, animated) {
+                endCallback.executeAllAndDestroy()
+            }
+        }
+        if (enableMultipleDesktops(context) && desktopTask?.tasks?.isEmpty() == true) {
+            recentsView.switchToScreenshot {
+                recentsView.finishRecentsAnimation(
+                    /* toRecents= */ true,
+                    /* shouldPip= */ false,
+                    launchDesktopFromRecents,
+                )
+            }
+        } else {
+            launchDesktopFromRecents()
         }
         Log.d(
             TAG,

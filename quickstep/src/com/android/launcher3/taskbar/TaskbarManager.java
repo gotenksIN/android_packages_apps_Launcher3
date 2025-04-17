@@ -229,8 +229,8 @@ public class TaskbarManager implements DisplayDecorationListener {
                         return;
                     }
                     // Only Handles Special Exit Cases for Desktop Mode Taskbar Recreation.
-                    if (taskbarActivityContext != null
-                            && !taskbarActivityContext.showLockedTaskbarOnHome()) {
+                    if (((flags & CHANGE_TASKBAR_PINNING) != 0) || (taskbarActivityContext != null
+                            && !taskbarActivityContext.showLockedTaskbarOnHome())) {
                         recreateTaskbars();
                     }
                 } else {

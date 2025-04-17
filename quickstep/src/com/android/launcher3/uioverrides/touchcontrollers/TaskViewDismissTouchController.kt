@@ -66,6 +66,7 @@ CONTAINER : RecentsViewContainer {
     private var initialDisplacement: Float = 0f
     private var recentsScaleAnimation: SpringAnimation? = null
     private var isBlockedDuringDismissal = false
+    private var canInterceptTouch = false
 
     private fun canInterceptTouch(ev: MotionEvent): Boolean =
         when {
@@ -104,11 +105,15 @@ CONTAINER : RecentsViewContainer {
             clearState()
         }
         if (ev.action == MotionEvent.ACTION_DOWN) {
-            if (!onActionDown(ev)) {
+            canInterceptTouch = onActionDown(ev)
+            if (!canInterceptTouch) {
                 return false
             }
         }
-
+        // Ignore other actions if touch intercepting has not been enabled in an ACTION_DOWN event.
+        if (!canInterceptTouch) {
+            return false
+        }
         onControllerTouchEvent(ev)
         val upDirectionIsPositive = upDirection == SingleAxisSwipeDetector.DIRECTION_POSITIVE
         val wasInitialTouchUp =
@@ -149,6 +154,10 @@ CONTAINER : RecentsViewContainer {
                     verticalFactor =
                         recentsView.pagedOrientationHandler.getTaskDismissVerticalDirection()
                 }
+        if (taskBeingDragged == null) {
+            debugLog(TAG, "Not intercepting touch, null dragged task.")
+            return false
+        }
         detector.setDetectableScrollConditions(upDirection, /* ignoreSlop= */ false)
         return true
     }
