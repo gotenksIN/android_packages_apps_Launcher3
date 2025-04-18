@@ -92,7 +92,9 @@ import com.android.quickstep.util.ActiveGestureErrorDetector
 import com.android.quickstep.util.ActiveGestureLog
 import com.android.quickstep.util.BorderAnimator
 import com.android.quickstep.util.BorderAnimator.Companion.createSimpleBorderAnimator
+import com.android.quickstep.util.GroupTask
 import com.android.quickstep.util.RecentsOrientedState
+import com.android.quickstep.util.SingleTask
 import com.android.quickstep.util.TaskCornerRadius
 import com.android.quickstep.util.TaskRemovedDuringLaunchListener
 import com.android.quickstep.util.isExternalDisplay
@@ -130,6 +132,8 @@ constructor(
     @Retention(AnnotationRetention.SOURCE)
     @IntDef(FLAG_UPDATE_ALL, FLAG_UPDATE_ICON, FLAG_UPDATE_THUMBNAIL, FLAG_UPDATE_CORNER_RADIUS)
     annotation class TaskDataChanges
+
+    var groupTask: GroupTask? = null
 
     val taskIds: IntArray
         /** Returns a copy of integer array containing taskIds of all tasks in the TaskView. */
@@ -692,6 +696,7 @@ constructor(
     override fun onRecycle() {
         resetPersistentViewTransforms()
 
+        groupTask = null
         // Bind ViewModel to no taskIds
         viewModel?.bind()
         attachAlpha = 1f
@@ -934,16 +939,17 @@ constructor(
 
     /** Updates this task view to the given {@param task}. */
     open fun bind(
-        task: Task,
+        singleTask: SingleTask,
         orientedState: RecentsOrientedState,
         taskOverlayFactory: TaskOverlayFactory,
     ) {
+        this.groupTask = singleTask
         cancelPendingLoadTasks()
         this.orientedState = orientedState // Needed for dependencies
         taskContainers =
             listOf(
                 createTaskContainer(
-                    task,
+                    singleTask.task,
                     R.id.snapshot,
                     R.id.icon,
                     R.id.show_windows,

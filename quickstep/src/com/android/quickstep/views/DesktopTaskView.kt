@@ -70,10 +70,11 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         type = TaskViewType.DESKTOP,
         thumbnailFullscreenParams = DesktopFullscreenDrawParams(context),
     ) {
+    private val desktopTask: DesktopTask?
+        get() = groupTask as? DesktopTask
+
     val deskId
         get() = desktopTask?.deskId ?: DesktopVisibilityController.INACTIVE_DESK_ID
-
-    private var desktopTask: DesktopTask? = null
 
     private val contentViewFullscreenParams = FullscreenDrawParams(context)
 
@@ -298,7 +299,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         orientedState: RecentsOrientedState,
         taskOverlayFactory: TaskOverlayFactory,
     ) {
-        this.desktopTask = desktopTask
+        this.groupTask = desktopTask
         // Minimized tasks are shown in Overview when exploded view is enabled.
         val tasks =
             if (enableDesktopExplodedView()) {
@@ -364,7 +365,6 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
 
     override fun onRecycle() {
         super.onRecycle()
-        desktopTask = null
         explodeProgress = 0.0f
         viewModel = null
         visibility = VISIBLE

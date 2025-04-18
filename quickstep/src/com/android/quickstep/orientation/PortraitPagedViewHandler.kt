@@ -83,6 +83,8 @@ class PortraitPagedViewHandler : DefaultPagedViewHandler(), RecentsPagedOrientat
 
     override fun getPrimarySize(rect: RectF): Float = rect.width()
 
+    override fun getSecondarySize(rect: RectF): Float = rect.height()
+
     override fun getStart(rect: RectF): Float = rect.left
 
     override fun getEnd(rect: RectF): Float = rect.right

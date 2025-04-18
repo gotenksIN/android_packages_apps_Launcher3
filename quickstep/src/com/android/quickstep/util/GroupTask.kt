@@ -94,11 +94,16 @@ class SingleTask(task: Task) : GroupTask(listOf(task), task.key.displayId, TaskV
  * A [Task] container that must contain exactly two tasks and split bounds to represent an app-pair
  * in the recent tasks list.
  */
-class SplitTask(task1: Task, task2: Task, val splitBounds: SplitConfigurationOptions.SplitBounds) :
+class SplitTask(task1: Task, task2: Task, val splitBounds: SplitConfigurationOptions.SplitBounds?) :
     GroupTask(listOf(task1, task2), task1.key.displayId, TaskViewType.GROUPED) {
 
     val topLeftTask: Task
-        get() = if (splitBounds.leftTopTaskId == tasks[0].key.id) tasks[0] else tasks[1]
+        get() =
+            when {
+                splitBounds == null -> tasks[0]
+                splitBounds.leftTopTaskId == tasks[0].key.id -> tasks[0]
+                else -> tasks[1]
+            }
 
     val bottomRightTask: Task
         get() = if (topLeftTask == tasks[0]) tasks[1] else tasks[0]

@@ -52,6 +52,7 @@ import com.android.quickstep.views.RecentsView.RECENTS_GRID_PROGRESS
 import com.android.quickstep.views.RecentsView.RUNNING_TASK_ATTACH_ALPHA
 import com.android.quickstep.views.RecentsView.TAG
 import com.android.quickstep.views.RecentsView.TASK_THUMBNAIL_SPLASH_ALPHA
+import com.android.quickstep.views.TaskView.Companion.FLAG_UPDATE_ALL
 import com.android.systemui.shared.recents.model.Task
 import com.android.systemui.shared.recents.model.ThumbnailData
 import com.android.wm.shell.shared.GroupedTaskInfo
@@ -120,6 +121,9 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
 
     /** Returns a list of all large TaskViews [TaskView]s */
     fun getLargeTaskViews(): List<TaskView> = taskViews.filter { it.isLargeTile }
+
+    /** Returns a list of all non-large TaskViews [TaskView]s */
+    fun getSmallTaskViews(): List<TaskView> = taskViews.filter { !it.isLargeTile }
 
     /** Returns all the TaskViews in the top row, without the focused task */
     fun getTopRowTaskViews(): List<TaskView> =
@@ -665,6 +669,11 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
             )
             if (enableLargeDesktopWindowingTile()) {
                 animatorSet.play(ObjectAnimator.ofFloat(this, DESKTOP_CAROUSEL_DETACH_PROGRESS, 0f))
+            }
+
+            if (enableGridOnlyOverview()) {
+                // Reload visible tasks according to new [mCurrentGestureEndTarget] value.
+                loadVisibleTaskData(FLAG_UPDATE_ALL)
             }
         }
     }

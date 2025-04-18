@@ -118,6 +118,8 @@ open class LandscapePagedViewHandler : RecentsPagedOrientationHandler {
 
     override fun getPrimarySize(rect: RectF): Float = rect.height()
 
+    override fun getSecondarySize(rect: RectF): Float = rect.width()
+
     override fun getStart(rect: RectF): Float = rect.top
 
     override fun getEnd(rect: RectF): Float = rect.bottom

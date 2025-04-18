@@ -52,6 +52,7 @@ import com.android.quickstep.orientation.LandscapePagedViewHandler
 import com.android.quickstep.recents.di.RecentsDependencies
 import com.android.quickstep.task.thumbnail.TaskThumbnailView
 import com.android.quickstep.util.RecentsOrientedState
+import com.android.quickstep.util.SingleTask
 import com.android.quickstep.views.LauncherRecentsView
 import com.android.quickstep.views.RecentsViewContainer
 import com.android.quickstep.views.TaskContainer
@@ -165,7 +166,7 @@ class AspectRatioSystemShortcutTests {
         val taskContainer = createTaskContainer(task)
 
         setScreenSizeDp(widthDp = 1200, heightDp = 800)
-        taskView.bind(task, orientedState, taskOverlayFactory)
+        taskView.bind(SingleTask(task), orientedState, taskOverlayFactory)
 
         assertThat(factory.getShortcuts(launcher, taskContainer)).isNull()
     }
@@ -181,7 +182,7 @@ class AspectRatioSystemShortcutTests {
         val taskContainer = createTaskContainer(task)
 
         setScreenSizeDp(widthDp = 599, heightDp = 599)
-        taskView.bind(task, orientedState, taskOverlayFactory)
+        taskView.bind(SingleTask(task), orientedState, taskOverlayFactory)
 
         assertThat(factory.getShortcuts(launcher, taskContainer)).isNull()
     }
@@ -199,7 +200,7 @@ class AspectRatioSystemShortcutTests {
         doReturn(taskViewItemInfo).whenever(taskContainer).itemInfo
 
         setScreenSizeDp(widthDp = 1200, heightDp = 800)
-        taskView.bind(task, orientedState, taskOverlayFactory)
+        taskView.bind(SingleTask(task), orientedState, taskOverlayFactory)
 
         val shortcuts = factory.getShortcuts(launcher, taskContainer)
         assertThat(shortcuts).hasSize(1)
