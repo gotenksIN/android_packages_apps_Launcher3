@@ -326,7 +326,7 @@ public class TaskbarNavButtonController implements TaskbarControllers.LoggableTa
 
     private void navigateHome() {
         TaskUtils.closeSystemWindowsAsync(CLOSE_SYSTEM_WINDOWS_REASON_HOME_KEY);
-        mCallbacks.onNavigateHome();
+        mCallbacks.onNavigateHome(mContext.getDisplayId());
     }
 
     private void navigateToOverview() {
@@ -335,11 +335,11 @@ public class TaskbarNavButtonController implements TaskbarControllers.LoggableTa
         }
         TestLogging.recordEvent(TestProtocol.SEQUENCE_MAIN, "onOverviewToggle");
         TaskUtils.closeSystemWindowsAsync(CLOSE_SYSTEM_WINDOWS_REASON_RECENTS);
-        mCallbacks.onToggleOverview();
+        mCallbacks.onToggleOverview(mContext.getDisplayId());
     }
 
     public void hideOverview() {
-        mCallbacks.onHideOverview();
+        mCallbacks.onHideOverview(mContext.getDisplayId());
     }
 
     void sendBackKeyEvent(int action, boolean cancelled) {
@@ -405,12 +405,12 @@ public class TaskbarNavButtonController implements TaskbarControllers.LoggableTa
     /** Callbacks for navigation buttons on Taskbar. */
     public interface TaskbarNavButtonCallbacks {
         /** Callback invoked when the home button is pressed. */
-        default void onNavigateHome() {}
+        default void onNavigateHome(int displayId) {}
 
         /** Callback invoked when the overview button is pressed. */
-        default void onToggleOverview() {}
+        default void onToggleOverview(int displayId) {}
 
         /** Callback invoken when a visible overview needs to be hidden. */
-        default void onHideOverview() { }
+        default void onHideOverview(int displayId) { }
     }
 }

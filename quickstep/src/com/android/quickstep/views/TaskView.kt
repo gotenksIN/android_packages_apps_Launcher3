@@ -826,7 +826,6 @@ constructor(
                 val shouldHaveHeader = (type == TaskViewType.DESKTOP) && enableDesktopExplodedView()
                 container.setState(
                     state = containerState,
-                    liveTile = state.isLiveTile,
                     hasHeader = shouldHaveHeader,
                     clickCloseListener =
                         if (shouldHaveHeader) {

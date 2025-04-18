@@ -15,7 +15,6 @@
  */
 package com.android.quickstep;
 
-import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.Surface.ROTATION_0;
 
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
@@ -30,13 +29,12 @@ import static com.android.launcher3.util.NavigationMode.THREE_BUTTONS;
 
 import android.content.Context;
 import android.content.res.Resources;
+import android.view.Display;
 import android.view.MotionEvent;
 import android.view.OrientationEventListener;
 
-import com.android.app.displaylib.DisplayRepository;
+import com.android.app.displaylib.PerDisplayRepository;
 import com.android.launcher3.dagger.ApplicationContext;
-import com.android.launcher3.dagger.LauncherAppComponent;
-import com.android.launcher3.dagger.LauncherAppSingleton;
 import com.android.launcher3.testing.shared.TestProtocol;
 import com.android.launcher3.util.DaggerSingletonObject;
 import com.android.launcher3.util.DaggerSingletonTracker;
@@ -44,6 +42,7 @@ import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.DisplayController.DisplayInfoChangeListener;
 import com.android.launcher3.util.DisplayController.Info;
 import com.android.launcher3.util.NavigationMode;
+import com.android.quickstep.dagger.QuickstepBaseAppComponent;
 import com.android.quickstep.util.RecentsOrientedState;
 import com.android.systemui.shared.Flags;
 import com.android.systemui.shared.system.QuickStepContract;
@@ -52,16 +51,18 @@ import com.android.systemui.shared.system.TaskStackChangeListeners;
 
 import java.io.PrintWriter;
 
-import javax.inject.Inject;
+import dagger.assisted.Assisted;
+import dagger.assisted.AssistedFactory;
+import dagger.assisted.AssistedInject;
 
 /**
  * Helper class for transforming touch events
  */
-@LauncherAppSingleton
 public class RotationTouchHelper implements DisplayInfoChangeListener {
 
-    public static final DaggerSingletonObject<RotationTouchHelper> INSTANCE =
-            new DaggerSingletonObject<>(LauncherAppComponent::getRotationTouchHelper);
+    public static final DaggerSingletonObject<PerDisplayRepository<RotationTouchHelper>>
+            REPOSITORY_INSTANCE = new DaggerSingletonObject<>(
+            QuickstepBaseAppComponent::getRotationTouchHelperRepository);
 
     private final OrientationTouchTransformer mOrientationTouchTransformer;
     private final DisplayController mDisplayController;
@@ -136,20 +137,17 @@ public class RotationTouchHelper implements DisplayInfoChangeListener {
     private final Context mApplicationContext;
     private final Context mDisplayContext;
 
-    @Inject
+    @AssistedInject
     RotationTouchHelper(@ApplicationContext Context context,
             DisplayController displayController,
             SystemUiProxy systemUiProxy,
             DaggerSingletonTracker lifeCycle,
-            DisplayRepository displayRepository) {
+            @Assisted Display display) {
         mApplicationContext = context;
         mDisplayController = displayController;
         mSystemUiProxy = systemUiProxy;
-        // TODO (b/398195845): this needs updating so non-default displays do not rotate with the
-        //  default display.
-        mDisplayId = DEFAULT_DISPLAY;
-        mDisplayContext = mApplicationContext.createDisplayContext(
-                displayRepository.getDisplay(mDisplayId));
+        mDisplayContext = mApplicationContext.createDisplayContext(display);
+        mDisplayId = display.getDisplayId();
 
         Resources resources = mApplicationContext.getResources();
         mOrientationTouchTransformer = new OrientationTouchTransformer(resources, mMode,
@@ -396,5 +394,11 @@ public class RotationTouchHelper implements DisplayInfoChangeListener {
 
     private boolean hasGestures(NavigationMode mode) {
         return mode.hasGestures || (mode == THREE_BUTTONS && Flags.threeButtonCornerSwipe());
+    }
+
+    @AssistedFactory
+    public interface Factory {
+        /** Creates a new instance of [RotationTouchHelper] for a given [display]. */
+        RotationTouchHelper create(Display display);
     }
 }

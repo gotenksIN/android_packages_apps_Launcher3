@@ -87,12 +87,12 @@ public class TaskbarNavButtonControllerTest {
     private int mOverviewToggleCount;
     private final TaskbarNavButtonCallbacks mCallbacks = new TaskbarNavButtonCallbacks() {
         @Override
-        public void onNavigateHome() {
+        public void onNavigateHome(int displayId) {
             mHomePressCount++;
         }
 
         @Override
-        public void onToggleOverview() {
+        public void onToggleOverview(int displayId) {
             mOverviewToggleCount++;
         }
     };

@@ -165,20 +165,10 @@ class TaskContainer(
         overlay.addChildForAccessibility(outChildren)
     }
 
-    fun setState(
-        state: TaskData?,
-        liveTile: Boolean,
-        hasHeader: Boolean,
-        clickCloseListener: OnClickListener?,
-    ) =
+    fun setState(state: TaskData?, hasHeader: Boolean, clickCloseListener: OnClickListener?) =
         traceSection("TaskContainer.setState") {
             thumbnailView.setState(
-                TaskUiStateMapper.toTaskThumbnailUiState(
-                    state,
-                    liveTile,
-                    hasHeader,
-                    clickCloseListener,
-                ),
+                TaskUiStateMapper.toTaskThumbnailUiState(state, hasHeader, clickCloseListener),
                 state?.taskId,
             )
             thumbnailData = if (state is TaskData.Data) state.thumbnailData else null

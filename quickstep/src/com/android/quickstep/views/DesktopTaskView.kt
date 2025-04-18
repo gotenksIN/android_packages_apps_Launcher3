@@ -285,6 +285,10 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                 scaleX = currentTaskWidth / overviewTaskWidth
                 scaleY = currentTaskHeight / overviewTaskHeight
             }
+
+            if (taskContainer.task.isMinimized) {
+                taskContainer.snapshotView.alpha = explodeProgress
+            }
         }
     }
 
@@ -295,10 +299,13 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         taskOverlayFactory: TaskOverlayFactory,
     ) {
         this.desktopTask = desktopTask
-        // TODO(b/370495260): Minimized tasks should not be filtered with desktop exploded view
-        // support.
-        // Minimized tasks should not be shown in Overview.
-        val tasks = desktopTask.tasks.filterNot { it.isMinimized }
+        // Minimized tasks are shown in Overview when exploded view is enabled.
+        val tasks =
+            if (enableDesktopExplodedView()) {
+                desktopTask.tasks
+            } else {
+                desktopTask.tasks.filterNot { it.isMinimized }
+            }
         if (DEBUG) {
             val sb = StringBuilder()
             sb.append("bind tasks=").append(tasks.size).append("\n")

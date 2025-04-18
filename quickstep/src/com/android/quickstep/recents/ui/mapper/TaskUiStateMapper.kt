@@ -42,13 +42,12 @@ object TaskUiStateMapper {
      */
     fun toTaskThumbnailUiState(
         taskData: TaskData?,
-        isLiveTile: Boolean,
         hasHeader: Boolean,
         clickCloseListener: OnClickListener?,
     ): TaskThumbnailUiState =
         when {
             taskData !is TaskData.Data -> Uninitialized
-            isLiveTile -> createLiveTileState(taskData, hasHeader, clickCloseListener)
+            taskData.isLiveTile -> createLiveTileState(taskData, hasHeader, clickCloseListener)
             isBackgroundOnly(taskData) -> BackgroundOnly(taskData.backgroundColor)
             isSnapshotSplash(taskData) ->
                 SnapshotSplash(

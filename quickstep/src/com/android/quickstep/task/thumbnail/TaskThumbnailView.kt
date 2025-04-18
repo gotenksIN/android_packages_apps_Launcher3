@@ -115,6 +115,7 @@ class TaskThumbnailView : FrameLayout, ViewPool.Reusable {
         uiState = Uninitialized
         onSizeChanged = null
         outlineBounds = null
+        alpha = 1.0f
         resetViews()
     }
 

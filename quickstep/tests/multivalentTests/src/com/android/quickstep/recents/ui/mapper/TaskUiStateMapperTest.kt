@@ -42,7 +42,6 @@ class TaskUiStateMapperTest {
         val result =
             TaskUiStateMapper.toTaskThumbnailUiState(
                 taskData = null,
-                isLiveTile = false,
                 hasHeader = false,
                 clickCloseListener = null,
             )
@@ -52,12 +51,15 @@ class TaskUiStateMapperTest {
     @Test
     fun taskData_isLiveTile_returns_LiveTile() {
         val inputs =
-            listOf(TASK_DATA, TASK_DATA.copy(thumbnailData = null), TASK_DATA.copy(isLocked = true))
+            listOf(
+                TASK_DATA.copy(isLiveTile = true),
+                TASK_DATA.copy(isLiveTile = true, thumbnailData = null),
+                TASK_DATA.copy(isLiveTile = true, isLocked = true),
+            )
         inputs.forEach { input ->
             val result =
                 TaskUiStateMapper.toTaskThumbnailUiState(
                     taskData = input,
-                    isLiveTile = true,
                     hasHeader = false,
                     clickCloseListener = null,
                 )
@@ -70,10 +72,10 @@ class TaskUiStateMapperTest {
     fun taskData_isLiveTileWithHeader_returns_LiveTileWithHeader() {
         val inputs =
             listOf(
-                TASK_DATA,
-                TASK_DATA.copy(thumbnailData = null),
-                TASK_DATA.copy(isLocked = true),
-                TASK_DATA.copy(title = null),
+                TASK_DATA.copy(isLiveTile = true),
+                TASK_DATA.copy(isLiveTile = true, thumbnailData = null),
+                TASK_DATA.copy(isLiveTile = true, isLocked = true),
+                TASK_DATA.copy(isLiveTile = true, title = null),
             )
         val closeCallback = View.OnClickListener {}
         val expected =
@@ -84,7 +86,6 @@ class TaskUiStateMapperTest {
             val result =
                 TaskUiStateMapper.toTaskThumbnailUiState(
                     taskData = taskData,
-                    isLiveTile = true,
                     hasHeader = true,
                     clickCloseListener = closeCallback,
                 )
@@ -97,16 +98,15 @@ class TaskUiStateMapperTest {
     fun taskData_isLiveTileWithHeader_missingHeaderData_returns_LiveTileWithoutHeader() {
         val inputs =
             listOf(
-                TASK_DATA.copy(icon = null),
-                TASK_DATA.copy(titleDescription = null),
-                TASK_DATA.copy(icon = null, titleDescription = null),
+                TASK_DATA.copy(isLiveTile = true, icon = null),
+                TASK_DATA.copy(isLiveTile = true, titleDescription = null),
+                TASK_DATA.copy(isLiveTile = true, icon = null, titleDescription = null),
             )
 
         inputs.forEach { taskData ->
             val result =
                 TaskUiStateMapper.toTaskThumbnailUiState(
                     taskData = taskData,
-                    isLiveTile = true,
                     hasHeader = true,
                     clickCloseListener = {},
                 )
@@ -119,7 +119,6 @@ class TaskUiStateMapperTest {
         val result =
             TaskUiStateMapper.toTaskThumbnailUiState(
                 taskData = TASK_DATA,
-                isLiveTile = false,
                 hasHeader = false,
                 clickCloseListener = null,
             )
@@ -158,7 +157,6 @@ class TaskUiStateMapperTest {
             val result =
                 TaskUiStateMapper.toTaskThumbnailUiState(
                     taskData = taskData,
-                    isLiveTile = false,
                     hasHeader = true,
                     clickCloseListener = closeCallback,
                 )
@@ -185,7 +183,6 @@ class TaskUiStateMapperTest {
             val result =
                 TaskUiStateMapper.toTaskThumbnailUiState(
                     taskData = taskData,
-                    isLiveTile = false,
                     hasHeader = true,
                     clickCloseListener = {},
                 )
@@ -201,7 +198,6 @@ class TaskUiStateMapperTest {
         val result =
             TaskUiStateMapper.toTaskThumbnailUiState(
                 taskData = TASK_DATA.copy(thumbnailData = null),
-                isLiveTile = false,
                 hasHeader = false,
                 clickCloseListener = null,
             )
@@ -215,7 +211,6 @@ class TaskUiStateMapperTest {
         val result =
             TaskUiStateMapper.toTaskThumbnailUiState(
                 taskData = TASK_DATA.copy(isLocked = true),
-                isLiveTile = false,
                 hasHeader = false,
                 clickCloseListener = null,
             )
@@ -241,6 +236,7 @@ class TaskUiStateMapperTest {
                 thumbnailData = TASK_THUMBNAIL_DATA,
                 backgroundColor = TASK_BACKGROUND_COLOR,
                 isLocked = false,
+                isLiveTile = false,
             )
     }
 }

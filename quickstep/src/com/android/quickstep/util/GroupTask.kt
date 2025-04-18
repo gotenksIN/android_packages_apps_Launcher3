@@ -26,13 +26,21 @@ import java.util.Objects
  * An abstract class for creating [Task] containers that can be [SingleTask]s, [SplitTask]s, or
  * [DesktopTask]s in the recent tasks list.
  */
-abstract class GroupTask(val tasks: List<Task>, @JvmField val taskViewType: TaskViewType) {
+abstract class GroupTask(
+    val tasks: List<Task>,
+    val displayId: Int,
+    @JvmField val taskViewType: TaskViewType,
+) {
+
     fun containsTask(taskId: Int) = tasks.any { it.key.id == taskId }
 
     /**
      * Returns true if a task in this group has a package name that matches the given `packageName`.
      */
     fun containsPackage(packageName: String?) = tasks.any { it.key.packageName == packageName }
+
+    /** Returns true if a task in this group has the given displayId. */
+    fun matchesDisplayId(displayId: Int) = displayId == this.displayId.safeDisplayId
 
     /**
      * Returns true if a task in this group has a package name that matches the given `packageName`,
@@ -56,7 +64,7 @@ abstract class GroupTask(val tasks: List<Task>, @JvmField val taskViewType: Task
 }
 
 /** A [Task] container that must contain exactly one task in the recent tasks list. */
-class SingleTask(task: Task) : GroupTask(listOf(task), TaskViewType.SINGLE) {
+class SingleTask(task: Task) : GroupTask(listOf(task), task.key.displayId, TaskViewType.SINGLE) {
 
     val task: Task
         get() = tasks[0]
@@ -87,7 +95,7 @@ class SingleTask(task: Task) : GroupTask(listOf(task), TaskViewType.SINGLE) {
  * in the recent tasks list.
  */
 class SplitTask(task1: Task, task2: Task, val splitBounds: SplitConfigurationOptions.SplitBounds) :
-    GroupTask(listOf(task1, task2), TaskViewType.GROUPED) {
+    GroupTask(listOf(task1, task2), task1.key.displayId, TaskViewType.GROUPED) {
 
     val topLeftTask: Task
         get() = if (splitBounds.leftTopTaskId == tasks[0].key.id) tasks[0] else tasks[1]
