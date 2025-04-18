@@ -48,11 +48,15 @@ object ShapesProvider {
                     key = SQUARE_KEY,
                     titleId = R.string.square_shape_title,
                     pathString = SQUARE_PATH,
+                    folderRadiusRatio = 1 / 3f,
+                    shapeRadius = 17.33f,
                 ),
                 IconShapeModel(
                     key = FOUR_SIDED_COOKIE_KEY,
                     titleId = R.string.four_sided_cookie_shape_title,
                     pathString = FOUR_SIDED_COOKIE_PATH,
+                    folderRadiusRatio = 1 / 3f,
+                    shapeRadius = 13.5f,
                 ),
                 IconShapeModel(
                     key = SEVEN_SIDED_COOKIE_KEY,
@@ -63,6 +67,8 @@ object ShapesProvider {
                     key = ARCH_KEY,
                     titleId = R.string.arch_shape_title,
                     pathString = ARCH_PATH,
+                    shapeRadius = 7.8f,
+                    folderRadiusRatio = 1 / 4f,
                 ),
             )
         } else {

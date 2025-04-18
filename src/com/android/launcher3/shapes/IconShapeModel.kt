@@ -23,5 +23,10 @@ data class IconShapeModel(
     @StringRes val titleId: Int,
     val pathString: String,
     val folderRadiusRatio: Float = 1f,
-    val iconScale: Float = 1f,
-)
+    val shapeRadius: Float = DEFAULT_ICON_RADIUS,
+) {
+    companion object {
+        /** Default icon radius in dp to use for transient taskbar rounding. */
+        const val DEFAULT_ICON_RADIUS = 26f
+    }
+}

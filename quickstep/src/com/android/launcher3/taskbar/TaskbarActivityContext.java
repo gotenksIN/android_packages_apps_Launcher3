@@ -1638,15 +1638,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         }
     }
 
-    public void handleGroupTaskLaunch(
-            GroupTask task,
-            @Nullable RemoteTransition remoteTransition,
-            boolean onDesktop,
-            DesktopTaskToFrontReason toFrontReason) {
-        handleGroupTaskLaunch(task, remoteTransition, onDesktop, toFrontReason,
-                /* onStartCallback= */ null, /* onFinishCallback= */ null);
-    }
-
     /**
      * Launches the given GroupTask with the following behavior:
      * - If the GroupTask is a DesktopTask, launch the tasks in that Desktop.
@@ -1662,9 +1653,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             GroupTask task,
             @Nullable RemoteTransition remoteTransition,
             boolean onDesktop,
-            DesktopTaskToFrontReason toFrontReason,
-            @Nullable Runnable onStartCallback,
-            @Nullable Runnable onFinishCallback) {
+            DesktopTaskToFrontReason toFrontReason) {
         if (task instanceof DesktopTask) {
             UI_HELPER_EXECUTOR.execute(
                     () -> SystemUiProxy.INSTANCE.get(this).showDesktopApps(getDisplayId(),
@@ -1674,14 +1663,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         if (onDesktop && task instanceof SingleTask singleTask) {
             boolean useRemoteTransition = canUnminimizeDesktopTask(singleTask.getTask().key.id);
             UI_HELPER_EXECUTOR.execute(() -> {
-                if (onStartCallback != null) {
-                    onStartCallback.run();
-                }
                 SystemUiProxy.INSTANCE.get(this).showDesktopApp(singleTask.getTask().key.id,
                         useRemoteTransition ? remoteTransition : null, toFrontReason);
-                if (onFinishCallback != null) {
-                    onFinishCallback.run();
-                }
             });
             return;
         }
