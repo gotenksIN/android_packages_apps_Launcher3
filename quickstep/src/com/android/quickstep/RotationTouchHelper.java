@@ -29,12 +29,11 @@ import static com.android.launcher3.util.NavigationMode.THREE_BUTTONS;
 
 import android.content.Context;
 import android.content.res.Resources;
-import android.view.Display;
 import android.view.MotionEvent;
 import android.view.OrientationEventListener;
 
 import com.android.app.displaylib.PerDisplayRepository;
-import com.android.launcher3.dagger.ApplicationContext;
+import com.android.launcher3.dagger.WindowContext;
 import com.android.launcher3.testing.shared.TestProtocol;
 import com.android.launcher3.util.DaggerSingletonObject;
 import com.android.launcher3.util.DaggerSingletonTracker;
@@ -49,11 +48,11 @@ import com.android.systemui.shared.system.QuickStepContract;
 import com.android.systemui.shared.system.TaskStackChangeListener;
 import com.android.systemui.shared.system.TaskStackChangeListeners;
 
-import java.io.PrintWriter;
-
 import dagger.assisted.Assisted;
 import dagger.assisted.AssistedFactory;
 import dagger.assisted.AssistedInject;
+
+import java.io.PrintWriter;
 
 /**
  * Helper class for transforming touch events
@@ -134,31 +133,28 @@ public class RotationTouchHelper implements DisplayInfoChangeListener {
      */
     private boolean mInOverview;
     private boolean mTaskListFrozen;
-    private final Context mApplicationContext;
-    private final Context mDisplayContext;
+    private final Context mWindowContext;
 
     @AssistedInject
-    RotationTouchHelper(@ApplicationContext Context context,
+    RotationTouchHelper(@Assisted Context windowContext,
             DisplayController displayController,
             SystemUiProxy systemUiProxy,
-            DaggerSingletonTracker lifeCycle,
-            @Assisted Display display) {
-        mApplicationContext = context;
+            DaggerSingletonTracker lifeCycle) {
+        mWindowContext = windowContext;
         mDisplayController = displayController;
         mSystemUiProxy = systemUiProxy;
-        mDisplayContext = mApplicationContext.createDisplayContext(display);
-        mDisplayId = display.getDisplayId();
+        mDisplayId = windowContext.getDisplayId();
 
-        Resources resources = mApplicationContext.getResources();
+        Resources resources = mWindowContext.getResources();
         mOrientationTouchTransformer = new OrientationTouchTransformer(resources, mMode,
-                () -> QuickStepContract.getWindowCornerRadius(mDisplayContext));
+                () -> QuickStepContract.getWindowCornerRadius(mWindowContext));
 
         // Register for navigation mode and rotation changes
         mDisplayController.addChangeListenerForDisplay(this, mDisplayId);
         DisplayController.Info info = mDisplayController.getInfoForDisplay(mDisplayId);
-        onDisplayInfoChanged(context, info, CHANGE_ALL);
+        onDisplayInfoChanged(windowContext, info, CHANGE_ALL);
 
-        mOrientationListener = new OrientationEventListener(mApplicationContext) {
+        mOrientationListener = new OrientationEventListener(mWindowContext) {
             @Override
             public void onOrientationChanged(int degrees) {
                 int newRotation = RecentsOrientedState.getRotationForUserDegreesRotated(degrees,
@@ -266,7 +262,7 @@ public class RotationTouchHelper implements DisplayInfoChangeListener {
             NavigationMode newMode = info.getNavigationMode();
             mOrientationTouchTransformer.setNavigationMode(newMode,
                     mDisplayController.getInfoForDisplay(mDisplayId),
-                    mApplicationContext.getResources());
+                    mWindowContext.getResources());
 
             TaskStackChangeListeners.getInstance()
                     .unregisterTaskStackListener(mFrozenTaskListener);
@@ -288,7 +284,7 @@ public class RotationTouchHelper implements DisplayInfoChangeListener {
     void setGesturalHeight(int newGesturalHeight) {
         mOrientationTouchTransformer.setGesturalHeight(
                 newGesturalHeight, mDisplayController.getInfoForDisplay(mDisplayId),
-                mApplicationContext.getResources());
+                mWindowContext.getResources());
     }
 
     /**
@@ -399,6 +395,6 @@ public class RotationTouchHelper implements DisplayInfoChangeListener {
     @AssistedFactory
     public interface Factory {
         /** Creates a new instance of [RotationTouchHelper] for a given [display]. */
-        RotationTouchHelper create(Display display);
+        RotationTouchHelper create(@WindowContext Context context);
     }
 }

@@ -289,6 +289,10 @@ public class TaskViewSimulator implements TransformParams.BuilderProxy {
         mDrawsBelowRecents = drawsBelowRecents;
     }
 
+    public boolean getDrawsBelowRecents() {
+        return mDrawsBelowRecents != null ? mDrawsBelowRecents : false;
+    }
+
     /**
      * Sets whether the task is part of overview grid and not being focused.
      */

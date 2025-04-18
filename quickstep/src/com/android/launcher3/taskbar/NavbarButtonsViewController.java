@@ -549,7 +549,9 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         boolean isBackDismissIme = (sysUiStateFlags & SYSUI_STATE_BACK_DISMISS_IME) != 0;
         boolean a11yVisible = (sysUiStateFlags & SYSUI_STATE_A11Y_BUTTON_CLICKABLE) != 0;
         boolean isHomeDisabled = (sysUiStateFlags & SYSUI_STATE_HOME_DISABLED) != 0;
-        boolean isRecentsDisabled = (sysUiStateFlags & SYSUI_STATE_OVERVIEW_DISABLED) != 0;
+        // TODO: b/409075366 - ensure this signal is correctly set for external displays.
+        boolean isRecentsDisabled = mContext.isPrimaryDisplay()
+                && (sysUiStateFlags & SYSUI_STATE_OVERVIEW_DISABLED) != 0;
         boolean isBackDisabled = (sysUiStateFlags & SYSUI_STATE_BACK_DISABLED) != 0;
         long shadeExpandedFlags = SYSUI_STATE_NOTIFICATION_PANEL_EXPANDED
                 | SYSUI_STATE_QUICK_SETTINGS_EXPANDED;
@@ -646,7 +648,8 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
      * Returns true if the recents (overview) button is disabled
      */
     public boolean isRecentsDisabled() {
-        return (mState & FLAG_DISABLE_RECENTS) != 0;
+        // TODO: b/409075366 - ensure this signal is correctly set for external displays.
+        return (mState & FLAG_DISABLE_RECENTS) != 0 && mContext.isPrimaryDisplay();
     }
 
     /**
