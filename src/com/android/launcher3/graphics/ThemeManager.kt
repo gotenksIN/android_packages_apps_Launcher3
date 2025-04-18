@@ -116,18 +116,19 @@ constructor(
             if (oldState != null && oldState.iconMask == iconMask) oldState.iconShape
             else pickBestShape(iconMask)
 
-        val folderShapeMask = shapeModel?.folderPathString ?: iconMask
+        val folderRadius = shapeModel?.folderRadiusRatio ?: 26f
         val folderShape =
-            when {
-                oldState != null && oldState.folderShapeMask == folderShapeMask ->
-                    oldState.folderShape
-                folderShapeMask == iconMask || folderShapeMask.isEmpty() -> iconShape
-                else -> pickBestShape(folderShapeMask)
+            if (oldState != null && oldState.folderRadius == folderRadius) {
+                oldState.folderShape
+            } else if (folderRadius == 1f) {
+                ShapeDelegate.Circle()
+            } else {
+                ShapeDelegate.RoundedSquare(folderRadius)
             }
 
         return IconState(
             iconMask = iconMask,
-            folderShapeMask = folderShapeMask,
+            folderRadius = folderRadius,
             themeController = iconControllerFactory.createThemeController(),
             iconShape = iconShape,
             folderShape = folderShape,
@@ -136,7 +137,7 @@ constructor(
 
     data class IconState(
         val iconMask: String,
-        val folderShapeMask: String,
+        val folderRadius: Float,
         val themeController: IconThemeController?,
         val themeCode: String = themeController?.themeID ?: "no-theme",
         val iconShape: ShapeDelegate,

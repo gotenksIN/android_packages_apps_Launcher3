@@ -16,22 +16,19 @@
 
 package com.android.quickstep.views
 
-import android.os.VibrationAttributes
 import androidx.dynamicanimation.animation.FloatPropertyCompat
 import androidx.dynamicanimation.animation.FloatValueHolder
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
-import com.android.launcher3.Flags.enableGridOnlyOverview
 import com.android.launcher3.R
-import com.android.launcher3.Utilities.boundToRange
 import com.android.launcher3.util.DynamicResource
 import com.android.launcher3.util.MSDLPlayerWrapper
+import com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOverview
 import com.android.launcher3.views.ActivityContext
 import com.android.quickstep.util.TaskGridNavHelper
 import com.android.quickstep.views.RecentsView.RECENTS_SCALE_PROPERTY
 import com.android.quickstep.views.TaskView.Companion.GRID_END_TRANSLATION_X
 import com.google.android.msdl.data.model.MSDLToken
-import com.google.android.msdl.domain.InteractionProperties
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -62,12 +59,14 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                 (pagedOrientationHandler.getTaskDismissLength(secondaryLayerDimension, mTempRect) *
                         verticalFactor)
                     .toInt()
+            val dismissThreshold = (dismissLength * DEFAULT_DISMISS_THRESHOLD_FRACTION).toInt()
             val velocity = mTempRect.height().toFloat()
             return createTaskDismissSettlingSpringAnimation(
                 draggedTaskView,
                 velocity,
                 isDismissing = true,
                 dismissLength,
+                dismissThreshold,
                 dismissLength.toFloat(),
             )
         }
@@ -85,6 +84,7 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
         velocity: Float,
         isDismissing: Boolean,
         dismissLength: Int,
+        dismissThreshold: Int,
         finalPosition: Float,
         onEndRunnable: () -> Unit = {},
     ): SpringAnimation? {
@@ -96,12 +96,22 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
         val minVelocity =
             recentsView.pagedOrientationHandler.getSecondaryDimension(draggedTaskView).toFloat()
         val startVelocity = abs(velocity).coerceAtLeast(minVelocity) * velocity.sign
+        var previousDisplacement = taskDismissFloatProperty.getValue(draggedTaskView)
         // Animate dragged task towards dismissal or rest state.
         val draggedTaskViewSpringAnimation =
             SpringAnimation(draggedTaskView, taskDismissFloatProperty)
                 .setSpring(createExpressiveDismissSpringForce())
                 .setStartVelocity(startVelocity)
-                .addUpdateListener { animation, value, _ ->
+                .addUpdateListener { animation, currentDisplacement, _ ->
+                    // Play haptic as task crosses dismiss threshold from above or below.
+                    val previousBeyondThreshold = abs(previousDisplacement) >= abs(dismissThreshold)
+                    val currentBeyondThreshold = abs(currentDisplacement) >= abs(dismissThreshold)
+                    if (previousBeyondThreshold != currentBeyondThreshold) {
+                        MSDLPlayerWrapper.INSTANCE.get(recentsView.context)
+                            .playToken(MSDLToken.SWIPE_THRESHOLD_INDICATOR)
+                    }
+                    previousDisplacement = currentDisplacement
+
                     if (draggedTaskView.isRunningTask && recentsView.enableDrawingLiveTile) {
                         recentsView.runActionOnRemoteHandles { remoteTargetHandle ->
                             remoteTargetHandle.taskViewSimulator.taskSecondaryTranslation.value =
@@ -109,7 +119,7 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                         }
                         recentsView.redrawLiveTile()
                     }
-                    if (isDismissing && abs(value) >= abs(dismissLength)) {
+                    if (isDismissing && abs(currentDisplacement) >= abs(dismissLength)) {
                         animation.cancel()
                     }
                 }
@@ -211,7 +221,6 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
     ) {
         val runSettlingAtVelocity = { velocity: Float ->
             conditionalSpring.setStartVelocity(velocity).animateToFinalPosition(0f)
-            playDismissSettlingHaptic(velocity)
         }
         if (isCurrentDisplacementAboveOrigin) {
             var lastPosition = 0f
@@ -354,27 +363,6 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
             .setStiffness(resourceProvider.getFloat(R.dimen.expressive_dismiss_effects_stiffness))
     }
 
-    /**
-     * Plays a haptic as the dragged task view settles back into its rest state.
-     *
-     * <p>Haptic intensity is proportional to velocity.
-     */
-    private fun playDismissSettlingHaptic(velocity: Float) {
-        val maxDismissSettlingVelocity =
-            recentsView.pagedOrientationHandler.getSecondaryDimension(recentsView)
-        MSDLPlayerWrapper.INSTANCE.get(recentsView.context)
-            ?.playToken(
-                MSDLToken.CANCEL,
-                InteractionProperties.DynamicVibrationScale(
-                    boundToRange(abs(velocity) / maxDismissSettlingVelocity, 0f, 1f),
-                    VibrationAttributes.Builder()
-                        .setUsage(VibrationAttributes.USAGE_TOUCH)
-                        .setFlags(VibrationAttributes.FLAG_PIPELINED_EFFECT)
-                        .build(),
-                ),
-            )
-    }
-
     /** Animates RecentsView's scale to the provided value, using spring animations. */
     fun animateRecentsScale(scale: Float): SpringAnimation {
         val resourceProvider = DynamicResource.provider(recentsView.mContainer)
@@ -490,8 +478,6 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
 
         val runImmediately = tasksToReflow.isEmpty()
         if (runImmediately) {
-            // Play the same haptic as when neighbors spring into place.
-            MSDLPlayerWrapper.INSTANCE.get(recentsView.context)?.playToken(MSDLToken.CANCEL)
             runGridEndTranslation(dismissedTaskView, onEndRunnable, DISMISS_IMMEDIATE_DURATION)
         } else {
             addNeighborSettlingSpringAnimations(
@@ -829,5 +815,6 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
         private const val RECENTS_SCALE_SPRING_MULTIPLIER = 1000f
         private const val DISMISS_DEFAULT_DURATION = 300
         private const val DISMISS_IMMEDIATE_DURATION = 100
+        private const val DEFAULT_DISMISS_THRESHOLD_FRACTION = 0.5f
     }
 }

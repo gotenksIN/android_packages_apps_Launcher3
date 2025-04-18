@@ -193,7 +193,7 @@ public final class OverviewTask {
         // Dismiss the task via flinging it up.
         final Rect taskBounds = mLauncher.getVisibleBounds(mTask);
         final int centerX = taskBounds.centerX();
-        final int centerY = taskBounds.bottom - 1;
+        final int centerY = taskBounds.centerY();
         mLauncher.executeAndWaitForLauncherEvent(
                 () -> mLauncher.linearGesture(centerX, centerY, centerX, 0, 10, false,
                         LauncherInstrumentation.GestureScope.DONT_EXPECT_PILFER),

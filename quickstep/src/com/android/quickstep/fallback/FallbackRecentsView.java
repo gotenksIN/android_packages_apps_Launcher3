@@ -17,7 +17,7 @@ package com.android.quickstep.fallback;
 
 import static android.app.ActivityTaskManager.INVALID_TASK_ID;
 
-import static com.android.launcher3.Flags.enableGridOnlyOverview;
+import static com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOverview;
 import static com.android.quickstep.GestureState.GestureEndTarget.RECENTS;
 import static com.android.quickstep.fallback.RecentsState.DEFAULT;
 import static com.android.quickstep.fallback.RecentsState.MODAL_TASK;
