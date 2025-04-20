@@ -19,7 +19,6 @@ package com.android.quickstep;
 import static android.content.Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS;
 
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
-import static com.android.quickstep.util.SplitScreenUtils.convertShellSplitBoundsToLauncher;
 import static com.android.wm.shell.shared.GroupedTaskInfo.TYPE_DESK;
 import static com.android.wm.shell.shared.GroupedTaskInfo.TYPE_SPLIT;
 
@@ -429,11 +428,8 @@ public class RecentTasksList implements WindowManagerProxy.DesktopVisibilityList
                     final Task.TaskKey task2Key = new Task.TaskKey(taskInfo2);
                     final Task task2 = Task.from(task2Key, taskInfo2,
                             tmpLockedUsers.get(task2Key.userId) /* isLocked */);
-                    final SplitBounds splitBounds = rawTask.getBaseGroupedTask().getSplitBounds();
-                    final SplitConfigurationOptions.SplitBounds launcherSplitBounds =
-                            splitBounds == null ? null : convertShellSplitBoundsToLauncher(
-                                    splitBounds);
-                    allTasks.add(new SplitTask(task1, task2, launcherSplitBounds));
+                    allTasks.add(new SplitTask(task1, task2,
+                            rawTask.getBaseGroupedTask().getSplitBounds()));
                 } else {
                     allTasks.add(new SingleTask(task1));
                 }
@@ -470,9 +466,7 @@ public class RecentTasksList implements WindowManagerProxy.DesktopVisibilityList
                 }
                 if (task2 != null) {
                     Objects.requireNonNull(rawTask.getSplitBounds());
-                    final SplitConfigurationOptions.SplitBounds launcherSplitBounds =
-                            convertShellSplitBoundsToLauncher(rawTask.getSplitBounds());
-                    allTasks.add(new SplitTask(task1, task2, launcherSplitBounds));
+                    allTasks.add(new SplitTask(task1, task2, rawTask.getSplitBounds()));
                 } else {
                     allTasks.add(new SingleTask(task1));
                 }

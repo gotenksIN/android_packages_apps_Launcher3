@@ -24,6 +24,7 @@ import android.view.Display.INVALID_DISPLAY
 import com.android.launcher3.util.LauncherMultivalentJUnit
 import com.android.launcher3.util.SplitConfigurationOptions
 import com.android.systemui.shared.recents.model.Task
+import com.android.wm.shell.shared.split.SplitBounds
 import com.android.wm.shell.shared.split.SplitScreenConstants
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
@@ -62,7 +63,7 @@ class GroupTaskTest {
     @Test
     fun testGroupTask_equalSplitTasks_isEqual() {
         val splitBounds =
-            SplitConfigurationOptions.SplitBounds(
+            SplitBounds(
                 Rect(),
                 Rect(),
                 1,
@@ -77,7 +78,7 @@ class GroupTaskTest {
     @Test
     fun testGroupTask_differentSplitTasks_isNotEqual() {
         val splitBounds1 =
-            SplitConfigurationOptions.SplitBounds(
+            SplitBounds(
                 Rect(),
                 Rect(),
                 1,
@@ -85,7 +86,7 @@ class GroupTaskTest {
                 SplitScreenConstants.SNAP_TO_2_50_50,
             )
         val splitBounds2 =
-            SplitConfigurationOptions.SplitBounds(
+            SplitBounds(
                 Rect(),
                 Rect(),
                 1,
@@ -133,7 +134,7 @@ class GroupTaskTest {
     @Test
     fun testSplitTask_matchesDisplayId() {
         val splitBounds =
-            SplitConfigurationOptions.SplitBounds(
+            SplitBounds(
                 Rect(),
                 Rect(),
                 1,

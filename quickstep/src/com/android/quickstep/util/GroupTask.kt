@@ -20,6 +20,7 @@ import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.util.SplitConfigurationOptions
 import com.android.quickstep.views.TaskViewType
 import com.android.systemui.shared.recents.model.Task
+import com.android.wm.shell.shared.split.SplitBounds
 import java.util.Objects
 
 /**
@@ -94,7 +95,7 @@ class SingleTask(task: Task) : GroupTask(listOf(task), task.key.displayId, TaskV
  * A [Task] container that must contain exactly two tasks and split bounds to represent an app-pair
  * in the recent tasks list.
  */
-class SplitTask(task1: Task, task2: Task, val splitBounds: SplitConfigurationOptions.SplitBounds?) :
+class SplitTask(task1: Task, task2: Task, val splitBounds: SplitBounds?) :
     GroupTask(listOf(task1, task2), task1.key.displayId, TaskViewType.GROUPED) {
 
     val topLeftTask: Task

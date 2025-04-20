@@ -307,6 +307,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         TaskbarScrimView taskbarScrimView = mDragLayer.findViewById(R.id.taskbar_scrim);
         NearestTouchFrame navButtonsView = mDragLayer.findViewById(R.id.navbuttons_view);
         StashedHandleView stashedHandleView = mDragLayer.findViewById(R.id.stashed_handle);
+        NudgeView nudgeView = mDragLayer.findViewById(R.id.nudge_icon);
         BubbleBarView bubbleBarView = mDragLayer.findViewById(R.id.taskbar_bubbles);
         FrameLayout bubbleBarContainer = mDragLayer.findViewById(R.id.taskbar_bubbles_container);
         StashedHandleView bubbleHandleView = mDragLayer.findViewById(R.id.stashed_bubble_handle);
@@ -391,7 +392,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 bubbleControllersOptional,
                 new TaskbarDesktopModeController(this,
                         DesktopVisibilityController.INSTANCE.get(this)),
-                new NudgeController(this));
+                new NudgeController(this),
+                new NudgeViewController(this, nudgeView));
 
         mLauncherPrefs = LauncherPrefs.get(this);
         onViewCreated();

@@ -40,10 +40,10 @@ import com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_BOTTO
 import com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_TOP_OR_LEFT
 import com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_UNDEFINED
 import com.android.launcher3.util.SplitConfigurationOptions.STAGE_TYPE_MAIN
-import com.android.launcher3.util.SplitConfigurationOptions.SplitBounds
 import com.android.launcher3.util.SplitConfigurationOptions.SplitPositionOption
 import com.android.launcher3.views.BaseDragLayer
 import com.android.quickstep.views.IconAppChipView
+import com.android.wm.shell.shared.split.SplitBounds
 
 class SeascapePagedViewHandler : LandscapePagedViewHandler() {
     override fun rotateInsets(insets: Rect, outInsets: Rect) {

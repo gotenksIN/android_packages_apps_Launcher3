@@ -172,7 +172,6 @@ import com.android.launcher3.util.IntArray;
 import com.android.launcher3.util.IntSet;
 import com.android.launcher3.util.ResourceBasedOverride.Overrides;
 import com.android.launcher3.util.RunnableList;
-import com.android.launcher3.util.SplitConfigurationOptions.SplitBounds;
 import com.android.launcher3.util.SplitConfigurationOptions.SplitSelectSource;
 import com.android.launcher3.util.SplitConfigurationOptions.StagePosition;
 import com.android.launcher3.util.Themes;
@@ -242,6 +241,7 @@ import com.android.wm.shell.common.pip.IPipAnimationListener;
 import com.android.wm.shell.shared.GroupedTaskInfo;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource;
+import com.android.wm.shell.shared.split.SplitBounds;
 
 import kotlin.Unit;
 import kotlin.collections.CollectionsKt;
