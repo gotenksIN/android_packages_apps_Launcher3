@@ -16,17 +16,23 @@
 
 package com.android.launcher3.taskbar
 
-import android.window.DesktopModeFlags.DesktopModeFlag
+import android.window.DesktopExperienceFlags.DesktopExperienceFlag
 import com.android.launcher3.Flags
 
-class TaskbarDesktopModeFlags {
-    companion object {
-        @JvmField
-        val enableAltTabKqsOnConnectedDisplays: DesktopModeFlag =
-            DesktopModeFlag(Flags::enableAltTabKqsOnConnectedDisplays, false)
+object TaskbarDesktopExperienceFlags {
+    @JvmField
+    val enableAltTabKqsOnConnectedDisplays: DesktopExperienceFlag =
+        DesktopExperienceFlag(
+            Flags::enableAltTabKqsOnConnectedDisplays,
+            /* shouldOverrideByDevOption= */ false,
+            Flags.FLAG_ENABLE_ALT_TAB_KQS_ON_CONNECTED_DISPLAYS,
+        )
 
-        @JvmField
-        val enableAltTabKqsFlatenning: DesktopModeFlag =
-            DesktopModeFlag(Flags::enableAltTabKqsFlatenning, false)
-    }
+    @JvmField
+    val enableAltTabKqsFlatenning: DesktopExperienceFlag =
+        DesktopExperienceFlag(
+            Flags::enableAltTabKqsFlatenning,
+            /* shouldOverrideByDevOption= */ false,
+            Flags.FLAG_ENABLE_ALT_TAB_KQS_FLATENNING,
+        )
 }

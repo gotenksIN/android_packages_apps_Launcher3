@@ -61,16 +61,6 @@ flag {
 }
 
 flag {
-    name: "enable_separate_external_display_tasks"
-    namespace: "launcher_overview"
-    description: "Enables separating external display tasks in Overview."
-    bug: "391311008"
-    metadata {
-      purpose: PURPOSE_BUGFIX
-    }
-}
-
-flag {
     name: "enable_overview_on_connected_displays"
     namespace: "launcher_overview"
     description: "Enable overview on connected displays."

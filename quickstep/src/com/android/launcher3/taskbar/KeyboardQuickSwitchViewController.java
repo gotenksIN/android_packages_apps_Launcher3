@@ -16,7 +16,7 @@
 package com.android.launcher3.taskbar;
 
 import static com.android.launcher3.desktop.DesktopAppLaunchTransition.AppLaunchType.UNMINIMIZE;
-import static com.android.launcher3.taskbar.TaskbarDesktopModeFlags.enableAltTabKqsFlatenning;
+import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAltTabKqsFlatenning;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 

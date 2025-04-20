@@ -15,8 +15,8 @@
  */
 package com.android.launcher3.taskbar;
 
-import static com.android.launcher3.taskbar.TaskbarDesktopModeFlags.enableAltTabKqsFlatenning;
-import static com.android.launcher3.taskbar.TaskbarDesktopModeFlags.enableAltTabKqsOnConnectedDisplays;
+import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAltTabKqsFlatenning;
+import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAltTabKqsOnConnectedDisplays;
 
 import android.app.ActivityManager;
 import android.content.ComponentName;

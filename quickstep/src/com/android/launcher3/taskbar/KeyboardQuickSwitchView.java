@@ -17,7 +17,7 @@ package com.android.launcher3.taskbar;
 
 import static androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID;
 
-import static com.android.launcher3.taskbar.TaskbarDesktopModeFlags.enableAltTabKqsFlatenning;
+import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAltTabKqsFlatenning;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;

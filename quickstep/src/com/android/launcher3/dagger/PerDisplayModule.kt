@@ -52,6 +52,7 @@ interface BasePerDisplayModule {
 @Module
 object PerDisplayRepositoriesModule {
     @Provides
+    @LauncherAppSingleton
     fun provideRecentsAnimationDeviceStateRepo(
         repositoryFactory: PerDisplayInstanceRepositoryImpl.Factory<RecentsAnimationDeviceState>,
         rotationTouchHelperRepository: PerDisplayRepository<RotationTouchHelper>,
@@ -77,6 +78,7 @@ object PerDisplayRepositoriesModule {
     }
 
     @Provides
+    @LauncherAppSingleton
     fun provideTaskAnimationManagerRepo(
         repositoryFactory: PerDisplayInstanceRepositoryImpl.Factory<TaskAnimationManager>,
         instanceFactory: TaskAnimationManager.Factory,
@@ -92,6 +94,7 @@ object PerDisplayRepositoriesModule {
     }
 
     @Provides
+    @LauncherAppSingleton
     fun provideRotationTouchHandlerRepo(
         repositoryFactory: PerDisplayInstanceRepositoryImpl.Factory<RotationTouchHelper>,
         @DisplayContext displayContextRepository: PerDisplayRepository<Context>,
@@ -113,6 +116,7 @@ object PerDisplayRepositoriesModule {
     }
 
     @Provides
+    @LauncherAppSingleton
     @DisplayContext
     fun provideDisplayContext(
         repositoryFactory: PerDisplayInstanceRepositoryImpl.Factory<Context>,

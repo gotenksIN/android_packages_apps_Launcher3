@@ -24,12 +24,11 @@ import static android.view.MotionEvent.ACTION_POINTER_UP;
 import static android.view.MotionEvent.ACTION_UP;
 
 import static com.android.launcher3.Flags.enableCursorHoverStates;
-import static com.android.launcher3.Flags.enableHandleDelayedGestureCallbacks;
 import static com.android.launcher3.Flags.enableOverviewOnConnectedDisplays;
 import static com.android.launcher3.LauncherPrefs.backedUpItem;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
-import static com.android.launcher3.taskbar.TaskbarDesktopModeFlags.enableAltTabKqsOnConnectedDisplays;
+import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAltTabKqsOnConnectedDisplays;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.launcher3.util.OnboardingPrefs.HOME_BOUNCE_SEEN;
@@ -42,11 +41,8 @@ import static com.android.quickstep.InputConsumerUtils.newConsumer;
 import static com.android.quickstep.InputConsumerUtils.tryCreateAssistantInputConsumer;
 import static com.android.systemui.shared.system.ActivityManagerWrapper.CLOSE_SYSTEM_WINDOWS_REASON_RECENTS;
 
-import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
-import android.content.IIntentReceiver;
-import android.content.IIntentSender;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Region;
@@ -101,6 +97,7 @@ import com.android.quickstep.OverviewComponentObserver.OverviewChangeListener;
 import com.android.quickstep.fallback.window.RecentsDisplayModel;
 import com.android.quickstep.fallback.window.RecentsWindowFlags;
 import com.android.quickstep.fallback.window.RecentsWindowSwipeHandler;
+import com.android.quickstep.input.QuickstepKeyGestureEventsManager;
 import com.android.quickstep.inputconsumers.BubbleBarInputConsumer;
 import com.android.quickstep.inputconsumers.OneHandedModeInputConsumer;
 import com.android.quickstep.util.ActiveGestureLog;
@@ -639,6 +636,8 @@ public class TouchInteractionService extends Service {
 
     private DisplayRepository mDisplayRepository;
 
+    private QuickstepKeyGestureEventsManager mQuickstepKeyGestureEventsHandler;
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -653,8 +652,10 @@ public class TouchInteractionService extends Service {
         mRotationTouchHelperRepository = RotationTouchHelper.REPOSITORY_INSTANCE.get(this);
         mRecentsDisplayModel = RecentsDisplayModel.getINSTANCE().get(this);
         mSystemDecorationChangeObserver = SystemDecorationChangeObserver.getINSTANCE().get(this);
-        mAllAppsActionManager = new AllAppsActionManager(
-                this, UI_HELPER_EXECUTOR, this::createAllAppsPendingIntent);
+        mQuickstepKeyGestureEventsHandler = new QuickstepKeyGestureEventsManager(this);
+        mAllAppsActionManager = new AllAppsActionManager(this, UI_HELPER_EXECUTOR,
+                mQuickstepKeyGestureEventsHandler,
+                () -> mTaskbarManager.createAllAppsPendingIntent());
         mTrackpadsConnected = new ActiveTrackpadList(this, () -> {
             if (mInputMonitorCompat != null && !mTrackpadsConnected.isEmpty()) {
                 // Don't destroy and reinitialize input monitor due to trackpad
@@ -812,17 +813,6 @@ public class TouchInteractionService extends Service {
         }
     }
 
-    private PendingIntent createAllAppsPendingIntent() {
-        return new PendingIntent(new IIntentSender.Stub() {
-            @Override
-            public void send(int code, Intent intent, String resolvedType,
-                    IBinder allowlistToken, IIntentReceiver finishedReceiver,
-                    String requiredPermission, Bundle options) {
-                MAIN_EXECUTOR.execute(() -> mTaskbarManager.toggleAllAppsSearch());
-            }
-        });
-    }
-
     @UiThread
     private void onSystemUiFlagsChanged(@SystemUiStateFlags long lastSysUIFlags, int displayId) {
         if (LockedUserState.get(this).isUserUnlocked()) {
@@ -949,16 +939,14 @@ public class TouchInteractionService extends Service {
             ActiveGestureProtoLogProxy.logOnTaskAnimationManagerNotAvailable(displayId);
             return;
         }
-        if (enableHandleDelayedGestureCallbacks()) {
+        if (action == ACTION_DOWN || isHoverActionWithoutConsumer) {
+            taskAnimationManager.notifyNewGestureStart();
+        }
+        if (taskAnimationManager.shouldIgnoreMotionEvents()) {
             if (action == ACTION_DOWN || isHoverActionWithoutConsumer) {
-                taskAnimationManager.notifyNewGestureStart();
+                ActiveGestureProtoLogProxy.logOnInputIgnoringFollowingEvents(displayId);
             }
-            if (taskAnimationManager.shouldIgnoreMotionEvents()) {
-                if (action == ACTION_DOWN || isHoverActionWithoutConsumer) {
-                    ActiveGestureProtoLogProxy.logOnInputIgnoringFollowingEvents(displayId);
-                }
-                return;
-            }
+            return;
         }
 
         InputMonitorCompat inputMonitorCompat = getInputMonitorCompat(displayId);

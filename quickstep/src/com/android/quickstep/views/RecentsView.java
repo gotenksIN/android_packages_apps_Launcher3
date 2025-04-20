@@ -37,12 +37,10 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
 import static com.android.launcher3.BaseActivity.STATE_HANDLER_INVISIBILITY_FLAGS;
 import static com.android.launcher3.Flags.enableAdditionalHomeAnimations;
 import static com.android.launcher3.Flags.enableDesktopExplodedView;
-import static com.android.launcher3.Flags.enableDesktopTaskAlphaAnimation;
 import static com.android.launcher3.Flags.enableExpressiveDismissTaskMotion;
 import static com.android.launcher3.Flags.enableLargeDesktopWindowingTile;
 import static com.android.launcher3.Flags.enableOverviewBackgroundWallpaperBlur;
 import static com.android.launcher3.Flags.enableRefactorTaskThumbnail;
-import static com.android.launcher3.Flags.enableSeparateExternalDisplayTasks;
 import static com.android.launcher3.LauncherAnimUtils.SUCCESS_TRANSITION_PROGRESS;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_ALPHA;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_BACKGROUND_COLOR;
@@ -2011,9 +2009,7 @@ public abstract class RecentsView<
         if (enableLargeDesktopWindowingTile()) {
             taskGroups = mUtils.sortDesktopTasksToFront(taskGroups);
         }
-        if (enableSeparateExternalDisplayTasks()) {
-            taskGroups = mUtils.sortExternalDisplayTasksToFront(taskGroups);
-        }
+        taskGroups = mUtils.sortExternalDisplayTasksToFront(taskGroups);
 
         if (mAddDesktopButton != null) {
             // Add `mAddDesktopButton` as the first child.
@@ -2760,7 +2756,9 @@ public abstract class RecentsView<
         mBlurUtils.setDrawLiveTileBelowRecents(false);
         // These are relatively expensive and don't need to be done this frame (RecentsView isn't
         // visible anyway), so defer by a frame to get off the critical path, e.g. app to home.
-        post(this::onReset);
+        // Defer onto the main thread rather than the view message queue since this will not always
+        // be called in the Recents In Window case.
+        MAIN_EXECUTOR.getHandler().post(this::onReset);
     }
 
     private void onReset() {
@@ -2907,7 +2905,7 @@ public abstract class RecentsView<
      * Returns whether the running task's attach alpha should be updated during the attach animation
      */
     public boolean shouldUpdateRunningTaskAlpha() {
-        return enableDesktopTaskAlphaAnimation() && getRunningTaskView() instanceof DesktopTaskView;
+        return getRunningTaskView() instanceof DesktopTaskView;
     }
 
     private boolean isGestureActive() {
@@ -4951,9 +4949,8 @@ public abstract class RecentsView<
                     : showAsGrid
                             ? gridOffsetSize
                             : i < modalMidpoint ? modalLeftOffsetSize : modalRightOffsetSize;
-            boolean skipTranslationOffset = enableDesktopTaskAlphaAnimation()
-                    && i == getRunningTaskIndex()
-                    && child instanceof DesktopTaskView;
+            boolean skipTranslationOffset =
+                    i == getRunningTaskIndex() && child instanceof DesktopTaskView;
             float totalTranslationX = (skipTranslationOffset ? 0f : translation) + modalTranslation
                     + carouselHiddenOffsetSize;
             if (child instanceof TaskView taskView) {

@@ -18,7 +18,6 @@ package com.android.quickstep;
 
 import static android.content.Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS;
 
-import static com.android.launcher3.Flags.enableSeparateExternalDisplayTasks;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.quickstep.util.SplitScreenUtils.convertShellSplitBoundsToLauncher;
 import static com.android.wm.shell.shared.GroupedTaskInfo.TYPE_DESK;
@@ -498,8 +497,7 @@ public class RecentTasksList implements WindowManagerProxy.DesktopVisibilityList
         Set<Integer> minimizedTaskIds = minimizedTaskIdArray != null
                 ? CollectionsKt.toSet(ArraysKt.asIterable(minimizedTaskIdArray))
                 : Collections.emptySet();
-        if (enableSeparateExternalDisplayTasks()
-                && !DesktopExperienceFlags.ENABLE_MULTIPLE_DESKTOPS_BACKEND.isTrue()) {
+        if (!DesktopExperienceFlags.ENABLE_MULTIPLE_DESKTOPS_BACKEND.isTrue()) {
             // This code is not needed when the multiple desktop feature is enabled, since Shell
             // will send a single `GroupedTaskInfo` for each desk with a unique `deskId` across
             // all displays.
