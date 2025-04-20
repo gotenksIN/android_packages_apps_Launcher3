@@ -339,7 +339,7 @@ constructor(
                 taskView.layoutParams.height,
                 splitBounds,
                 recentsViewContainer.deviceProfile,
-                taskView.snapshotViews,
+                taskView.taskContentViews,
                 task.key.id,
                 this,
             )

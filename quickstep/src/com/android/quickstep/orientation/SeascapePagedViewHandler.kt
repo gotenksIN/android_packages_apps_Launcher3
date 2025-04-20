@@ -25,6 +25,7 @@ import android.view.Gravity
 import android.view.Surface
 import android.view.View
 import android.view.View.MeasureSpec
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.core.util.component1
 import androidx.core.util.component2
@@ -151,7 +152,7 @@ class SeascapePagedViewHandler : LandscapePagedViewHandler() {
         desiredTaskId: Int,
         banner: View,
     ): Pair<Float, Float> {
-        val snapshotParams = thumbnailViews[0].layoutParams as FrameLayout.LayoutParams
+        val snapshotParams = thumbnailViews[0].layoutParams as ViewGroup.MarginLayoutParams
         val translationX: Float = (taskViewWidth - banner.height).toFloat()
         val translationY: Float
         if (splitBounds == null) {

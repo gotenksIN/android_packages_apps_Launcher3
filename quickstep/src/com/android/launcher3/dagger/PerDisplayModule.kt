@@ -21,7 +21,6 @@ import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.util.Log
 import android.view.Display.DEFAULT_DISPLAY
-import android.view.WindowManager.LayoutParams.TYPE_APPLICATION
 import com.android.app.displaylib.DisplayLibBackground
 import com.android.app.displaylib.DisplayLibComponent
 import com.android.app.displaylib.DisplayRepository
@@ -95,48 +94,44 @@ object PerDisplayRepositoriesModule {
     @Provides
     fun provideRotationTouchHandlerRepo(
         repositoryFactory: PerDisplayInstanceRepositoryImpl.Factory<RotationTouchHelper>,
-        @WindowContext windowContextRepository: PerDisplayRepository<Context>,
+        @DisplayContext displayContextRepository: PerDisplayRepository<Context>,
         instanceFactory: RotationTouchHelper.Factory,
     ): PerDisplayRepository<RotationTouchHelper> {
         return if (enableOverviewOnConnectedDisplays()) {
             repositoryFactory.create(
                 "RotationTouchHelperRepo",
                 { displayId ->
-                    windowContextRepository[displayId]?.let { instanceFactory.create(it) }
+                    displayContextRepository[displayId]?.let { instanceFactory.create(it) }
                 },
             )
         } else {
             SingleInstanceRepositoryImpl(
                 "RotationTouchHelperRepo",
-                instanceFactory.create(windowContextRepository[DEFAULT_DISPLAY]),
+                instanceFactory.create(displayContextRepository[DEFAULT_DISPLAY]),
             )
         }
     }
 
     @Provides
-    @WindowContext
-    fun provideWindowContext(
+    @DisplayContext
+    fun provideDisplayContext(
         repositoryFactory: PerDisplayInstanceRepositoryImpl.Factory<Context>,
         @ApplicationContext context: Context,
         displayRepository: DisplayRepository,
     ): PerDisplayRepository<Context> {
         return if (enableOverviewOnConnectedDisplays()) {
             repositoryFactory.create(
-                "WindowContextRepo",
+                "DisplayContextRepo",
                 { displayId ->
                     displayRepository.getDisplay(displayId)?.let {
-                        context.createWindowContext(it, TYPE_APPLICATION, /* options= */ null)
+                        context.createDisplayContext(it)
                     }
                 },
             )
         } else {
             SingleInstanceRepositoryImpl(
-                "WindowContextRepo",
-                context.createWindowContext(
-                    displayRepository.getDisplay(DEFAULT_DISPLAY)!!,
-                    TYPE_APPLICATION,
-                    /* options = */ null,
-                ),
+                "DisplayContextRepo",
+                context.createDisplayContext(displayRepository.getDisplay(DEFAULT_DISPLAY)!!),
             )
         }
     }

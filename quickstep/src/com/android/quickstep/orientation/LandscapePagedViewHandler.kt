@@ -277,7 +277,7 @@ open class LandscapePagedViewHandler : RecentsPagedOrientationHandler {
         desiredTaskId: Int,
         banner: View,
     ): Pair<Float, Float> {
-        val snapshotParams = thumbnailViews[0].layoutParams as FrameLayout.LayoutParams
+        val snapshotParams = thumbnailViews[0].layoutParams as ViewGroup.MarginLayoutParams
         val translationX = banner.height.toFloat()
         val translationY: Float
         if (splitBounds == null) {

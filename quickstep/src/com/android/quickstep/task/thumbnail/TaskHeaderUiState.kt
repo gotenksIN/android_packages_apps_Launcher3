@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.dagger;
+package com.android.quickstep.task.thumbnail
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
+import android.graphics.drawable.Drawable
+import android.view.View
 
-import javax.inject.Qualifier;
+sealed class TaskHeaderUiState {
+    data class ShowHeader(val header: ThumbnailHeader) : TaskHeaderUiState()
 
-/**
- * Qualifier for Launcher application context.
- */
-@Documented
-@Retention(RetentionPolicy.RUNTIME)
-@Qualifier
-public @interface WindowContext {
+    data object HideHeader : TaskHeaderUiState()
+
+    data class ThumbnailHeader(
+        val icon: Drawable,
+        val title: String,
+        val clickCloseListener: View.OnClickListener,
+    )
 }

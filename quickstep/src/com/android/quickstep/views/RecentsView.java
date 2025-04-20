@@ -145,7 +145,6 @@ import com.android.internal.jank.Cuj;
 import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.BaseActivity.MultiWindowModeChangedListener;
 import com.android.launcher3.DeviceProfile;
-import com.android.launcher3.Flags;
 import com.android.launcher3.Insettable;
 import com.android.launcher3.PagedView;
 import com.android.launcher3.R;
@@ -5292,9 +5291,7 @@ public abstract class RecentsView<
                 mSplitHiddenTaskView.updateFullscreenParams();
             });
         } else if (isInitiatingSplitFromTaskView) {
-            if (Flags.enableHoverOfChildElementsInTaskview()) {
-                mSplitHiddenTaskView.setBorderEnabled(false);
-            }
+            mSplitHiddenTaskView.setBorderEnabled(false);
             // Splitting from Overview for fullscreen task
             if (enableExpressiveDismissTaskMotion()
                     && (!showAsGrid() || enableGridOnlyOverview())) {
