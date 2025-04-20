@@ -50,6 +50,8 @@ interface RecentsPagedOrientationHandler : PagedOrientationHandler {
 
     fun getPrimarySize(rect: RectF): Float
 
+    fun getSecondarySize(rect: RectF): Float
+
     val secondaryTranslationDirectionFactor: Int
 
     val degreesRotated: Float

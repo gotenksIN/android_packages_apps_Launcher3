@@ -52,6 +52,7 @@ import com.android.wm.shell.Flags;
 import com.android.wm.shell.recents.IRecentTasksListener;
 import com.android.wm.shell.shared.GroupedTaskInfo;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
+import com.android.wm.shell.shared.split.SplitBounds;
 
 import kotlin.collections.ArraysKt;
 import kotlin.collections.CollectionsKt;
@@ -429,9 +430,10 @@ public class RecentTasksList implements WindowManagerProxy.DesktopVisibilityList
                     final Task.TaskKey task2Key = new Task.TaskKey(taskInfo2);
                     final Task task2 = Task.from(task2Key, taskInfo2,
                             tmpLockedUsers.get(task2Key.userId) /* isLocked */);
+                    final SplitBounds splitBounds = rawTask.getBaseGroupedTask().getSplitBounds();
                     final SplitConfigurationOptions.SplitBounds launcherSplitBounds =
-                            convertShellSplitBoundsToLauncher(
-                                    rawTask.getBaseGroupedTask().getSplitBounds());
+                            splitBounds == null ? null : convertShellSplitBoundsToLauncher(
+                                    splitBounds);
                     allTasks.add(new SplitTask(task1, task2, launcherSplitBounds));
                 } else {
                     allTasks.add(new SingleTask(task1));

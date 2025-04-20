@@ -136,7 +136,8 @@ public class OtherActivityInputConsumer extends ContextWrapper implements InputC
             InputMonitorCompat inputMonitorCompat,
             InputEventReceiver inputEventReceiver,
             boolean disableHorizontalSwipe,
-            Factory handlerFactory) {
+            Factory handlerFactory,
+            RotationTouchHelper rotationTouchHelper) {
         super(base);
         mDeviceState = deviceState;
         mNavBarPosition = mDeviceState.getNavBarPosition();
@@ -163,7 +164,7 @@ public class OtherActivityInputConsumer extends ContextWrapper implements InputC
         mPassedPilferInputSlop = mPassedWindowMoveSlop = continuingPreviousGesture;
         mStartDisplacement = continuingPreviousGesture ? 0 : -mTouchSlop;
         mDisableHorizontalSwipe = !mPassedPilferInputSlop && disableHorizontalSwipe;
-        mRotationTouchHelper = RotationTouchHelper.INSTANCE.get(this);
+        mRotationTouchHelper = rotationTouchHelper;
     }
 
     @Override
@@ -528,6 +529,8 @@ public class OtherActivityInputConsumer extends ContextWrapper implements InputC
             mVelocityTracker = null;
         }
         mMotionPauseDetector.clear();
+        // Clear ref to recents view and launcher activity on action up or cancel to avoid leak
+        mRecentsViewDispatcher.clearConsumer();
     }
 
     @Override

@@ -127,3 +127,10 @@ flag {
     description: "Enables rewritten version of digital wellbeing toast in overview."
     bug: "404838605"
 }
+
+flag {
+    name: "enable_refactor_task_content_view"
+    namespace: "launcher_overview"
+    description: "Enables refactor wrapping TaskThumbnailView in a TaskContentView."
+    bug: "408971730"
+}

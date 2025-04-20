@@ -23,10 +23,10 @@ import android.util.Log
 import android.view.View
 import android.view.ViewStub
 import com.android.internal.jank.Cuj
-import com.android.launcher3.Flags.enableOverviewIconMenu
 import com.android.launcher3.Flags.enableRefactorTaskThumbnail
 import com.android.launcher3.R
 import com.android.launcher3.Utilities
+import com.android.launcher3.util.OverviewReleaseFlags.enableOverviewIconMenu
 import com.android.launcher3.util.RunnableList
 import com.android.launcher3.util.SplitConfigurationOptions
 import com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_BOTTOM_OR_RIGHT
@@ -35,7 +35,7 @@ import com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_UNDEF
 import com.android.quickstep.TaskOverlayFactory
 import com.android.quickstep.util.RecentsOrientedState
 import com.android.quickstep.util.SplitSelectStateController
-import com.android.systemui.shared.recents.model.Task
+import com.android.quickstep.util.SplitTask
 import com.android.systemui.shared.system.InteractionJankMonitorWrapper
 import com.android.wm.shell.Flags.enableFlexibleTwoAppSplit
 import com.android.wm.shell.shared.split.SplitScreenConstants.PersistentSnapPosition
@@ -120,17 +120,16 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
     }
 
     fun bind(
-        primaryTask: Task,
-        secondaryTask: Task,
+        splitTask: SplitTask,
         orientedState: RecentsOrientedState,
         taskOverlayFactory: TaskOverlayFactory,
-        splitBoundsConfig: SplitConfigurationOptions.SplitBounds?,
     ) {
+        this.groupTask = splitTask
         cancelPendingLoadTasks()
         taskContainers =
             listOf(
                 createTaskContainer(
-                    primaryTask,
+                    splitTask.topLeftTask,
                     R.id.snapshot,
                     R.id.icon,
                     R.id.show_windows,
@@ -139,7 +138,7 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                     taskOverlayFactory,
                 ),
                 createTaskContainer(
-                    secondaryTask,
+                    splitTask.bottomRightTask,
                     R.id.bottomright_snapshot,
                     R.id.bottomRight_icon,
                     R.id.show_windows_right,
@@ -148,7 +147,7 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                     taskOverlayFactory,
                 ),
             )
-        this.splitBoundsConfig = splitBoundsConfig
+        this.splitBoundsConfig = splitTask.splitBounds
         taskContainers.forEach { it.digitalWellBeingToast?.splitBounds = splitBoundsConfig }
         onBind(orientedState)
     }

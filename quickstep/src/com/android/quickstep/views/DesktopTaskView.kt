@@ -33,12 +33,12 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.updateLayoutParams
 import com.android.internal.hidden_from_bootclasspath.com.android.window.flags.Flags.enableDesktopRecentsTransitionsCornersBugfix
 import com.android.launcher3.Flags.enableDesktopExplodedView
-import com.android.launcher3.Flags.enableOverviewIconMenu
 import com.android.launcher3.Flags.enableRefactorTaskThumbnail
 import com.android.launcher3.R
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.testing.TestLogging
 import com.android.launcher3.testing.shared.TestProtocol
+import com.android.launcher3.util.OverviewReleaseFlags.enableOverviewIconMenu
 import com.android.launcher3.util.RunnableList
 import com.android.launcher3.util.SplitConfigurationOptions
 import com.android.launcher3.util.TransformingTouchDelegate
@@ -70,10 +70,11 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         type = TaskViewType.DESKTOP,
         thumbnailFullscreenParams = DesktopFullscreenDrawParams(context),
     ) {
+    private val desktopTask: DesktopTask?
+        get() = groupTask as? DesktopTask
+
     val deskId
         get() = desktopTask?.deskId ?: DesktopVisibilityController.INACTIVE_DESK_ID
-
-    private var desktopTask: DesktopTask? = null
 
     private val contentViewFullscreenParams = FullscreenDrawParams(context)
 
@@ -285,6 +286,10 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                 scaleX = currentTaskWidth / overviewTaskWidth
                 scaleY = currentTaskHeight / overviewTaskHeight
             }
+
+            if (taskContainer.task.isMinimized) {
+                taskContainer.snapshotView.alpha = explodeProgress
+            }
         }
     }
 
@@ -294,11 +299,14 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         orientedState: RecentsOrientedState,
         taskOverlayFactory: TaskOverlayFactory,
     ) {
-        this.desktopTask = desktopTask
-        // TODO(b/370495260): Minimized tasks should not be filtered with desktop exploded view
-        // support.
-        // Minimized tasks should not be shown in Overview.
-        val tasks = desktopTask.tasks.filterNot { it.isMinimized }
+        this.groupTask = desktopTask
+        // Minimized tasks are shown in Overview when exploded view is enabled.
+        val tasks =
+            if (enableDesktopExplodedView()) {
+                desktopTask.tasks
+            } else {
+                desktopTask.tasks.filterNot { it.isMinimized }
+            }
         if (DEBUG) {
             val sb = StringBuilder()
             sb.append("bind tasks=").append(tasks.size).append("\n")
@@ -357,7 +365,6 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
 
     override fun onRecycle() {
         super.onRecycle()
-        desktopTask = null
         explodeProgress = 0.0f
         viewModel = null
         visibility = VISIBLE

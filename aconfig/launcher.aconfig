@@ -697,3 +697,13 @@ flag {
     purpose: PURPOSE_BUGFIX
   }
 }
+
+flag {
+  name: "enable_expressive_folder_expansion"
+  namespace: "launcher"
+  description: "Enables expressive folder expansion motion"
+  bug: "348708061"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}

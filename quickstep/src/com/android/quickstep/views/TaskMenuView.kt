@@ -35,13 +35,13 @@ import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
 import com.android.app.animation.Interpolators
 import com.android.launcher3.AbstractFloatingView
-import com.android.launcher3.Flags.enableOverviewIconMenu
 import com.android.launcher3.Flags.enableRefactorTaskThumbnail
 import com.android.launcher3.R
 import com.android.launcher3.anim.AnimationSuccessListener
 import com.android.launcher3.anim.RoundedRectRevealOutlineProvider
 import com.android.launcher3.popup.SystemShortcut
 import com.android.launcher3.util.MultiPropertyFactory
+import com.android.launcher3.util.OverviewReleaseFlags.enableOverviewIconMenu
 import com.android.launcher3.util.SplitConfigurationOptions
 import com.android.launcher3.views.BaseDragLayer
 import com.android.quickstep.TaskOverlayFactory
@@ -206,7 +206,7 @@ constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int = 0) :
             else taskContainer.snapshotView,
             tempRect,
         )
-        val insets = recentsViewContainer.dragLayer.getInsets()
+        val insets = recentsViewContainer.dragLayer.insets
         val params = layoutParams as BaseDragLayer.LayoutParams
         params.width =
             orientationHandler.getTaskMenuWidth(
@@ -215,7 +215,10 @@ constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int = 0) :
                 taskContainer.stagePosition,
             )
         // Gravity set to Left instead of Start as sTempRect.left measures Left distance not Start
-        params.gravity = Gravity.LEFT
+        params.gravity =
+            if (enableOverviewIconMenu() && orientationHandler.isLayoutNaturalToLauncher)
+                Gravity.START
+            else Gravity.LEFT
         layoutParams = params
         scaleX = taskView.scaleX
         scaleY = taskView.scaleY
@@ -240,7 +243,15 @@ constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int = 0) :
             dividerSpacing,
             divider,
         )
-        val thumbnailAlignedX = (tempRect.left - insets.left).toFloat()
+
+        val thumbnailAlignedX =
+            if (
+                enableOverviewIconMenu() &&
+                    orientationHandler.isLayoutNaturalToLauncher &&
+                    isLayoutRtl
+            )
+                -(recentsViewContainer.dragLayer.width - tempRect.right - insets.right).toFloat()
+            else (tempRect.left - insets.left).toFloat()
         val thumbnailAlignedY = (tempRect.top - insets.top).toFloat()
 
         // Changing pivot to make computations easier
@@ -341,7 +352,7 @@ constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int = 0) :
                 animated && !closing -> REVEAL_OPEN_DURATION
                 else -> 0L
             }
-        openCloseAnimator!!.setDuration(animationDuration)
+        openCloseAnimator!!.duration = animationDuration
         openCloseAnimator!!.start()
     }
 
