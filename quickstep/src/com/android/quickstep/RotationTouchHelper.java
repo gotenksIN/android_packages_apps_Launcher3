@@ -33,7 +33,8 @@ import android.view.MotionEvent;
 import android.view.OrientationEventListener;
 
 import com.android.app.displaylib.PerDisplayRepository;
-import com.android.launcher3.dagger.WindowContext;
+import com.android.launcher3.dagger.ApplicationContext;
+import com.android.launcher3.dagger.DisplayContext;
 import com.android.launcher3.testing.shared.TestProtocol;
 import com.android.launcher3.util.DaggerSingletonObject;
 import com.android.launcher3.util.DaggerSingletonTracker;
@@ -133,28 +134,30 @@ public class RotationTouchHelper implements DisplayInfoChangeListener {
      */
     private boolean mInOverview;
     private boolean mTaskListFrozen;
-    private final Context mWindowContext;
+    private final Context mApplicationContext;
 
     @AssistedInject
-    RotationTouchHelper(@Assisted Context windowContext,
+    RotationTouchHelper(
+            @ApplicationContext Context applicationContext,
+            @Assisted Context displayContext,
             DisplayController displayController,
             SystemUiProxy systemUiProxy,
             DaggerSingletonTracker lifeCycle) {
-        mWindowContext = windowContext;
+        mApplicationContext = applicationContext;
+        mDisplayId = displayContext.getDisplayId();
         mDisplayController = displayController;
         mSystemUiProxy = systemUiProxy;
-        mDisplayId = windowContext.getDisplayId();
 
-        Resources resources = mWindowContext.getResources();
+        Resources resources = mApplicationContext.getResources();
         mOrientationTouchTransformer = new OrientationTouchTransformer(resources, mMode,
-                () -> QuickStepContract.getWindowCornerRadius(mWindowContext));
+                () -> QuickStepContract.getWindowCornerRadius(displayContext));
 
         // Register for navigation mode and rotation changes
         mDisplayController.addChangeListenerForDisplay(this, mDisplayId);
         DisplayController.Info info = mDisplayController.getInfoForDisplay(mDisplayId);
-        onDisplayInfoChanged(windowContext, info, CHANGE_ALL);
+        onDisplayInfoChanged(mApplicationContext, info, CHANGE_ALL);
 
-        mOrientationListener = new OrientationEventListener(mWindowContext) {
+        mOrientationListener = new OrientationEventListener(mApplicationContext) {
             @Override
             public void onOrientationChanged(int degrees) {
                 int newRotation = RecentsOrientedState.getRotationForUserDegreesRotated(degrees,
@@ -262,7 +265,7 @@ public class RotationTouchHelper implements DisplayInfoChangeListener {
             NavigationMode newMode = info.getNavigationMode();
             mOrientationTouchTransformer.setNavigationMode(newMode,
                     mDisplayController.getInfoForDisplay(mDisplayId),
-                    mWindowContext.getResources());
+                    mApplicationContext.getResources());
 
             TaskStackChangeListeners.getInstance()
                     .unregisterTaskStackListener(mFrozenTaskListener);
@@ -284,7 +287,7 @@ public class RotationTouchHelper implements DisplayInfoChangeListener {
     void setGesturalHeight(int newGesturalHeight) {
         mOrientationTouchTransformer.setGesturalHeight(
                 newGesturalHeight, mDisplayController.getInfoForDisplay(mDisplayId),
-                mWindowContext.getResources());
+                mApplicationContext.getResources());
     }
 
     /**
@@ -395,6 +398,6 @@ public class RotationTouchHelper implements DisplayInfoChangeListener {
     @AssistedFactory
     public interface Factory {
         /** Creates a new instance of [RotationTouchHelper] for a given [display]. */
-        RotationTouchHelper create(@WindowContext Context context);
+        RotationTouchHelper create(@DisplayContext Context context);
     }
 }

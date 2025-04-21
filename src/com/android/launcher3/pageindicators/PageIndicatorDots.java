@@ -499,6 +499,9 @@ public class PageIndicatorDots extends View implements Insettable, PageIndicator
         float x = ((float) getWidth() / 2) - (mCircleGap * ((float) mNumPages - 1) / 2);
         float y = getHeight() / 2;
 
+        // Save the current alpha value, so we can reset to it again after drawing the dots
+        int alpha = mPaginationPaint.getAlpha();
+
         if (mEntryAnimationRadiusFactors != null) {
             if (enableLauncherVisualRefresh()) {
                 x -= mDotRadius;
@@ -547,8 +550,6 @@ public class PageIndicatorDots extends View implements Insettable, PageIndicator
                 }
             }
         } else {
-            // Save the current alpha value, so we can reset to it again after drawing the dots
-            int alpha = mPaginationPaint.getAlpha();
 
             if (enableLauncherVisualRefresh()) {
                 int nonActiveAlpha = (int) (alpha * DOT_ALPHA_FRACTION);
@@ -662,10 +663,9 @@ public class PageIndicatorDots extends View implements Insettable, PageIndicator
                 mPaginationPaint.setAlpha(alpha);
                 canvas.drawRoundRect(getActiveRect(), mDotRadius, mDotRadius, mPaginationPaint);
             }
-
-            // Reset the alpha so it doesn't become progressively more transparent each onDraw call
-            mPaginationPaint.setAlpha(alpha);
         }
+        // Reset the alpha so it doesn't become progressively more transparent each onDraw call
+        mPaginationPaint.setAlpha(alpha);
     }
 
     @Override

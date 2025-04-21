@@ -32,7 +32,6 @@ import com.android.launcher3.AbstractFloatingView.TYPE_TASK_MENU
 import com.android.launcher3.AbstractFloatingView.getTopOpenViewWithType
 import com.android.launcher3.Flags.enableDesktopExplodedView
 import com.android.launcher3.Flags.enableLargeDesktopWindowingTile
-import com.android.launcher3.Flags.enableSeparateExternalDisplayTasks
 import com.android.launcher3.Utilities.getPivotsForScalingRectToRect
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.statehandlers.DesktopVisibilityController.Companion.INACTIVE_DESK_ID
@@ -189,10 +188,7 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
     fun getExpectedCurrentTask(runningTaskView: TaskView?, focusedTaskView: TaskView?): TaskView? =
         runningTaskView
             ?: focusedTaskView
-            ?: taskViews.firstOrNull {
-                it !is DesktopTaskView &&
-                    !(enableSeparateExternalDisplayTasks() && it.isExternalDisplay)
-            }
+            ?: taskViews.firstOrNull { it !is DesktopTaskView && !it.isExternalDisplay }
             ?: taskViews.lastOrNull()
 
     private fun getDeviceProfile() = (recentsView.mContainer as RecentsViewContainer).deviceProfile
@@ -215,17 +211,13 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
             if (enableLargeDesktopWindowingTile() && runningTaskView !is DesktopTaskView) {
                 // For fullsreen tasks, skip over Desktop tasks in its section
                 index +=
-                    if (enableSeparateExternalDisplayTasks()) {
-                        if (runningTaskView.isExternalDisplay) {
-                            taskViews.count { it is DesktopTaskView && it.isExternalDisplay }
-                        } else {
-                            taskViews.count { it is DesktopTaskView && !it.isExternalDisplay }
-                        }
+                    if (runningTaskView.isExternalDisplay) {
+                        taskViews.count { it is DesktopTaskView && it.isExternalDisplay }
                     } else {
-                        getDesktopTaskViewCount()
+                        taskViews.count { it is DesktopTaskView && !it.isExternalDisplay }
                     }
             }
-            if (enableSeparateExternalDisplayTasks() && !runningTaskView.isExternalDisplay) {
+            if (!runningTaskView.isExternalDisplay) {
                 // For main display section, skip over external display tasks
                 index += taskViews.count { it.isExternalDisplay }
             }

@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.taskbar
+package com.android.quickstep.task.thumbnail
 
-import android.window.DesktopModeFlags.DesktopModeFlag
-import com.android.launcher3.Flags
+import android.graphics.drawable.Drawable
+import android.view.View
 
-class TaskbarDesktopModeFlags {
-    companion object {
-        @JvmField
-        val enableAltTabKqsOnConnectedDisplays: DesktopModeFlag =
-            DesktopModeFlag(Flags::enableAltTabKqsOnConnectedDisplays, false)
+sealed class TaskHeaderUiState {
+    data class ShowHeader(val header: ThumbnailHeader) : TaskHeaderUiState()
 
-        @JvmField
-        val enableAltTabKqsFlatenning: DesktopModeFlag =
-            DesktopModeFlag(Flags::enableAltTabKqsFlatenning, false)
-    }
+    data object HideHeader : TaskHeaderUiState()
+
+    data class ThumbnailHeader(
+        val icon: Drawable,
+        val title: String,
+        val clickCloseListener: View.OnClickListener,
+    )
 }

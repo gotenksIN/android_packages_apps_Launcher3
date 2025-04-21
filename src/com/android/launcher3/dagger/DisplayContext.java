@@ -23,10 +23,10 @@ import java.lang.annotation.RetentionPolicy;
 import javax.inject.Qualifier;
 
 /**
- * Qualifier for Launcher application context.
+ * Qualifier for per display context created using [createDisplayContext].
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Qualifier
-public @interface WindowContext {
+public @interface DisplayContext {
 }

@@ -76,7 +76,6 @@ import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.DragSource;
 import com.android.launcher3.DropTarget;
 import com.android.launcher3.ExtendedEditText;
-import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.OnAlarmListener;
 import com.android.launcher3.R;
@@ -1150,11 +1149,8 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     }
 
     private void updateItemLocationsInDatabaseBatch(boolean isBind) {
-        // b/409061698 We need to get the DeviceProfile directly from the activity but to fix the
-        // issue we will merge this solution.
         FolderGridOrganizer verifier = createFolderGridOrganizer(
-                InvariantDeviceProfile.INSTANCE.get(mActivityContext.asContext())
-                        .getDeviceProfile(mActivityContext.asContext())
+                mActivityContext.getDeviceProfile()
         ).setFolderInfo(mInfo);
 
         ArrayList<ItemInfo> items = new ArrayList<>();
