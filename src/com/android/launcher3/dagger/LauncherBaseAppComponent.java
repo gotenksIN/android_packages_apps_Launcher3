@@ -34,6 +34,7 @@ import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.util.ApiWrapper;
 import com.android.launcher3.util.DaggerSingletonTracker;
 import com.android.launcher3.util.DisplayController;
+import com.android.launcher3.logging.DumpManager;
 import com.android.launcher3.util.DynamicResource;
 import com.android.launcher3.util.LockedUserState;
 import com.android.launcher3.util.MSDLPlayerWrapper;
@@ -90,6 +91,8 @@ public interface LauncherBaseAppComponent {
     LoaderCursorFactory getLoaderCursorFactory();
     WidgetHolderFactory getWidgetHolderFactory();
     RefreshRateTracker getFrameRateProvider();
+
+    DumpManager getDumpManager();
 
     /** Builder for LauncherBaseAppComponent. */
     interface Builder {

@@ -26,8 +26,11 @@ import static com.android.launcher3.LauncherState.ALL_APPS;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.PixelFormat;
+import android.gui.EarlyWakeupInfo;
+import android.os.Binder;
 import android.util.Log;
 import android.view.AttachedSurfaceControl;
+import android.view.CrossWindowBlurListeners;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.SurfaceControl;
@@ -98,6 +101,10 @@ public final class TaskbarOverlayController {
     private TaskbarControllers mControllers; // Initialized in init.
     // True if we have alerted surface flinger of an expensive call for blur.
     private boolean mInEarlyWakeUp;
+        /**
+     * Token for early wakeup requests to SurfaceFlinger.
+     */
+    private EarlyWakeupInfo mEarlyWakeupInfo = new EarlyWakeupInfo();
 
     public TaskbarOverlayController(
             TaskbarActivityContext taskbarContext, DeviceProfile launcherDeviceProfile) {
@@ -108,6 +115,8 @@ public final class TaskbarOverlayController {
         mLauncherDeviceProfile = launcherDeviceProfile;
         mMaxBlurRadius = mTaskbarContext.getResources().getDimensionPixelSize(
                 R.dimen.max_depth_blur_radius_enhanced);
+        mEarlyWakeupInfo.token = new Binder();
+        mEarlyWakeupInfo.trace = TaskbarOverlayController.class.getName();
     }
 
     /** Initialize the controller. */
@@ -227,6 +236,11 @@ public final class TaskbarOverlayController {
             radius = 0;
             // intentionally falling through in case a non-0 blur was previously set.
         }
+        if (!CrossWindowBlurListeners.getInstance().isCrossWindowBlurEnabled()) {
+            Log.d(TAG, "setBackgroundBlurRadius: disabled, setting to 0");
+            radius = 0;
+            // intentionally falling through in case a non-0 blur was previously set.
+        }
         if (mOverlayContext == null) {
             Log.w(TAG, "setBackgroundBlurRadius: no overlay context");
             return;
@@ -259,16 +273,23 @@ public final class TaskbarOverlayController {
         // SurfaceFlinger will adjust its internal offsets to avoid jank.
         boolean wantsEarlyWakeUp = radius > 0 && radius < mMaxBlurRadius;
         if (wantsEarlyWakeUp && !mInEarlyWakeUp) {
-            Log.d(TAG, "setBackgroundBlurRadius: setting early wakeup");
-            transaction.setEarlyWakeupStart();
+            Log.d(TAG, "setBackgroundBlurRadius: setting early wakeup with token"
+                                                + mEarlyWakeupInfo);
+            transaction.setEarlyWakeupStart(mEarlyWakeupInfo);
             mInEarlyWakeUp = true;
         } else if (!wantsEarlyWakeUp && mInEarlyWakeUp) {
-            Log.d(TAG, "setBackgroundBlurRadius: clearing early wakeup");
-            transaction.setEarlyWakeupEnd();
+            Log.d(TAG, "setBackgroundBlurRadius: clearing early wakeup with token"
+                                                + mEarlyWakeupInfo);
+            transaction.setEarlyWakeupEnd(mEarlyWakeupInfo);
             mInEarlyWakeUp = false;
         }
 
         rootSurfaceControl.applyTransactionOnDraw(transaction);
+    }
+
+    boolean isBackgroundBlurEnabled() {
+        return BlurUtils.supportsBlursOnWindows()
+                && CrossWindowBlurListeners.getInstance().isCrossWindowBlurEnabled();
     }
 
     /**
