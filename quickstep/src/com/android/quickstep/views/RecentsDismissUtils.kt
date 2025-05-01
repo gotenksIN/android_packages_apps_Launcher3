@@ -16,11 +16,17 @@
 
 package com.android.quickstep.views
 
+import android.app.ActivityTaskManager.INVALID_TASK_ID
+import android.view.View
+import androidx.core.view.children
 import androidx.dynamicanimation.animation.FloatPropertyCompat
 import androidx.dynamicanimation.animation.FloatValueHolder
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
+import com.android.internal.jank.Cuj
+import com.android.launcher3.PagedView
 import com.android.launcher3.R
+import com.android.launcher3.logging.StatsLogManager.LauncherEvent
 import com.android.launcher3.util.DynamicResource
 import com.android.launcher3.util.MSDLPlayerWrapper
 import com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOverview
@@ -28,7 +34,10 @@ import com.android.launcher3.views.ActivityContext
 import com.android.quickstep.util.TaskGridNavHelper
 import com.android.quickstep.views.RecentsView.RECENTS_SCALE_PROPERTY
 import com.android.quickstep.views.TaskView.Companion.GRID_END_TRANSLATION_X
+import com.android.systemui.shared.system.InteractionJankMonitorWrapper
 import com.google.android.msdl.data.model.MSDLToken
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -77,7 +86,7 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                     .toInt()
             val dismissThreshold = (dismissLength * DEFAULT_DISMISS_THRESHOLD_FRACTION).toInt()
             val velocity = mTempRect.height().toFloat()
-            val finalPosition = if (isSplitSelection) 0f else dismissLength.toFloat()
+            val finalPosition = dismissLength.toFloat()
             return createTaskDismissSettlingSpringAnimation(
                 draggedTaskView,
                 velocity,
@@ -180,8 +189,14 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                 isSpringDirectionVertical = true,
                 minVelocity = startVelocity,
             )
+            draggedTaskViewSpringAnimation.addEndListener { _, _, _, _ ->
+                InteractionJankMonitorWrapper.cancel(Cuj.CUJ_LAUNCHER_OVERVIEW_TASK_DISMISS)
+            }
         }
-        return draggedTaskViewSpringAnimation.apply { animateToFinalPosition(finalPosition) }
+        return draggedTaskViewSpringAnimation.apply {
+            InteractionJankMonitorWrapper.begin(recentsView, Cuj.CUJ_LAUNCHER_OVERVIEW_TASK_DISMISS)
+            animateToFinalPosition(finalPosition)
+        }
     }
 
     private fun addNeighborSettlingSpringAnimations(
@@ -435,6 +450,15 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
         val towardsStart = if (recentsView.isRtl) dismissedTaskGap < 0 else dismissedTaskGap > 0
         var startOffset = 0f
         recentsView.mTaskViewsDismissPrimaryTranslations.clear()
+        val runOnFinalSpringEnd = {
+            runGridEndTranslation(
+                dismissedTaskView,
+                onEndRunnable,
+                shouldRemoveTaskView,
+                isSplitSelection,
+            )
+        }
+        val springEndManager = SpringEndManager(runOnFinalSpringEnd)
 
         var tasksToReflow: List<TaskView>
         // Build the chains of Spring Animations
@@ -450,6 +474,7 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                     tasksToReflow,
                     dismissedTaskGap,
                     previousSpring = springAnimationDriver,
+                    springEndManager,
                 )
             }
             dismissedTaskView == null || dismissedTaskView.isLargeTile -> {
@@ -464,6 +489,7 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                         tasksToReflow,
                         dismissedTaskGap,
                         previousSpring = springAnimationDriver,
+                        springEndManager,
                     )
                 // Add all top and bottom grid tasks when animating towards the end of the grid.
                 if (!towardsStart) {
@@ -479,12 +505,14 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                         recentsView.mUtils.getTopRowTaskViews(),
                         dismissedTaskGap,
                         previousSpring = lastSpringAnimation,
+                        springEndManager,
                         startOffset,
                     )
                     buildDismissReflowSpringAnimationChain(
                         recentsView.mUtils.getBottomRowTaskViews(),
                         dismissedTaskGap,
                         previousSpring = lastSpringAnimation,
+                        springEndManager,
                         startOffset,
                     )
                 }
@@ -500,6 +528,7 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                     tasksToReflow,
                     dismissedTaskGap,
                     previousSpring = springAnimationDriver,
+                    springEndManager,
                 )
             }
             else -> {
@@ -513,18 +542,14 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                     tasksToReflow,
                     dismissedTaskGap,
                     previousSpring = springAnimationDriver,
+                    springEndManager,
                 )
             }
         }
 
         val runImmediately = tasksToReflow.isEmpty()
         if (runImmediately) {
-            runGridEndTranslation(
-                dismissedTaskView,
-                onEndRunnable,
-                DISMISS_IMMEDIATE_DURATION,
-                shouldRemoveTaskView,
-            )
+            runOnFinalSpringEnd()
         } else {
             addNeighborSettlingSpringAnimations(
                 dismissedTaskView,
@@ -534,17 +559,8 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                 isSpringDirectionVertical = false,
                 minVelocity = 0f,
             )
-            springAnimationDriver.apply {
-                addEndListener { _, _, _, _ ->
-                    runGridEndTranslation(
-                        dismissedTaskView,
-                        onEndRunnable,
-                        DISMISS_DEFAULT_DURATION,
-                        shouldRemoveTaskView,
-                    )
-                }
-                animateToFinalPosition(dismissedTaskGap)
-            }
+            springEndManager.addSpring(springAnimationDriver, dismissedTaskGap)
+            springAnimationDriver.animateToFinalPosition(dismissedTaskGap)
         }
     }
 
@@ -622,6 +638,7 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
         taskViews: Iterable<TaskView>,
         dismissedTaskGap: Float,
         previousSpring: SpringAnimation,
+        springEndManager: SpringEndManager,
         startOffset: Float = 0f,
     ): SpringAnimation {
         var lastTaskViewSpring = previousSpring
@@ -653,6 +670,8 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                 lastTaskViewSpring.addUpdateListener { _, value, _ ->
                     taskViewSpringAnimation.animateToFinalPosition(value)
                 }
+                // Only run the final runnable once the last spring has ended.
+                springEndManager.addSpring(taskViewSpringAnimation, dismissedTaskGap)
                 lastTaskViewSpring = taskViewSpringAnimation
                 recentsView.mTaskViewsDismissPrimaryTranslations[taskView] =
                     dismissedTaskGap.toInt()
@@ -664,17 +683,35 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
     private fun runGridEndTranslation(
         dismissedTaskView: TaskView?,
         onEndRunnable: () -> Unit,
-        dismissDuration: Int,
         shouldRemoveTaskView: Boolean,
+        isSplitSelection: Boolean,
     ) {
         val runGridEndAnimationAndRelayout = { gridEndData: GridEndData ->
-            recentsView.expressiveDismissTaskView(
-                dismissedTaskView,
-                onEndRunnable,
-                dismissDuration,
-                shouldRemoveTaskView,
-                gridEndData,
-            )
+            with(recentsView) {
+                if (pageCount == 0) {
+                    return@with
+                }
+                updateCurveProperties()
+                loadVisibleTaskData(TaskView.FLAG_UPDATE_ALL)
+                val onFinishComplete = {
+                    onEndSnappingAndRelayout(
+                        dismissedTaskView,
+                        shouldRemoveTaskView,
+                        isSplitSelection,
+                        gridEndData,
+                        onEndRunnable,
+                    )
+                }
+                if (enableDrawingLiveTile && dismissedTaskView?.isRunningTask == true) {
+                    finishRecentsAnimation(
+                        /* toRecents */ true, /* shouldPip */
+                        false,
+                        onFinishComplete,
+                    )
+                } else {
+                    onFinishComplete()
+                }
+            }
         }
         val gridEndData = getGridEndData(dismissedTaskView)
         val gridEndOffset = gridEndData.gridEndOffset
@@ -687,6 +724,7 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
         val gridEndSpring =
             SpringAnimation(FloatValueHolder())
                 .setSpring(createExpressiveGridReflowSpringForce(gridEndOffset))
+        val springEndManager = SpringEndManager { runGridEndAnimationAndRelayout(gridEndData) }
         recentsView.mUtils.taskViews.forEach { taskView ->
             val taskViewGridEndSpringAnimation =
                 SpringAnimation(
@@ -707,6 +745,7 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
             gridEndSpring.addUpdateListener { _, value, _ ->
                 taskViewGridEndSpringAnimation.animateToFinalPosition(value)
             }
+            springEndManager.addSpring(taskViewGridEndSpringAnimation, gridEndOffset)
         }
         // Animate alpha of clear all if translating grid to hide it.
         if (recentsView.isClearAllHidden) {
@@ -718,7 +757,7 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
                 .addEndListener { _, _, _, _ -> recentsView.clearAllButton.dismissAlpha = 1f }
                 .animateToFinalPosition(0f)
         }
-        gridEndSpring.addEndListener { _, _, _, _ -> runGridEndAnimationAndRelayout(gridEndData) }
+        springEndManager.addSpring(gridEndSpring, gridEndOffset)
         gridEndSpring.animateToFinalPosition(gridEndOffset)
     }
 
@@ -888,12 +927,273 @@ class RecentsDismissUtils(private val recentsView: RecentsView<*, *>) {
         val currentPageSnapsToEndOfGrid: Boolean,
     )
 
+    private fun onEndSnappingAndRelayout(
+        dismissedTaskView: TaskView?,
+        shouldRemoveTask: Boolean,
+        dismissingForSplitSelection: Boolean,
+        gridEndData: GridEndData,
+        onEndRunnable: () -> Unit,
+    ) {
+        with(recentsView) {
+            // Reset task translations as they may have updated via the dismiss animations.
+            resetTaskVisuals()
+
+            // Denote if any task has been dismissed for grid rebalancing.
+            mAnyTaskHasBeenDismissed = true
+            // Cache group task before removing.
+            handleGroupTaskRemoval(dismissedTaskView, shouldRemoveTask)
+
+            // Get page to snap to before removing dismissed task.
+            val dismissedTaskViewId = dismissedTaskView?.taskViewId ?: INVALID_TASK_ID
+            val pageToSnapTo =
+                when {
+                    (dismissedTaskView != null &&
+                        (!showAsGrid() || dismissedTaskView.isLargeTile)) -> {
+                        getPageToSnapTo(dismissedTaskView)
+                    }
+                    showAsGrid() -> {
+                        getPageToSnapToForGrid(gridEndData, dismissedTaskViewId)
+                    }
+                    else -> {
+                        currentPage
+                    }
+                }
+
+            // Remove dismissed task.
+            removeViewInLayout(dismissedTaskView)
+            mTopRowIdSet.remove(dismissedTaskViewId)
+
+            // Update the UI after removal and snap to page.
+            updateUiAfterTaskRemoval(dismissedTaskView, pageToSnapTo)
+
+            // Run the user-provided end-runnable.
+            onEndRunnable()
+
+            if (!dismissingForSplitSelection) {
+                InteractionJankMonitorWrapper.end(Cuj.CUJ_LAUNCHER_OVERVIEW_TASK_DISMISS)
+            }
+        }
+    }
+
+    /**
+     * Caches the groupTask before removing it. As the deskId might become invalid by
+     * removeViewInLayout called on the dismissed task. It might happen before
+     * removeGroupTaskInternal which runs on a helper thread.
+     */
+    private fun handleGroupTaskRemoval(dismissedTaskView: TaskView?, shouldRemoveTask: Boolean) {
+        with(recentsView) {
+            if (shouldRemoveTask && dismissedTaskView != null) {
+                val groupTask = dismissedTaskView.groupTask
+                if (groupTask != null) {
+                    if (dismissedTaskView.isRunningTask) {
+                        finishRecentsAnimation(/* toRecents */ true, /* shouldPip */ false) {
+                            removeGroupTaskInternal(groupTask)
+                        }
+                    } else {
+                        removeGroupTaskInternal(groupTask)
+                    }
+                    (mContainer as ActivityContext)
+                        .statsLogManager
+                        .logger()
+                        .withItemInfo(dismissedTaskView.itemInfo)
+                        .log(LauncherEvent.LAUNCHER_TASK_DISMISS_SWIPE_UP)
+                }
+            }
+        }
+    }
+
+    private fun getPageToSnapTo(dismissedTaskView: TaskView?): Int {
+        with(recentsView) {
+            var pageToSnapTo = currentPage
+            if (
+                indexOfChild(dismissedTaskView) < pageToSnapTo ||
+                    pageToSnapTo == indexOfChild(mUtils.getLastTaskView())
+            ) {
+                pageToSnapTo--
+            }
+            return pageToSnapTo
+        }
+    }
+
+    private fun getPageToSnapToForGrid(gridEndData: GridEndData, dismissedTaskViewId: Int): Int {
+        with(recentsView) {
+            var pageToSnapTo = currentPage
+            var taskViewIdToSnapTo = -1
+            currentPageScrollDiff = 0
+
+            if (gridEndData.gridEndOffset != 0f) {
+                if (gridEndData.snapToLastTask) {
+                    // Last task will be determined after removing dismissed task.
+                    pageToSnapTo = -1
+                } else if (taskViewCount > 2) {
+                    pageToSnapTo = indexOfChild(clearAllButton)
+                } else if (isClearAllHidden) {
+                    // Snap to focused task if clear all is hidden.
+                    pageToSnapTo = indexOfChild(firstTaskView)
+                }
+            } else {
+                val snappedTaskView = currentPageTaskView
+                if (snappedTaskView != null && !gridEndData.snapToLastTask) {
+                    val snappedTaskViewId = snappedTaskView.taskViewId
+                    val isSnappedTaskInTopRow = mTopRowIdSet.contains(snappedTaskViewId)
+                    val taskViewIdArray =
+                        if (isSnappedTaskInTopRow) {
+                            mUtils.getTopRowIdArray()
+                        } else {
+                            mUtils.getBottomRowIdArray()
+                        }
+                    val snappedIndex = taskViewIdArray.indexOf(snappedTaskViewId)
+                    taskViewIdArray.removeValue(dismissedTaskViewId)
+                    if (snappedIndex >= 0 && snappedIndex < taskViewIdArray.size()) {
+                        taskViewIdToSnapTo = taskViewIdArray[snappedIndex]
+                    } else if (snappedIndex == taskViewIdArray.size()) {
+                        val inverseRowTaskViewIdArray =
+                            if (isSnappedTaskInTopRow) {
+                                mUtils.getBottomRowIdArray()
+                            } else {
+                                mUtils.getTopRowIdArray()
+                            }
+                        if (snappedIndex < inverseRowTaskViewIdArray.size()) {
+                            taskViewIdToSnapTo = inverseRowTaskViewIdArray[snappedIndex]
+                        }
+                    }
+                }
+                val primaryScroll = pagedOrientationHandler.getPrimaryScroll(this)
+                val currentPageScroll = getScrollForPage(currentPage)
+                currentPageScrollDiff = primaryScroll - currentPageScroll
+            }
+
+            // Calculate page to snap to as if the dismissed task view is removed from the grid.
+            val topRowIdArray = mUtils.getTopRowIdArray()
+            val bottomRowIdArray = mUtils.getBottomRowIdArray()
+            topRowIdArray.removeValue(dismissedTaskViewId)
+            bottomRowIdArray.removeValue(dismissedTaskViewId)
+            val children =
+                children.filter { child -> child != getTaskViewFromTaskViewId(dismissedTaskViewId) }
+            if (gridEndData.snapToLastTask) {
+                val lastGridTaskView = getLastGridTaskView(topRowIdArray, bottomRowIdArray)
+                pageToSnapTo =
+                    if (lastGridTaskView == null) PagedView.INVALID_PAGE
+                    else children.indexOf(lastGridTaskView as View)
+                if (pageToSnapTo == PagedView.INVALID_PAGE) {
+                    val lastLargeTaskView = mUtils.getLastLargeTaskView()
+                    pageToSnapTo =
+                        if (lastLargeTaskView == null) PagedView.INVALID_PAGE
+                        else children.indexOf(lastLargeTaskView as View)
+                }
+            } else if (taskViewIdToSnapTo != -1) {
+                // If snapping to another page due to indices rearranging, find
+                // the new index after dismissal & rearrange using the TaskView ID.
+                pageToSnapTo =
+                    children.indexOf(getTaskViewFromTaskViewId(taskViewIdToSnapTo) as View)
+                if (!gridEndData.currentPageSnapsToEndOfGrid) {
+                    val dismissedTaskViewIndex =
+                        indexOfChild(getTaskViewFromTaskViewId(dismissedTaskViewId))
+                    currentPageScrollDiff +=
+                        getOffsetFromScrollPosition(
+                            pageToSnapTo,
+                            topRowIdArray,
+                            bottomRowIdArray,
+                            dismissedTaskViewIndex,
+                        )
+                }
+            }
+            return pageToSnapTo
+        }
+    }
+
+    private fun updateUiAfterTaskRemoval(dismissedTaskView: TaskView?, pageToSnapTo: Int) {
+        with(recentsView) {
+            if (taskViewCount == 0) {
+                if (!isSplitSelectionActive) {
+                    removeViewInLayout(clearAllButton)
+                    removeViewInLayout(addDeskButton)
+                    if (dismissedTaskView === homeTaskView) {
+                        updateEmptyMessage()
+                    } else {
+                        startHome()
+                    }
+                }
+            } else {
+                updateTaskSize()
+                mUtils.updateChildTaskOrientations()
+                updateScrollSynchronously()
+
+                val highestVisibleTaskView = getHighestVisibleTaskView()
+                if (showAsGrid() && highestVisibleTaskView != null) {
+                    rebalanceTasksInGrid(highestVisibleTaskView)
+                }
+                pageBeginTransition()
+                currentPage = pageToSnapTo
+                dispatchScrollChanged()
+                updateActionsViewFocusedScroll()
+                if (
+                    isClearAllHidden && !(mContainer as ActivityContext).getDeviceProfile().isTablet
+                ) {
+                    actionsView.updateDisabledFlags(OverviewActionsView.DISABLED_SCROLLING, false)
+                }
+            }
+            updateCurrentTaskActionsVisibility()
+            onDismissAnimationEnds()
+            mTaskViewsDismissPrimaryTranslations.clear()
+        }
+    }
+
+    private fun rebalanceTasksInGrid(highestVisibleTaskView: TaskView) {
+        with(recentsView) {
+            val screenStart = pagedOrientationHandler.getPrimaryScroll(this)
+            val taskStart =
+                (pagedOrientationHandler.getChildStart(highestVisibleTaskView) +
+                    highestVisibleTaskView.getOffsetAdjustment(true).toInt())
+
+            val shouldRebalance =
+                if (isRtl) {
+                    taskStart <= screenStart + pageSpacing
+                } else {
+                    val screenEnd = (screenStart + pagedOrientationHandler.getMeasuredSize(this))
+                    val taskSize =
+                        (pagedOrientationHandler.getMeasuredSize(highestVisibleTaskView) *
+                                highestVisibleTaskView.getSizeAdjustment(false))
+                            .toInt()
+                    val taskEnd = taskStart + taskSize
+                    taskEnd >= screenEnd - pageSpacing
+                }
+
+            if (shouldRebalance) {
+                updateGridProperties(highestVisibleTaskView)
+                updateScrollSynchronously()
+            }
+        }
+    }
+
+    /** Tracks multiple springs so end runnable only runs once the last spring has ended. */
+    private class SpringEndManager(val endRunnable: () -> Unit) {
+        val runningSpringCount = AtomicInteger(0)
+
+        fun addSpring(spring: SpringAnimation, endValue: Float) {
+            runningSpringCount.incrementAndGet()
+            val canSpringEnd = AtomicBoolean(false)
+            spring.addUpdateListener { _, value, _ ->
+                // Do not allow end listener to fire until we have reached the end value.
+                if (abs(value - endValue) < spring.minimumVisibleChange && !canSpringEnd.get()) {
+                    canSpringEnd.set(true)
+                }
+            }
+            spring.addEndListener { _, _, _, _ ->
+                if (!canSpringEnd.get()) {
+                    return@addEndListener
+                }
+                if (runningSpringCount.decrementAndGet() == 0) {
+                    endRunnable()
+                }
+            }
+        }
+    }
+
     private companion object {
         // The additional damping to apply to tasks further from the dismissed task.
         private const val ADDITIONAL_DISMISS_DAMPING_RATIO = 0.15f
         private const val RECENTS_SCALE_SPRING_MULTIPLIER = 1000f
-        private const val DISMISS_DEFAULT_DURATION = 300
-        private const val DISMISS_IMMEDIATE_DURATION = 100
         private const val DEFAULT_DISMISS_THRESHOLD_FRACTION = 0.5f
     }
 }

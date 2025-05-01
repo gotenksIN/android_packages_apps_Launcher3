@@ -20,13 +20,13 @@ import static android.animation.LayoutTransition.CHANGE_APPEARING;
 import static android.animation.LayoutTransition.CHANGE_DISAPPEARING;
 import static android.animation.LayoutTransition.DISAPPEARING;
 import static android.view.Display.DEFAULT_DISPLAY;
+import static android.window.DesktopModeFlags.ENABLE_TASKBAR_OVERFLOW;
 import static android.window.DesktopModeFlags.ENABLE_TASKBAR_RECENTS_LAYOUT_TRANSITION;
 
 import static com.android.app.animation.Interpolators.EMPHASIZED;
 import static com.android.app.animation.Interpolators.FINAL_FRAME;
 import static com.android.app.animation.Interpolators.LINEAR;
 import static com.android.launcher3.Flags.enableScalingRevealHomeAnimation;
-import static com.android.launcher3.Flags.taskbarOverflow;
 import static com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_ALPHA;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_TRANSLATE_X;
@@ -782,7 +782,7 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
      * @return A set of Task ids of running apps that are pinned in the taskbar.
      */
     protected Set<Integer> getTaskIdsForPinnedApps() {
-        if (!taskbarOverflow()) {
+        if (!ENABLE_TASKBAR_OVERFLOW.isTrue()) {
             return Collections.emptySet();
         }
 
@@ -1228,6 +1228,11 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
                             : R.dimen.taskbar_stashed_size);
         } else {
             taskbarWindowSize = deviceProfile.taskbarHeight + deviceProfile.getTaskbarOffsetY();
+        }
+        if (mBubbleControllers != null) {
+            int bubbleBarMaxHeight = mBubbleControllers.bubbleBarViewController
+                    .getBubbleBarWithFlyoutMaximumHeight();
+            taskbarWindowSize = Math.max(taskbarWindowSize, bubbleBarMaxHeight);
         }
         mActivity.setTaskbarWindowSize(taskbarWindowSize);
         mTaskbarNavButtonTranslationY.updateValue(-deviceProfile.getTaskbarOffsetY());

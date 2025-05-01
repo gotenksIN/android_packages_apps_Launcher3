@@ -18,6 +18,7 @@ package com.android.launcher3.taskbar.overlay;
 import static android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
 import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_CONSUME_IME_INSETS;
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+import static android.window.DesktopModeFlags.ENABLE_TASKBAR_OVERFLOW;
 
 import static com.android.launcher3.AbstractFloatingView.TYPE_ALL;
 import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
@@ -315,7 +316,7 @@ public final class TaskbarOverlayController {
         @Override
         protected void handleClose(boolean animate) {
             if (!mIsOpen) return;
-            if (Flags.taskbarOverflow()) {
+            if (ENABLE_TASKBAR_OVERFLOW.isTrue()) {
                 // Mark the view closed before attempting to remove it, so the drag layer does not
                 // schedule another call to close. Needed for taskbar overflow in case the KQS
                 // view shown for taskbar overflow needs to be reshown - delayed close call would

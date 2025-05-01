@@ -859,7 +859,7 @@ public abstract class RecentsView<
      * RecentsView being open and displayed to the user. It is reset in the {@link #reset()} method
      * i.e. when RecentsView closes.
      */
-    private boolean mAnyTaskHasBeenDismissed;
+    protected boolean mAnyTaskHasBeenDismissed;
 
     protected final RecentsViewModel mRecentsViewModel;
     private final RecentsViewModelHelper mHelper;
@@ -1525,7 +1525,7 @@ public abstract class RecentsView<
     }
 
     @Nullable
-    private TaskView getLastGridTaskView(IntArray topRowIdArray, IntArray bottomRowIdArray) {
+    protected TaskView getLastGridTaskView(IntArray topRowIdArray, IntArray bottomRowIdArray) {
         if (topRowIdArray.isEmpty() && bottomRowIdArray.isEmpty()) {
             return null;
         }
@@ -2518,7 +2518,7 @@ public abstract class RecentsView<
         return scrolling;
     }
 
-    private void updateActionsViewFocusedScroll() {
+    protected void updateActionsViewFocusedScroll() {
         if (showAsGrid()) {
             float actionsViewAlphaValue = isFocusedTaskInExpectedScrollPosition() ? 1 : 0;
             // If animation is already in progress towards the same end value, do not restart.
@@ -2529,6 +2529,10 @@ public abstract class RecentsView<
                         DEFAULT_ACTIONS_VIEW_ALPHA_ANIMATION_DURATION);
             }
         }
+    }
+
+    protected OverviewActionsView getActionsView() {
+        return mActionsView;
     }
 
     private void animateActionsViewAlpha(float alphaValue, long duration) {
@@ -3237,7 +3241,7 @@ public abstract class RecentsView<
      * @param lastVisibleTaskViewDuringDismiss which TaskView to start rebalancing from. Use
      *                                         `null` to skip rebalance.
      */
-    private void updateGridProperties(TaskView lastVisibleTaskViewDuringDismiss) {
+    protected void updateGridProperties(TaskView lastVisibleTaskViewDuringDismiss) {
         if (!hasTaskViews()) {
             return;
         }
@@ -4355,7 +4359,7 @@ public abstract class RecentsView<
      * * Focused view is a single app
      * * Device is large screen
      */
-    private void updateCurrentTaskActionsVisibility() {
+    protected void updateCurrentTaskActionsVisibility() {
         TaskView taskView = getCurrentPageTaskView();
         boolean isCurrentSplit = taskView instanceof GroupedTaskView;
         GroupedTaskView groupedTaskView = isCurrentSplit ? (GroupedTaskView) taskView : null;
@@ -4382,7 +4386,7 @@ public abstract class RecentsView<
      *
      * @return the highest visible TaskView between both rows
      */
-    private TaskView getHighestVisibleTaskView() {
+    protected TaskView getHighestVisibleTaskView() {
         if (mTopRowIdSet.isEmpty()) return null; // return earlier
 
         TaskView lastVisibleTaskView = null;
@@ -4405,7 +4409,7 @@ public abstract class RecentsView<
         return lastVisibleTaskView;
     }
 
-    private void removeGroupTaskInternal(@NonNull GroupTask groupTask) {
+    protected void removeGroupTaskInternal(@NonNull GroupTask groupTask) {
         UI_HELPER_EXECUTOR
                 .getHandler()
                 .post(
@@ -4780,6 +4784,14 @@ public abstract class RecentsView<
     @Nullable
     public TaskView getNextPageTaskView() {
         return getTaskViewAt(getNextPage());
+    }
+
+    protected int getCurrentPageScrollDiff() {
+        return mCurrentPageScrollDiff;
+    }
+
+    protected void setCurrentPageScrollDiff(int currentPageScrollDiff) {
+        mCurrentPageScrollDiff = currentPageScrollDiff;
     }
 
     @Nullable
@@ -5868,6 +5880,11 @@ public abstract class RecentsView<
     }
 
     @Override
+    protected void pageBeginTransition() {
+        super.pageBeginTransition();
+    }
+
+    @Override
     protected String getCurrentPageDescription() {
         return "";
     }
@@ -6379,6 +6396,12 @@ public abstract class RecentsView<
 
     private int getOffsetFromScrollPosition(
             int pageIndex, IntArray topRowIdArray, IntArray bottomRowIdArray) {
+        return getOffsetFromScrollPosition(pageIndex, topRowIdArray, bottomRowIdArray,
+                /* removedPageIndex= */ INVALID_PAGE);
+    }
+
+    protected int getOffsetFromScrollPosition(int pageIndex, IntArray topRowIdArray,
+            IntArray bottomRowIdArray, int removedPageIndex) {
         if (!showAsGrid()) {
             return 0;
         }
@@ -6393,7 +6416,12 @@ public abstract class RecentsView<
             return 0;
         }
 
-        if (getScrollForPage(pageIndex) != getScrollForPage(indexOfChild(lastGridTaskView))) {
+        int lastGridTaskViewIndex = indexOfChild(lastGridTaskView);
+        // When computing offset, account for a removed page if provided.
+        if (removedPageIndex != INVALID_PAGE && removedPageIndex < lastGridTaskViewIndex) {
+            lastGridTaskViewIndex--;
+        }
+        if (getScrollForPage(pageIndex) != getScrollForPage(lastGridTaskViewIndex)) {
             return 0;
         }
 
@@ -6835,7 +6863,7 @@ public abstract class RecentsView<
         super.requestChildFocus(child, focused);
     }
 
-    private void dispatchScrollChanged() {
+    protected void dispatchScrollChanged() {
         runActionOnRemoteHandles(remoteTargetHandle ->
                 remoteTargetHandle.getTaskViewSimulator().setScroll(getScrollOffset()));
         for (int i = mScrollListeners.size() - 1; i >= 0; i--) {

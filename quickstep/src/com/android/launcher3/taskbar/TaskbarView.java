@@ -16,6 +16,7 @@
 package com.android.launcher3.taskbar;
 
 import static android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
+import static android.window.DesktopModeFlags.ENABLE_TASKBAR_OVERFLOW;
 import static android.window.DesktopModeFlags.ENABLE_TASKBAR_RECENTS_LAYOUT_TRANSITION;
 
 import static com.android.launcher3.BubbleTextView.DISPLAY_TASKBAR;
@@ -193,7 +194,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             mTaskbarDividerContainer = new TaskbarDividerContainer(context);
         }
 
-        if (Flags.taskbarOverflow()) {
+        if (ENABLE_TASKBAR_OVERFLOW.isTrue()) {
             mTaskbarOverflowView = TaskbarOverflowView.inflateIcon(
                     R.layout.taskbar_overflow_view, this,
                     mIconTouchSize, mItemPadding);
@@ -261,7 +262,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
      * that should be shown in the taskbar.
      */
     boolean updateMaxNumIcons() {
-        if (!Flags.taskbarOverflow()) {
+        if (!ENABLE_TASKBAR_OVERFLOW.isTrue()) {
             return false;
         }
         int oldMaxNumIcons = mMaxNumIcons;
@@ -359,7 +360,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
                     mControllerCallbacks.getOverflowOnLongClickListener());
         }
 
-        if (Flags.taskbarOverflow()) {
+        if (ENABLE_TASKBAR_OVERFLOW.isTrue()) {
             mMaxNumIcons = calculateMaxNumIcons();
         }
     }
@@ -617,7 +618,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
     }
 
     private void updateRecents(List<GroupTask> recentTasks, int hotseatSize) {
-        boolean supportsOverflow = Flags.taskbarOverflow() && recentTasks.size() > 1;
+        boolean supportsOverflow = ENABLE_TASKBAR_OVERFLOW.isTrue() && recentTasks.size() > 1;
         int overflowSize = 0;
         boolean hasOverflow = false;
         if (supportsOverflow && mTaskbarOverflowView != null) {

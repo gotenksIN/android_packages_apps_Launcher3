@@ -802,8 +802,9 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
                     + " dp.isTaskbarPresent=" + (dp == null ? "null" : dp.isTaskbarPresent)
                     + " displayExists=" + displayExists, displayId);
             if (!isTaskbarEnabled || !isLargeScreenTaskbar || !displayExists) {
-                SystemUiProxy.INSTANCE.get(mBaseContext)
-                        .notifyTaskbarStatus(/* visible */ false, /* stashed */ false);
+                SystemUiProxy systemUiProxy = SystemUiProxy.INSTANCE.get(mBaseContext);
+                systemUiProxy.notifyTaskbarStatus(/* visible */ false, /* stashed */ false);
+                systemUiProxy.setHasBubbleBar(false);
                 if (!isTaskbarEnabled || !displayExists) {
                     debugTaskbarManager(
                             "recreateTaskbarForDisplay: exiting bc (!isTaskbarEnabled || "

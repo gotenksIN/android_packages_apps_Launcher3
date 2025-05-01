@@ -15,6 +15,8 @@
  */
 package com.android.launcher3.taskbar;
 
+import static android.window.DesktopModeFlags.ENABLE_TASKBAR_OVERFLOW;
+
 import static com.android.launcher3.desktop.DesktopAppLaunchTransition.AppLaunchType.UNMINIMIZE;
 import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAltTabKqsFlatenning;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
@@ -35,7 +37,6 @@ import androidx.annotation.Nullable;
 
 import com.android.internal.jank.Cuj;
 import com.android.launcher3.DeviceProfile;
-import com.android.launcher3.Flags;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimatorListeners;
@@ -124,7 +125,7 @@ public class KeyboardQuickSwitchViewController {
         mWasDesktopTaskFilteredOut = wasDesktopTaskFilteredOut;
         mWasOpenedFromTaskbar = wasOpenedFromTaskbar;
 
-        if (Flags.taskbarOverflow() && wasOpenedFromTaskbar) {
+        if (ENABLE_TASKBAR_OVERFLOW.isTrue() && wasOpenedFromTaskbar) {
             mKeyboardQuickSwitchView.enableScrollArrowSupport();
         }
 

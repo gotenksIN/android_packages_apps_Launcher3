@@ -221,6 +221,7 @@ public class BubbleBarController extends IBubblesListener.Stub {
                     mBubbleBarViewController.getBubbleBarLocation());
             if (sBubbleBarEnabled) {
                 mSystemUiProxy.setBubblesListener(this);
+                mSystemUiProxy.setHasBubbleBar(true);
             }
         });
     }
@@ -352,9 +353,6 @@ public class BubbleBarController extends IBubblesListener.Stub {
                 BubbleBarBubble newlySelected = mBubbles.get(update.selectedBubbleKey);
                 if (newlySelected != null) {
                     bubbleToSelect = newlySelected;
-                } else {
-                    Log.w(TAG, "trying to select bubble that doesn't exist:"
-                            + update.selectedBubbleKey);
                 }
             }
         }
@@ -423,6 +421,9 @@ public class BubbleBarController extends IBubblesListener.Stub {
             for (int i = update.currentBubbles.size() - 1; i >= 0; i--) {
                 BubbleBarBubble bubble = update.currentBubbles.get(i);
                 if (bubble != null) {
+                    if (bubble.getKey().equals(update.selectedBubbleKey)) {
+                        bubbleToSelect = bubble;
+                    }
                     addBubbleInternally(bubble, isExpanding, suppressAnimation);
                     if (isCollapsed && bubbleToSelect == null) {
                         // If we're collapsed, the most recently added bubble will be selected.

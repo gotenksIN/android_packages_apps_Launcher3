@@ -107,6 +107,9 @@ CONTAINER : RecentsViewContainer {
         }
 
     override fun onControllerInterceptTouchEvent(ev: MotionEvent): Boolean {
+        if (isBlockedDuringDismissal) {
+            return true
+        }
         if ((ev.action == MotionEvent.ACTION_UP || ev.action == MotionEvent.ACTION_CANCEL)) {
             clearState()
         }

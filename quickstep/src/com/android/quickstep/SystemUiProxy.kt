@@ -698,6 +698,13 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
         }
     }
 
+    /** Tells SysUI whether bubble bar is used or not. */
+    fun setHasBubbleBar(hasBubbleBar: Boolean) {
+        executeWithErrorLog({ "Failed call setHasBubbleBar" }) {
+            bubbles?.setHasBubbleBar(hasBubbleBar)
+        }
+    }
+
     //
     // Splitscreen
     //
