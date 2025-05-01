@@ -32,7 +32,6 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_ON_BOARD_POPUP;
 import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
 import static com.android.launcher3.AbstractFloatingView.TYPE_TASKBAR_OVERLAY_PROXY;
 import static com.android.launcher3.Flags.enableCursorHoverStates;
-import static com.android.launcher3.Flags.removeExcludeFromScreenMagnificationFlagUsage;
 import static com.android.launcher3.Utilities.calculateTextHeight;
 import static com.android.launcher3.Utilities.isRunningInTestHarness;
 import static com.android.launcher3.config.FeatureFlags.ENABLE_TASKBAR_NAVBAR_UNIFICATION;
@@ -241,8 +240,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     private final boolean mIsNavBarKidsMode;
 
     private boolean mIsDestroyed = false;
-    // The flag to know if the window is excluded from magnification region computation.
-    private boolean mIsExcludeFromMagnificationRegion = false;
     private boolean mAddedWindow = false;
 
     // The bounds of the taskbar items relative to TaskbarDragLayer
@@ -2083,31 +2080,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         }
 
         return AnimatorPlaybackController.wrap(fullAnimation, duration);
-    }
-
-    /**
-     * Called when we determine the touchable region.
-     *
-     * @param exclude {@code true} then the magnification region computation will omit the window.
-     */
-    public void excludeFromMagnificationRegion(boolean exclude) {
-        if (mIsExcludeFromMagnificationRegion == exclude || isPhoneMode()) {
-            return;
-        }
-
-        if (removeExcludeFromScreenMagnificationFlagUsage()) {
-            return;
-        }
-
-        mIsExcludeFromMagnificationRegion = exclude;
-        if (exclude) {
-            mWindowLayoutParams.privateFlags |=
-                    WindowManager.LayoutParams.PRIVATE_FLAG_EXCLUDE_FROM_SCREEN_MAGNIFICATION;
-        } else {
-            mWindowLayoutParams.privateFlags &=
-                    ~WindowManager.LayoutParams.PRIVATE_FLAG_EXCLUDE_FROM_SCREEN_MAGNIFICATION;
-        }
-        notifyUpdateLayoutParams();
     }
 
     void notifyUpdateLayoutParams() {
