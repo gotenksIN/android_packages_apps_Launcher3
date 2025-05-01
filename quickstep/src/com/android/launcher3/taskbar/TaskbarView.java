@@ -350,23 +350,29 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         mIconLongClickListener = mControllerCallbacks.getIconOnLongClickListener();
 
         mAllAppsButtonContainer.setUpCallbacks(callbacks);
-        if (mTaskbarDividerContainer != null
-                && mActivityContext.getTaskbarFeatureEvaluator().getSupportsPinningPopup()) {
-            mTaskbarDividerContainer.setUpCallbacks(callbacks);
-        }
         if (mTaskbarOverflowView != null) {
             mTaskbarOverflowView.setOnClickListener(
                     mControllerCallbacks.getOverflowOnClickListener());
             mTaskbarOverflowView.setOnLongClickListener(
                     mControllerCallbacks.getOverflowOnLongClickListener());
         }
-        if (Flags.showTaskbarPinningPopupFromAnywhere()
-                && mActivityContext.getTaskbarFeatureEvaluator().getSupportsPinningPopup()) {
-            setOnTouchListener(mControllerCallbacks.getTaskbarTouchListener());
-        }
 
         if (Flags.taskbarOverflow()) {
             mMaxNumIcons = calculateMaxNumIcons();
+        }
+    }
+
+    void updatePinningPopupEventHandlers() {
+        boolean supportsPinningPopup =
+                mActivityContext.getTaskbarFeatureEvaluator().getSupportsPinningPopup();
+        if (mTaskbarDividerContainer != null) {
+            mTaskbarDividerContainer.setUpCallbacks(
+                    supportsPinningPopup ? mControllerCallbacks : null);
+        }
+
+        if (Flags.showTaskbarPinningPopupFromAnywhere()) {
+            setOnTouchListener(
+                    supportsPinningPopup ? mControllerCallbacks.getTaskbarTouchListener() : null);
         }
     }
 

@@ -266,6 +266,9 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
 
         mTaskbarView.init(TaskbarViewCallbacksFactory.newInstance(mActivity).create(
                 mActivity, mControllers, mTaskbarView));
+        // Pinning popup feature availability depends on taskbar controllers, wait for the
+        // controllers state initialization before evaluating the feature.
+        mControllers.runAfterInit(mTaskbarView::updatePinningPopupEventHandlers);
         mTaskbarView.getLayoutParams().height = mActivity.isPhoneMode()
                 ? mActivity.getResources().getDimensionPixelSize(R.dimen.taskbar_phone_size)
                 : mActivity.getDeviceProfile().taskbarHeight;
@@ -300,6 +303,14 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
         if (enableTaskbarPinning()) {
             mTaskbarView.addOnLayoutChangeListener(mTaskbarViewLayoutChangeListener);
         }
+    }
+
+    /**
+     * Called whenever a new ui controller is set.
+     */
+    public void onUiControllerChanged() {
+        // Pinning availability may depend on UI state when home has "locked" pinned taskbar.
+        mTaskbarView.updatePinningPopupEventHandlers();
     }
 
     /** Adjusts start aligned taskbar layout accordingly to the bubble bar position. */
