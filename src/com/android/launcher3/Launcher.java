@@ -2526,11 +2526,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         mModelCallbacks.bindWorkspaceComponentsRemoved(matcher);
     }
 
-    @Override
-    public void bindItemsModified(List<ItemInfo> items) {
-        mModelCallbacks.bindItemsModified(items);
-    }
-
     /**
      * See {@code LauncherBindingDelegate}
      */

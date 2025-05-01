@@ -62,9 +62,7 @@
 
     <!-- Various classes overriden by projects/build flavors. -->
     <string name="folder_name_provider_class" translatable="false"></string>
-    <string name="stats_log_manager_class" translatable="false"></string>
     <string name="main_process_initializer_class" translatable="false"></string>
-    <string name="app_launch_tracker_class" translatable="false"></string>
     <string name="test_information_handler_class" translatable="false"></string>
     <string name="secondary_display_quickstep_delegate_class" translatable="false"></string>
     <string name="taskbar_search_session_controller_class" translatable="false"></string>

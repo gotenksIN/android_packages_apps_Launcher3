@@ -313,11 +313,11 @@ public class KeyboardQuickSwitchViewController {
         // All DesktopTasks, irrespective of whether desktop mode is active, are launched here as
         // the class DesktopTask is used in a special way by KQS view for showing thumbnails of
         // freeform tasks.
-        if (task instanceof DesktopTask) {
+        if (task instanceof DesktopTask desktopTask) {
             boolean canUnminimizeDesktopTask = context.canUnminimizeDesktopTask(taskId);
-            runOnUiWithJankMonitoring(() -> {
+            UI_HELPER_EXECUTOR.execute(() -> {
                 if (!mOnDesktop) {
-                    systemUiProxy.showDesktopApps(context.getDisplayId(), slideInTransition);
+                    systemUiProxy.activateDesk(desktopTask.getDeskId(), slideInTransition);
                 }
 
                 systemUiProxy.showDesktopApp(taskId,
@@ -327,7 +327,7 @@ public class KeyboardQuickSwitchViewController {
             return true;
         } else if (mOnDesktop && task instanceof SingleTask) {
             // Use the special API if user wants to switch to a fullscreen app while in desktop.
-            runOnUiWithJankMonitoring(
+            UI_HELPER_EXECUTOR.execute(
                     () -> systemUiProxy.moveToFullscreen(taskId,
                             DesktopModeTransitionSource.KEYBOARD_SHORTCUT, slideInTransition));
             return true;
@@ -335,18 +335,6 @@ public class KeyboardQuickSwitchViewController {
 
         // For all other cases, let TaskbarActivityContext handle launching the task.
         return false;
-    }
-
-    private void runOnUiWithJankMonitoring(Runnable runnable) {
-        Runnable onStartCallback = () -> InteractionJankMonitorWrapper.begin(
-                mKeyboardQuickSwitchView, Cuj.CUJ_LAUNCHER_KEYBOARD_QUICK_SWITCH_APP_LAUNCH);
-        Runnable onFinishCallback = () -> InteractionJankMonitorWrapper.end(
-                Cuj.CUJ_LAUNCHER_KEYBOARD_QUICK_SWITCH_APP_LAUNCH);
-        UI_HELPER_EXECUTOR.execute(() -> {
-            onStartCallback.run();
-            runnable.run();
-            onFinishCallback.run();
-        });
     }
 
     private RemoteTransition getUnminimizeTransition() {

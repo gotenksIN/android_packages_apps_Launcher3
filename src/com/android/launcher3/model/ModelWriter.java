@@ -51,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -177,7 +178,7 @@ public class ModelWriter {
     public void moveItemsInDatabase(final ArrayList<ItemInfo> items, int container, int screen) {
         ArrayList<ContentValues> contentValues = new ArrayList<>();
         int count = items.size();
-        notifyOtherCallbacks(c -> c.bindItemsModified(items));
+        notifyOtherCallbacks(c -> c.bindItemsUpdated(new HashSet<>(items)));
 
         for (int i = 0; i < count; i++) {
             ItemInfo item = items.get(i);
@@ -229,7 +230,7 @@ public class ModelWriter {
     }
 
     public void notifyItemModified(ItemInfo item) {
-        notifyOtherCallbacks(c -> c.bindItemsModified(Collections.singletonList(item)));
+        notifyOtherCallbacks(c -> c.bindItemsUpdated(Collections.singleton(item)));
     }
 
     /**

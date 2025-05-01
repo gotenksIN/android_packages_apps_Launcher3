@@ -1708,7 +1708,7 @@ public abstract class RecentsView<
     protected void onPageEndTransition() {
         super.onPageEndTransition();
         ActiveGestureProtoLogProxy.logOnPageEndTransition(getNextPage());
-        if (isClearAllHidden() && !mContainer.getDeviceProfile().isTablet) {
+        if (!mContainer.getDeviceProfile().isTablet) {
             mActionsView.updateDisabledFlags(OverviewActionsView.DISABLED_SCROLLING, false);
         }
         if (getNextPage() > 0) {
@@ -2604,9 +2604,9 @@ public abstract class RecentsView<
             int pageOrientedSize = getPagedOrientationHandler().getMeasuredSize(this);
             // For GRID_ONLY_OVERVIEW, use +/- 1 task column as visible area for preloading
             // adjacent thumbnails, otherwise use +/-50% screen width
-            int extraWidth =
-                    enableGridOnlyOverview() ? getLastComputedTaskSize().width() + getPageSpacing()
-                            : pageOrientedSize / 2;
+            int extraWidth = enableGridOnlyOverview()
+                    ? getLastComputedGridTaskSize().width() + getPageSpacing()
+                    : pageOrientedSize / 2;
             lowerIndex = upperIndex = 0;
             visibleStart = screenStart - extraWidth;
             visibleEnd = screenStart + pageOrientedSize + extraWidth;
@@ -4241,7 +4241,7 @@ public abstract class RecentsView<
                         // Update various scroll-dependent UI.
                         dispatchScrollChanged();
                         updateActionsViewFocusedScroll();
-                        if (isClearAllHidden() && !mContainer.getDeviceProfile().isTablet) {
+                        if (!mContainer.getDeviceProfile().isTablet) {
                             mActionsView.updateDisabledFlags(OverviewActionsView.DISABLED_SCROLLING,
                                     false);
                         }

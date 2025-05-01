@@ -6,7 +6,6 @@ import android.os.Trace
 import android.util.Log
 import androidx.annotation.UiThread
 import com.android.launcher3.LauncherConstants.TraceEvents
-import com.android.launcher3.LauncherSettings.Favorites.containerBelongsToWorkspace
 import com.android.launcher3.Utilities.SHOULD_SHOW_FIRST_PAGE_WIDGET
 import com.android.launcher3.WorkspaceLayoutManager.FIRST_SCREEN_ID
 import com.android.launcher3.allapps.AllAppsStore
@@ -204,8 +203,20 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
      * method from LauncherModel.Callbacks.
      */
     override fun bindItemsUpdated(updates: Set<ItemInfo>) {
-        launcher.workspace.updateContainerItems(updates, launcher)
+        val workspace = launcher.workspace
+        val itemsToRebind = workspace.updateContainerItems(updates, launcher)
         PopupContainerWithArrow.dismissInvalidPopup(launcher)
+
+        if (itemsToRebind.isEmpty()) return
+        workspace.removeItemsByMatcher(ItemInfoMatcher.ofItems(itemsToRebind), false)
+        itemsToRebind
+            .filter { workspace.isContainerSupported(it.container) }
+            .let {
+                if (it.isNotEmpty()) {
+                    launcher.bindItems(it, false)
+                }
+            }
+        workspace.stripEmptyScreens()
     }
 
     /**
@@ -218,13 +229,6 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
         launcher.workspace.removeItemsByMatcher(matcher, true)
         launcher.dragController.onAppsRemoved(matcher)
         PopupContainerWithArrow.dismissInvalidPopup(launcher)
-    }
-
-    override fun bindItemsModified(itemsParam: MutableList<ItemInfo>) {
-        val items = itemsParam.filter { containerBelongsToWorkspace(it.container) }
-        launcher.workspace.removeItemsByMatcher(ItemInfoMatcher.ofItems(items), false)
-        launcher.bindItems(items, false)
-        launcher.workspace.stripEmptyScreens()
     }
 
     override fun bindAllWidgets(allWidgets: List<WidgetsListBaseEntry>) {

@@ -38,6 +38,7 @@ import android.view.InputDevice;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import androidx.annotation.LayoutRes;
@@ -51,6 +52,7 @@ import com.android.launcher3.Insettable;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.apppairs.AppPairIcon;
+import com.android.launcher3.celllayout.CellInfo;
 import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.folder.PreviewBackground;
 import com.android.launcher3.model.data.AppPairInfo;
@@ -576,12 +578,19 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
                 } else {
                     hotseatView = inflate(expectedLayoutResId);
                 }
-                LayoutParams lp = new LayoutParams(mIconTouchSize, mIconTouchSize);
+                LayoutParams lp = new TaskbarLayoutParams(mIconTouchSize, mIconTouchSize);
                 hotseatView.setPadding(mItemPadding, mItemPadding, mItemPadding, mItemPadding);
                 addView(hotseatView, mNextViewIndex, lp);
             } else if (hotseatView instanceof FolderIcon fi) {
                 fi.onItemsChanged(false);
                 fi.getFolder().reapplyItemInfo();
+            }
+
+            if (hotseatView.getLayoutParams() instanceof TaskbarLayoutParams tlp) {
+                tlp.bindInfo = new CellInfo(hotseatView,
+                        hotseatItemInfo.screenId, hotseatItemInfo.container,
+                        hotseatItemInfo.cellX, hotseatItemInfo.cellY,
+                        hotseatItemInfo.spanX, hotseatItemInfo.spanY);
             }
 
             // Apply the Hotseat ItemInfos, or hide the view if there is none for a given index.
@@ -702,7 +711,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             if (recentIcon == null) {
                 // TODO(b/343289567 and b/316004172): support app pairs and desktop mode.
                 recentIcon = inflate(expectedLayoutResId);
-                LayoutParams lp = new LayoutParams(mIconTouchSize, mIconTouchSize);
+                LayoutParams lp = new TaskbarLayoutParams(mIconTouchSize, mIconTouchSize);
                 recentIcon.setPadding(mItemPadding, mItemPadding, mItemPadding, mItemPadding);
                 addView(recentIcon, mNextViewIndex, lp);
             }
@@ -1134,6 +1143,38 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             return getWidth() - navSpaceNeeded;
         } else {
             return navSpaceNeeded + getIconLayoutWidth();
+        }
+    }
+
+    @Override
+    protected ViewGroup.LayoutParams generateLayoutParams(ViewGroup.LayoutParams lp) {
+        return new TaskbarLayoutParams(lp);
+    }
+
+    @Override
+    public LayoutParams generateLayoutParams(AttributeSet attrs) {
+        return new TaskbarLayoutParams(getContext(), attrs);
+    }
+
+    @Override
+    protected boolean checkLayoutParams(ViewGroup.LayoutParams p) {
+        return p instanceof TaskbarLayoutParams;
+    }
+
+    public static class TaskbarLayoutParams extends FrameLayout.LayoutParams {
+
+        @Nullable public CellInfo bindInfo;
+
+        public TaskbarLayoutParams(Context context, AttributeSet attrs) {
+            super(context, attrs);
+        }
+
+        public TaskbarLayoutParams(ViewGroup.LayoutParams source) {
+            super(source);
+        }
+
+        public TaskbarLayoutParams(int width, int height) {
+            super(width, height);
         }
     }
 }

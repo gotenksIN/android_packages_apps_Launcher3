@@ -46,6 +46,8 @@ import com.android.launcher3.Flags;
 import com.android.launcher3.Workspace;
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.dagger.LauncherAppSingleton;
+import com.android.launcher3.logging.DumpManager;
+import com.android.launcher3.logging.DumpManager.LauncherDumpable;
 import com.android.launcher3.logging.FileLog;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.CollectionInfo;
@@ -61,8 +63,6 @@ import com.android.launcher3.shortcuts.ShortcutRequest;
 import com.android.launcher3.shortcuts.ShortcutRequest.QueryResult;
 import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.DaggerSingletonTracker;
-import com.android.launcher3.logging.DumpManager;
-import com.android.launcher3.logging.DumpManager.LauncherDumpable;
 import com.android.launcher3.util.IntArray;
 import com.android.launcher3.util.IntSet;
 import com.android.launcher3.util.IntSparseArrayMap;
@@ -464,11 +464,6 @@ public class BgDataModel implements LauncherDumpable {
         default void finishBindingItems(IntSet pagesBoundFirst) { }
         default void bindAppsAdded(IntArray newScreens,
                 ArrayList<ItemInfo> addNotAnimated, ArrayList<ItemInfo> addAnimated) { }
-
-        /**
-         * Called when some persistent property of an item is modified
-         */
-        default void bindItemsModified(List<ItemInfo> items) { }
 
         /**
          * Binds updated incremental download progress
