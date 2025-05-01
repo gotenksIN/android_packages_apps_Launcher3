@@ -149,8 +149,8 @@ public class AllAppsState extends LauncherState {
     }
 
     @Override
-    public boolean shouldBlurWorkspace() {
-        return true;
+    public boolean shouldBlurWorkspace(LauncherState targetState) {
+        return targetState == ALL_APPS || targetState == NORMAL;
     }
 
     @Override

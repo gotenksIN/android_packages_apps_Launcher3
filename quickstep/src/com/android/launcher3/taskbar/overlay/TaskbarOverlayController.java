@@ -130,7 +130,7 @@ public final class TaskbarOverlayController {
      */
     public TaskbarOverlayContext requestWindow() {
         if (mOverlayContext == null) {
-            mOverlayContext = new TaskbarOverlayContext(
+            mOverlayContext = TaskbarOverlayContextFactory.newInstance(mWindowContext).create(
                     mWindowContext, mTaskbarContext, mControllers);
         }
 
@@ -266,25 +266,27 @@ public final class TaskbarOverlayController {
             return;
         }
         Log.v(TAG, "setBackgroundBlurRadius: " + radius);
-        SurfaceControl.Transaction transaction =
+        final SurfaceControl.Transaction transaction =
                 new SurfaceControl.Transaction().setBackgroundBlurRadius(surfaceControl, radius);
 
-        // Set early wake-up flags when we know we're executing an expensive operation, this way
-        // SurfaceFlinger will adjust its internal offsets to avoid jank.
-        boolean wantsEarlyWakeUp = radius > 0 && radius < mMaxBlurRadius;
-        if (wantsEarlyWakeUp && !mInEarlyWakeUp) {
-            Log.d(TAG, "setBackgroundBlurRadius: setting early wakeup with token"
-                                                + mEarlyWakeupInfo);
-            transaction.setEarlyWakeupStart(mEarlyWakeupInfo);
-            mInEarlyWakeUp = true;
-        } else if (!wantsEarlyWakeUp && mInEarlyWakeUp) {
-            Log.d(TAG, "setBackgroundBlurRadius: clearing early wakeup with token"
-                                                + mEarlyWakeupInfo);
-            transaction.setEarlyWakeupEnd(mEarlyWakeupInfo);
-            mInEarlyWakeUp = false;
-        }
+        try (transaction) {
+            // Set early wake-up flags when we know we're executing an expensive operation, this way
+            // SurfaceFlinger will adjust its internal offsets to avoid jank.
+            boolean wantsEarlyWakeUp = radius > 0 && radius < mMaxBlurRadius;
+            if (wantsEarlyWakeUp && !mInEarlyWakeUp) {
+                Log.d(TAG, "setBackgroundBlurRadius: setting early wakeup with token "
+                                                    + mEarlyWakeupInfo);
+                transaction.setEarlyWakeupStart(mEarlyWakeupInfo);
+                mInEarlyWakeUp = true;
+            } else if (!wantsEarlyWakeUp && mInEarlyWakeUp) {
+                Log.d(TAG, "setBackgroundBlurRadius: clearing early wakeup with token "
+                                                    + mEarlyWakeupInfo);
+                transaction.setEarlyWakeupEnd(mEarlyWakeupInfo);
+                mInEarlyWakeUp = false;
+            }
 
-        rootSurfaceControl.applyTransactionOnDraw(transaction);
+            rootSurfaceControl.applyTransactionOnDraw(transaction);
+        }
     }
 
     boolean isBackgroundBlurEnabled() {

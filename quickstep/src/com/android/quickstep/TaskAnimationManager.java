@@ -341,11 +341,11 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
                 instanceof RecentsWindowManager recentsWindowManager
                 && RecentsWindowFlags.Companion.getEnableOverviewInWindow()) {
             mRecentsAnimationStartPending = getSystemUiProxy().startRecentsActivity(intent, options,
-                    mCallbacks, gestureState.useSyntheticRecentsTransition());
+                    mCallbacks, gestureState.useSyntheticRecentsTransition(), null);
             recentsWindowManager.startRecentsWindow(mCallbacks);
         } else {
             mRecentsAnimationStartPending = getSystemUiProxy().startRecentsActivity(intent,
-                    options, mCallbacks, false /* useSyntheticRecentsTransition */);
+                    options, mCallbacks, false /* useSyntheticRecentsTransition */, null);
         }
         ActiveGestureProtoLogProxy.logSettingRecentsAnimationStartPending(
                 mRecentsAnimationStartPending);

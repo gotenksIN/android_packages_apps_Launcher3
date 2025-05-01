@@ -29,9 +29,11 @@ import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.CrossWindowBlurListeners;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewRootImpl;
 import android.view.animation.Interpolator;
 import android.window.OnBackInvokedDispatcher;
 
@@ -54,6 +56,8 @@ import java.util.function.Consumer;
 /** Wrapper for taskbar all apps with slide-in behavior. */
 public class TaskbarAllAppsSlideInView extends AbstractSlideInView<TaskbarOverlayContext>
         implements Insettable, DeviceProfile.OnDeviceProfileChangeListener {
+    private static final String TAG = "TaskbarAllAppsSlideInView";
+
     private final Handler mHandler;
     private final int mMaxBlurRadius;
     private final Consumer<Boolean> mWindowBlurListener = blursEnabled -> invalidate();
@@ -107,6 +111,14 @@ public class TaskbarAllAppsSlideInView extends AbstractSlideInView<TaskbarOverla
     }
 
     private void showOnFullyAttachedToWindow(boolean animate) {
+        if (mActivityContext.isBackgroundBlurEnabled()) {
+            ViewRootImpl overlayVri = mActivityContext.getRootView().getViewRootImpl();
+            if (overlayVri == null) {
+                Log.w(TAG, "overlayVRI is null, cannot notifyRendererOfExpensiveFrame()");
+            } else {
+                overlayVri.notifyRendererOfExpensiveFrame();
+            }
+        }
         mAllAppsCallbacks.onAllAppsTransitionStart(true);
         if (!animate) {
             mAllAppsCallbacks.onAllAppsTransitionEnd(true);
