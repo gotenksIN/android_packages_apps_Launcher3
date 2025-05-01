@@ -242,7 +242,7 @@ public class ModelWriter {
         updateItemInfoProps(item, container, screenId, cellX, cellY);
 
         item.id = mModel.getModelDbController().generateNewItemId();
-        notifyOtherCallbacks(c -> c.bindItems(Collections.singletonList(item), false));
+        notifyOtherCallbacks(c -> c.bindItemsAdded(Collections.singletonList(item)));
 
         ModelVerifier verifier = new ModelVerifier();
         final StackTraceElement[] stackTrace = new Throwable().getStackTrace();

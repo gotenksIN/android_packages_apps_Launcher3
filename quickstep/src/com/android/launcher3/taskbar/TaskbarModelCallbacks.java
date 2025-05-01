@@ -29,12 +29,12 @@ import com.android.launcher3.LauncherSettings.Favorites;
 import com.android.launcher3.celllayout.CellInfo;
 import com.android.launcher3.model.BgDataModel;
 import com.android.launcher3.model.BgDataModel.FixedContainerItems;
+import com.android.launcher3.model.StringCache;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.taskbar.TaskbarView.TaskbarLayoutParams;
 import com.android.launcher3.util.ComponentKey;
-import com.android.launcher3.util.IntArray;
-import com.android.launcher3.util.IntSet;
+import com.android.launcher3.util.IntSparseArrayMap;
 import com.android.launcher3.util.ItemInfoMatcher;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.PackageUserKey;
@@ -42,7 +42,6 @@ import com.android.launcher3.util.Preconditions;
 import com.android.quickstep.util.GroupTask;
 
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -68,7 +67,6 @@ public class TaskbarModelCallbacks implements
     // Used to defer any UI updates during the SUW unstash animation.
     private boolean mDeferUpdatesForSUW;
     private Runnable mDeferredUpdates;
-    private boolean mBindingItems = false;
 
     public TaskbarModelCallbacks(
             TaskbarActivityContext context, TaskbarView container) {
@@ -81,31 +79,25 @@ public class TaskbarModelCallbacks implements
     }
 
     @Override
-    public void startBinding() {
-        mBindingItems = true;
+    public void bindCompleteModel(IntSparseArrayMap<ItemInfo> itemIdMap,
+            List<FixedContainerItems> extraItems, StringCache stringCache, boolean isBindingSync) {
         mHotseatItems.clear();
         mPredictedItems = Collections.emptyList();
-    }
+        handleItemsAdded(itemIdMap);
 
-    @Override
-    public void finishBindingItems(IntSet pagesBoundFirst) {
-        mBindingItems = false;
+        for (FixedContainerItems item: extraItems) {
+            if (item.containerId == Favorites.CONTAINER_HOTSEAT_PREDICTION) {
+                mPredictedItems = item.items;
+            } else if (item.containerId == Favorites.CONTAINER_PREDICTION) {
+                mControllers.taskbarAllAppsController.setPredictedApps(item.items);
+            }
+        }
         commitItemsToUI();
     }
 
     @Override
-    public void bindAppsAdded(IntArray newScreens, ArrayList<ItemInfo> addNotAnimated,
-            ArrayList<ItemInfo> addAnimated) {
-        boolean add1 = handleItemsAdded(addNotAnimated);
-        boolean add2 = handleItemsAdded(addAnimated);
-        if (add1 || add2) {
-            commitItemsToUI();
-        }
-    }
-
-    @Override
-    public void bindItems(List<ItemInfo> shortcuts, boolean forceAnimateIcons) {
-        if (handleItemsAdded(shortcuts)) {
+    public void bindItemsAdded(List<ItemInfo> items) {
+        if (handleItemsAdded(items)) {
             commitItemsToUI();
         }
     }
@@ -184,10 +176,6 @@ public class TaskbarModelCallbacks implements
     }
 
     private void commitItemsToUI() {
-        if (mBindingItems) {
-            return;
-        }
-
         ItemInfo[] hotseatItemInfos =
                 new ItemInfo[mContext.getDeviceProfile().numShownHotseatIcons];
         int predictionSize = mPredictedItems.size();

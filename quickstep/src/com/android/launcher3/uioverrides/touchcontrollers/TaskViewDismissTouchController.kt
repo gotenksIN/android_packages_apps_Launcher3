@@ -92,6 +92,12 @@ CONTAINER : RecentsViewContainer {
                 false
             }
 
+            // Do not allow dismiss while recents is scrolling.
+            !recentsView.scroller.isFinished -> {
+                debugLog(TAG, "Not intercepting touch, recents scrolling.")
+                false
+            }
+
             else ->
                 taskViewRecentsTouchContext.isRecentsInteractive.also { isRecentsInteractive ->
                     if (!isRecentsInteractive) {

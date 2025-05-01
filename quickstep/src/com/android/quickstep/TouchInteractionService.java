@@ -328,7 +328,7 @@ public class TouchInteractionService extends Service {
                 RecentsViewContainer container = tis.mOverviewComponentObserver
                         .getContainerInterface(DEFAULT_DISPLAY).getCreatedContainer();
                 if (container != null) {
-                    container.enterStageSplitFromRunningApp(leftOrTop);
+                    container.enterStageSplitFromRunningApp(leftOrTop, DEFAULT_DISPLAY);
                 }
             });
         }

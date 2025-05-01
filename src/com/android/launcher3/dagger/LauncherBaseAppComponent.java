@@ -24,6 +24,7 @@ import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.RemoveAnimationSettingsTracker;
+import com.android.launcher3.folder.FolderNameSuggestionLoader;
 import com.android.launcher3.graphics.GridCustomizationsProxy;
 import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.icons.LauncherIcons.IconPool;
@@ -89,7 +90,7 @@ public interface LauncherBaseAppComponent {
     RemoveAnimationSettingsTracker getRemoveAnimationSettingsTracker();
     LauncherAppState getLauncherAppState();
     GridCustomizationsProxy getGridCustomizationsProxy();
-
+    FolderNameSuggestionLoader getFolderNameSuggestionLoader();
     LoaderCursorFactory getLoaderCursorFactory();
     WidgetHolderFactory getWidgetHolderFactory();
     RefreshRateTracker getFrameRateProvider();

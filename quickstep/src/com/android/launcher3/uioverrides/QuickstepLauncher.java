@@ -1293,8 +1293,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     @BinderThread
-    public void enterStageSplitFromRunningApp(boolean leftOrTop) {
-        mSplitWithKeyboardShortcutController.enterStageSplit(leftOrTop);
+    public void enterStageSplitFromRunningApp(boolean leftOrTop, int displayId) {
+        mSplitWithKeyboardShortcutController.enterStageSplit(leftOrTop, displayId);
     }
 
     @Override

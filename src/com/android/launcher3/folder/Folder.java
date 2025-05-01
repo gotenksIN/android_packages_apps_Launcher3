@@ -92,6 +92,7 @@ import com.android.launcher3.accessibility.FolderAccessibilityHelper;
 import com.android.launcher3.anim.KeyboardInsetAnimationCallback;
 import com.android.launcher3.compat.AccessibilityManagerCompat;
 import com.android.launcher3.config.FeatureFlags;
+import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.dragndrop.DragController.DragListener;
 import com.android.launcher3.dragndrop.DragOptions;
 import com.android.launcher3.graphics.ShapeDelegate;
@@ -106,7 +107,6 @@ import com.android.launcher3.model.data.WorkspaceItemFactory;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pageindicators.PageIndicatorDots;
 import com.android.launcher3.pageindicators.PaginationArrow;
-import com.android.launcher3.util.Executors;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.Thunk;
 import com.android.launcher3.views.ActivityContext;
@@ -1220,12 +1220,9 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
             mActivityContext.getModelWriter().moveItemsInDatabase(items, mInfo.id, 0);
         }
         if (!isBind && total > 1 /* no need to update if there's one icon */) {
-            Executors.MODEL_EXECUTOR.post(() -> {
-                FolderNameInfos nameInfos = new FolderNameInfos();
-                FolderNameProvider fnp = FolderNameProvider.newInstance(getContext());
-                fnp.getSuggestedFolderName(getContext(), mInfo.getAppContents(), nameInfos);
-                mInfo.suggestedFolderNames = nameInfos;
-            });
+            LauncherComponentProvider.get(getContext()).getFolderNameSuggestionLoader()
+                    .getSuggestedFolderName(mInfo.getAppContents(),
+                            folderNameInfos -> mInfo.suggestedFolderNames = folderNameInfos);
         }
     }
 

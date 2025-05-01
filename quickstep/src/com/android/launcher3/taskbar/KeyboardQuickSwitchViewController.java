@@ -43,6 +43,7 @@ import com.android.launcher3.desktop.DesktopAppLaunchTransition;
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayContext;
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayDragLayer;
 import com.android.launcher3.views.BaseDragLayer;
+import com.android.quickstep.FocusState;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.util.DesktopTask;
 import com.android.quickstep.util.GroupTask;
@@ -382,7 +383,7 @@ public class KeyboardQuickSwitchViewController {
         return dl.isEventOverView(mKeyboardQuickSwitchView, ev);
     }
 
-    class ViewCallbacks {
+    class ViewCallbacks implements FocusState.FocusChangeListener {
         public final OnBackInvokedCallback onBackInvokedCallback = () -> closeQuickSwitchView(true);
 
         boolean onKeyUp(int keyCode, KeyEvent event, boolean isRTL, boolean allowTraversal) {
@@ -452,6 +453,13 @@ public class KeyboardQuickSwitchViewController {
             mDetachingFromWindow = true;
             closeQuickSwitchView(false);
             mDetachingFromWindow = false;
+        }
+
+        @Override
+        public void onFocusedDisplayChanged(int displayId) {
+            if (mControllers.taskbarActivityContext.getDisplayId() != displayId) {
+                closeQuickSwitchView(/* animate= */ true);
+            }
         }
     }
 }

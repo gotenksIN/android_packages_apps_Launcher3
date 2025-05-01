@@ -23,7 +23,6 @@ import android.os.Process
 import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.SetFlagsRule
-import android.view.Display.DEFAULT_DISPLAY
 import androidx.test.core.app.ApplicationProvider
 import com.android.launcher3.BubbleTextView
 import com.android.launcher3.Flags.FLAG_ENABLE_ALT_TAB_KQS_FLATENNING
@@ -33,14 +32,18 @@ import com.android.launcher3.R
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 import com.android.launcher3.model.BgDataModel
+import com.android.launcher3.model.BgDataModel.FixedContainerItems
+import com.android.launcher3.model.StringCache
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.TaskItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.popup.SystemShortcut
+import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnMainSync
 import com.android.launcher3.taskbar.TaskbarViewTestUtil.createHotseatItems
 import com.android.launcher3.taskbar.bubbles.BubbleBarViewController
 import com.android.launcher3.taskbar.bubbles.stashing.BubbleStashController
+import com.android.launcher3.taskbar.rules.DesktopVisibilityControllerModule
 import com.android.launcher3.taskbar.rules.DisplayControllerModule
 import com.android.launcher3.taskbar.rules.MockedRecentsModelHelper
 import com.android.launcher3.taskbar.rules.MockedRecentsModelTestRule
@@ -55,6 +58,7 @@ import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
 import com.android.launcher3.util.AllModulesForTest
 import com.android.launcher3.util.FakePrefsModule
+import com.android.launcher3.util.IntSparseArrayMap
 import com.android.launcher3.util.LauncherMultivalentJUnit
 import com.android.launcher3.util.LauncherMultivalentJUnit.EmulatedDevices
 import com.android.launcher3.util.Preconditions.assertNotNull
@@ -129,6 +133,9 @@ class TaskbarOverflowTest {
     @InjectController lateinit var bubbleStashController: BubbleStashController
     @InjectController lateinit var keyboardQuickSwitchController: KeyboardQuickSwitchController
 
+    private val desktopVisibilityController: DesktopVisibilityController
+        get() = DesktopVisibilityController.INSTANCE[context]
+
     private var desktopTaskListener: IDesktopTaskListener? = null
     private val modelCallback = ModelCallbacks()
 
@@ -158,6 +165,7 @@ class TaskbarOverflowTest {
 
     @Before
     fun ensureRunningAppsShowing() {
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
         runOnMainSync { recentsModel.resolvePendingTaskRequests() }
     }
 
@@ -566,7 +574,7 @@ class TaskbarOverflowTest {
         taskbarView.updateItems(hotseatItems, recentAppsController.shownTasks)
         modelCallback.recentAppsController = recentAppsController
         context.baseContext.appComponent.launcherAppState.model.addCallbacksAndLoad(modelCallback)
-        modelCallback.bindItems(hotseatItems.toList(), false)
+        modelCallback.bindItemsAdded(hotseatItems.toList())
         return taskbarView
     }
 
@@ -589,12 +597,10 @@ class TaskbarOverflowTest {
                 )
             })
 
-        recentsModel.updateRecentTasks(listOf(DesktopTask(deskId = 0, DEFAULT_DISPLAY, tasks)))
+        val displayId = context.virtualDisplay.display.displayId
+        recentsModel.updateRecentTasks(listOf(DesktopTask(deskId = 0, displayId, tasks)))
         for (task in 1..tasks.size) {
-            desktopTaskListener?.onTasksVisibilityChanged(
-                context.virtualDisplay.display.displayId,
-                task,
-            )
+            desktopTaskListener?.onTasksVisibilityChanged(displayId, task)
         }
         runOnMainSync { recentsModel.resolvePendingTaskRequests() }
     }
@@ -691,9 +697,16 @@ class TaskbarOverflowTest {
         var hotseatItems = mutableListOf<WorkspaceItemInfo>()
         var recentAppsController: TaskbarRecentAppsController? = null
 
-        override fun bindItems(shortcuts: List<ItemInfo>, forceAnimateIcons: Boolean) {
+        override fun bindCompleteModel(
+            itemIdMap: IntSparseArrayMap<ItemInfo>,
+            extraItems: MutableList<FixedContainerItems>,
+            stringCache: StringCache,
+            isBindingSync: Boolean,
+        ) = bindItemsAdded(itemIdMap.toList())
+
+        override fun bindItemsAdded(items: List<ItemInfo>) {
             runOnMainSync {
-                shortcuts
+                items
                     .filter { item ->
                         item is WorkspaceItemInfo &&
                             !hotseatItems.any { it.targetPackage == item.targetPackage }
@@ -719,7 +732,13 @@ class TaskbarOverflowTest {
 /** TaskbarOverflowComponent used to bind the RecentsModel. */
 @LauncherAppSingleton
 @Component(
-    modules = [AllModulesForTest::class, FakePrefsModule::class, DisplayControllerModule::class]
+    modules =
+        [
+            AllModulesForTest::class,
+            FakePrefsModule::class,
+            DisplayControllerModule::class,
+            DesktopVisibilityControllerModule::class,
+        ]
 )
 interface TaskbarOverflowComponent : TaskbarSandboxComponent {
 

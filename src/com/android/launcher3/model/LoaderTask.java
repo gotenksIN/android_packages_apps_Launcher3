@@ -120,6 +120,7 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 
 import javax.inject.Named;
+import javax.inject.Provider;
 
 /**
  * Runnable for the thread that loads the contents of the launcher:
@@ -169,6 +170,7 @@ public class LoaderTask implements Runnable {
     private final Set<PackageUserKey> mPendingPackages = new HashSet<>();
     private boolean mItemsDeleted = false;
     private String mDbName;
+    private final Provider<FolderNameProvider> mFolderNameProviderFactory;
 
     @AssistedInject
     LoaderTask(
@@ -182,6 +184,7 @@ public class LoaderTask implements Runnable {
             AllAppsList bgAllAppsList,
             BgDataModel bgModel,
             LoaderCursorFactory loaderCursorFactory,
+            Provider<FolderNameProvider> folderNameProviderFactory,
             @Named("SAFE_MODE") boolean isSafeModeEnabled,
             @Assisted @NonNull BaseLauncherBinder launcherBinder,
             @Assisted UserManagerState userManagerState) {
@@ -202,6 +205,7 @@ public class LoaderTask implements Runnable {
         mIconCache = iconCache;
         mUserManagerState = userManagerState;
         mInstallingPkgsCached = null;
+        mFolderNameProviderFactory = folderNameProviderFactory;
     }
 
     protected synchronized void waitForIdle() {
@@ -879,8 +883,9 @@ public class LoaderTask implements Runnable {
     }
 
     private void loadFolderNames() {
-        FolderNameProvider provider = FolderNameProvider.newInstance(mContext,
-                mBgAllAppsList.data, FolderNameProvider.getCollectionForSuggestions(mBgDataModel));
+        FolderNameProvider provider = mFolderNameProviderFactory.get();
+        provider.load(mBgAllAppsList.data,
+                FolderNameProvider.getCollectionForSuggestions(mBgDataModel));
 
         synchronized (mBgDataModel) {
             mBgDataModel.itemsIdMap.stream()
