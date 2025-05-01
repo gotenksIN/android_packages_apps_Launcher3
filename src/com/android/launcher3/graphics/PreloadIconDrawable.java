@@ -219,75 +219,90 @@ public class PreloadIconDrawable extends FastBitmapDrawable {
             return;
         }
         if (Flags.enableLauncherIconShapes()) {
-            // Get original icon width for scaling
-            float width = canvas.getWidth();
-            int saveCount;
-            float scale;
-            if (mInternalStateProgress > 0f) {
-                // Draw icon at scale.
-                saveCount = canvas.save();
-                scale = 1 - mIconScaleMultiplier.value * (1 - SMALL_ICON_SCALE);
-                canvas.scale(scale, scale, bounds.exactCenterX(), bounds.exactCenterY());
-                super.drawInternal(canvas, bounds);
-                canvas.restoreToCount(saveCount);
+            drawShapedProgressIcon(canvas, bounds);
+        } else {
+            drawDefaultProgressIcon(canvas, bounds);
+        }
+    }
 
-
-                // Draw background plate as a stroke around icon.
-                saveCount = canvas.save();
-                scale = PLATE_SCALE;
-                canvas.scale(scale, scale, bounds.exactCenterX(), bounds.exactCenterY());
-                mProgressPaint.setStyle(Paint.Style.STROKE);
-                // Draw plate as total stroke width, then overlay with progress track to leave gap.
-                mProgressPaint.setStrokeWidth(width * TOTAL_STROKE_SCALE);
-                mProgressPaint.setColor(mPlateColor);
-                canvas.drawPath(mScaledPlatePath, mProgressPaint);
-                canvas.restoreToCount(saveCount);
-
-
-                // Draw track and progress.
-                saveCount = canvas.save();
-                scale = 1f;
-                canvas.scale(scale, scale, bounds.exactCenterX(), bounds.exactCenterY());
-                mProgressPaint.setStyle(Paint.Style.STROKE);
-                mProgressPaint.setStrokeWidth(width * PROGRESS_STROKE_SCALE);
-                mProgressPaint.setColor(mTrackColor);
-                canvas.drawPath(mScaledTrackPath, mProgressPaint);
-                mProgressPaint.setAlpha(MAX_PAINT_ALPHA);
-                mProgressPaint.setColor(mProgressColor);
-                canvas.drawPath(mScaledProgressPath, mProgressPaint);
-                canvas.restoreToCount(saveCount);
-            } else {
-                saveCount = canvas.save();
-                scale = 1 - mIconScaleMultiplier.value * (1 - SMALL_ICON_SCALE);
-                canvas.scale(scale, scale, bounds.exactCenterX(), bounds.exactCenterY());
-                super.drawInternal(canvas, bounds);
-                canvas.restoreToCount(saveCount);
+    private void drawShapedProgressIcon(Canvas canvas, Rect bounds) {
+        if (mInternalStateProgress > 0f) {
+            if (mInternalStateProgress < 1f) {
+                // Draw icon at scale UNDER the progress and background paths.
+                drawIconAtScale(canvas, bounds);
+            }
+            drawBackgroundPlate(canvas, bounds);
+            drawTrackAndProgress(canvas);
+            if (mInternalStateProgress >= 1f) {
+                // Draw icon at scale animating OVER the progress and background path.
+                drawIconAtScale(canvas, bounds);
             }
         } else {
-            if (mInternalStateProgress > 0) {
-                // Draw background.
-                mProgressPaint.setStyle(Paint.Style.FILL);
-                mProgressPaint.setColor(mPlateColor);
-                canvas.drawPath(mScaledTrackPath, mProgressPaint);
-            }
-
-            if (mInternalStateProgress > 0) {
-                // Draw track and progress.
-                mProgressPaint.setStyle(Paint.Style.STROKE);
-                mProgressPaint.setColor(mTrackColor);
-                canvas.drawPath(mScaledTrackPath, mProgressPaint);
-                mProgressPaint.setAlpha(MAX_PAINT_ALPHA);
-                mProgressPaint.setColor(mProgressColor);
-                canvas.drawPath(mScaledProgressPath, mProgressPaint);
-            }
-
-            int saveCount = canvas.save();
-            float scale = 1 - mIconScaleMultiplier.value * (1 - SMALL_ICON_SCALE);
-            canvas.scale(scale, scale, bounds.exactCenterX(), bounds.exactCenterY());
-
-            super.drawInternal(canvas, bounds);
-            canvas.restoreToCount(saveCount);
+            // Just draw Icon when no progress
+            drawIconAtScale(canvas, bounds);
         }
+    }
+
+    /**
+     * Draw background plate as a stroke around icon.
+     * Uses total stroke width for gap + progress, so that progress can be overlaid to leave gap.
+     */
+    private void drawBackgroundPlate(Canvas canvas, Rect bounds) {
+        float width = canvas.getWidth();
+        canvas.save();
+        canvas.scale(PLATE_SCALE, PLATE_SCALE, bounds.exactCenterX(), bounds.exactCenterY());
+        mProgressPaint.setStyle(Paint.Style.STROKE);
+        mProgressPaint.setStrokeWidth(width * TOTAL_STROKE_SCALE);
+        mProgressPaint.setColor(mPlateColor);
+        canvas.drawPath(mScaledPlatePath, mProgressPaint);
+        canvas.restore();
+    }
+
+    /**
+     * Draws track around icon with gap, and draws progress bar according to current progress.
+     */
+    private void drawTrackAndProgress(Canvas canvas) {
+        canvas.save();
+        mProgressPaint.setStyle(Paint.Style.STROKE);
+        mProgressPaint.setStrokeWidth(canvas.getWidth() * PROGRESS_STROKE_SCALE);
+        mProgressPaint.setColor(mTrackColor);
+        canvas.drawPath(mScaledTrackPath, mProgressPaint);
+        mProgressPaint.setAlpha(MAX_PAINT_ALPHA);
+        mProgressPaint.setColor(mProgressColor);
+        canvas.drawPath(mScaledProgressPath, mProgressPaint);
+        canvas.restore();
+    }
+
+    private void drawDefaultProgressIcon(Canvas canvas, Rect bounds) {
+        if (mInternalStateProgress > 0) {
+            // Draw background.
+            mProgressPaint.setStyle(Paint.Style.FILL);
+            mProgressPaint.setColor(mPlateColor);
+            canvas.drawPath(mScaledTrackPath, mProgressPaint);
+        }
+
+        if (mInternalStateProgress > 0) {
+            // Draw track and progress.
+            mProgressPaint.setStyle(Paint.Style.STROKE);
+            mProgressPaint.setColor(mTrackColor);
+            canvas.drawPath(mScaledTrackPath, mProgressPaint);
+            mProgressPaint.setAlpha(MAX_PAINT_ALPHA);
+            mProgressPaint.setColor(mProgressColor);
+            canvas.drawPath(mScaledProgressPath, mProgressPaint);
+        }
+
+        drawIconAtScale(canvas, bounds);
+    }
+
+    /**
+     * Draws just the icon to scale
+     */
+    private void drawIconAtScale(Canvas canvas, Rect bounds) {
+        canvas.save();
+        float scale = 1 - mIconScaleMultiplier.value * (1 - SMALL_ICON_SCALE);
+        canvas.scale(scale, scale, bounds.exactCenterX(), bounds.exactCenterY());
+        super.drawInternal(canvas, bounds);
+        canvas.restore();
     }
 
     /**

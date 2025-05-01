@@ -113,10 +113,8 @@
     <string name="gadget_complete_setup_text" msgid="309040266978007925">"Нажмите, чтобы завершить настройку."</string>
     <string name="uninstall_system_app_text" msgid="4172046090762920660">"Это системное приложение, его нельзя удалить."</string>
     <string name="folder_hint_text" msgid="5174843001373488816">"Измените название"</string>
-    <!-- no translation found for paginate_left (7915437358451360433) -->
-    <skip />
-    <!-- no translation found for paginate_right (6701038155201975878) -->
-    <skip />
+    <string name="paginate_left" msgid="7915437358451360433">"Перейти на предыдущую страницу"</string>
+    <string name="paginate_right" msgid="6701038155201975878">"Перейти на следующую страницу"</string>
     <string name="disabled_app_label" msgid="6673129024321402780">"Приложение <xliff:g id="APP_NAME">%1$s</xliff:g> отключено"</string>
     <string name="dotted_app_label" msgid="1865617679843363410">"{count,plural, =1{В приложении \"{app_name}\" # уведомление}one{В приложении \"{app_name}\" # уведомление}few{В приложении \"{app_name}\" # уведомления}many{В приложении \"{app_name}\" # уведомлений}other{В приложении \"{app_name}\" # уведомления}}"</string>
     <string name="default_scroll_format" msgid="7475544710230993317">"Стр. %1$d из %2$d"</string>
@@ -169,7 +167,7 @@
     <string name="widgets_list_closed" msgid="6141506579418771922">"Список виджетов закрыт"</string>
     <string name="action_add_to_workspace" msgid="215894119683164916">"Добавить на главный экран"</string>
     <string name="action_move_here" msgid="2170188780612570250">"Переместить элемент сюда"</string>
-    <string name="item_removed" msgid="851119963877842327">"Объект удален."</string>
+    <string name="item_removed" msgid="851119963877842327">"Объект убран."</string>
     <string name="undo" msgid="4151576204245173321">"Отменить"</string>
     <string name="action_move" msgid="4339390619886385032">"Переместить элемент"</string>
     <string name="move_to_empty_cell_description" msgid="5254852678218206889">"Переместите в строку <xliff:g id="NUMBER_0">%1$s</xliff:g> столбца <xliff:g id="NUMBER_1">%2$s</xliff:g> на экране \"<xliff:g id="STRING">%3$s</xliff:g>\""</string>

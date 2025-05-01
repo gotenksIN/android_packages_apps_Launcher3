@@ -398,16 +398,6 @@ flag {
 }
 
 flag {
-    name: "coordinate_workspace_scale"
-    namespace: "launcher"
-    description: "Ensure that the workspace and hotseat scale doesn't conflict and transitions smoothly between launching and closing apps"
-    bug: "366403487"
-    metadata {
-      purpose: PURPOSE_BUGFIX
-    }
-}
-
-flag {
     name: "enable_tiered_widgets_by_default_in_picker"
     namespace: "launcher"
     description: "Shows filtered set of widgets by default and an option to show all widgets in the widget picker"

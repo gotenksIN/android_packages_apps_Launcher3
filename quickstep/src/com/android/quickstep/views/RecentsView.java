@@ -3719,15 +3719,13 @@ public abstract class RecentsView<
      * @param duration                    duration of the animation
      * @param dismissingForSplitSelection task dismiss animation is used for entering split
      *                                    selection state from app icon
-     * @param isExpressiveDismiss         runs expressive animations controlled via
-     *                                    {@link RecentsDismissUtils}
      * @param gridEndData                 used to compute any gap left between the end of the
      *                                    grid and the clear all button.
      */
     public void createTaskDismissAnimation(PendingAnimation anim,
             @Nullable TaskView dismissedTaskView,
             boolean animateTaskView, boolean shouldRemoveTask, long duration,
-            boolean dismissingForSplitSelection, boolean isExpressiveDismiss,
+            boolean dismissingForSplitSelection,
             @Nullable RecentsDismissUtils.GridEndData gridEndData) {
         if (mPendingAnimation != null) {
             mPendingAnimation.createPlaybackController().dispatchOnCancel().dispatchOnEnd();
@@ -3809,9 +3807,9 @@ public abstract class RecentsView<
         boolean isClearAllHidden = isClearAllHidden();
 
         if (gridEndData == null) {
-            gridEndData = mDismissUtils.getGridEndData(dismissedTaskView, isExpressiveDismiss,
-                    isFocusedTaskDismissed, nextFocusedTaskView, isStagingFocusedTask,
-                    nextFocusedTaskFromTop, nextFocusedTaskWidth);
+            gridEndData = mDismissUtils.getGridEndData(dismissedTaskView,
+                    false /* isExpressiveDismiss */, isFocusedTaskDismissed, nextFocusedTaskView,
+                    isStagingFocusedTask, nextFocusedTaskFromTop, nextFocusedTaskWidth);
         }
         float longGridRowWidthDiff = gridEndData.getGridEndOffset();
         boolean snapToLastTask = gridEndData.getSnapToLastTask();
@@ -3825,7 +3823,7 @@ public abstract class RecentsView<
         // After dismissal, animate translation of the remaining tasks to fill any gap left
         // between the end of the grid and the clear all button. Only animate if the clear
         // all button is visible or would become visible after dismissal.
-        if (!isExpressiveDismiss && longGridRowWidthDiff != 0) {
+        if (longGridRowWidthDiff != 0) {
             // If we need to animate the grid to compensate the clear all gap, we split the
             // second half of the dismiss pending animation (in which the non-dismissed tasks
             // slide into place) in half again, making the first quarter the existing
@@ -3886,9 +3884,7 @@ public abstract class RecentsView<
             slidingTranslation += mIsRtl ? newClearAllShortTotalWidthTranslation
                     : -newClearAllShortTotalWidthTranslation;
         }
-        if (!isExpressiveDismiss) {
-            mTaskViewsDismissPrimaryTranslations.clear();
-        }
+        mTaskViewsDismissPrimaryTranslations.clear();
         int lastTaskViewIndex = indexOfChild(mUtils.getLastTaskView());
         for (int i = 0; i < count; i++) {
             View child = getChildAt(i);
@@ -3903,16 +3899,14 @@ public abstract class RecentsView<
                         lastTaskViewIndex);
                 int scrollDiff = newScroll[i] - oldScroll[i] + offset;
                 if (scrollDiff != 0) {
-                    if (!isExpressiveDismiss) {
-                        translateTaskWhenDismissed(
-                                child,
-                                Math.abs(i - dismissedIndex),
-                                scrollDiff,
-                                anim,
-                                splitTimings);
-                        if (child instanceof TaskView taskView) {
-                            mTaskViewsDismissPrimaryTranslations.put(taskView, scrollDiffPerPage);
-                        }
+                    translateTaskWhenDismissed(
+                            child,
+                            Math.abs(i - dismissedIndex),
+                            scrollDiff,
+                            anim,
+                            splitTimings);
+                    if (child instanceof TaskView taskView) {
+                        mTaskViewsDismissPrimaryTranslations.put(taskView, scrollDiffPerPage);
                     }
                     needsCurveUpdates = true;
                 }
@@ -3998,22 +3992,19 @@ public abstract class RecentsView<
                                 : finalTranslation + (mIsRtl ? -mLastComputedTaskSize.right
                                         : mLastComputedTaskSize.right);
                     }
-                    // Expressive dismiss will animate the translations of taskViews itself.
-                    if (!isExpressiveDismiss) {
-                        Animator dismissAnimator = ObjectAnimator.ofFloat(taskView,
-                                taskView.getPrimaryDismissTranslationProperty(),
-                                startTranslation, finalTranslation);
-                        dismissAnimator.setInterpolator(
-                                clampToProgress(dismissInterpolator, animationStartProgress,
-                                        animationEndProgress));
-                        anim.add(dismissAnimator);
-                        mTaskViewsDismissPrimaryTranslations.put(taskView, (int) finalTranslation);
-                    }
+                    Animator dismissAnimator = ObjectAnimator.ofFloat(taskView,
+                            taskView.getPrimaryDismissTranslationProperty(),
+                            startTranslation, finalTranslation);
+                    dismissAnimator.setInterpolator(
+                            clampToProgress(dismissInterpolator, animationStartProgress,
+                                    animationEndProgress));
+                    anim.add(dismissAnimator);
+                    mTaskViewsDismissPrimaryTranslations.put(taskView, (int) finalTranslation);
                     distanceFromDismissedTask++;
                 }
             }
         }
-        if (dismissingForSplitSelection && !isExpressiveDismiss) {
+        if (dismissingForSplitSelection) {
             createInitialSplitSelectAnimation(anim);
         }
 
@@ -4564,20 +4555,9 @@ public abstract class RecentsView<
             PendingAnimation pa = new PendingAnimation(DISMISS_TASK_DURATION);
             createTaskDismissAnimation(pa, taskView, animateTaskView, removeTask,
                     DISMISS_TASK_DURATION, false /* dismissingForSplitSelection*/,
-                    false /* isExpressiveDismiss */, null /* gridEndData */);
+                    null /* gridEndData */);
             runDismissAnimation(pa);
         }
-    }
-
-    protected void expressiveDismissTaskView(TaskView taskView, Function0<Unit> onEndRunnable,
-            int dismissDuration, boolean shouldRemoveTaskView,
-            @Nullable RecentsDismissUtils.GridEndData gridEndData) {
-        PendingAnimation pa = new PendingAnimation(dismissDuration);
-        createTaskDismissAnimation(pa, taskView, false /* animateTaskView */, shouldRemoveTaskView,
-                dismissDuration, false /* dismissingForSplitSelection*/,
-                true /* isExpressiveDismiss */, gridEndData);
-        pa.addEndListener((success) -> onEndRunnable.invoke());
-        runDismissAnimation(pa);
     }
 
     @SuppressWarnings("unused")
@@ -5325,8 +5305,7 @@ public abstract class RecentsView<
                 runExpressiveSplit(builder, mSplitHiddenTaskView);
             } else {
                 createTaskDismissAnimation(builder, mSplitHiddenTaskView, true, false, duration,
-                        true /* dismissingForSplitSelection*/, false /* isExpressiveDismiss */,
-                        null /* gridEndData */);
+                        true /* dismissingForSplitSelection*/, null /* gridEndData */);
             }
         } else {
             // Splitting from Home
@@ -5339,8 +5318,7 @@ public abstract class RecentsView<
                     runExpressiveSplit(builder, /* taskView= */ null);
                 } else {
                     createTaskDismissAnimation(builder, null, true, false, duration,
-                            true /* dismissingForSplitSelection*/, false /* isExpressiveDismiss */,
-                            null /* gridEndData */);
+                            true /* dismissingForSplitSelection*/, null /* gridEndData */);
                 }
             } else {
                 createInitialSplitSelectAnimation(builder);
@@ -7025,11 +7003,11 @@ public abstract class RecentsView<
      * spring in response to the perceived impact of the settling task.
      */
     public SpringAnimation runTaskDismissSettlingSpringAnimation(TaskView draggedTaskView,
-            float velocity, boolean isDismissing, int dismissLength, int dismissThreshold,
-            float finalPosition, boolean shouldRemoveTaskView, boolean isSplitSelection,
+            float velocity, boolean isDismissing, int dismissThreshold, float finalPosition,
+            boolean shouldRemoveTaskView, boolean isSplitSelection,
             @NonNull Function0<Unit> onEndRunnable) {
         return mDismissUtils.createTaskDismissSettlingSpringAnimation(draggedTaskView, velocity,
-                isDismissing, dismissLength, dismissThreshold, finalPosition, shouldRemoveTaskView,
+                isDismissing, dismissThreshold, finalPosition, shouldRemoveTaskView,
                 isSplitSelection, onEndRunnable);
     }
 

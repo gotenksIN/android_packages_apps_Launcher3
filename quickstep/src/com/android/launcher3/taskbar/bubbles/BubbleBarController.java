@@ -327,6 +327,11 @@ public class BubbleBarController extends IBubblesListener.Stub {
     }
 
     private void applyViewChanges(BubbleBarViewUpdate update) {
+        if (update.initialState) {
+            // it is possible that we tried to notify shell too early with the bubble bar bounds,
+            // so force update shell about the bubble bar bounds in the initial handshake.
+            onBubbleBarBoundsChanged(/* forceUpdate= */ true);
+        }
         final boolean isCollapsed = (update.expandedChanged && !update.expanded)
                 || (!update.expandedChanged && !mBubbleBarViewController.isExpanded());
         final boolean isExpanding = update.expandedChanged && update.expanded;
@@ -621,8 +626,12 @@ public class BubbleBarController extends IBubblesListener.Stub {
     //
 
     private void onBubbleBarBoundsChanged() {
+        onBubbleBarBoundsChanged(/* forceUpdate= */ false);
+    }
+
+    private void onBubbleBarBoundsChanged(boolean forceUpdate) {
         int newTop = mBarView.getRestingTopPositionOnScreen();
-        if (newTop != mLastSentBubbleBarTop) {
+        if (newTop != mLastSentBubbleBarTop || forceUpdate) {
             mLastSentBubbleBarTop = newTop;
             mSystemUiProxy.updateBubbleBarTopOnScreen(newTop);
         }

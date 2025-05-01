@@ -1630,12 +1630,7 @@ constructor(
             if (menuContainer.iconView.status == AppChipStatus.Expanded) {
                 closeTaskMenu()
             } else {
-                menuContainer.iconView.revealAnim(/* isRevealing= */ true)
-                TaskMenuView.showForTask(menuContainer) {
-                    val isAnimated = !recentsView.isSplitSelectionActive
-                    menuContainer.iconView.revealAnim(/* isRevealing= */ false, isAnimated)
-                    recentsView.setTaskBorderEnabled(true)
-                }
+                TaskMenuView.showForTask(menuContainer) { recentsView.setTaskBorderEnabled(true) }
             }
         } else if (container.deviceProfile.isTablet) {
             val alignedOptionIndex =

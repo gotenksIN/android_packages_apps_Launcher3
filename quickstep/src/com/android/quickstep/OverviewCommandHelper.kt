@@ -575,7 +575,13 @@ constructor(
         recentsView.viewRootImpl.touchModeChanged(false)
         // Ensure that recents view has focus so that it receives the followup key inputs
         // Stops requesting focused after first view gets focused.
-        recentsView.getTaskViewAt(keyboardTaskFocusIndex).requestFocus() ||
+        recentsView
+            .getTaskViewAt(
+                recentsView.indexOfChild(
+                    recentsView.taskViews.elementAtOrNull(keyboardTaskFocusIndex)
+                )
+            )
+            .requestFocus() ||
             recentsView.nextTaskView.requestFocus() ||
             recentsView.firstTaskView.requestFocus() ||
             recentsView.requestFocus()
@@ -587,7 +593,8 @@ constructor(
             return
         }
         recentsView.setKeyboardTaskFocusIndex(PagedView.INVALID_PAGE)
-        recentsView.currentPage = keyboardTaskFocusIndex
+        recentsView.currentPage =
+            recentsView.indexOfChild(recentsView.taskViews.elementAtOrNull(keyboardTaskFocusIndex))
         keyboardTaskFocusIndex = PagedView.INVALID_PAGE
     }
 

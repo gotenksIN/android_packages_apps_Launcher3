@@ -261,7 +261,6 @@ CONTAINER : RecentsViewContainer {
                 taskBeingDragged,
                 velocity,
                 isDismissing,
-                dismissLength,
                 dismissThreshold,
                 finalPosition,
                 /* shouldRemoveTaskView= */ isDismissing,

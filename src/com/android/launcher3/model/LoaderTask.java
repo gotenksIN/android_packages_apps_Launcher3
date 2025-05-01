@@ -171,6 +171,7 @@ public class LoaderTask implements Runnable {
     private boolean mItemsDeleted = false;
     private String mDbName;
     private final Provider<FolderNameProvider> mFolderNameProviderFactory;
+    private final Provider<LauncherRestoreEventLogger> mRestoreEventLoggerProvider;
 
     @AssistedInject
     LoaderTask(
@@ -187,7 +188,8 @@ public class LoaderTask implements Runnable {
             Provider<FolderNameProvider> folderNameProviderFactory,
             @Named("SAFE_MODE") boolean isSafeModeEnabled,
             @Assisted @NonNull BaseLauncherBinder launcherBinder,
-            @Assisted UserManagerState userManagerState) {
+            @Assisted UserManagerState userManagerState,
+            Provider<LauncherRestoreEventLogger> restoreEventLoggerFactory) {
         mContext = context;
         mIDP = idp;
         mModel = model;
@@ -206,6 +208,7 @@ public class LoaderTask implements Runnable {
         mUserManagerState = userManagerState;
         mInstallingPkgsCached = null;
         mFolderNameProviderFactory = folderNameProviderFactory;
+        mRestoreEventLoggerProvider = restoreEventLoggerFactory;
     }
 
     protected synchronized void waitForIdle() {
@@ -272,7 +275,7 @@ public class LoaderTask implements Runnable {
                 LauncherPrefs.get(mContext).get(IS_FIRST_LOAD_AFTER_RESTORE);
         LauncherRestoreEventLogger restoreEventLogger = null;
         if (enableLauncherBrMetricsFixed()) {
-            restoreEventLogger = LauncherRestoreEventLogger.Companion.newInstance(mContext);
+            restoreEventLogger = mRestoreEventLoggerProvider.get();
         }
         try (LauncherModel.LoaderTransaction transaction = mModel.beginLoader(this)) {
             List<CacheableShortcutInfo> allShortcuts = new ArrayList<>();
