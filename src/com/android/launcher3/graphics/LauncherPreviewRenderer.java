@@ -560,7 +560,7 @@ public class LauncherPreviewRenderer extends BaseContext
             PerDisplayModule.class,
             LauncherConcurrencyModule.class,
             ExecutorsModule.class,
-            LauncherExecutorsModule.class
+            LauncherExecutorsModule.class,
     })
     public interface PreviewAppComponent extends LauncherAppComponent {
 

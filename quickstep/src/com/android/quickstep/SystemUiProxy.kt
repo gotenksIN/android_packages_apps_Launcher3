@@ -44,6 +44,7 @@ import android.window.RemoteTransition
 import android.window.TaskSnapshot
 import android.window.TransitionFilter
 import android.window.TransitionInfo
+import android.window.WindowContainerTransaction
 import androidx.annotation.MainThread
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.WorkerThread
@@ -166,11 +167,11 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
     @SystemUiStateFlags var lastSystemUiStateFlags: Long = 0
 
     /**
-     * This is a singleton pending intent that is used to start recents via Shell (which is a
-     * different process). It is bare-bones, so it's expected that the component and options will be
-     * provided via fill-in intent.
+     * This returns a pending intent that is used to start recents via Shell (which is a different
+     * process). It is bare-bones, so it's expected that the component and options will be provided
+     * via fill-in intent.
      */
-    private val recentsPendingIntent by lazy {
+    private fun getRecentsPendingIntent(displayId: Int) =
         PendingIntent.getActivity(
             context,
             0,
@@ -182,9 +183,9 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
                 .setPendingIntentCreatorBackgroundActivityStartMode(
                     ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
                 )
+                .setLaunchDisplayId(displayId)
                 .toBundle(),
         )
-    }
 
     val unfoldTransitionProvider: ProxyUnfoldTransitionProvider? =
         if ((Flags.enableUnfoldStateAnimation() && ResourceUnfoldTransitionConfig().isEnabled))
@@ -694,6 +695,13 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
     fun moveDraggedBubbleToFullscreen(key: String, dropLocation: Point) {
         executeWithErrorLog({ "Failed to call moveDraggedBubbleToFullscreen" }) {
             bubbles?.moveDraggedBubbleToFullscreen(key, dropLocation)
+        }
+    }
+
+    /** Tells SysUI whether bubble bar is used or not. */
+    fun setHasBubbleBar(hasBubbleBar: Boolean) {
+        executeWithErrorLog({ "Failed call setHasBubbleBar" }) {
+            bubbles?.setHasBubbleBar(hasBubbleBar)
         }
     }
 
@@ -1209,16 +1217,19 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
         options: ActivityOptions,
         listener: RecentsAnimationListener,
         useSyntheticRecentsTransition: Boolean,
+        wct: WindowContainerTransaction? = null,
+        displayId: Int,
     ): Boolean {
         executeWithErrorLog({ "Error starting recents via shell" }) {
             recentTasks?.startRecentsTransition(
-                recentsPendingIntent,
+                getRecentsPendingIntent(displayId),
                 intent,
                 options.toBundle().apply {
                     if (useSyntheticRecentsTransition) {
                         putBoolean("is_synthetic_recents_transition", true)
                     }
                 },
+                wct,
                 context.iApplicationThread,
                 RecentsAnimationListenerStub(listener),
             )

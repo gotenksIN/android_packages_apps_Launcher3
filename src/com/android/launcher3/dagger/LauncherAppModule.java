@@ -31,7 +31,7 @@ import dagger.Module;
         PerDisplayModule.class,
         LauncherConcurrencyModule.class,
         ExecutorsModule.class,
-        LauncherExecutorsModule.class
+        LauncherExecutorsModule.class,
 })
 public class LauncherAppModule {
 }

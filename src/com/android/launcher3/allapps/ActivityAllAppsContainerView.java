@@ -553,6 +553,13 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         return mIsSearching;
     }
 
+    /**
+     * @return {@code true} if back gesture should exit search rather than change launcher state.
+      */
+    public boolean shouldBackExitSearch() {
+        return isSearching();
+    }
+
     @Override
     public void onActivePageChanged(int currentActivePage) {
         if (mSearchTransitionController.isRunning()) {
