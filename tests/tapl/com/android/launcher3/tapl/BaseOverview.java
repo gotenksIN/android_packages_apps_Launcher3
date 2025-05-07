@@ -35,6 +35,7 @@ import androidx.test.uiautomator.BySelector;
 import androidx.test.uiautomator.Direction;
 import androidx.test.uiautomator.UiObject2;
 
+import com.android.launcher3.tapl.Taskbar.TaskbarLocation;
 import com.android.launcher3.testing.shared.TestProtocol;
 
 import java.util.Collection;
@@ -249,7 +250,7 @@ public class BaseOverview extends LauncherInstrumentation.VisibleContainer {
      */
     public void touchTaskbarBottomCorner(boolean tapRight) {
         try (LauncherInstrumentation.Closable e = mLauncher.eventsCheck()) {
-            Taskbar taskbar = new Taskbar(mLauncher);
+            Taskbar taskbar = new Taskbar(mLauncher, TaskbarLocation.OVERVIEW);
             if (mLauncher.isTransientTaskbar()) {
                 mLauncher.runToState(
                         () -> taskbar.touchBottomCorner(tapRight),
@@ -430,7 +431,18 @@ public class BaseOverview extends LauncherInstrumentation.VisibleContainer {
                 "want to get the taskbar")) {
             mLauncher.waitForSystemLauncherObject(TASKBAR_RES_ID);
 
-            return new Taskbar(mLauncher);
+            return new Taskbar(mLauncher, TaskbarLocation.OVERVIEW);
+        }
+    }
+
+    /**
+     * Returns the bubble bar.
+     * The bubble bar must already be visible when calling this method.
+     */
+    public BubbleBar getBubbleBar() {
+        try (LauncherInstrumentation.Closable c = mLauncher.addContextLayer(
+                "want to get the bubble bar")) {
+            return new BubbleBar(mLauncher);
         }
     }
 

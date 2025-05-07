@@ -28,6 +28,9 @@ import com.android.launcher3.Utilities.boundToRange
 import com.android.launcher3.Utilities.debugLog
 import com.android.launcher3.Utilities.isRtl
 import com.android.launcher3.Utilities.mapToRange
+import com.android.launcher3.statemanager.BaseState
+import com.android.launcher3.statemanager.StateManager.StateListener
+import com.android.launcher3.statemanager.StatefulContainer
 import com.android.launcher3.touch.SingleAxisSwipeDetector
 import com.android.launcher3.util.MSDLPlayerWrapper
 import com.android.launcher3.util.TouchController
@@ -40,12 +43,13 @@ import kotlin.math.abs
 import kotlin.math.ceil
 
 /** Touch controller for handling task view card dismiss swipes */
-class TaskViewDismissTouchController<CONTAINER>(
+class TaskViewDismissTouchController<CONTAINER, T : BaseState<T>>(
     private val container: CONTAINER,
     private val taskViewRecentsTouchContext: TaskViewRecentsTouchContext,
 ) : TouchController, SingleAxisSwipeDetector.Listener where
 CONTAINER : Context,
-CONTAINER : RecentsViewContainer {
+CONTAINER : RecentsViewContainer,
+CONTAINER : StatefulContainer<T> {
     private val recentsView: RecentsView<*, *> = container.getOverviewPanel()
     private val detector: SingleAxisSwipeDetector =
         SingleAxisSwipeDetector(
@@ -55,7 +59,13 @@ CONTAINER : RecentsViewContainer {
         )
     private val isRtl = isRtl(container.resources)
     private val upDirection: Int = recentsView.pagedOrientationHandler.getUpDirection(isRtl)
-
+    private val stateListener =
+        object : StateListener<T> {
+            override fun onStateTransitionStart(toState: T) {
+                springAnimation?.cancel()
+                clearState()
+            }
+        }
     private val tempTaskThumbnailBounds = Rect()
 
     private var taskBeingDragged: TaskView? = null
@@ -67,6 +77,14 @@ CONTAINER : RecentsViewContainer {
     private var recentsScaleAnimation: SpringAnimation? = null
     private var isBlockedDuringDismissal = false
     private var canInterceptTouch = false
+
+    init {
+        container.getStateManager().addStateListener(stateListener)
+    }
+
+    override fun onTouchControllerDestroyed() {
+        container.getStateManager().removeStateListener(stateListener)
+    }
 
     private fun canInterceptTouch(ev: MotionEvent): Boolean =
         when {
@@ -261,6 +279,7 @@ CONTAINER : RecentsViewContainer {
                 taskBeingDragged,
                 velocity,
                 isDismissing,
+                dismissLength,
                 dismissThreshold,
                 finalPosition,
                 /* shouldRemoveTaskView= */ isDismissing,

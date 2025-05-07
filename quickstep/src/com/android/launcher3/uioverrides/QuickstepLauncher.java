@@ -24,6 +24,7 @@ import static android.window.DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_WALLPAPER
 import static com.android.app.animation.Interpolators.EMPHASIZED;
 import static com.android.internal.jank.Cuj.CUJ_LAUNCHER_LAUNCH_APP_PAIR_FROM_WORKSPACE;
 import static com.android.launcher3.Flags.enableExpressiveDismissTaskMotion;
+import static com.android.launcher3.Flags.enableOverviewBackgroundWallpaperBlur;
 import static com.android.launcher3.Flags.enableUnfoldStateAnimation;
 import static com.android.launcher3.LauncherConstants.SavedInstanceKeys.PENDING_SPLIT_SELECT_INFO;
 import static com.android.launcher3.LauncherConstants.SavedInstanceKeys.RUNTIME_STATE;
@@ -453,16 +454,26 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public boolean isBackgroundBlurEnabled() {
-        return mDepthController != null && mDepthController.areBlursEnabled();
+        return mDepthController != null && mDepthController.areBlursEnabled() && (
+                Flags.allAppsBlur() || enableOverviewBackgroundWallpaperBlur());
     }
 
     @Override
     public void updateBlurStyle() {
-        if (!Flags.allAppsBlur()) {
+        if (!Flags.allAppsBlur() && !enableOverviewBackgroundWallpaperBlur()) {
             return;
         }
         getTheme().applyStyle(getBlurStyleResId(), true);
-        getAppsView().onThemeChanged();
+        if (Flags.allAppsBlur()) {
+            getAppsView().getContext().getTheme().applyStyle(getBlurStyleResId(), true);
+            getAppsView().onThemeChanged();
+        }
+        if (enableOverviewBackgroundWallpaperBlur()) {
+            getScrimView().setBackgroundColor(
+                    getStateManager().getState().getWorkspaceScrimColor(this));
+            RecentsView<?, ?> recentsView = getOverviewPanel();
+            recentsView.updateBlurStyle(isBackgroundBlurEnabled());
+        }
     }
 
     protected void onItemClicked(View view) {
@@ -542,7 +553,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public void bindExtraContainerItems(FixedContainerItems item) {
-        if (item.containerId == Favorites.CONTAINER_PREDICTION) {
+        if (item.containerId == Favorites.CONTAINER_ALL_APPS_PREDICTION) {
             mAllAppsPredictions = item;
             PredictionRowView<?> predictionRowView =
                     getAppsView().getFloatingHeaderView().findFixedRowByType(

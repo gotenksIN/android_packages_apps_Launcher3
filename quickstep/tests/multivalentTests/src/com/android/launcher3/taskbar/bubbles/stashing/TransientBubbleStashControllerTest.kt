@@ -580,7 +580,7 @@ class TransientBubbleStashControllerTest {
                 }
             )
             bubbleView = BubbleView(context)
-            bubbleBarView.addBubble(bubbleView)
+            bubbleBarView.addBubble(bubbleView, false)
             bubbleBarView.layout(0, 0, BUBBLE_BAR_WIDTH, BUBBLE_BAR_HEIGHT)
         }
     }
