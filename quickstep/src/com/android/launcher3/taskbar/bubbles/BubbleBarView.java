@@ -652,13 +652,15 @@ public class BubbleBarView extends FrameLayout {
         }
     }
 
-    /**
-     * Get bubble bar top coordinate on screen when bar is resting
-     */
-    public int getRestingTopPositionOnScreen() {
-        int displayHeight = mController.getScreenHeight();
+    /** Get the distance between the bubble bar top coordinate and the bottom of the screen */
+    public int getTopToScreenBottom() {
+        // the bottom of the bubble bar is aligned with the bottom of the screen. the distance
+        // between the top of the bubble bar and the bottom of the screen is the height of the
+        // bubble bar minus the y translation. since the bubble bar is always above the bottom of
+        // the screen, the translation is negative and the overall result is a positive value that
+        // represents the distance
         int bubbleBarHeight = getBubbleBarBounds().height();
-        return displayHeight - bubbleBarHeight + (int) mController.getBubbleBarTranslationY();
+        return bubbleBarHeight - (int) mController.getBubbleBarTranslationY();
     }
 
     /** Returns the bounds with translation that may have been applied. */
@@ -1671,9 +1673,6 @@ public class BubbleBarView extends FrameLayout {
 
     /** Interface for BubbleBarView to communicate with its controller. */
     public interface Controller {
-
-        /** Returns the screen height. */
-        int getScreenHeight();
 
         /** Returns the translation Y that the bubble bar should have. */
         float getBubbleBarTranslationY();

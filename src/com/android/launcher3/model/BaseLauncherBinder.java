@@ -154,16 +154,6 @@ public class BaseLauncherBinder {
         executeCallbacksTask(c -> c.bindAllWidgets(widgets), mUiExecutor);
     }
 
-    /**
-     * bindWidgets is abstract because it is a no-op for the go launcher.
-     */
-    public void bindSmartspaceWidget() {
-        if (!WIDGETS_ENABLED) {
-            return;
-        }
-        executeCallbacksTask(c -> c.bindSmartspaceWidget(), mUiExecutor);
-    }
-
     protected void executeCallbacksTask(CallbackTask task, Executor executor) {
         executor.execute(() -> {
             if (mMyBindingId != mBgDataModel.lastBindId) {

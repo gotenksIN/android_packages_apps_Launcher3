@@ -34,6 +34,18 @@ import com.android.launcher3.statemanager.StatefulContainer
 import com.android.launcher3.touch.SingleAxisSwipeDetector
 import com.android.launcher3.util.MSDLPlayerWrapper
 import com.android.launcher3.util.TouchController
+import com.android.mechanics.spec.Breakpoint
+import com.android.mechanics.spec.Breakpoint.Companion.maxLimit
+import com.android.mechanics.spec.Breakpoint.Companion.minLimit
+import com.android.mechanics.spec.BreakpointKey
+import com.android.mechanics.spec.DirectionalMotionSpec
+import com.android.mechanics.spec.Guarantee
+import com.android.mechanics.spec.InputDirection
+import com.android.mechanics.spec.Mapping
+import com.android.mechanics.spec.MotionSpec
+import com.android.mechanics.spring.SpringParameters
+import com.android.mechanics.view.DistanceGestureContext
+import com.android.mechanics.view.ViewMotionValue
 import com.android.quickstep.views.RecentsView
 import com.android.quickstep.views.RecentsView.RECENTS_SCALE_PROPERTY
 import com.android.quickstep.views.RecentsViewContainer
@@ -59,6 +71,10 @@ CONTAINER : StatefulContainer<T> {
         )
     private val isRtl = isRtl(container.resources)
     private val upDirection: Int = recentsView.pagedOrientationHandler.getUpDirection(isRtl)
+    private val maxUndershoot =
+        container.resources.getDimension(R.dimen.task_dismiss_max_undershoot)
+    private val detachThreshold =
+        container.resources.getDimension(R.dimen.task_dismiss_detach_threshold)
     private val stateListener =
         object : StateListener<T> {
             override fun onStateTransitionStart(toState: T) {
@@ -69,6 +85,7 @@ CONTAINER : StatefulContainer<T> {
     private val tempTaskThumbnailBounds = Rect()
 
     private var taskBeingDragged: TaskView? = null
+    private var taskDragDisplacementValue: ViewMotionValue? = null
     private var springAnimation: SpringAnimation? = null
     private var dismissLength: Int = 0
     private var verticalFactor: Int = 0
@@ -196,6 +213,24 @@ CONTAINER : StatefulContainer<T> {
 
         initialDisplacement =
             taskBeingDragged.secondaryDismissTranslationProperty.get(taskBeingDragged)
+        taskDragDisplacementValue =
+            generateMotionValue(
+                initialDisplacement,
+                detachThreshold * verticalFactor,
+                container.asContext(),
+            ) { currentDisplacement ->
+                taskBeingDragged.secondaryDismissTranslationProperty.setValue(
+                    taskBeingDragged,
+                    currentDisplacement,
+                )
+                if (taskBeingDragged.isRunningTask && recentsView.enableDrawingLiveTile) {
+                    recentsView.runActionOnRemoteHandles { remoteTargetHandle ->
+                        remoteTargetHandle.taskViewSimulator.taskSecondaryTranslation.value =
+                            currentDisplacement
+                    }
+                    recentsView.redrawLiveTile()
+                }
+            }
 
         // Add a tiny bit of translation Z, so that it draws on top of other views. This is relevant
         // (e.g.) when we dismiss a task by sliding it upward: if there is a row of icons above, we
@@ -205,35 +240,26 @@ CONTAINER : StatefulContainer<T> {
 
     override fun onDrag(displacement: Float): Boolean {
         if (isBlockedDuringDismissal) return true
-        val taskBeingDragged = taskBeingDragged ?: return false
+        taskBeingDragged ?: return false
         val currentDisplacement = displacement + initialDisplacement
         val boundedDisplacement =
             boundToRange(abs(currentDisplacement), 0f, dismissLength.toFloat())
         // When swiping below origin, allow slight undershoot to simulate resisting the movement.
+        val isAboveOrigin =
+            recentsView.pagedOrientationHandler.isGoingUp(currentDisplacement, isRtl)
         val totalDisplacement =
-            if (recentsView.pagedOrientationHandler.isGoingUp(currentDisplacement, isRtl))
-                boundedDisplacement * verticalFactor
+            if (isAboveOrigin) boundedDisplacement * verticalFactor
             else
                 mapToRange(
                     boundedDisplacement,
                     0f,
                     dismissLength.toFloat(),
                     0f,
-                    container.resources.getDimension(R.dimen.task_dismiss_max_undershoot),
+                    maxUndershoot,
                     DECELERATE,
                 ) * -verticalFactor
-        taskBeingDragged.secondaryDismissTranslationProperty.setValue(
-            taskBeingDragged,
-            totalDisplacement,
-        )
-        if (taskBeingDragged.isRunningTask && recentsView.enableDrawingLiveTile) {
-            recentsView.runActionOnRemoteHandles { remoteTargetHandle ->
-                remoteTargetHandle.taskViewSimulator.taskSecondaryTranslation.value =
-                    totalDisplacement
-            }
-            recentsView.redrawLiveTile()
-        }
         val dismissFraction = displacement / (dismissLength * verticalFactor).toFloat()
+        taskDragDisplacementValue?.input = totalDisplacement
         RECENTS_SCALE_PROPERTY.setValue(recentsView, getRecentsScale(dismissFraction))
         playDismissThresholdHaptic(displacement)
         return true
@@ -262,6 +288,7 @@ CONTAINER : StatefulContainer<T> {
     override fun onDragEnd(velocity: Float) {
         if (isBlockedDuringDismissal) return
         val taskBeingDragged = taskBeingDragged ?: return
+        taskDragDisplacementValue?.dispose()
 
         val currentDisplacement =
             taskBeingDragged.secondaryDismissTranslationProperty.get(taskBeingDragged)
@@ -299,6 +326,7 @@ CONTAINER : StatefulContainer<T> {
         taskBeingDragged?.translationZ = 0f
         taskBeingDragged = null
         springAnimation = null
+        taskDragDisplacementValue = null
         isBlockedDuringDismissal = false
     }
 
@@ -339,6 +367,43 @@ CONTAINER : StatefulContainer<T> {
                 RECENTS_SCALE_ON_DISMISS_SUCCESS
             }
         }
+    }
+
+    private fun generateMotionValue(
+        initialDisplacement: Float,
+        detachThreshold: Float,
+        context: Context,
+        updateCallback: (Float) -> Unit,
+    ): ViewMotionValue {
+        val direction = if (initialDisplacement < 0) InputDirection.Max else InputDirection.Min
+        val distanceGestureContext =
+            DistanceGestureContext.create(context, initialDisplacement, direction)
+        val viewMotionValue =
+            ViewMotionValue(
+                initialDisplacement,
+                distanceGestureContext,
+                generateMotionSpec(detachThreshold),
+                label = "taskDismiss::displacement",
+            )
+
+        viewMotionValue.addUpdateCallback { motionValue -> updateCallback(motionValue.output) }
+        return viewMotionValue
+    }
+
+    /** Motion spec for an initial magnetic detach. Track linearly otherwise. No reattach. */
+    private fun generateMotionSpec(detachThreshold: Float): MotionSpec {
+        val spring = SpringParameters(stiffness = 800f, dampingRatio = 0.95f)
+        val detachKey = BreakpointKey("TaskDismiss::Detach")
+        val breakpoints = mutableListOf<Breakpoint>()
+        val mappings = mutableListOf<Mapping>()
+
+        breakpoints.add(minLimit)
+        mappings.add(Mapping.Identity)
+        breakpoints.add(Breakpoint(detachKey, detachThreshold, spring, Guarantee.None))
+        mappings.add(Mapping.Linear(0.3f))
+        breakpoints.add(maxLimit)
+
+        return MotionSpec(DirectionalMotionSpec(breakpoints, mappings))
     }
 
     companion object {

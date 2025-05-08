@@ -588,10 +588,13 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
      * Tells SysUI to show the bubble with the provided key.
      *
      * @param key the key of the bubble to show.
-     * @param top top coordinate of bubble bar on screen
+     * @param bubbleBarTopToScreenBottom distance between the top coordinate of bubble bar and the
+     *   bottom of the screen
      */
-    fun showBubble(key: String?, top: Int) =
-        executeWithErrorLog({ "Failed call showBubble" }) { bubbles?.showBubble(key, top) }
+    fun showBubble(key: String?, bubbleBarTopToScreenBottom: Int) =
+        executeWithErrorLog({ "Failed call showBubble" }) {
+            bubbles?.showBubble(key, bubbleBarTopToScreenBottom)
+        }
 
     /** Tells SysUI to remove all bubbles. */
     fun removeAllBubbles() =
@@ -617,11 +620,12 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
      * expanded.
      *
      * @param location location of the bubble bar
-     * @param top new top coordinate for bubble bar on screen
+     * @param bubbleBarTopToScreenBottom distance between the new top coordinate for bubble bar and
+     *   the bottom of the screen
      */
-    fun stopBubbleDrag(location: BubbleBarLocation?, top: Int) =
+    fun stopBubbleDrag(location: BubbleBarLocation?, bubbleBarTopToScreenBottom: Int) =
         executeWithErrorLog({ "Failed call stopBubbleDrag" }) {
-            bubbles?.stopBubbleDrag(location, top)
+            bubbles?.stopBubbleDrag(location, bubbleBarTopToScreenBottom)
         }
 
     /**
@@ -657,13 +661,12 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
         }
 
     /**
-     * Tells SysUI the top coordinate of bubble bar on screen
-     *
-     * @param topOnScreen top coordinate for bubble bar on screen
+     * Tells SysUI the distance between the top coordinate of the bubble bar and the bottom of the
+     * screen
      */
-    fun updateBubbleBarTopOnScreen(topOnScreen: Int) =
-        executeWithErrorLog({ "Failed call updateBubbleBarTopOnScreen" }) {
-            bubbles?.updateBubbleBarTopOnScreen(topOnScreen)
+    fun updateBubbleBarTopToScreenBottom(bubbleBarTopToScreenBottom: Int) =
+        executeWithErrorLog({ "Failed call updateBubbleBarTopToScreenBottom" }) {
+            bubbles?.updateBubbleBarTopToScreenBottom(bubbleBarTopToScreenBottom)
         }
 
     /**

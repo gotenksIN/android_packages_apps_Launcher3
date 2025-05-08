@@ -12,7 +12,6 @@ import com.android.launcher3.BuildConfig.QSB_ON_FIRST_SCREEN
 import com.android.launcher3.LauncherConstants.TraceEvents
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT
-import com.android.launcher3.Utilities.SHOULD_SHOW_FIRST_PAGE_WIDGET
 import com.android.launcher3.WorkspaceLayoutManager.FIRST_SCREEN_ID
 import com.android.launcher3.allapps.AllAppsStore
 import com.android.launcher3.config.FeatureFlags
@@ -40,7 +39,6 @@ import com.android.launcher3.util.Preconditions
 import com.android.launcher3.util.RunnableList
 import com.android.launcher3.util.TraceHelper
 import com.android.launcher3.util.ViewOnDrawExecutor
-import com.android.launcher3.widget.PendingAddWidgetInfo
 import com.android.launcher3.widget.model.WidgetsListBaseEntry
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicReference
@@ -285,49 +283,16 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
         return result
     }
 
-    override fun bindSmartspaceWidget() {
-        val cl: CellLayout? =
-            launcher.workspace.getScreenWithId(WorkspaceLayoutManager.FIRST_SCREEN_ID)
-        val spanX = InvariantDeviceProfile.INSTANCE.get(launcher).numSearchContainerColumns
-
-        if (cl?.isRegionVacant(0, 0, spanX, 1) != true) {
-            return
-        }
-
-        val widgetsListBaseEntry: WidgetsListBaseEntry =
-            launcher.widgetPickerDataProvider.get().allWidgets.firstOrNull {
-                item: WidgetsListBaseEntry ->
-                item.mPkgItem.packageName == BuildConfig.APPLICATION_ID
-            } ?: return
-
-        val info =
-            PendingAddWidgetInfo(
-                widgetsListBaseEntry.mWidgets[0].widgetInfo,
-                LauncherSettings.Favorites.CONTAINER_DESKTOP,
-            )
-        launcher.addPendingItem(
-            info,
-            info.container,
-            WorkspaceLayoutManager.FIRST_SCREEN_ID,
-            intArrayOf(0, 0),
-            info.spanX,
-            info.spanY,
-        )
-    }
-
     private fun bindScreens(orderedScreenIds: LIntArray) {
         launcher.workspace.pageIndicator.setPauseScroll(
             /*pause=*/ true,
             launcher.deviceProfile.isTwoPanels,
         )
         val firstScreenPosition = 0
-        if (
-            !SHOULD_SHOW_FIRST_PAGE_WIDGET &&
-                orderedScreenIds.indexOf(FIRST_SCREEN_ID) != firstScreenPosition
-        ) {
+        if (orderedScreenIds.indexOf(FIRST_SCREEN_ID) != firstScreenPosition) {
             orderedScreenIds.removeValue(FIRST_SCREEN_ID)
             orderedScreenIds.add(firstScreenPosition, FIRST_SCREEN_ID)
-        } else if (SHOULD_SHOW_FIRST_PAGE_WIDGET && orderedScreenIds.isEmpty) {
+        } else if (orderedScreenIds.isEmpty) {
             // If there are no screens, we need to have an empty screen
             launcher.workspace.addExtraEmptyScreens()
         }
@@ -393,9 +358,7 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
             }
         }
         orderedScreenIds
-            .filterNot { screenId ->
-                !SHOULD_SHOW_FIRST_PAGE_WIDGET && screenId == WorkspaceLayoutManager.FIRST_SCREEN_ID
-            }
+            .filter { screenId -> screenId != FIRST_SCREEN_ID }
             .forEach { screenId ->
                 launcher.workspace.insertNewWorkspaceScreenBeforeEmptyScreen(screenId)
             }
@@ -486,8 +449,7 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
             IntSet()
                 .apply {
                     itemIdMap.forEach { if (it.container == CONTAINER_DESKTOP) add(it.screenId) }
-                    if ((QSB_ON_FIRST_SCREEN && !SHOULD_SHOW_FIRST_PAGE_WIDGET) || isEmpty)
-                        add(Workspace.FIRST_SCREEN_ID)
+                    if (QSB_ON_FIRST_SCREEN || isEmpty) add(Workspace.FIRST_SCREEN_ID)
                 }
                 .array
         val currentScreenIds = getPagesToBindSynchronously(orderedScreenIds)

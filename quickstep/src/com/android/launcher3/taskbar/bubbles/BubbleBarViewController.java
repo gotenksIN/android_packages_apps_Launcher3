@@ -281,11 +281,6 @@ public class BubbleBarViewController {
         mBubbleBarPinning.updateValue(pinningValue);
         mBarView.setController(new BubbleBarView.Controller() {
             @Override
-            public int getScreenHeight() {
-                return mActivity.getScreenSize().y;
-            }
-
-            @Override
             public float getBubbleBarTranslationY() {
                 return mBubbleStashController.getBubbleBarTranslationY();
             }
@@ -741,7 +736,8 @@ public class BubbleBarViewController {
     public boolean isEventOverBubbleBar(MotionEvent event) {
         if (!isBubbleBarVisible()) return false;
         final Rect bounds = getBubbleBarBounds();
-        final int bubbleBarTopOnScreen = mBarView.getRestingTopPositionOnScreen();
+        final int bubbleBarTopOnScreen =
+                mActivity.getScreenSize().y - mBarView.getTopToScreenBottom();
         final float x = event.getX();
         return event.getRawY() >= bubbleBarTopOnScreen && x >= bounds.left && x <= bounds.right;
     }
@@ -1359,7 +1355,7 @@ public class BubbleBarViewController {
      * Notifies SystemUI to expand the selected bubble when the bubble is released.
      */
     public void onBubbleDragRelease(BubbleBarLocation location) {
-        mSystemUiProxy.stopBubbleDrag(location, mBarView.getRestingTopPositionOnScreen());
+        mSystemUiProxy.stopBubbleDrag(location, mBarView.getTopToScreenBottom());
     }
 
     /** Handle given bubble being dismissed */

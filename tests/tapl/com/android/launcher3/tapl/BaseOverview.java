@@ -152,6 +152,10 @@ public class BaseOverview extends LauncherInstrumentation.VisibleContainer {
 
     /**
      * Dismissed all tasks by scrolling to Clear-all button and pressing it.
+     * <p>
+     * NOTE: Fails if there are already no recent tasks. If a test needs to start with an empty task
+     * list, check {@link #hasTasks} before calling this since the previous test may have already
+     * cleared the task list.
      */
     public void dismissAllTasks() {
         try (LauncherInstrumentation.Closable e = mLauncher.eventsCheck();

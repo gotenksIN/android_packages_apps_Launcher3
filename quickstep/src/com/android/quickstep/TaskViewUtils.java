@@ -678,13 +678,6 @@ public final class TaskViewUtils {
                 // interfere with a rapid swipe up to home in the live tile + running task case.
                 @Override
                 public void onAnimationSuccess(Animator animation) {
-                    // If we're relaunching the desktop tile when already entering Overview from
-                    // desktop, no need to change the launcher visibility and taskbar visibility
-                    // below.
-                    boolean launchingLiveDesktop = v instanceof DesktopTaskView desktopTaskView
-                            && desktopTaskView.isRunningTask()
-                            && recentsView.getRemoteTargetHandles() != null;
-
                     recentsView.finishRecentsAnimation(false /* toRecents */, () -> {
                         recentsView.post(() -> {
                             stateManager.moveToRestState();
@@ -695,7 +688,9 @@ public final class TaskViewUtils {
                             // that launcher is still visible.
                             TaskbarUIController controller = recentsView.getSizeStrategy()
                                     .getTaskbarController();
-                            if (controller != null && !launchingLiveDesktop) {
+                            // If we're launching the desktop tile in Overview, no need to change
+                            // the launcher visibility and taskbar visibility below.
+                            if (controller != null && !(v instanceof DesktopTaskView)) {
                                 boolean launcherVisible = true;
                                 for (RemoteAnimationTarget target : appTargets) {
                                     launcherVisible &= target.isTranslucent;
