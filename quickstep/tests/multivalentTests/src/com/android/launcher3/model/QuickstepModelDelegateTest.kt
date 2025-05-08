@@ -20,8 +20,8 @@ import android.app.prediction.AppTarget
 import android.app.prediction.AppTargetEvent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.launcher3.LauncherAppState
+import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS_PREDICTION
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION
-import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_PREDICTION
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_WALLPAPERS
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_WIDGETS_PREDICTION
 import com.android.launcher3.util.SandboxApplication
@@ -77,7 +77,7 @@ class QuickstepModelDelegateTest {
 
     @Test
     fun onAppTargetEvent_notifyTarget() {
-        underTest.onAppTargetEvent(mockedAppTargetEvent, CONTAINER_PREDICTION)
+        underTest.onAppTargetEvent(mockedAppTargetEvent, CONTAINER_ALL_APPS_PREDICTION)
 
         verify(allAppsPredictor).notifyAppTargetEvent(mockedAppTargetEvent)
         verifyNoMoreInteractions(hotseatPredictor)
@@ -141,7 +141,7 @@ class QuickstepModelDelegateTest {
         val appTargetEvent = AppTargetEvent.Builder(target, AppTargetEvent.ACTION_UNPIN).build()
         underTest.markActive()
 
-        underTest.onAppTargetEvent(appTargetEvent, CONTAINER_PREDICTION)
+        underTest.onAppTargetEvent(appTargetEvent, CONTAINER_ALL_APPS_PREDICTION)
 
         verify(allAppsPredictor, never()).destroy()
         verify(hotseatPredictor, never()).destroy()

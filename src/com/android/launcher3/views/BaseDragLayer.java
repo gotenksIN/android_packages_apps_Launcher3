@@ -128,7 +128,13 @@ public abstract class BaseDragLayer<T extends Context & ActivityContext>
     /**
      * Called to reinitialize touch controllers.
      */
-    public abstract void recreateControllers();
+    public void recreateControllers() {
+        if (mControllers != null) {
+            for (TouchController controller : mControllers) {
+                controller.onTouchControllerDestroyed();
+            }
+        }
+    }
 
     /**
      * Same as {@link #isEventOverView(View, MotionEvent, View)} where evView == this drag layer.

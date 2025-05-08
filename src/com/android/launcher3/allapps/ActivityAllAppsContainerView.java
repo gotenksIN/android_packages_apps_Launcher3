@@ -176,6 +176,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     private SearchRecyclerView mSearchRecyclerView;
     protected SearchAdapterProvider<?> mMainAdapterProvider;
     private View mBottomSheetHandleArea;
+    private View mBottomSheetHandle;
     private boolean mHasWorkApps;
     private boolean mHasPrivateApps;
     private float[] mBottomSheetCornerRadii;
@@ -273,6 +274,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         mAdditionalHeaderRows.addAll(getAdditionalHeaderRows());
         mBottomSheetBackground = findViewById(R.id.bottom_sheet_background);
         mBottomSheetHandleArea = findViewById(R.id.bottom_sheet_handle_area);
+        mBottomSheetHandle = findViewById(R.id.bottom_sheet_handle);
         mSearchRecyclerView = findViewById(R.id.search_results_list_view);
         mFastScroller = findViewById(R.id.fast_scroller);
         mFastScroller.setPopupView(findViewById(R.id.fast_scroller_popup));
@@ -861,6 +863,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         forAllRecyclerViews(RecyclerView::invalidateItemDecorations);
         getSearchUiManager().onThemeChanged();
         getFloatingHeaderView().getTabLayout().updateTheme();
+        mBottomSheetHandle.setBackground(getContext().getDrawable(
+                R.drawable.bg_rounded_corner_bottom_sheet_handle));
     }
 
     /**

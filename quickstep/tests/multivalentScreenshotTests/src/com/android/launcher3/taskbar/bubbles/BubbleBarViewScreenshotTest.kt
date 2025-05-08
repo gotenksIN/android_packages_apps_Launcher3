@@ -70,7 +70,7 @@ class BubbleBarViewScreenshotTest(emulationSpec: DeviceEmulationSpec) {
         screenshotRule.screenshotTest("bubbleBarView_collapsed_oneBubble") { activity ->
             activity.actionBar?.hide()
             setupBubbleBarView()
-            bubbleBarView.addBubble(createBubble("key1", Color.GREEN))
+            bubbleBarView.addBubble(createBubble("key1", Color.GREEN), false)
             val container = FrameLayout(context)
             val lp = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
             container.layoutParams = lp
@@ -84,8 +84,8 @@ class BubbleBarViewScreenshotTest(emulationSpec: DeviceEmulationSpec) {
         screenshotRule.screenshotTest("bubbleBarView_collapsed_twoBubbles") { activity ->
             activity.actionBar?.hide()
             setupBubbleBarView()
-            bubbleBarView.addBubble(createBubble("key1", Color.GREEN))
-            bubbleBarView.addBubble(createBubble("key2", Color.CYAN))
+            bubbleBarView.addBubble(createBubble("key1", Color.GREEN), false)
+            bubbleBarView.addBubble(createBubble("key2", Color.CYAN), false)
             val container = FrameLayout(context)
             val lp = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
             container.layoutParams = lp
@@ -106,9 +106,9 @@ class BubbleBarViewScreenshotTest(emulationSpec: DeviceEmulationSpec) {
         ) { activity ->
             activity.actionBar?.hide()
             setupBubbleBarView()
-            bubbleBarView.addBubble(createBubble("key1", Color.GREEN))
-            bubbleBarView.addBubble(createBubble("key2", Color.CYAN))
-            bubbleBarView.addBubble(createBubble("key3", Color.MAGENTA))
+            bubbleBarView.addBubble(createBubble("key1", Color.GREEN), false)
+            bubbleBarView.addBubble(createBubble("key2", Color.CYAN), false)
+            bubbleBarView.addBubble(createBubble("key3", Color.MAGENTA), false)
             val container = FrameLayout(context)
             val lp = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
             container.layoutParams = lp

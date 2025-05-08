@@ -21,7 +21,7 @@ import static android.text.format.DateUtils.formatElapsedTime;
 import static com.android.launcher3.EncryptionType.ENCRYPTED;
 import static com.android.launcher3.LauncherPrefs.nonRestorableItem;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION;
-import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_PREDICTION;
+import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS_PREDICTION;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_WIDGETS_PREDICTION;
 import static com.android.launcher3.LauncherSettings.Favorites.DESKTOP_ICON_FLAG;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPLICATION;
@@ -110,7 +110,7 @@ public class QuickstepModelDelegate extends ModelDelegate {
 
     @VisibleForTesting
     final PredictorState mAllAppsState = new PredictorState(
-            CONTAINER_PREDICTION, "all_apps_predictions", DEFAULT_LOOKUP_FLAG);
+            CONTAINER_ALL_APPS_PREDICTION, "all_apps_predictions", DEFAULT_LOOKUP_FLAG);
     @VisibleForTesting
     final PredictorState mHotseatState = new PredictorState(
             CONTAINER_HOTSEAT_PREDICTION, "hotseat_predictions", DESKTOP_ICON_FLAG);
@@ -444,7 +444,7 @@ public class QuickstepModelDelegate extends ModelDelegate {
     void onAppTargetEvent(AppTargetEvent event, int client) {
         PredictorState state;
         switch(client) {
-            case CONTAINER_PREDICTION:
+            case CONTAINER_ALL_APPS_PREDICTION:
                 state = mAllAppsState;
                 break;
             case CONTAINER_WIDGETS_PREDICTION:
