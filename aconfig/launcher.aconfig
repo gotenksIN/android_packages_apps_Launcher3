@@ -210,13 +210,6 @@ flag {
 }
 
 flag {
-    name: "enable_smartspace_as_a_widget"
-    namespace: "launcher"
-    description: "Enables smartspace as a widget"
-    bug: "300140279"
-}
-
-flag {
     name: "enabled_folders_in_all_apps"
     namespace: "launcher"
     description: "Enables folders in all apps"
@@ -474,6 +467,17 @@ flag {
   namespace: "launcher"
   description: "Adds refresh for font family, app longpress menu icons, and pagination dots"
   bug: "395145453"
+}
+
+flag {
+  name: "external_data_access"
+  namespace: "launcher"
+  description: "For LauncherProvider bug fixes and new static permissions as part of the cross oem backup / restore effort."
+  bug: "395145453"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }
 
 flag {

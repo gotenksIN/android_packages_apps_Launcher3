@@ -2489,11 +2489,6 @@ public class Launcher extends StatefulActivity<LauncherState>
     }
 
     @Override
-    public void bindSmartspaceWidget() {
-        mModelCallbacks.bindSmartspaceWidget();
-    }
-
-    @Override
     public void bindStringCache(StringCache cache) {
         mModelCallbacks.bindStringCache(cache);
     }

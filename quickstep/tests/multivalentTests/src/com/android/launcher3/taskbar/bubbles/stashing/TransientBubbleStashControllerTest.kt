@@ -559,8 +559,6 @@ class TransientBubbleStashControllerTest {
                 FrameLayout.LayoutParams(BUBBLE_BAR_WIDTH, BUBBLE_BAR_HEIGHT)
             bubbleBarView.setController(
                 object : BubbleBarView.Controller {
-                    override fun getScreenHeight(): Int = 0
-
                     override fun getBubbleBarTranslationY(): Float = 0f
 
                     override fun onBubbleBarTouched() {}

@@ -1289,6 +1289,7 @@ public abstract class RecentsView<
         if (mDesktopVisibilityController != null) {
             mDesktopVisibilityController.unregisterDesktopVisibilityListener(mUtils);
         }
+        mOnTaskLaunchCancelledRunnable = null;
         reset();
     }
 

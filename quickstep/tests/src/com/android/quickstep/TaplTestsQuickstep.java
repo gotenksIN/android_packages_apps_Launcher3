@@ -548,7 +548,7 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     @EnableFlags(value = Flags.FLAG_ENABLE_GRID_ONLY_OVERVIEW)
     public void testDismissBottomRow() throws Exception {
         assumeTrue(mLauncher.isTablet());
-        mLauncher.goHome().switchToOverview().dismissAllTasks();
+        clearAllRecentTasks();
         startTestAppsWithCheck();
 
         Overview overview = mLauncher.goHome().switchToOverview();
@@ -570,7 +570,7 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     @EnableFlags(value = Flags.FLAG_ENABLE_GRID_ONLY_OVERVIEW)
     public void testDismissLastGridRow() throws Exception {
         assumeTrue(mLauncher.isTablet());
-        mLauncher.goHome().switchToOverview().dismissAllTasks();
+        clearAllRecentTasks();
         startTestAppsWithCheck();
         startTestActivity(3);
         startTestActivity(4);

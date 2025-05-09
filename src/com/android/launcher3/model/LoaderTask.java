@@ -16,11 +16,8 @@
 
 package com.android.launcher3.model;
 
-import static com.android.launcher3.BuildConfig.WIDGET_ON_FIRST_SCREEN;
 import static com.android.launcher3.Flags.enableLauncherBrMetricsFixed;
-import static com.android.launcher3.Flags.enableSmartspaceAsAWidget;
 import static com.android.launcher3.LauncherPrefs.IS_FIRST_LOAD_AFTER_RESTORE;
-import static com.android.launcher3.LauncherPrefs.SHOULD_SHOW_SMARTSPACE;
 import static com.android.launcher3.LauncherSettings.Favorites.DESKTOP_ICON_FLAG;
 import static com.android.launcher3.icons.CacheableShortcutInfo.convertShortcutsToCacheableShortcuts;
 import static com.android.launcher3.icons.cache.CacheLookupFlag.DEFAULT_LOOKUP_FLAG;
@@ -370,19 +367,6 @@ public class LoaderTask implements Runnable {
             mLauncherBinder.bindWidgets();
             logASplit("bindWidgets finished");
             verifyNotStopped();
-            LauncherPrefs prefs = LauncherPrefs.get(mContext);
-
-            if (enableSmartspaceAsAWidget() && prefs.get(SHOULD_SHOW_SMARTSPACE)) {
-                mLauncherBinder.bindSmartspaceWidget();
-                // Turn off pref.
-                prefs.putSync(SHOULD_SHOW_SMARTSPACE.to(false));
-                logASplit("bindSmartspaceWidget finished");
-                verifyNotStopped();
-            } else if (!enableSmartspaceAsAWidget() && WIDGET_ON_FIRST_SCREEN
-                    && !prefs.get(LauncherPrefs.SHOULD_SHOW_SMARTSPACE)) {
-                // Turn on pref.
-                prefs.putSync(SHOULD_SHOW_SMARTSPACE.to(true));
-            }
 
             logASplit("saving all widgets in icon cache");
             updateHandler.updateIcons(allWidgetsList,
@@ -509,11 +493,10 @@ public class LoaderTask implements Runnable {
                 IOUtils.closeSilently(c);
             }
 
-            mModelDelegate.loadAndBindWorkspaceItems(mUserManagerState,
-                    mLauncherBinder.mCallbacksList, mShortcutKeyToPinnedShortcuts);
-            mModelDelegate.loadAndBindAllAppsItems(mUserManagerState,
-                    mLauncherBinder.mCallbacksList, mShortcutKeyToPinnedShortcuts);
-            mModelDelegate.loadAndBindOtherItems(mLauncherBinder.mCallbacksList);
+            mModelDelegate.loadAndBindWorkspaceItems();
+            mModelDelegate.loadAndBindAllAppsItems();
+            mModelDelegate.loadAndBindOtherItems();
+            mBgDataModel.stringCache.loadStrings(mContext);
             mModelDelegate.markActive();
 
             // Break early if we've stopped loading

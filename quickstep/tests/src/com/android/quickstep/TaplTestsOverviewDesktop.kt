@@ -35,10 +35,7 @@ import org.junit.Test
 class TaplTestsOverviewDesktop : AbstractQuickStepTest() {
     @Before
     fun setup() {
-        val overview = mLauncher.goHome().switchToOverview()
-        if (overview.hasTasks()) {
-            overview.dismissAllTasks()
-        }
+        clearAllRecentTasks()
         startTestAppsWithCheck()
         mLauncher.goHome()
     }

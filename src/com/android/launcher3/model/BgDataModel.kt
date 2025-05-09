@@ -22,7 +22,6 @@ import android.content.pm.ShortcutInfo
 import android.os.UserHandle
 import android.util.Log
 import androidx.annotation.AnyThread
-import androidx.core.util.size
 import com.android.launcher3.BuildConfig
 import com.android.launcher3.Flags
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
@@ -30,7 +29,6 @@ import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APP_PAIR
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FOLDER
-import com.android.launcher3.Utilities
 import com.android.launcher3.Workspace
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.logging.DumpManager
@@ -119,10 +117,7 @@ constructor(
         val screenSet = IntSet()
         itemsIdMap.forEach { if (it.container == CONTAINER_DESKTOP) screenSet.add(it.screenId) }
 
-        if (
-            (BuildConfig.QSB_ON_FIRST_SCREEN && !Utilities.SHOULD_SHOW_FIRST_PAGE_WIDGET) ||
-                screenSet.isEmpty
-        ) {
+        if (BuildConfig.QSB_ON_FIRST_SCREEN || screenSet.isEmpty) {
             screenSet.add(Workspace.FIRST_SCREEN_ID)
         }
         return screenSet.array
@@ -403,8 +398,6 @@ constructor(
 
         /** Binds the app widgets to the providers that share widgets with the UI. */
         fun bindAllWidgets(widgets: List<@JvmSuppressWildcards WidgetsListBaseEntry>) {}
-
-        fun bindSmartspaceWidget() {}
 
         fun bindDeepShortcutMap(deepShortcutMap: HashMap<ComponentKey, Int>) {}
 

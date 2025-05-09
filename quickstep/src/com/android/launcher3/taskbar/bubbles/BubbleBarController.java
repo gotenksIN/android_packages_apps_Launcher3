@@ -123,8 +123,7 @@ public class BubbleBarController extends IBubblesListener.Stub {
     private BubbleCreator mBubbleCreator;
     private BubbleBarLocationListener mBubbleBarLocationListener;
 
-    // Cache last sent top coordinate to avoid sending duplicate updates to shell
-    private int mLastSentBubbleBarTop;
+    private int mLastSentBubbleBarTopToScreenBottom;
 
     private boolean mIsImeVisible = false;
 
@@ -554,8 +553,8 @@ public class BubbleBarController extends IBubblesListener.Stub {
     /** Tells WMShell to show the currently selected bubble. */
     public void showSelectedBubble() {
         if (getSelectedBubbleKey() != null) {
-            mLastSentBubbleBarTop = mBarView.getRestingTopPositionOnScreen();
-            mSystemUiProxy.showBubble(getSelectedBubbleKey(), mLastSentBubbleBarTop);
+            mLastSentBubbleBarTopToScreenBottom = mBarView.getTopToScreenBottom();
+            mSystemUiProxy.showBubble(getSelectedBubbleKey(), mLastSentBubbleBarTopToScreenBottom);
         } else {
             Log.w(TAG, "Trying to show the selected bubble but it's null");
         }
@@ -653,10 +652,10 @@ public class BubbleBarController extends IBubblesListener.Stub {
     }
 
     private void onBubbleBarBoundsChanged(boolean forceUpdate) {
-        int newTop = mBarView.getRestingTopPositionOnScreen();
-        if (newTop != mLastSentBubbleBarTop || forceUpdate) {
-            mLastSentBubbleBarTop = newTop;
-            mSystemUiProxy.updateBubbleBarTopOnScreen(newTop);
+        int bubbleBarTopToScreenBottom = mBarView.getTopToScreenBottom();
+        if (bubbleBarTopToScreenBottom != mLastSentBubbleBarTopToScreenBottom || forceUpdate) {
+            mLastSentBubbleBarTopToScreenBottom = bubbleBarTopToScreenBottom;
+            mSystemUiProxy.updateBubbleBarTopToScreenBottom(bubbleBarTopToScreenBottom);
         }
     }
 
