@@ -25,7 +25,6 @@ import android.content.Context;
 import android.os.Bundle;
 
 import com.android.launcher3.model.BgDataModel;
-import com.android.launcher3.model.BgDataModel.FixedContainerItems;
 import com.android.launcher3.model.PredictionHelper;
 import com.android.launcher3.model.data.ItemInfo;
 
@@ -58,12 +57,9 @@ public class HotseatPredictionModel {
                 .collect(Collectors.toCollection(ArrayList::new));
 
         ArrayList<AppTarget> currentTargets = new ArrayList<>();
-        FixedContainerItems hotseatItems = dataModel.extraItems.get(CONTAINER_HOTSEAT_PREDICTION);
-        if (hotseatItems != null) {
-            for (ItemInfo itemInfo : hotseatItems.items) {
-                AppTarget target = getAppTargetFromItemInfo(context, itemInfo);
-                if (target != null) currentTargets.add(target);
-            }
+        for (ItemInfo itemInfo : dataModel.getPredictedContents(CONTAINER_HOTSEAT_PREDICTION)) {
+            AppTarget target = getAppTargetFromItemInfo(context, itemInfo);
+            if (target != null) currentTargets.add(target);
         }
         bundle.putParcelableArrayList(BUNDLE_KEY_PIN_EVENTS, events);
         bundle.putParcelableArrayList(BUNDLE_KEY_CURRENT_ITEMS, currentTargets);

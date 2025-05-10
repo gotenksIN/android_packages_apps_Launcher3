@@ -16,7 +16,6 @@ import com.android.launcher3.WorkspaceLayoutManager.FIRST_SCREEN_ID
 import com.android.launcher3.allapps.AllAppsStore
 import com.android.launcher3.config.FeatureFlags
 import com.android.launcher3.model.BgDataModel
-import com.android.launcher3.model.BgDataModel.FixedContainerItems
 import com.android.launcher3.model.ItemInstallQueue
 import com.android.launcher3.model.ItemInstallQueue.FLAG_LOADER_RUNNING
 import com.android.launcher3.model.ModelUtils.WIDGET_FILTER
@@ -24,6 +23,7 @@ import com.android.launcher3.model.ModelUtils.currentScreenContentFilter
 import com.android.launcher3.model.StringCache
 import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.ItemInfo
+import com.android.launcher3.model.data.PredictedContainerInfo
 import com.android.launcher3.popup.PopupContainerWithArrow
 import com.android.launcher3.util.ComponentKey
 import com.android.launcher3.util.Executors
@@ -219,6 +219,10 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
         val itemsToRebind = workspace.updateContainerItems(updates, launcher)
         PopupContainerWithArrow.dismissInvalidPopup(launcher)
 
+        updates
+            .mapNotNull { if (it is PredictedContainerInfo) it else null }
+            .forEach { launcher.bindPredictedContainerInfo(it) }
+
         if (itemsToRebind.isEmpty()) return
         workspace.removeItemsByMatcher(ItemInfoMatcher.ofItems(itemsToRebind), false)
         itemsToRebind
@@ -399,8 +403,6 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
     @AnyThread
     override fun bindCompleteModelAsync(
         itemIdMap: IntSparseArrayMap<ItemInfo>,
-        extraItems: List<FixedContainerItems>,
-        stringCache: StringCache,
         isBindingSync: Boolean,
     ) {
         val taskTracker = CancellationSignal()
@@ -455,7 +457,6 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
         val currentScreenIds = getPagesToBindSynchronously(orderedScreenIds)
 
         fun setupPendingBind(pendingExecutor: Executor) {
-            executeCallbacksTask(pendingExecutor) { launcher.bindStringCache(stringCache) }
             executeCallbacksTask(pendingExecutor) { finishBindingItems(currentScreenIds) }
             pendingExecutor.execute {
                 ItemInstallQueue.INSTANCE[launcher].resumeModelPush(FLAG_LOADER_RUNNING)
@@ -499,9 +500,10 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
             bindItemsInChunks(currentWorkspaceItems, ITEMS_CHUNK, MAIN_EXECUTOR)
             bindItemsInChunks(currentAppWidgets, 1, MAIN_EXECUTOR)
         }
-        extraItems.forEach {
-            it?.let { executeCallbacksTask { launcher.bindExtraContainerItems(it) } }
-        }
+
+        itemIdMap
+            .mapNotNull { if (it is PredictedContainerInfo) it else null }
+            .forEach { executeCallbacksTask { launcher.bindPredictedContainerInfo(it) } }
 
         val pendingTasks = RunnableList()
         val pendingExecutor = Executor { pendingTasks.add(it) }

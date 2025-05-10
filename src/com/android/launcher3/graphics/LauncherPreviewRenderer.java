@@ -85,7 +85,6 @@ import com.android.launcher3.dagger.StaticObjectModule;
 import com.android.launcher3.dagger.WindowManagerProxyModule;
 import com.android.launcher3.model.BaseLauncherBinder.BaseLauncherBinderFactory;
 import com.android.launcher3.model.BgDataModel;
-import com.android.launcher3.model.BgDataModel.FixedContainerItems;
 import com.android.launcher3.model.LayoutParserFactory;
 import com.android.launcher3.model.LayoutParserFactory.XmlLayoutParserFactory;
 import com.android.launcher3.model.LoaderTask.LoaderTaskFactory;
@@ -111,7 +110,6 @@ import dagger.Component;
 
 import java.io.File;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -480,11 +478,7 @@ public class LauncherPreviewRenderer extends BaseContext
     }
 
     private void populateHotseatPredictions(BgDataModel dataModel) {
-        FixedContainerItems hotseatPredictions =
-                dataModel.extraItems.get(CONTAINER_HOTSEAT_PREDICTION);
-        List<ItemInfo> predictions = hotseatPredictions == null
-                ? Collections.emptyList() : hotseatPredictions.items;
-
+        List<ItemInfo> predictions = dataModel.getPredictedContents(CONTAINER_HOTSEAT_PREDICTION);
         int predictionIndex = 0;
         for (int rank = 0; rank < mDp.numShownHotseatIcons; rank++) {
             if (predictions.size() <= predictionIndex) continue;

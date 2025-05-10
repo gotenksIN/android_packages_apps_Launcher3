@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.ui.widget;
+package com.android.launcher3.widget;
 
 import static com.android.launcher3.WorkspaceLayoutManager.FIRST_SCREEN_ID;
 import static com.android.launcher3.model.data.LauncherAppWidgetInfo.FLAG_ID_NOT_VALID;
@@ -46,16 +46,12 @@ import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.LauncherModel;
 import com.android.launcher3.LauncherSettings;
 import com.android.launcher3.R;
-import com.android.launcher3.celllayout.FavoriteItemsTransaction;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.pm.InstallSessionHelper;
-import com.android.launcher3.ui.TestViewHelpers;
 import com.android.launcher3.util.BaseLauncherActivityTest;
 import com.android.launcher3.util.rule.ShellCommandRule;
-import com.android.launcher3.widget.LauncherAppWidgetHostView;
-import com.android.launcher3.widget.LauncherAppWidgetProviderInfo;
-import com.android.launcher3.widget.PendingAppWidgetHostView;
-import com.android.launcher3.widget.WidgetManagerHelper;
+import com.android.launcher3.util.ui.TestViewHelpers;
+import com.android.launcher3.util.workspace.FavoriteItemsTransaction;
 
 import org.junit.After;
 import org.junit.Before;

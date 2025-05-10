@@ -110,6 +110,7 @@ import com.android.systemui.unfold.UnfoldTransitionProgressProvider;
 import com.android.systemui.unfold.util.ScopedUnfoldTransitionProgressProvider;
 
 import java.io.PrintWriter;
+import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -655,7 +656,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         }
 
         recreateTaskbars();
-        for (Entry<Integer, TaskbarActivityContext> entry: mTaskbars.entrySet()) {
+        for (Entry<Integer, TaskbarActivityContext> entry : mTaskbars.entrySet()) {
             int displayId = entry.getKey();
             debugTaskbarManager("onUserUnlocked: addTaskbarRootViewToWindow()", displayId);
             addTaskbarRootViewToWindow(entry.getValue());
@@ -706,7 +707,8 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         TaskbarActivityContext taskbar = getCurrentActivityContext();
         if (taskbar != null) {
             taskbar.setUIController(
-                    createTaskbarUIControllerForRecentsViewContainer(mRecentsViewContainer));
+                    createTaskbarUIControllerForRecentsViewContainer(mRecentsViewContainer,
+                            mPrimaryDisplayId));
         }
     }
 
@@ -733,7 +735,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         RecentsViewContainer rvc = OverviewComponentObserver.INSTANCE.get(
                 mBaseContext).getContainerInterface(displayId).getCreatedContainer();
         if (rvc instanceof RecentsWindowManager) {
-            return createTaskbarUIControllerForRecentsViewContainer(rvc);
+            return createTaskbarUIControllerForRecentsViewContainer(rvc, displayId);
         }
 
         return new TaskbarUIController();
@@ -743,11 +745,15 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
      * Creates a {@link TaskbarUIController} to use while the given StatefulActivity is active.
      */
     private TaskbarUIController createTaskbarUIControllerForRecentsViewContainer(
-            RecentsViewContainer container) {
-        debugPrimaryTaskbar("createTaskbarUIControllerForRecentsViewContainer");
-        if (mActivity instanceof QuickstepLauncher quickstepLauncher) {
+            RecentsViewContainer container, int displayId) {
+        debugTaskbarManager("createTaskbarUIControllerForRecentsViewContainer", displayId);
+        if (!isExternalDisplay(displayId)
+                && mActivity instanceof QuickstepLauncher quickstepLauncher) {
             // If 1P Launcher is default, always use LauncherTaskbarUIController, regardless of
-            // whether the recents container is NexusLauncherActivity or RecentsWindowManager.
+            // whether the recents container is NexusLauncherActivity or RecentsWindowManager. This
+            // is only applicable for primary displays. In case of foldables both displays have
+            // primary display ID and only one of them is primary at a given time, the other one is
+            // inactive or has limited functionality (has different display ID in that case).
             return new LauncherTaskbarUIController(quickstepLauncher);
         }
         // If a 3P Launcher is default, always use FallbackTaskbarUIController regardless of
@@ -758,7 +764,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         if (container instanceof RecentsWindowManager recentsWindowManager) {
             return new FallbackTaskbarUIController<>(recentsWindowManager);
         }
-        return TaskbarUIController.DEFAULT;
+        return new TaskbarUIController();
     }
 
     /**
@@ -837,7 +843,8 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
                 taskbar.setUIController(createTaskbarUIControllerForNonDefaultDisplay(displayId));
             } else if (mRecentsViewContainer != null) {
                 taskbar.setUIController(
-                        createTaskbarUIControllerForRecentsViewContainer(mRecentsViewContainer));
+                        createTaskbarUIControllerForRecentsViewContainer(mRecentsViewContainer,
+                                mPrimaryDisplayId));
             }
 
             if (enableTaskbarNoRecreate()) {
@@ -923,7 +930,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
     }
 
     public void transitionTo(int displayId, @BarTransitions.TransitionMode int barMode,
-                             boolean animate) {
+            boolean animate) {
         TaskbarActivityContext taskbar = getTaskbarForDisplay(displayId);
         if (taskbar != null) {
             taskbar.transitionTo(barMode, animate);
@@ -1306,6 +1313,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
 
     /**
      * Creates a {@link DeviceProfile} for the given display and adds it to the map.
+     *
      * @param displayId The ID of the display.
      */
     private void createExternalDeviceProfile(int displayId) {
@@ -1330,6 +1338,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
 
     /**
      * Gets a {@link DeviceProfile} for the given displayId.
+     *
      * @param displayId The ID of the display.
      */
     private @Nullable DeviceProfile getDeviceProfile(int displayId) {
@@ -1351,6 +1360,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
 
     /**
      * Removes the {@link DeviceProfile} associated with the given display ID from the map.
+     *
      * @param displayId The ID of the display for which to remove the taskbar.
      */
     private void removeDeviceProfileFromMap(int displayId) {
@@ -1711,8 +1721,9 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
 
     /**
      * Logs debug information about the TaskbarManager for primary display.
+     *
      * @param debugReason A string describing the reason for the debug log.
-     * @param displayId The ID of the display for which to log debug information.
+     * @param displayId   The ID of the display for which to log debug information.
      */
     public void debugTaskbarManager(String debugReason, int displayId) {
         StringJoiner log = new StringJoiner("\n");
@@ -1723,9 +1734,10 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
 
     /**
      * Logs verbose debug information about the TaskbarManager for primary display.
+     *
      * @param debugReason A string describing the reason for the debug log.
-     * @param displayId The ID of the display for which to log debug information.
-     * @param verbose Indicates whether or not to debug with detail.
+     * @param displayId   The ID of the display for which to log debug information.
+     * @param verbose     Indicates whether or not to debug with detail.
      */
     private void debugTaskbarManager(String debugReason, int displayId, boolean verbose) {
         StringJoiner log = new StringJoiner("\n");
@@ -1739,8 +1751,8 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
 
     /**
      * Logs debug information about the TaskbarManager for primary display.
-     * @param debugReason A string describing the reason for the debug log.
      *
+     * @param debugReason A string describing the reason for the debug log.
      */
     private void debugPrimaryTaskbar(String debugReason) {
         debugTaskbarManager(debugReason, mPrimaryDisplayId, false);
@@ -1748,8 +1760,8 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
 
     /**
      * Logs debug information about the TaskbarManager for primary display.
-     * @param debugReason A string describing the reason for the debug log.
      *
+     * @param debugReason A string describing the reason for the debug log.
      */
     public void debugPrimaryTaskbar(String debugReason, boolean verbose) {
         debugTaskbarManager(debugReason, mPrimaryDisplayId, verbose);
@@ -1757,14 +1769,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
 
     /** Creates a {@link PendingIntent} for showing / hiding the all apps UI. */
     public PendingIntent createAllAppsPendingIntent(Executor uiExecutor) {
-        return new PendingIntent(new IIntentSender.Stub() {
-            @Override
-            public void send(int code, Intent intent, String resolvedType,
-                    IBinder allowlistToken, IIntentReceiver finishedReceiver,
-                    String requiredPermission, Bundle options) {
-                uiExecutor.execute(TaskbarManagerImpl.this::toggleAllAppsSearch);
-            }
-        });
+        return new PendingIntent(new AllAppsIntentSender(uiExecutor, this));
     }
 
     /**
@@ -1816,4 +1821,25 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
     private final DeviceProfile.OnDeviceProfileChangeListener mDebugActivityDeviceProfileChanged =
             dp -> debugPrimaryTaskbar("mActivity onDeviceProfileChanged", true);
 
+    /** Use weak reference to avoid leaking TIS via {@link TaskbarManagerImpl} */
+    private static class AllAppsIntentSender extends IIntentSender.Stub {
+
+        private final Executor mUiExecutor;
+        private final WeakReference<TaskbarManagerImpl> mWeakTaskbarManager;
+
+        AllAppsIntentSender(Executor uiExecutor, TaskbarManagerImpl taskbarManager) {
+            mUiExecutor = uiExecutor;
+            mWeakTaskbarManager = new WeakReference<>(taskbarManager);
+        }
+
+        @Override
+        public void send(int i, Intent intent, String s, IBinder iBinder,
+                IIntentReceiver iIntentReceiver, String s1, Bundle bundle) {
+            TaskbarManagerImpl taskbarManager = mWeakTaskbarManager.get();
+            if (taskbarManager == null) {
+                return;
+            }
+            mUiExecutor.execute(taskbarManager::toggleAllAppsSearch);
+        }
+    };
 }

@@ -57,7 +57,6 @@ import com.android.launcher3.util.PackageManagerHelper;
 import com.android.launcher3.util.PackageUserKey;
 import com.android.launcher3.util.SafeCloseable;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -212,12 +211,12 @@ public class PackageUpdatedTask implements ModelUpdateTask {
 
         // Update shortcut infos
         if (mOp == OP_ADD || flagOp != FlagOp.NO_OP) {
-            final ArrayList<ItemInfo> updatedWorkspaceItems = new ArrayList<>();
+            final List<ItemInfo> updatedItems;
 
             // For system apps, package manager send OP_UPDATE when an app is enabled.
             final boolean isNewApkAvailable = mOp == OP_ADD || mOp == OP_UPDATE;
             synchronized (dataModel) {
-                dataModel.forAllWorkspaceItemInfos(mUser, itemInfo -> {
+                updatedItems = dataModel.updateAndCollectWorkspaceItemInfos(mUser, itemInfo -> {
 
                     boolean infoUpdated = false;
                     boolean shortcutUpdated = false;
@@ -229,7 +228,7 @@ public class PackageUpdatedTask implements ModelUpdateTask {
                         if (itemInfo.hasStatusFlag(WorkspaceItemInfo.FLAG_SUPPORTS_WEB_UI)) {
                             forceKeepShortcuts.add(itemInfo.id);
                             if (mOp == OP_REMOVE) {
-                                return;
+                                return false;
                             }
                         }
 
@@ -286,7 +285,7 @@ public class PackageUpdatedTask implements ModelUpdateTask {
                                                 + ", status=" + itemInfo.status
                                                 + ", isArchived=" + itemInfo.isArchived());
                                     }
-                                    return;
+                                    return false;
                                 }
                             } else if (!isTargetValid) {
                                 removedShortcuts.add(itemInfo.id);
@@ -297,7 +296,7 @@ public class PackageUpdatedTask implements ModelUpdateTask {
                                             + " package=" + itemInfo.getTargetPackage()
                                             + " status=" + itemInfo.status);
                                 }
-                                return;
+                                return false;
                             } else {
                                 itemInfo.status = WorkspaceItemInfo.DEFAULT;
                                 infoUpdated = true;
@@ -347,12 +346,10 @@ public class PackageUpdatedTask implements ModelUpdateTask {
                         }
                     }
 
-                    if (infoUpdated || shortcutUpdated) {
-                        updatedWorkspaceItems.add(itemInfo);
-                    }
                     if (infoUpdated && itemInfo.id != ItemInfo.NO_ID) {
                         taskController.getModelWriter().updateItemInDatabase(itemInfo);
                     }
+                    return infoUpdated || shortcutUpdated;
                 });
 
                 dataModel.itemsIdMap.stream()
@@ -371,12 +368,12 @@ public class PackageUpdatedTask implements ModelUpdateTask {
                             // activity, it will be marked as 'restored' during bind.
                             widgetInfo.restoreStatus |= LauncherAppWidgetInfo.FLAG_UI_NOT_READY;
                             widgetInfo.installProgress = 100;
-                            updatedWorkspaceItems.add(widgetInfo);
+                            updatedItems.add(widgetInfo);
                             taskController.getModelWriter().updateItemInDatabase(widgetInfo);
                         });
             }
 
-            taskController.bindUpdatedWorkspaceItems(updatedWorkspaceItems);
+            taskController.bindUpdatedWorkspaceItems(updatedItems);
             if (!removedShortcuts.isEmpty()) {
                 taskController.deleteAndBindComponentsRemoved(
                         ItemInfoMatcher.ofItemIds(removedShortcuts),

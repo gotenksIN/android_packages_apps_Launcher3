@@ -37,6 +37,7 @@ import com.android.launcher3.logging.FileLog
 import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.CollectionInfo
 import com.android.launcher3.model.data.ItemInfo
+import com.android.launcher3.model.data.PredictedContainerInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.model.repository.HomeScreenRepository
 import com.android.launcher3.model.repository.HomeScreenRepository.WorkspaceData.ChangeEvent.AddEvent
@@ -55,7 +56,6 @@ import com.android.launcher3.util.PackageUserKey
 import com.android.launcher3.widget.model.WidgetsListBaseEntry
 import java.io.PrintWriter
 import java.util.Collections
-import java.util.function.Consumer
 import java.util.function.Predicate
 import javax.inject.Inject
 import javax.inject.Provider
@@ -77,13 +77,15 @@ constructor(
     lifeCycle: DaggerSingletonTracker,
 ) : LauncherDumpable {
     /**
-     * Map of all the ItemInfos (shortcuts, folders, and widgets) created by LauncherModel to their
-     * ids
+     * Map of all the ItemInfos (shortcuts, folders, widgets and predicted items) created by
+     * LauncherModel to their ids
      */
     @JvmField val itemsIdMap = IntSparseArrayMap<ItemInfo>()
 
     /** Extra container based items */
-    @JvmField val extraItems = IntSparseArrayMap<FixedContainerItems>()
+    @Deprecated("Use independent repository for each extra item")
+    @JvmField
+    val extraItems = IntSparseArrayMap<FixedContainerItems>()
 
     /** Maps all launcher activities to counts of their shortcuts. */
     @JvmField val deepShortcutMap = HashMap<ComponentKey, Int>()
@@ -102,6 +104,14 @@ constructor(
     init {
         lifeCycle.addCloseable(dumpManager.register(this))
     }
+
+    /**
+     * Returns the predicted items for the provided [containerId] or an empty list id no such
+     * container exists
+     */
+    fun getPredictedContents(containerId: Int): List<ItemInfo> =
+        itemsIdMap[containerId].let { if (it is PredictedContainerInfo) it.getContents() else null }
+            ?: Collections.emptyList()
 
     /** Clears all the data */
     @Synchronized
@@ -249,8 +259,10 @@ constructor(
         // Collect all model shortcuts
         val allWorkspaceItems =
             mutableListOf<ShortcutKey>().apply {
-                forAllWorkspaceItemInfos(user) {
+                updateAndCollectWorkspaceItemInfos(user) {
                     if (it.itemType == ITEM_TYPE_DEEP_SHORTCUT) add(ShortcutKey.fromItemInfo(it))
+                    // We don't care about the returned list
+                    false
                 }
             }
         allWorkspaceItems.addAll(
@@ -339,19 +351,30 @@ constructor(
     }
 
     /**
-     * Calls the provided `op` for all workspaceItems in the in-memory model (both persisted items
-     * and dynamic/predicted items for the provided `userHandle`. Note the call is not synchronized
-     * over the model, that should be handled by the called.
+     * Calls the [op] for all workspaceItems in the in-memory model (both persisted items and
+     * dynamic/predicted items for the [userHandle]) and returns a list of updates to be dispatched
+     * to the callbacks. Note the call is not synchronized over the model, that should be handled by
+     * the called.
      */
-    fun forAllWorkspaceItemInfos(userHandle: UserHandle, op: Consumer<WorkspaceItemInfo>) {
-        itemsIdMap.forEach { if (it is WorkspaceItemInfo && userHandle == it.user) op.accept(it) }
-
-        extraItems.forEach { info ->
-            info.items.forEach {
-                if (it is WorkspaceItemInfo && userHandle == it.user) op.accept(it)
+    fun updateAndCollectWorkspaceItemInfos(
+        userHandle: UserHandle,
+        op: (WorkspaceItemInfo) -> Boolean,
+    ): MutableList<ItemInfo> =
+        itemsIdMap.filterTo(mutableListOf()) {
+            when {
+                it is WorkspaceItemInfo && userHandle == it.user -> op.invoke(it)
+                it is PredictedContainerInfo -> {
+                    // Do not use filter or any as we want to run the update on every item. If any
+                    // single item was updated, we add the container to the list of updates
+                    it.getContents().count { predictedItem ->
+                        predictedItem is WorkspaceItemInfo &&
+                            predictedItem.user == userHandle &&
+                            op.invoke(predictedItem)
+                    } > 0
+                }
+                else -> false
             }
         }
-    }
 
     /** An object containing items corresponding to a fixed container */
     class FixedContainerItems(@JvmField val containerId: Int, items: List<ItemInfo>) {
@@ -368,23 +391,11 @@ constructor(
          * the client to move the executor to appropriate thread
          */
         @AnyThread
-        fun bindCompleteModelAsync(
-            itemIdMap: IntSparseArrayMap<ItemInfo>,
-            extraItems: List<FixedContainerItems>,
-            stringCache: StringCache,
-            isBindingSync: Boolean,
-        ) {
-            Executors.MAIN_EXECUTOR.execute {
-                bindCompleteModel(itemIdMap, extraItems, stringCache, isBindingSync)
-            }
+        fun bindCompleteModelAsync(itemIdMap: IntSparseArrayMap<ItemInfo>, isBindingSync: Boolean) {
+            Executors.MAIN_EXECUTOR.execute { bindCompleteModel(itemIdMap, isBindingSync) }
         }
 
-        fun bindCompleteModel(
-            itemIdMap: IntSparseArrayMap<ItemInfo>,
-            extraItems: List<FixedContainerItems>,
-            stringCache: StringCache,
-            isBindingSync: Boolean,
-        ) {}
+        fun bindCompleteModel(itemIdMap: IntSparseArrayMap<ItemInfo>, isBindingSync: Boolean) {}
 
         fun bindItemsAdded(items: List<@JvmSuppressWildcards ItemInfo>) {}
 

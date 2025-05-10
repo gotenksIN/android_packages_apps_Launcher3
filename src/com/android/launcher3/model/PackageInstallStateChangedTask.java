@@ -30,7 +30,6 @@ import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.pm.PackageInstallInfo;
 import com.android.launcher3.util.InstantAppResolver;
 
-import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -78,13 +77,14 @@ public class PackageInstallStateChangedTask implements ModelUpdateTask {
         }
 
         synchronized (dataModel) {
-            final HashSet<ItemInfo> updates = new HashSet<>();
-            dataModel.forAllWorkspaceItemInfos(mInstallInfo.user, si -> {
-                if (si.hasPromiseIconUi()
-                        && mInstallInfo.packageName.equals(si.getTargetPackage())) {
-                    si.setProgressLevel(mInstallInfo);
-                    updates.add(si);
-                }
+            final List<ItemInfo> updates = dataModel.updateAndCollectWorkspaceItemInfos(
+                    mInstallInfo.user, si -> {
+                        if (si.hasPromiseIconUi()
+                                && mInstallInfo.packageName.equals(si.getTargetPackage())) {
+                            si.setProgressLevel(mInstallInfo);
+                            return true;
+                        }
+                        return false;
             });
 
             dataModel.itemsIdMap.stream()

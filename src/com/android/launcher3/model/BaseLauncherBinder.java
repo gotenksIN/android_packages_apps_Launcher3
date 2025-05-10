@@ -106,7 +106,12 @@ public class BaseLauncherBinder {
             }
 
             for (Callbacks cb : mCallbacksList) {
-                cb.bindCompleteModelAsync(itemsIdMap, extraItems, stringCache, isBindSync);
+                cb.bindCompleteModelAsync(itemsIdMap, isBindSync);
+            }
+
+            executeCallbacksTask(c -> c.bindStringCache(stringCache), mUiExecutor);
+            for (FixedContainerItems extraItem: extraItems) {
+                executeCallbacksTask(c -> c.bindExtraContainerItems(extraItem), mUiExecutor);
             }
         } finally {
             Trace.endSection();

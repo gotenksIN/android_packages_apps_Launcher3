@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.ui.widget;
+package com.android.launcher3.widget;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
@@ -34,21 +34,18 @@ import androidx.test.filters.LargeTest;
 
 import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.Launcher;
-import com.android.launcher3.celllayout.FavoriteItemsTransaction;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.testcomponent.WidgetConfigActivity;
-import com.android.launcher3.ui.PortraitLandscapeRunner.PortraitLandscape;
-import com.android.launcher3.ui.TestViewHelpers;
 import com.android.launcher3.util.BaseLauncherActivityTest;
 import com.android.launcher3.util.BlockingBroadcastReceiver;
 import com.android.launcher3.util.PackageUserKey;
 import com.android.launcher3.util.Wait;
 import com.android.launcher3.util.rule.ShellCommandRule;
+import com.android.launcher3.util.ui.PortraitLandscapeRunner.PortraitLandscape;
+import com.android.launcher3.util.ui.TestViewHelpers;
+import com.android.launcher3.util.workspace.FavoriteItemsTransaction;
 import com.android.launcher3.views.OptionsPopupView;
-import com.android.launcher3.widget.LauncherAppWidgetProviderInfo;
-import com.android.launcher3.widget.PendingAddWidgetInfo;
-import com.android.launcher3.widget.WidgetCell;
 import com.android.launcher3.widget.picker.WidgetsFullSheet;
 import com.android.launcher3.widget.picker.WidgetsListAdapter;
 import com.android.launcher3.widget.picker.WidgetsRecyclerView;

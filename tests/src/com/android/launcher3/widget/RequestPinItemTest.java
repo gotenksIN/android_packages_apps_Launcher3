@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.ui.widget;
+package com.android.launcher3.widget;
 
 import static android.app.PendingIntent.FLAG_MUTABLE;
 import static android.app.PendingIntent.FLAG_ONE_SHOT;
@@ -39,7 +39,6 @@ import androidx.test.uiautomator.BySelector;
 
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherSettings.Favorites;
-import com.android.launcher3.celllayout.FavoriteItemsTransaction;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
@@ -53,6 +52,7 @@ import com.android.launcher3.util.LauncherBindableItemsContainer.ItemOperator;
 import com.android.launcher3.util.TestUtil;
 import com.android.launcher3.util.rule.ScreenRecordRule;
 import com.android.launcher3.util.rule.ShellCommandRule;
+import com.android.launcher3.util.workspace.FavoriteItemsTransaction;
 
 import org.junit.Before;
 import org.junit.Rule;
