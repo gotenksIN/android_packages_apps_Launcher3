@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.ui.workspace;
+package com.android.launcher3.workspace;
 
 import static com.android.launcher3.util.TestConstants.AppNames.CHROME_APP_NAME;
 
@@ -28,10 +28,10 @@ import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.tapl.HomeAppIcon;
 import com.android.launcher3.tapl.Workspace;
-import com.android.launcher3.ui.AbstractLauncherUiTest;
 import com.android.launcher3.util.LauncherLayoutBuilder;
 import com.android.launcher3.util.TestUtil;
 import com.android.launcher3.util.rule.ScreenRecordRule.ScreenRecord;
+import com.android.launcher3.util.ui.AbstractLauncherUiTest;
 
 import org.junit.After;
 import org.junit.Test;

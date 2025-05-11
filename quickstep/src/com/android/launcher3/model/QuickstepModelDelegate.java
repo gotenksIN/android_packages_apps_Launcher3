@@ -20,8 +20,8 @@ import static android.text.format.DateUtils.formatElapsedTime;
 
 import static com.android.launcher3.EncryptionType.ENCRYPTED;
 import static com.android.launcher3.LauncherPrefs.nonRestorableItem;
-import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS_PREDICTION;
+import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_WIDGETS_PREDICTION;
 import static com.android.launcher3.LauncherSettings.Favorites.DESKTOP_ICON_FLAG;
 import static com.android.launcher3.hybridhotseat.HotseatPredictionModel.convertDataModelToAppTargetBundle;
@@ -55,9 +55,9 @@ import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.logger.LauncherAtom;
 import com.android.launcher3.logging.InstanceId;
 import com.android.launcher3.logging.InstanceIdSequence;
-import com.android.launcher3.model.BgDataModel.FixedContainerItems;
 import com.android.launcher3.model.data.CollectionInfo;
 import com.android.launcher3.model.data.ItemInfo;
+import com.android.launcher3.model.data.PredictedContainerInfo;
 import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.util.IntSparseArrayMap;
 import com.android.quickstep.logging.SettingsChangeLogger;
@@ -142,18 +142,18 @@ public class QuickstepModelDelegate extends ModelDelegate {
     private void loadAndBindPredictedItems(
             int numColumns, @NonNull PredictorState state) {
         PredictedItemFactory parser = mItemParserFactory.newParser(numColumns, state);
-        FixedContainerItems fci = new FixedContainerItems(state.containerId,
+        PredictedContainerInfo fci = new PredictedContainerInfo(state.containerId,
                 state.storage.read(mContext, parser, mUserCache::getUserForSerialNumber));
-        mDataModel.extraItems.put(state.containerId, fci);
+        mDataModel.itemsIdMap.put(state.containerId, fci);
     }
 
     @CallSuper
     @Override
     public void loadAndBindOtherItems() {
-        FixedContainerItems widgetPredictionFCI = new FixedContainerItems(
+        PredictedContainerInfo widgetPredictionFCI = new PredictedContainerInfo(
                 mWidgetsRecommendationState.containerId, new ArrayList<>());
         // Widgets prediction isn't used frequently. And thus, it is not persisted on disk.
-        mDataModel.extraItems.put(mWidgetsRecommendationState.containerId, widgetPredictionFCI);
+        mDataModel.itemsIdMap.put(mWidgetsRecommendationState.containerId, widgetPredictionFCI);
     }
 
     public void markActive() {

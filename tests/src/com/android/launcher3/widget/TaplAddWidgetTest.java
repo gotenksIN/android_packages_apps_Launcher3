@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.android.launcher3.ui.widget;
+package com.android.launcher3.widget;
 
 import static org.junit.Assert.assertNotNull;
 
@@ -24,15 +24,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 
 import com.android.launcher3.Launcher;
-import com.android.launcher3.celllayout.FavoriteItemsTransaction;
 import com.android.launcher3.tapl.Widget;
 import com.android.launcher3.tapl.WidgetResizeFrame;
-import com.android.launcher3.ui.AbstractLauncherUiTest;
-import com.android.launcher3.ui.PortraitLandscapeRunner.PortraitLandscape;
-import com.android.launcher3.ui.TestViewHelpers;
 import com.android.launcher3.util.TestUtil;
 import com.android.launcher3.util.rule.ShellCommandRule;
-import com.android.launcher3.widget.LauncherAppWidgetProviderInfo;
+import com.android.launcher3.util.ui.AbstractLauncherUiTest;
+import com.android.launcher3.util.ui.PortraitLandscapeRunner.PortraitLandscape;
+import com.android.launcher3.util.ui.TestViewHelpers;
+import com.android.launcher3.util.workspace.FavoriteItemsTransaction;
 
 import org.junit.Assume;
 import org.junit.Rule;

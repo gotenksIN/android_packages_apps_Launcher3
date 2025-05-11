@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.ui;
+package com.android.launcher3.allapps;
 
 import static com.android.launcher3.LauncherPrefs.WORK_EDU_STEP;
 import static com.android.launcher3.LauncherState.ALL_APPS;
@@ -37,11 +37,6 @@ import androidx.test.filters.LargeTest;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
-import com.android.launcher3.allapps.ActivityAllAppsContainerView;
-import com.android.launcher3.allapps.AllAppsPagedView;
-import com.android.launcher3.allapps.WorkEduCard;
-import com.android.launcher3.allapps.WorkPausedCard;
-import com.android.launcher3.allapps.WorkProfileManager;
 import com.android.launcher3.util.BaseLauncherActivityTest;
 import com.android.launcher3.util.TestUtil;
 import com.android.launcher3.util.rule.ScreenRecordRule;

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.ui;
+package com.android.launcher3.util.ui;
 
 import static android.os.Process.myUserHandle;
 import static android.platform.test.flag.junit.SetFlagsRule.DefaultInitValueType.DEVICE_DEFAULT;
@@ -51,7 +51,6 @@ import androidx.test.uiautomator.BySelector;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.Until;
 
-import com.android.launcher3.celllayout.FavoriteItemsTransaction;
 import com.android.launcher3.tapl.HomeAllApps;
 import com.android.launcher3.tapl.HomeAppIcon;
 import com.android.launcher3.tapl.LauncherInstrumentation;
@@ -65,6 +64,7 @@ import com.android.launcher3.util.rule.ScreenRecordRule;
 import com.android.launcher3.util.rule.ShellCommandRule;
 import com.android.launcher3.util.rule.TestIsolationRule;
 import com.android.launcher3.util.rule.TestStabilityRule;
+import com.android.launcher3.util.workspace.FavoriteItemsTransaction;
 
 import org.junit.After;
 import org.junit.Assert;

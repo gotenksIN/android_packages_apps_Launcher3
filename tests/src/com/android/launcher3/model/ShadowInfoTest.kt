@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.ui
+package com.android.launcher3.model
 
 import android.content.Context
 import android.content.res.TypedArray
@@ -47,7 +47,7 @@ class ShadowInfoTest {
                 keyShadowBlur = 3f,
                 keyShadowOffsetX = 4f,
                 keyShadowOffsetY = 5f,
-                keyShadowColor = 6
+                keyShadowColor = 6,
             )
         doReturn(styledAttrs)
             .whenever(mockContext)

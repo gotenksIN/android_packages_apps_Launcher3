@@ -133,9 +133,9 @@ import com.android.launcher3.hybridhotseat.HotseatPredictionController;
 import com.android.launcher3.logging.InstanceId;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.logging.StatsLogManager.StatsLogger;
-import com.android.launcher3.model.BgDataModel.FixedContainerItems;
 import com.android.launcher3.model.WellbeingModel;
 import com.android.launcher3.model.data.ItemInfo;
+import com.android.launcher3.model.data.PredictedContainerInfo;
 import com.android.launcher3.popup.SystemShortcut;
 import com.android.launcher3.proxy.ProxyActivityStarter;
 import com.android.launcher3.statehandlers.DepthController;
@@ -238,7 +238,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     protected static final String RING_APPEAR_ANIMATION_PREFIX = "RingAppearAnimation\t";
 
-    private FixedContainerItems mAllAppsPredictions;
+    private PredictedContainerInfo mAllAppsPredictions;
     private HotseatPredictionController mHotseatPredictionController;
     private DepthController mDepthController;
     private QuickstepTransitionManager mAppTransitionManager;
@@ -358,16 +358,16 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         if (mAllAppsPredictions != null
                 && (info.itemType == ITEM_TYPE_APPLICATION
                 || info.itemType == ITEM_TYPE_DEEP_SHORTCUT)) {
-            int count = mAllAppsPredictions.items.size();
+            List<ItemInfo> items = mAllAppsPredictions.getContents();
+            int count = items.size();
             for (int i = 0; i < count; i++) {
-                ItemInfo targetInfo = mAllAppsPredictions.items.get(i);
+                ItemInfo targetInfo = items.get(i);
                 if (targetInfo.itemType == info.itemType
                         && targetInfo.user.equals(info.user)
                         && Objects.equals(targetInfo.getIntent(), info.getIntent())) {
                     logger.withRank(i);
                     break;
                 }
-
             }
         }
         logger.log(LAUNCHER_APP_LAUNCH_TAP);
@@ -556,17 +556,20 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     }
 
     @Override
-    public void bindExtraContainerItems(FixedContainerItems item) {
-        if (item.containerId == Favorites.CONTAINER_ALL_APPS_PREDICTION) {
-            mAllAppsPredictions = item;
-            PredictionRowView<?> predictionRowView =
-                    getAppsView().getFloatingHeaderView().findFixedRowByType(
-                            PredictionRowView.class);
-            predictionRowView.setPredictedApps(item.items);
-        } else if (item.containerId == Favorites.CONTAINER_HOTSEAT_PREDICTION) {
-            mHotseatPredictionController.setPredictedItems(item);
-        } else if (item.containerId == Favorites.CONTAINER_WIDGETS_PREDICTION) {
-            getWidgetPickerDataProvider().setWidgetRecommendations(item.items);
+    public void bindPredictedContainerInfo(PredictedContainerInfo info) {
+        super.bindPredictedContainerInfo(info);
+        switch (info.id) {
+            case Favorites.CONTAINER_ALL_APPS_PREDICTION:
+                mAllAppsPredictions = info;
+                getAppsView().getFloatingHeaderView().findFixedRowByType(
+                        PredictionRowView.class).setPredictedApps(info.getContents());
+                break;
+            case Favorites.CONTAINER_HOTSEAT_PREDICTION:
+                mHotseatPredictionController.setPredictedItems(info);
+                break;
+            case Favorites.CONTAINER_WIDGETS_PREDICTION:
+                getWidgetPickerDataProvider().setWidgetRecommendations(info.getContents());
+                break;
         }
     }
 

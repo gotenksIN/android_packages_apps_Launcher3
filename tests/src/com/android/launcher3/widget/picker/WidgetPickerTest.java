@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.ui.widget;
+package com.android.launcher3.widget.picker;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -24,13 +24,11 @@ import androidx.test.filters.MediumTest;
 
 import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.Launcher;
-import com.android.launcher3.ui.PortraitLandscapeRunner.PortraitLandscape;
 import com.android.launcher3.util.BaseLauncherActivityTest;
 import com.android.launcher3.util.rule.ScreenRecordRule;
 import com.android.launcher3.util.rule.ScreenRecordRule.ScreenRecord;
+import com.android.launcher3.util.ui.PortraitLandscapeRunner.PortraitLandscape;
 import com.android.launcher3.views.OptionsPopupView;
-import com.android.launcher3.widget.picker.WidgetsFullSheet;
-import com.android.launcher3.widget.picker.WidgetsRecyclerView;
 
 import org.junit.Rule;
 import org.junit.Test;

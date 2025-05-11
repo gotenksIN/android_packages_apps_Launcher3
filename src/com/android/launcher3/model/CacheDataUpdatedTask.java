@@ -30,8 +30,8 @@ import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 
-import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 
 /**
  * Handles changes due to cache updates.
@@ -60,17 +60,18 @@ public class CacheDataUpdatedTask implements ModelUpdateTask {
     public void execute(@NonNull ModelTaskController taskController, @NonNull BgDataModel dataModel,
             @NonNull AllAppsList apps) {
         IconCache iconCache = taskController.getIconCache();
-        ArrayList<ItemInfo> updatedItems = new ArrayList<>();
+        List<ItemInfo> updatedItems;
 
         synchronized (dataModel) {
-            dataModel.forAllWorkspaceItemInfos(mUser, si -> {
+            updatedItems = dataModel.updateAndCollectWorkspaceItemInfos(mUser, si -> {
                 ComponentName cn = si.getTargetComponent();
                 if (si.itemType == LauncherSettings.Favorites.ITEM_TYPE_APPLICATION
                         && isValidShortcut(si) && cn != null
                         && mPackages.contains(cn.getPackageName())) {
                     iconCache.getTitleAndIcon(si, si.getMatchingLookupFlag());
-                    updatedItems.add(si);
+                    return true;
                 }
+                return false;
             });
 
             dataModel.itemsIdMap.stream()

@@ -31,8 +31,6 @@ import com.android.launcher3.R
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 import com.android.launcher3.model.BgDataModel
-import com.android.launcher3.model.BgDataModel.FixedContainerItems
-import com.android.launcher3.model.StringCache
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.TaskItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
@@ -699,8 +697,6 @@ class TaskbarOverflowTest {
 
         override fun bindCompleteModel(
             itemIdMap: IntSparseArrayMap<ItemInfo>,
-            extraItems: List<FixedContainerItems>,
-            stringCache: StringCache,
             isBindingSync: Boolean,
         ) = bindItemsAdded(itemIdMap.toList())
 

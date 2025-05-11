@@ -15,6 +15,8 @@
  */
 package com.android.quickstep.util;
 
+import static android.os.Trace.TRACE_TAG_APP;
+
 import static com.android.launcher3.Flags.enableOverviewBackgroundWallpaperBlur;
 import static com.android.launcher3.Flags.enableScalingRevealHomeAnimation;
 
@@ -22,6 +24,7 @@ import android.app.WallpaperManager;
 import android.graphics.RenderEffect;
 import android.graphics.Shader;
 import android.os.IBinder;
+import android.os.Trace;
 import android.util.FloatProperty;
 import android.util.Log;
 import android.view.AttachedSurfaceControl;
@@ -232,6 +235,8 @@ public class BaseDepthController {
             // SurfaceFlinger will adjust its internal offsets to avoid jank.
             boolean wantsEarlyWakeUp = depth > 0 && depth < 1;
             if (wantsEarlyWakeUp && !mInEarlyWakeUp) {
+                Trace.instantForTrack(TRACE_TAG_APP, TAG, "notifyRendererForGpuLoadUp");
+                mLauncher.getRootView().getViewRootImpl().notifyRendererForGpuLoadUp("applyBlur");
                 finalTransaction.setEarlyWakeupStart();
                 mInEarlyWakeUp = true;
             } else if (!wantsEarlyWakeUp && mInEarlyWakeUp) {

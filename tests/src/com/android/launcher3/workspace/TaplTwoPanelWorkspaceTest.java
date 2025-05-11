@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.ui.workspace;
+package com.android.launcher3.workspace;
 
 import static com.android.launcher3.util.TestConstants.AppNames.CHROME_APP_NAME;
 import static com.android.launcher3.util.TestConstants.AppNames.MAPS_APP_NAME;
@@ -35,10 +35,10 @@ import com.android.launcher3.CellLayout;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.tapl.Workspace;
-import com.android.launcher3.ui.AbstractLauncherUiTest;
-import com.android.launcher3.ui.PortraitLandscapeRunner.PortraitLandscape;
 import com.android.launcher3.util.LauncherLayoutBuilder;
 import com.android.launcher3.util.TestUtil;
+import com.android.launcher3.util.ui.AbstractLauncherUiTest;
+import com.android.launcher3.util.ui.PortraitLandscapeRunner.PortraitLandscape;
 
 import org.junit.After;
 import org.junit.Before;

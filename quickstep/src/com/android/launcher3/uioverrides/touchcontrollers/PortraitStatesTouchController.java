@@ -15,12 +15,15 @@
  */
 package com.android.launcher3.uioverrides.touchcontrollers;
 
+import static android.os.Trace.TRACE_TAG_APP;
+
 import static com.android.launcher3.AbstractFloatingView.TYPE_TOUCH_CONTROLLER_NO_INTERCEPT;
 import static com.android.launcher3.AbstractFloatingView.getTopOpenViewWithType;
 import static com.android.launcher3.LauncherState.ALL_APPS;
 import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.LauncherState.OVERVIEW;
 
+import android.os.Trace;
 import android.view.MotionEvent;
 
 import com.android.app.animation.Interpolators;
@@ -219,6 +222,9 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
         super.onReinitToState(newToState);
         if (Flags.allAppsBlur() && mLauncher.isBackgroundBlurEnabled() && newToState == ALL_APPS) {
             // About to start blurring during swipe to All Apps; prepare the renderer.
+            Trace.instantForTrack(TRACE_TAG_APP, TAG, "notifyRendererForGpuLoadUp");
+            mLauncher.getRootView().getViewRootImpl().notifyRendererForGpuLoadUp(
+                    "swiping to All Apps");
             mLauncher.getRootView().getViewRootImpl().notifyRendererOfExpensiveFrame();
         }
         if (newToState != ALL_APPS) {

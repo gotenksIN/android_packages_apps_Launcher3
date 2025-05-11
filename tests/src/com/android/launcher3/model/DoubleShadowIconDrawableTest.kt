@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.ui
+package com.android.launcher3.model
 
 import android.graphics.Color
 import android.graphics.drawable.Drawable
@@ -58,7 +58,7 @@ class DoubleShadowIconDrawableTest {
                 keyShadowBlur = 3f,
                 keyShadowOffsetX = 4f,
                 keyShadowOffsetY = 5f,
-                keyShadowColor = 6
+                keyShadowColor = 6,
             )
         val originalDrawable: Drawable = mock()
         val iconSize = 2
@@ -73,14 +73,14 @@ class DoubleShadowIconDrawableTest {
                 shadowInfo.ambientShadowBlur,
                 0f,
                 0f,
-                Color.alpha(shadowInfo.ambientShadowColor).toFloat()
+                Color.alpha(shadowInfo.ambientShadowColor).toFloat(),
             )
         verify(shadowDrawableUnderTest)
             .createShadowRenderEffect(
                 shadowInfo.keyShadowBlur,
                 shadowInfo.keyShadowOffsetX,
                 shadowInfo.keyShadowOffsetY,
-                Color.alpha(shadowInfo.keyShadowColor).toFloat()
+                Color.alpha(shadowInfo.keyShadowColor).toFloat(),
             )
     }
 }

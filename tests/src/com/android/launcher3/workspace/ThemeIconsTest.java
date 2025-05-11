@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.ui.workspace;
+package com.android.launcher3.workspace;
 
 import static com.android.launcher3.AbstractFloatingView.TYPE_ACTION_POPUP;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
@@ -35,13 +35,13 @@ import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.allapps.AllAppsRecyclerView;
-import com.android.launcher3.celllayout.FavoriteItemsTransaction;
 import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.icons.mono.ThemedIconDrawable;
 import com.android.launcher3.popup.ArrowPopup;
 import com.android.launcher3.util.BaseLauncherActivityTest;
 import com.android.launcher3.util.Executors;
 import com.android.launcher3.util.TestUtil;
+import com.android.launcher3.util.workspace.FavoriteItemsTransaction;
 
 import org.junit.Test;
 
