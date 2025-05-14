@@ -957,6 +957,7 @@ public class InvariantDeviceProfile {
         @XmlRes public final int allAppsSpecsId;
         @XmlRes public final int folderSpecsId;
         @XmlRes public final int allAppsCellSpecsId;
+        public final boolean startAlignTaskbar;
 
         DisplayOptionSpec(DisplayOption displayOption, boolean isLandscape) {
             typeIndex = isLandscape ? INDEX_LANDSCAPE : INDEX_DEFAULT;
@@ -968,6 +969,7 @@ public class InvariantDeviceProfile {
             allAppsSpecsId = displayOption.grid.mAllAppsSpecsId;
             folderSpecsId = displayOption.grid.mFolderSpecsId;
             allAppsCellSpecsId = displayOption.grid.mAllAppsCellSpecsId;
+            startAlignTaskbar = displayOption.startAlignTaskbar[typeIndex];
         }
 
         DisplayOptionSpec(InvariantDeviceProfile inv, boolean isTwoPanels, boolean isLandscape) {
@@ -995,6 +997,7 @@ public class InvariantDeviceProfile {
             folderSpecsId = isTwoPanels ? inv.folderSpecsTwoPanelId : inv.folderSpecsId;
             allAppsCellSpecsId =
                     isTwoPanels ? inv.allAppsCellSpecsTwoPanelId : inv.allAppsCellSpecsId;
+            startAlignTaskbar = inv.startAlignTaskbar[typeIndex];
         }
     }
 

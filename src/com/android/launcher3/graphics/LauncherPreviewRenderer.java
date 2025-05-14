@@ -478,7 +478,8 @@ public class LauncherPreviewRenderer extends BaseContext
     }
 
     private void populateHotseatPredictions(BgDataModel dataModel) {
-        List<ItemInfo> predictions = dataModel.getPredictedContents(CONTAINER_HOTSEAT_PREDICTION);
+        List<ItemInfo> predictions = dataModel.itemsIdMap
+                .getPredictedContents(CONTAINER_HOTSEAT_PREDICTION);
         int predictionIndex = 0;
         for (int rank = 0; rank < mDp.numShownHotseatIcons; rank++) {
             if (predictions.size() <= predictionIndex) continue;

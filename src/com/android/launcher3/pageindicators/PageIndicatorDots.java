@@ -572,7 +572,7 @@ public class PageIndicatorDots extends View implements Insettable, PageIndicator
                 float progress = Math.abs(currentPosition - lastPosition)
                         / Math.max(1, Math.abs(finalPosition - lastPosition));
                 float bounceAdjustment = Math.max(progress - 1, 0) * diameter;
-                float alphaAdjustment = Math.max(progress - 1, 0) * nonActiveAlpha;
+                int alphaAdjustment = (int) (Math.min(progress, 1) * (alpha - nonActiveAlpha));
 
                 // Here we draw the dots, one at a time from the left-most dot to the right-most dot
                 // 1.0 => 000000 000000111111 000000
@@ -580,12 +580,11 @@ public class PageIndicatorDots extends View implements Insettable, PageIndicator
                 // 1.6 => 000000 00000011 1111000000
                 // 2.0 => 000000 000000 111111000000
                 for (int i = 0; i < mNumPages; i++) {
-                    mPaginationPaint.setAlpha(nonActiveAlpha);
-                    if (i == lastPosition && progress < SHIFT_THRESHOLD
-                            || i == finalPosition && progress >= SHIFT_THRESHOLD) {
-                        mPaginationPaint.setAlpha(alpha);
-                    }
-
+                    // Adjust alpha and width based on the progress of the animation. Smaller dots
+                    // will also be more transparent, and larger dots more opaque.
+                    mPaginationPaint.setAlpha(i == lastPosition ? alpha - alphaAdjustment
+                            : i == finalPosition ? nonActiveAlpha + alphaAdjustment
+                                    : nonActiveAlpha);
                     sTempRect.right = sTempRect.left + diameter + (diameter
                             * (i == lastPosition ? 1 - progress
                             : i == finalPosition ? progress : 0));

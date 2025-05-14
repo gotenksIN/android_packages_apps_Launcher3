@@ -179,7 +179,20 @@ public class BaseDepthController {
         applyDepthAndBlur(null, /* applyImmediately */ false);
     }
 
+    /**
+     * Applies depth and blur to the launcher.
+     *
+     * @param transaction      optional Surface to apply to the blur to.
+     * @param applyImmediately whether to apply the blur immediately or defer to the next frame.
+     */
     protected void applyDepthAndBlur(SurfaceControl.Transaction transaction,
+            boolean applyImmediately) {
+        try (transaction) {
+            applyDepthAndBlurInternal(transaction, applyImmediately);
+        }
+    }
+
+    private void applyDepthAndBlurInternal(SurfaceControl.Transaction transaction,
             boolean applyImmediately) {
         float depth = mDepth;
         IBinder windowToken = mLauncher.getRootView().getWindowToken();
@@ -218,15 +231,25 @@ public class BaseDepthController {
         } else {
             blurAmount = depth;
         }
-        mCurrentBlur = mBlursEnabled && !hasOpaqueBg ? (int) (blurAmount * mMaxBlurRadius) : 0;
-
         SurfaceControl blurSurface =
                 enableOverviewBackgroundWallpaperBlur() && mBlurSurface != null ? mBlurSurface
                         : mBaseSurface;
-        if (transaction == null) {
-            transaction = createTransaction();
+
+        int previousBlur = mCurrentBlur;
+        int newBlur = mBlursEnabled && !hasOpaqueBg ? (int) (blurAmount * mMaxBlurRadius) : 0;
+        int delta = Math.abs(newBlur - previousBlur);
+        // Don't skip blur if a transaction is provided.
+        boolean skipSimilarBlur = transaction == null;
+        if (skipSimilarBlur && delta < Utilities.dpToPx(1) && newBlur != 0 && previousBlur != 0) {
+            Log.d(TAG, "Skipping small blur delta. newBlur: " + newBlur + " previousBlur: "
+                    + previousBlur + " delta: " + delta + " surface: " + blurSurface);
+            return;
         }
-        final SurfaceControl.Transaction finalTransaction = transaction;
+        mCurrentBlur = newBlur;
+        Log.v(TAG, "Applying blur: " + mCurrentBlur + " to " + blurSurface);
+
+        final SurfaceControl.Transaction finalTransaction =
+                transaction == null ? createTransaction() : transaction;
         try (finalTransaction) {
             finalTransaction.setBackgroundBlurRadius(blurSurface, mCurrentBlur)
                     .setOpaque(blurSurface, isSurfaceOpaque);
@@ -292,14 +315,13 @@ public class BaseDepthController {
      * Sets the lowest surface that should not be blurred.
      * <p>
      * Blur is applied to below {@link #mBaseSurfaceOverride}. When set to {@code null}, blur is
-     * applied
-     * to below {@link #mBaseSurface}.
+     * applied to below {@link #mBaseSurface}.
      * </p>
      */
     public void setBaseSurfaceOverride(@Nullable SurfaceControl baseSurfaceOverride) {
         if (mBaseSurfaceOverride != baseSurfaceOverride) {
             boolean applyImmediately = mBaseSurfaceOverride != null && baseSurfaceOverride == null;
-            this.mBaseSurfaceOverride = baseSurfaceOverride;
+            mBaseSurfaceOverride = baseSurfaceOverride;
             Log.d(TAG, "setBaseSurfaceOverride: applying blur behind leash " + baseSurfaceOverride);
             SurfaceControl.Transaction transaction = setupBlurSurface();
             applyDepthAndBlur(transaction, applyImmediately);
@@ -324,12 +346,10 @@ public class BaseDepthController {
             }
             transaction.setRelativeLayer(mBlurSurface, mBaseSurfaceOverride, -1);
             Log.d(TAG, "setupBlurSurface: relayering to leash " + mBaseSurfaceOverride);
-        } else {
-            if (mBlurSurface != null) {
-                Log.d(TAG, "setupBlurSurface: removing blur surface " + mBlurSurface);
-                transaction = createTransaction().remove(mBlurSurface);
-                mBlurSurface = null;
-            }
+        } else if (mBlurSurface != null) {
+            Log.d(TAG, "setupBlurSurface: removing blur surface " + mBlurSurface);
+            transaction = createTransaction().remove(mBlurSurface);
+            mBlurSurface = null;
         }
         return transaction;
     }

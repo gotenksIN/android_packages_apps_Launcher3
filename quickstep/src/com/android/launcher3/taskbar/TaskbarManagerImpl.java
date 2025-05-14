@@ -40,6 +40,7 @@ import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.launcher3.util.FlagDebugUtils.formatFlagChange;
 import static com.android.quickstep.util.SystemActionConstants.ACTION_SHOW_TASKBAR;
 import static com.android.quickstep.util.SystemActionConstants.SYSTEM_ACTION_ID_TASKBAR;
+import static com.android.wm.shell.shared.desktopmode.DesktopModeStatus.enableMultipleDesktops;
 
 import android.animation.AnimatorSet;
 import android.annotation.SuppressLint;
@@ -73,6 +74,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.app.displaylib.PerDisplayRepository;
+import com.android.internal.util.LatencyTracker;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.Launcher;
@@ -200,7 +202,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
      * Cache a copy here so we can initialize state whenever taskbar is recreated, since
      * this class does not get re-initialized w/ new taskbars.
      */
-    private final TaskbarSharedState mSharedState = new TaskbarSharedState();
+    private final Map<Integer, TaskbarSharedState> mTaskbarSharedStates = new ConcurrentHashMap<>();
 
     /**
      * We use WindowManager's ComponentCallbacks() for internal UI changes (similar to an Activity)
@@ -332,6 +334,10 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
             new DesktopVisibilityController.TaskbarDesktopModeListener() {
                 @Override
                 public void onExitDesktopMode(int duration) {
+                    if (enableMultipleDesktops(mBaseContext)) {
+                        LatencyTracker.getInstance(mBaseContext).onActionStart(
+                                LatencyTracker.ACTION_DESKTOP_MODE_EXIT_MODE_ON_LAST_WINDOW_CLOSE);
+                    }
                     for (Entry<Integer, TaskbarActivityContext> entry : mTaskbars.entrySet()) {
                         int displayId = entry.getKey();
                         if (isExternalDisplay(displayId)) {
@@ -382,7 +388,8 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
 
     private boolean mUserUnlocked = false;
 
-    private final SimpleBroadcastReceiver mTaskbarBroadcastReceiver;
+    private final Map<Integer, SimpleBroadcastReceiver> mTaskbarBroadcastReceivers =
+            new ConcurrentHashMap<>();
 
     private final SimpleBroadcastReceiver mGrowthBroadcastReceiver;
 
@@ -460,6 +467,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         debugPrimaryTaskbar("TaskbarManager constructor");
         mDisplayManager = mBaseContext.getSystemService(DisplayManager.class);
         mPrimaryWindowContext = createWindowContext(mPrimaryDisplayId);
+        addWindowContextToMap(mPrimaryDisplayId, mPrimaryWindowContext);
         mPrimaryWindowManager = mPrimaryWindowContext.getSystemService(WindowManager.class);
         DesktopVisibilityController.INSTANCE.get(
                 mPrimaryWindowContext).registerTaskbarDesktopModeListener(
@@ -477,9 +485,6 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         mShutdownReceiver =
                 new SimpleBroadcastReceiver(
                         mPrimaryWindowContext, UI_HELPER_EXECUTOR, i -> destroyAllTaskbars());
-        mTaskbarBroadcastReceiver =
-                new SimpleBroadcastReceiver(mPrimaryWindowContext,
-                        UI_HELPER_EXECUTOR, this::showTaskbarFromBroadcast);
 
         mShutdownReceiver.register(Intent.ACTION_SHUTDOWN);
         if (enableGrowthNudge()) {
@@ -492,15 +497,6 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         } else {
             mGrowthBroadcastReceiver = null;
         }
-        UI_HELPER_EXECUTOR.execute(() -> {
-            mSharedState.taskbarSystemActionPendingIntent = PendingIntent.getBroadcast(
-                    mPrimaryWindowContext,
-                    SYSTEM_ACTION_ID_TASKBAR,
-                    new Intent(ACTION_SHOW_TASKBAR).setPackage(
-                            mPrimaryWindowContext.getPackageName()),
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            mTaskbarBroadcastReceiver.register(RECEIVER_NOT_EXPORTED, ACTION_SHOW_TASKBAR);
-        });
 
         mIsAndroidPC = getPrimaryWindowContext().getPackageManager().hasSystemFeature(FEATURE_PC);
         mSupportsFreeformWindowsManagement = getFreeformWindowsManagementInfo();
@@ -511,7 +507,6 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         } else {
             mTaskStackListener = null;
         }
-        addWindowContextToMap(mPrimaryDisplayId, mPrimaryWindowContext);
         recreateTaskbarForDisplay(mPrimaryDisplayId, /* duration= */ 0);
 
         // TODO b/408503553: Remove when WM is used instead of CommandQueue for system decorations.
@@ -596,9 +591,9 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
     /**
      * Show Taskbar upon receiving broadcast
      */
-    private void showTaskbarFromBroadcast(Intent intent) {
-        debugPrimaryTaskbar("destroyTaskbarForDisplay");
-        TaskbarActivityContext taskbar = getTaskbarForDisplay(getFocusedDisplayId());
+    private void showTaskbarFromBroadcast(Intent intent, int displayId) {
+        debugTaskbarManager("destroyTaskbarForDisplay", displayId);
+        TaskbarActivityContext taskbar = getTaskbarForDisplay(displayId);
         if (ACTION_SHOW_TASKBAR.equals(intent.getAction()) && taskbar != null) {
             taskbar.showTaskbarFromBroadcast();
         }
@@ -833,9 +828,10 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
                         displayId);
                 taskbar.updateDeviceProfile(dp);
             }
-            mSharedState.startTaskbarVariantIsTransient = taskbar.isTransientTaskbar();
-            mSharedState.allAppsVisible = mSharedState.allAppsVisible && isLargeScreenTaskbar;
-            taskbar.init(mSharedState, duration);
+            TaskbarSharedState sharedState = getSharedStateForDisplay(displayId);
+            sharedState.startTaskbarVariantIsTransient = taskbar.isTransientTaskbar();
+            sharedState.allAppsVisible = sharedState.allAppsVisible && isLargeScreenTaskbar;
+            taskbar.init(sharedState, duration);
 
             // Non default displays should not use LauncherTaskbarUIController as they shouldn't
             // have access to the Launcher activity.
@@ -868,11 +864,12 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
 
     /** Called when the SysUI flags for a given display change. */
     public void onSystemUiFlagsChanged(@SystemUiStateFlags long systemUiStateFlags, int displayId) {
+        TaskbarSharedState sharedState = getSharedStateForDisplay(displayId);
         if (DEBUG) {
             Log.d(TAG, "SysUI flags changed: " + formatFlagChange(systemUiStateFlags,
-                    mSharedState.sysuiStateFlags, QuickStepContract::getSystemUiStateString));
+                    sharedState.sysuiStateFlags, QuickStepContract::getSystemUiStateString));
         }
-        mSharedState.sysuiStateFlags = systemUiStateFlags;
+        sharedState.sysuiStateFlags = systemUiStateFlags;
         TaskbarActivityContext taskbar = getTaskbarForDisplay(displayId);
         if (taskbar != null) {
             taskbar.updateSysuiStateFlags(systemUiStateFlags, false /* fromInit */);
@@ -889,11 +886,14 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
      * Sets the flag indicating setup UI is visible
      */
     public void setSetupUIVisible(boolean isVisible) {
-        mSharedState.setupUIVisible = isVisible;
         mAllAppsActionManager.setSetupUiVisible(isVisible);
-        TaskbarActivityContext taskbar = getTaskbarForDisplay(mPrimaryDisplayId);
-        if (taskbar != null) {
-            taskbar.setSetupUIVisible(isVisible);
+        for (int i = 0; i < mWindowContexts.size(); i++) {
+            int displayId = mWindowContexts.keyAt(i);
+            getSharedStateForDisplay(displayId).setupUIVisible = isVisible;
+            TaskbarActivityContext taskbar = getTaskbarForDisplay(displayId);
+            if (taskbar != null) {
+                taskbar.setSetupUIVisible(isVisible);
+            }
         }
     }
 
@@ -901,7 +901,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
      * Sets wallpaper visibility for specific display.
      */
     public void setWallpaperVisible(int displayId, boolean isVisible) {
-        mSharedState.wallpaperVisible = isVisible;
+        getSharedStateForDisplay(displayId).wallpaperVisible = isVisible;
         TaskbarActivityContext taskbar = getTaskbarForDisplay(displayId);
         if (taskbar != null) {
             taskbar.setWallpaperVisible(isVisible);
@@ -956,9 +956,10 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
     }
 
     public void disableNavBarElements(int displayId, int state1, int state2, boolean animate) {
-        mSharedState.disableNavBarDisplayId = displayId;
-        mSharedState.disableNavBarState1 = state1;
-        mSharedState.disableNavBarState2 = state2;
+        TaskbarSharedState sharedState = getSharedStateForDisplay(displayId);
+        sharedState.disableNavBarDisplayId = displayId;
+        sharedState.disableNavBarState1 = state1;
+        sharedState.disableNavBarState2 = state2;
         TaskbarActivityContext taskbar = getTaskbarForDisplay(displayId);
         if (taskbar != null) {
             taskbar.disableNavBarElements(displayId, state1, state2, animate);
@@ -966,8 +967,9 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
     }
 
     public void onSystemBarAttributesChanged(int displayId, int behavior) {
-        mSharedState.systemBarAttrsDisplayId = displayId;
-        mSharedState.systemBarAttrsBehavior = behavior;
+        TaskbarSharedState sharedState = getSharedStateForDisplay(displayId);
+        sharedState.systemBarAttrsDisplayId = displayId;
+        sharedState.systemBarAttrsBehavior = behavior;
         TaskbarActivityContext taskbar = getTaskbarForDisplay(displayId);
         if (taskbar != null) {
             taskbar.onSystemBarAttributesChanged(displayId, behavior);
@@ -975,24 +977,31 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
     }
 
     public void onTransitionModeUpdated(int barMode, boolean checkBarModes) {
-        mSharedState.barMode = barMode;
-        TaskbarActivityContext taskbar = getTaskbarForDisplay(mPrimaryDisplayId);
-        if (taskbar != null) {
-            taskbar.onTransitionModeUpdated(barMode, checkBarModes);
+        for (int i = 0; i < mWindowContexts.size(); i++) {
+            int displayId = mWindowContexts.keyAt(i);
+            getSharedStateForDisplay(displayId).barMode = barMode;
+            TaskbarActivityContext taskbar = getTaskbarForDisplay(displayId);
+            if (taskbar != null) {
+                taskbar.onTransitionModeUpdated(barMode, checkBarModes);
+            }
         }
     }
 
     public void onNavButtonsDarkIntensityChanged(float darkIntensity) {
-        mSharedState.navButtonsDarkIntensity = darkIntensity;
-        TaskbarActivityContext taskbar = getTaskbarForDisplay(mPrimaryDisplayId);
-        if (taskbar != null) {
-            taskbar.onNavButtonsDarkIntensityChanged(darkIntensity);
+        for (int i = 0; i < mWindowContexts.size(); i++) {
+            int displayId = mWindowContexts.keyAt(i);
+            getSharedStateForDisplay(displayId).navButtonsDarkIntensity = darkIntensity;
+            TaskbarActivityContext taskbar = getTaskbarForDisplay(displayId);
+            if (taskbar != null) {
+                taskbar.onNavButtonsDarkIntensityChanged(darkIntensity);
+            }
         }
     }
 
     public void onNavigationBarLumaSamplingEnabled(int displayId, boolean enable) {
-        mSharedState.mLumaSamplingDisplayId = displayId;
-        mSharedState.mIsLumaSamplingEnabled = enable;
+        TaskbarSharedState sharedState = getSharedStateForDisplay(displayId);
+        sharedState.mLumaSamplingDisplayId = displayId;
+        sharedState.mIsLumaSamplingEnabled = enable;
         TaskbarActivityContext taskbar = getTaskbarForDisplay(displayId);
         if (taskbar != null) {
             taskbar.onNavigationBarLumaSamplingEnabled(displayId, enable);
@@ -1092,6 +1101,9 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
             debugTaskbarManager("onDisplayRemoved: removing WindowContext from map!", displayId);
             removeWindowContextFromMap(displayId);
 
+            debugTaskbarManager("onDisplayRemoved: destroying SharedState from map!", displayId);
+            destroySharedStateForDisplay(displayId);
+
             debugTaskbarManager("onDisplayRemoved: finished!", displayId);
         } else {
             debugTaskbarManager("onDisplayRemoved: windowContext is null!", displayId);
@@ -1132,7 +1144,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
                 mPrimaryWindowContext).unregisterTaskbarDesktopModeListener(
                 mTaskbarDesktopModeListener);
         removeActivityCallbacksAndListeners();
-        mTaskbarBroadcastReceiver.unregisterReceiverSafely();
+        destroySharedStateForAllDisplays();
         if (mGrowthBroadcastReceiver != null) {
             mGrowthBroadcastReceiver.unregisterReceiverSafely();
         }
@@ -1281,6 +1293,58 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         return mTaskbars.get(displayId);
     }
 
+    private TaskbarSharedState getSharedStateForDisplay(int displayId) {
+        TaskbarSharedState sharedState = mTaskbarSharedStates.getOrDefault(displayId,
+                new TaskbarSharedState());
+        mTaskbarSharedStates.put(displayId, sharedState);
+
+        // Verify if shared state is properly initialised. Sometimes it can only be initialised with
+        // subsequent access. For example, onSystemUiFlagsChanged gets called before
+        // recreateTaskbarForDisplay when display is added resulting into windowContext being null.
+        if (sharedState.taskbarSystemActionPendingIntent == null && mWindowContexts.contains(
+                displayId)) {
+            debugTaskbarManager("getSharedStateForDisplay: initialising shared state", displayId);
+
+            Context windowContext = mWindowContexts.get(displayId);
+            SimpleBroadcastReceiver broadcastReceiver = new SimpleBroadcastReceiver(windowContext,
+                    UI_HELPER_EXECUTOR, (intent) -> showTaskbarFromBroadcast(intent, displayId));
+            mTaskbarBroadcastReceivers.put(displayId, broadcastReceiver);
+
+            sharedState.taskbarSystemActionPendingIntent = PendingIntent.getBroadcast(windowContext,
+                    SYSTEM_ACTION_ID_TASKBAR,
+                    new Intent(ACTION_SHOW_TASKBAR).setPackage(windowContext.getPackageName()),
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            UI_HELPER_EXECUTOR.execute(
+                    () -> broadcastReceiver.register(RECEIVER_NOT_EXPORTED, ACTION_SHOW_TASKBAR));
+        }
+
+        return sharedState;
+    }
+
+    /** Should only be called when the TaskbarManager class is being destroyed. */
+    private void destroySharedStateForAllDisplays() {
+        debugPrimaryTaskbar("getSharedStateForDisplay: destroying all shared state",
+                /* verbose= */ false);
+
+        for (SimpleBroadcastReceiver broadcastReceiver : mTaskbarBroadcastReceivers.values()) {
+            broadcastReceiver.unregisterReceiverSafely();
+        }
+
+        mTaskbarBroadcastReceivers.clear();
+        mTaskbarSharedStates.clear();
+    }
+
+    /** Should be called when the taskbar is not going to be recreated, example display removed. */
+    private void destroySharedStateForDisplay(int displayId) {
+        debugTaskbarManager("getSharedStateForDisplay: destroying shared state", displayId);
+        SimpleBroadcastReceiver broadcastReceiver = mTaskbarBroadcastReceivers.remove(displayId);
+        if (broadcastReceiver != null) {
+            broadcastReceiver.unregisterReceiverSafely();
+        }
+
+        mTaskbarSharedStates.remove(displayId);
+    }
 
     /**
      * Creates a {@link TaskbarActivityContext} for the given display and adds it to the map.
@@ -1431,7 +1495,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
                 mOldConfig = new Configuration(newConfig);
                 // reset taskbar was pinned value, so we don't automatically unstash taskbar upon
                 // user unfolding the device.
-                mSharedState.setTaskbarWasPinned(false);
+                getSharedStateForDisplay(displayId).setTaskbarWasPinned(false);
             }
 
             @Override

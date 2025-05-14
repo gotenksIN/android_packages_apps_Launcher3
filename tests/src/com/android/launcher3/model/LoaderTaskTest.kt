@@ -206,7 +206,7 @@ class LoaderTaskTest {
                         .size
                 )
                 .isAtLeast(8)
-            assertThat(itemsIdMap.size()).isAtLeast(40)
+            assertThat(itemsIdMap.count()).isAtLeast(40)
         }
 
     @Test
@@ -218,12 +218,11 @@ class LoaderTaskTest {
 
         verify(launcherBinder).bindWorkspace(true, false)
         verify(modelDelegate).workspaceLoadComplete()
-        verify(modelDelegate).loadAndBindAllAppsItems()
+        verify(modelDelegate).loadAndAddExtraModelItems(any())
         verify(launcherBinder).bindAllApps()
         verify(iconCacheUpdateHandler, times(4)).updateIcons(any(), any<CachingLogic<Any>>(), any())
         verify(launcherBinder).bindDeepShortcuts()
         verify(launcherBinder).bindWidgets()
-        verify(modelDelegate).loadAndBindOtherItems()
         verify(iconCacheUpdateHandler).finish()
         verify(modelDelegate).modelLoadComplete()
         verify(transaction).commit()

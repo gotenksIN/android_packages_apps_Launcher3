@@ -245,6 +245,7 @@ import com.android.wm.shell.common.pip.IPipAnimationListener;
 import com.android.wm.shell.shared.GroupedTaskInfo;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource;
+import com.android.wm.shell.shared.pip.PipFlags;
 import com.android.wm.shell.shared.split.SplitBounds;
 
 import kotlin.Unit;
@@ -6038,7 +6039,7 @@ public abstract class RecentsView<
         }
 
         final boolean sendUserLeaveHint = toRecents && shouldPip;
-        if (sendUserLeaveHint && !com.android.wm.shell.Flags.enablePip2()) {
+        if (sendUserLeaveHint && !PipFlags.isPip2ExperimentEnabled()) {
             // Notify the SysUI to use fade-in animation when entering PiP from live tile.
             // Note: PiP2 handles entering differently, so skip if enable_pip2=true.
             final SystemUiProxy systemUiProxy = SystemUiProxy.INSTANCE.get(getContext());
@@ -6446,6 +6447,13 @@ public abstract class RecentsView<
         return showAsGrid()
                 && !mTopRowIdSet.contains(taskView.getTaskViewId())
                 && !taskView.isLargeTile();
+    }
+
+    /**
+     * @return true if the task in on the top of the grid
+     */
+    public boolean isOnGridTopRow(TaskView taskView) {
+        return showAsGrid() && mTopRowIdSet.contains(taskView.getTaskViewId());
     }
 
     public Consumer<MotionEvent> getEventDispatcher(float navbarRotation) {

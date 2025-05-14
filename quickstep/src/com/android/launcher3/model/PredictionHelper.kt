@@ -102,11 +102,9 @@ object PredictionHelper {
             )
             putParcelableArrayList(
                 BUNDLE_KEY_CURRENT_ITEMS,
-                dataModel.getPredictedContents(CONTAINER_HOTSEAT_PREDICTION).mapNotNullTo(
-                    ArrayList()
-                ) {
-                    getAppTargetFromItemInfo(context, it)
-                },
+                dataModel.itemsIdMap
+                    .getPredictedContents(CONTAINER_HOTSEAT_PREDICTION)
+                    .mapNotNullTo(ArrayList()) { getAppTargetFromItemInfo(context, it) },
             )
         }
     }

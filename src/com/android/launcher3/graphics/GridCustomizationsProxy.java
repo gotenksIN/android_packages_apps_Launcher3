@@ -16,6 +16,7 @@
 package com.android.launcher3.graphics;
 
 
+import static com.android.launcher3.BuildConfig.IS_DEBUG_DEVICE;
 import static com.android.launcher3.Flags.enableLauncherIconShapes;
 import static com.android.launcher3.graphics.ThemeManager.PREF_ICON_SHAPE;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
@@ -162,6 +163,9 @@ public class GridCustomizationsProxy implements ProxyProvider {
     public Cursor query(Uri uri, String[] projection, String selection,
             String[] selectionArgs, String sortOrder) {
         String path = uri.getPath();
+        if (IS_DEBUG_DEVICE) {
+            Log.d(TAG, "query: path=" + path);
+        }
         if (path == null) {
             return null;
         }
@@ -196,6 +200,7 @@ public class GridCustomizationsProxy implements ProxyProvider {
                     }
                     return cursor;
                 } else  {
+                    Log.w(TAG, "Shape options queried outside of flag, returning null.");
                     return null;
                 }
             }
@@ -228,8 +233,10 @@ public class GridCustomizationsProxy implements ProxyProvider {
                 cursor.newRow().add(BOOLEAN_VALUE, mThemeManager.isMonoThemeEnabled() ? 1 : 0);
                 return cursor;
             }
-            default:
+            default: {
+                Log.d(TAG, "Invalid Query Path, returning null.");
                 return null;
+            }
         }
     }
 

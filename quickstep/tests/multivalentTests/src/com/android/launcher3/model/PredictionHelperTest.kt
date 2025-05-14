@@ -34,6 +34,7 @@ import com.android.launcher3.model.PredictionHelper.isTrackedForHotseatPredictio
 import com.android.launcher3.model.PredictionHelper.isTrackedForWidgetPrediction
 import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.LauncherAppWidgetInfo
+import com.android.launcher3.util.ModelTestExtensions.initItems
 import com.android.launcher3.util.SandboxApplication
 import com.google.common.truth.Truth.assertThat
 import org.junit.Assert.assertFalse
@@ -48,6 +49,7 @@ import org.mockito.kotlin.mock
 class PredictionHelperTest {
 
     @get:Rule val context = SandboxApplication()
+    private var itemIdCounter: Int = 0
 
     @Test
     fun isTrackedForHotseatPrediction_true_for_valid_items() {
@@ -104,9 +106,11 @@ class PredictionHelperTest {
     @Test
     fun getBundleForHotseatPredictions_contains_pin_events() {
         val dataModel = BgDataModel(mock(), mock(), mock(), mock())
-        dataModel.itemsIdMap[0] = createAppInfo("test1")
-        dataModel.itemsIdMap[1] = createAppInfo("test2", CONTAINER_HOTSEAT, 2)
-        dataModel.itemsIdMap[2] = createAppInfo("test3", 2 /* folder */)
+        dataModel.initItems(
+            createAppInfo("test1"),
+            createAppInfo("test2", CONTAINER_HOTSEAT, 2),
+            createAppInfo("test3", 2 /* folder */),
+        )
 
         val items =
             getBundleForHotseatPredictions(context, dataModel)
@@ -122,9 +126,11 @@ class PredictionHelperTest {
     @Test
     fun getBundleForWidgetPredictions_contains_pin_events() {
         val dataModel = BgDataModel(mock(), mock(), mock(), mock())
-        dataModel.itemsIdMap[0] = createAppInfo("test1")
-        dataModel.itemsIdMap[1] = createAppInfo("test2", CONTAINER_HOTSEAT, 2)
-        dataModel.itemsIdMap[2] = createWidgetInfoInfo("test3")
+        dataModel.initItems(
+            createAppInfo("test1"),
+            createAppInfo("test2", CONTAINER_HOTSEAT, 2),
+            createWidgetInfoInfo("test3"),
+        )
 
         val items =
             getBundleForWidgetPredictions(context, dataModel)
@@ -140,12 +146,15 @@ class PredictionHelperTest {
         screenId: Int = FIRST_SCREEN_ID,
     ) =
         AppInfo().apply {
+            this.id = itemIdCounter
             this.container = container
             this.screenId = screenId
             this.intent = Intent().setComponent(ComponentName(pkg, pkg))
             this.componentName = ComponentName(pkg, pkg)
             this.cellX = 0
             this.cellY = 0
+
+            itemIdCounter++
         }
 
     private fun createWidgetInfoInfo(
@@ -154,10 +163,13 @@ class PredictionHelperTest {
         screenId: Int = FIRST_SCREEN_ID,
     ) =
         LauncherAppWidgetInfo().apply {
+            this.id = itemIdCounter
             this.container = container
             this.screenId = screenId
             this.providerName = ComponentName(pkg, pkg)
             this.cellX = 0
             this.cellY = 0
+
+            itemIdCounter++
         }
 }

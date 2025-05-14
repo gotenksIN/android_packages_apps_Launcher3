@@ -3,6 +3,7 @@ package com.android.launcher3.util
 import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
 import android.os.Process
+import android.util.SparseArray
 import androidx.test.platform.app.InstrumentationRegistry
 import com.android.launcher3.Flags
 import com.android.launcher3.LauncherModel
@@ -132,4 +133,9 @@ object ModelTestExtensions {
                 .lines()
                 .forEach { sqlStatement -> db.execSQL(sqlStatement) }
         }
+
+    /** Initializes [BgDataModel.itemsIdMap] with provided [items] */
+    fun BgDataModel.initItems(vararg items: ItemInfo) {
+        dataLoadComplete(SparseArray<ItemInfo>().apply { items.forEach { this[it.id] = it } })
+    }
 }

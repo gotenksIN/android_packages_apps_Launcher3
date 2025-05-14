@@ -37,7 +37,6 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.StatsEvent;
 
-import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -53,6 +52,7 @@ import com.android.launcher3.logging.InstanceIdSequence;
 import com.android.launcher3.model.data.CollectionInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.PredictedContainerInfo;
+import com.android.launcher3.model.data.WorkspaceData;
 import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.util.IntSparseArrayMap;
 import com.android.quickstep.logging.SettingsChangeLogger;
@@ -119,34 +119,26 @@ public class QuickstepModelDelegate extends ModelDelegate {
                 ? null : context.getSystemService(StatsManager.class);
     }
 
-    @CallSuper
     @Override
-    public void loadAndBindWorkspaceItems() {
-        loadAndBindPredictedItems(mIDP.numDatabaseHotseatIcons, mHotseatPredictionState);
-    }
+    public void loadAndAddExtraModelItems(@NonNull IntSparseArrayMap<ItemInfo> outLoadedItems) {
+        loadAndBindPredictedItems(
+                mIDP.numDatabaseHotseatIcons, mHotseatPredictionState, outLoadedItems);
+        loadAndBindPredictedItems(mIDP.numDatabaseAllAppsColumns, mAllPredictionAppsState,
+                outLoadedItems);
 
-    @CallSuper
-    @Override
-    public void loadAndBindAllAppsItems() {
-        loadAndBindPredictedItems(mIDP.numDatabaseAllAppsColumns, mAllPredictionAppsState);
+        // Widgets prediction isn't used frequently. And thus, it is not persisted on disk.
+        PredictedContainerInfo widgetPredictionFCI = new PredictedContainerInfo(
+                mWidgetsRecommendationState.containerId, new ArrayList<>());
+        outLoadedItems.put(mWidgetsRecommendationState.containerId, widgetPredictionFCI);
     }
 
     @WorkerThread
-    private void loadAndBindPredictedItems(
-            int numColumns, @NonNull PredictorState state) {
+    private void loadAndBindPredictedItems(int numColumns,
+            @NonNull PredictorState state, @NonNull IntSparseArrayMap<ItemInfo> outLoadedItems) {
         PredictedItemFactory parser = mItemParserFactory.newParser(numColumns, state);
         PredictedContainerInfo fci = new PredictedContainerInfo(state.containerId,
                 state.storage.read(mContext, parser, mUserCache::getUserForSerialNumber));
-        mDataModel.itemsIdMap.put(state.containerId, fci);
-    }
-
-    @CallSuper
-    @Override
-    public void loadAndBindOtherItems() {
-        PredictedContainerInfo widgetPredictionFCI = new PredictedContainerInfo(
-                mWidgetsRecommendationState.containerId, new ArrayList<>());
-        // Widgets prediction isn't used frequently. And thus, it is not persisted on disk.
-        mDataModel.itemsIdMap.put(mWidgetsRecommendationState.containerId, widgetPredictionFCI);
+        outLoadedItems.put(state.containerId, fci);
     }
 
     public void markActive() {
@@ -181,9 +173,9 @@ public class QuickstepModelDelegate extends ModelDelegate {
                         elapsedTime));
             }
         } else {
-            IntSparseArrayMap<ItemInfo> itemsIdMap;
+            WorkspaceData itemsIdMap;
             synchronized (mDataModel) {
-                itemsIdMap = mDataModel.itemsIdMap.clone();
+                itemsIdMap = mDataModel.itemsIdMap.copy();
             }
             InstanceId instanceId = new InstanceIdSequence().newInstanceId();
             for (ItemInfo info : itemsIdMap) {
@@ -214,9 +206,9 @@ public class QuickstepModelDelegate extends ModelDelegate {
                     MODEL_EXECUTOR,
                     (i, eventList) -> {
                         InstanceId instanceId = new InstanceIdSequence().newInstanceId();
-                        IntSparseArrayMap<ItemInfo> itemsIdMap;
+                        WorkspaceData itemsIdMap;
                         synchronized (mDataModel) {
-                            itemsIdMap = mDataModel.itemsIdMap.clone();
+                            itemsIdMap = mDataModel.itemsIdMap.copy();
                         }
 
                         for (ItemInfo info : itemsIdMap) {
@@ -230,7 +222,7 @@ public class QuickstepModelDelegate extends ModelDelegate {
                         Log.d(TAG,
                                 String.format(
                                         "Successfully logged %d workspace items with instanceId=%d",
-                                        itemsIdMap.size(), instanceId.getId()));
+                                        eventList.size(), instanceId.getId()));
                         additionalSnapshotEvents(instanceId);
                         SettingsChangeLogger.INSTANCE.get(mContext).logSnapshot(instanceId);
                         return StatsManager.PULL_SUCCESS;
@@ -244,7 +236,7 @@ public class QuickstepModelDelegate extends ModelDelegate {
     }
 
     private static CollectionInfo getContainer(
-            ItemInfo info, IntSparseArrayMap<ItemInfo> itemsIdMap) {
+            ItemInfo info, WorkspaceData itemsIdMap) {
         if (info.container > 0) {
             ItemInfo containerInfo = itemsIdMap.get(info.container);
 

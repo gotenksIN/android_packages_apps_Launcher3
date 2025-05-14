@@ -68,7 +68,7 @@ class PredictionUpdateTaskTest {
                 )
         }
         assertThat(component.getDataModel().itemsIdMap[containerId]).isNotNull()
-        assertThat(component.getDataModel().getPredictedContents(containerId)).isEmpty()
+        assertThat(component.getDataModel().itemsIdMap.getPredictedContents(containerId)).isEmpty()
     }
 
     @Test
@@ -87,7 +87,7 @@ class PredictionUpdateTaskTest {
                 )
         }
         assertThat(component.getDataModel().itemsIdMap[containerId]).isNotNull()
-        val items = component.getDataModel().getPredictedContents(containerId)
+        val items = component.getDataModel().itemsIdMap.getPredictedContents(containerId)
         assertThat(items).hasSize(2)
     }
 

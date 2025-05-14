@@ -81,6 +81,7 @@ import com.android.quickstep.RemoteAnimationTargets
 import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle
 import com.android.quickstep.TaskOverlayFactory
 import com.android.quickstep.TaskViewUtils
+import com.android.quickstep.fallback.window.RecentsWindowFlags.enableOverviewOnConnectedDisplays
 import com.android.quickstep.orientation.RecentsPagedOrientationHandler
 import com.android.quickstep.recents.di.RecentsDependencies
 import com.android.quickstep.recents.di.get
@@ -171,7 +172,7 @@ constructor(
         get() =
             this == recentsView?.focusedTaskView ||
                 (enableLargeDesktopWindowingTile() && type == TaskViewType.DESKTOP) ||
-                isExternalDisplay
+                (isExternalDisplay && !enableOverviewOnConnectedDisplays())
 
     val recentsView: RecentsView<*, *>?
         get() = parent as? RecentsView<*, *>

@@ -530,9 +530,9 @@ public class LoaderCursor extends CursorWrapper {
      * Return an existing FolderInfo object if we have encountered this ID previously,
      * or make a new one.
      */
-    public CollectionInfo findOrMakeFolder(int id, BgDataModel dataModel) {
+    public CollectionInfo findOrMakeFolder(int id, IntSparseArrayMap<ItemInfo> loadedItems) {
         // See if a placeholder was created for us already
-        ItemInfo info = dataModel.itemsIdMap.get(id);
+        ItemInfo info = loadedItems.get(id);
         if (info instanceof CollectionInfo c) return c;
 
         CollectionInfo pending = mPendingCollectionInfo.get(id);
@@ -553,7 +553,7 @@ public class LoaderCursor extends CursorWrapper {
      * otherwise marks it for deletion.
      */
     public void checkAndAddItem(
-            ItemInfo info, BgDataModel dataModel, LoaderMemoryLogger logger) {
+            ItemInfo info, IntSparseArrayMap<ItemInfo> loadedItems, LoaderMemoryLogger logger) {
         if (info.itemType == Favorites.ITEM_TYPE_DEEP_SHORTCUT) {
             // Ensure that it is a valid intent. An exception here will
             // cause the item loading to get skipped
@@ -567,13 +567,13 @@ public class LoaderCursor extends CursorWrapper {
                         String.format("Adding item to ID map: %s", info),
                         /* stackTrace= */ null);
             }
-            dataModel.addItem(mContext, info, false);
+            loadedItems.put(info.id, info);
             if ((info.itemType == ITEM_TYPE_APP_PAIR
                     || info.itemType == ITEM_TYPE_DEEP_SHORTCUT
                     || info.itemType == ITEM_TYPE_APPLICATION)
                     && info.container != CONTAINER_DESKTOP
                     && info.container != CONTAINER_HOTSEAT) {
-                findOrMakeFolder(info.container, dataModel).add(info);
+                findOrMakeFolder(info.container, loadedItems).add(info);
             }
             if (mRestoreEventLogger != null) {
                 mRestoreEventLogger.logSingleFavoritesItemRestored(itemType);
