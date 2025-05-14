@@ -68,7 +68,6 @@ import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.ProxyPrefs;
 import com.android.launcher3.R;
-import com.android.launcher3.Workspace;
 import com.android.launcher3.WorkspaceLayoutManager;
 import com.android.launcher3.celllayout.CellLayoutLayoutParams;
 import com.android.launcher3.celllayout.CellPosMapper;
@@ -165,7 +164,11 @@ public class LauncherPreviewRenderer extends BaseContext
                 emptyDbDir();
                 mDbDir.mkdirs();
                 builder.bindParserFactory(new XmlLayoutParserFactory(this, layoutXml))
-                        .bindWidgetsFactory(c -> new LauncherWidgetHolder(c, widgetHostId));
+                        .bindWidgetsFactory(c -> {
+                            LauncherWidgetHolder holder = new LauncherWidgetHolder(c, widgetHostId);
+                            holder.startListening();
+                            return holder;
+                        });
             }
             initDaggerComponent(builder);
 
@@ -212,14 +215,17 @@ public class LauncherPreviewRenderer extends BaseContext
     public LauncherPreviewRenderer(Context context,
             InvariantDeviceProfile idp,
             WallpaperColors wallpaperColorsOverride,
+            int workspaceScreenId,
             @Nullable final SparseArray<Size> launcherWidgetSpanInfo) {
-        this(context, idp, null, wallpaperColorsOverride, launcherWidgetSpanInfo);
+        this(context, idp, null, wallpaperColorsOverride, workspaceScreenId,
+                launcherWidgetSpanInfo);
     }
 
     public LauncherPreviewRenderer(Context context,
             InvariantDeviceProfile idp,
             SparseIntArray previewColorOverride,
             WallpaperColors wallpaperColorsOverride,
+            int workspaceScreenId,
             @Nullable final SparseArray<Size> launcherWidgetSpanInfo) {
 
         super(context, Themes.getActivityThemeRes(context));
@@ -262,7 +268,6 @@ public class LauncherPreviewRenderer extends BaseContext
                         : (mDp.workspacePadding.right + mDp.cellLayoutPaddingPx.right),
                 mDp.workspacePadding.bottom + mDp.cellLayoutPaddingPx.bottom
         );
-        mWorkspaceScreens.put(FIRST_SCREEN_ID, firstScreen);
 
         if (mDp.isTwoPanels) {
             CellLayout rightPanel = mRootView.findViewById(R.id.workspace_right);
@@ -272,7 +277,12 @@ public class LauncherPreviewRenderer extends BaseContext
                     mDp.workspacePadding.right + mDp.cellLayoutPaddingPx.right,
                     mDp.workspacePadding.bottom + mDp.cellLayoutPaddingPx.bottom
             );
-            mWorkspaceScreens.put(Workspace.SECOND_SCREEN_ID, rightPanel);
+
+            int closestEvenPageId = workspaceScreenId - (workspaceScreenId % 2);
+            mWorkspaceScreens.put(closestEvenPageId, firstScreen);
+            mWorkspaceScreens.put(closestEvenPageId + 1, rightPanel);
+        } else {
+            mWorkspaceScreens.put(workspaceScreenId, firstScreen);
         }
 
         SparseIntArray wallpaperColorResources;
@@ -462,12 +472,15 @@ public class LauncherPreviewRenderer extends BaseContext
         // Add first page QSB
         if (BuildConfig.QSB_ON_FIRST_SCREEN) {
             CellLayout firstScreen = mWorkspaceScreens.get(FIRST_SCREEN_ID);
-            View qsb = mHomeElementInflater.inflate(R.layout.qsb_preview, firstScreen, false);
-            // TODO: set bgHandler on qsb when it is BaseTemplateCard, which requires API changes.
-            CellLayoutLayoutParams lp = new CellLayoutLayoutParams(
-                    0, 0, firstScreen.getCountX(), 1);
-            lp.canReorder = false;
-            firstScreen.addViewToCellLayout(qsb, 0, R.id.search_container_workspace, lp, true);
+            if (firstScreen != null) {
+                View qsb = mHomeElementInflater.inflate(R.layout.qsb_preview, firstScreen, false);
+                // TODO: set bgHandler on qsb when it is BaseTemplateCard, which requires API
+                //  changes.
+                CellLayoutLayoutParams lp = new CellLayoutLayoutParams(
+                        0, 0, firstScreen.getCountX(), 1);
+                lp.canReorder = false;
+                firstScreen.addViewToCellLayout(qsb, 0, R.id.search_container_workspace, lp, true);
+            }
         }
 
         measureView(mRootView, mDp.widthPx, mDp.heightPx);

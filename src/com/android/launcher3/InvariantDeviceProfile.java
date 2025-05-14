@@ -1277,8 +1277,8 @@ public class InvariantDeviceProfile {
 
             mNumRows = (int) a.getFloat(R.styleable.GridSize_numGridRows, 0);
             mNumColumns = (int) a.getFloat(R.styleable.GridSize_numGridColumns, 0);
-            mMinDeviceWidthPx = a.getFloat(R.styleable.GridSize_minDeviceWidthPx, 0);
-            mMinDeviceHeightPx = a.getFloat(R.styleable.GridSize_minDeviceHeightPx, 0);
+            mMinDeviceWidthPx = a.getDimensionPixelSize(R.styleable.GridSize_minDeviceWidth, 0);
+            mMinDeviceHeightPx = a.getDimensionPixelSize(R.styleable.GridSize_minDeviceHeight, 0);
             mDbFile = a.getString(R.styleable.GridSize_dbFile);
             mDefaultLayoutId = a.getResourceId(
                     R.styleable.GridSize_defaultLayoutId, 0);

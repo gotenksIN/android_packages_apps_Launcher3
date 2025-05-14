@@ -30,6 +30,7 @@ import android.util.Log;
 import android.view.AttachedSurfaceControl;
 import android.view.SurfaceControl;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
@@ -258,13 +259,9 @@ public class BaseDepthController {
             // SurfaceFlinger will adjust its internal offsets to avoid jank.
             boolean wantsEarlyWakeUp = depth > 0 && depth < 1;
             if (wantsEarlyWakeUp && !mInEarlyWakeUp) {
-                Trace.instantForTrack(TRACE_TAG_APP, TAG, "notifyRendererForGpuLoadUp");
-                mLauncher.getRootView().getViewRootImpl().notifyRendererForGpuLoadUp("applyBlur");
-                finalTransaction.setEarlyWakeupStart();
-                mInEarlyWakeUp = true;
+                setEarlyWakeup(finalTransaction, true);
             } else if (!wantsEarlyWakeUp && mInEarlyWakeUp) {
-                finalTransaction.setEarlyWakeupEnd();
-                mInEarlyWakeUp = false;
+                setEarlyWakeup(finalTransaction, false);
             }
 
             if (applyImmediately) {
@@ -279,6 +276,41 @@ public class BaseDepthController {
         }
 
         blurWorkspaceDepthTargets();
+    }
+
+    /**
+     * Sets the early wakeup state.
+     *
+     * @param inEarlyWakeUp whether SurfaceFlinger's early wakeup timing should be active.
+     */
+    public void setEarlyWakeup(boolean inEarlyWakeUp) {
+        if (mInEarlyWakeUp == inEarlyWakeUp) {
+            return;
+        }
+        try (SurfaceControl.Transaction transaction = createTransaction()) {
+            setEarlyWakeup(transaction, inEarlyWakeUp);
+            transaction.apply();
+        }
+    }
+
+    /**
+     * Sets the early wakeup state.
+     *
+     * @param transaction transaction to apply to.
+     * @param start whether to start or end the early wakeup.
+     */
+    protected void setEarlyWakeup(@NonNull SurfaceControl.Transaction transaction, boolean start) {
+        if (mInEarlyWakeUp == start) {
+            return;
+        }
+        if (start) {
+            Trace.instantForTrack(TRACE_TAG_APP, TAG, "notifyRendererForGpuLoadUp");
+            mLauncher.getRootView().getViewRootImpl().notifyRendererForGpuLoadUp("applyBlur");
+            transaction.setEarlyWakeupStart();
+        } else {
+            transaction.setEarlyWakeupEnd();
+        }
+        mInEarlyWakeUp = start;
     }
 
     /** @return {@code true} if the workspace should be blurred. */
