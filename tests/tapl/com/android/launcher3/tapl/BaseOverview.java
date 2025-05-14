@@ -168,7 +168,7 @@ public class BaseOverview extends LauncherInstrumentation.VisibleContainer {
                     mLauncher.waitForObjectInContainer(verifyActiveContainer(),
                             clearAllSelector));
             if (mLauncher.is3PLauncher()) {
-                mLauncher.executeAndWaitForLauncherStop(
+                mLauncher.executeAndWaitForLauncherHidden(
                         clickClearAll,
                         "clicking 'Clear All'");
             } else {
@@ -507,7 +507,7 @@ public class BaseOverview extends LauncherInstrumentation.VisibleContainer {
             mLauncher.expectEvent(TestProtocol.SEQUENCE_MAIN, EVENT_ENTER_UP);
             mLauncher.expectEvent(TestProtocol.SEQUENCE_MAIN, TASK_START_EVENT);
 
-            mLauncher.executeAndWaitForLauncherStop(
+            mLauncher.executeAndWaitForLauncherHidden(
                     () -> mLauncher.assertTrue(
                             "Failed to press enter",
                             mLauncher.getDevice().pressKeyCode(KeyEvent.KEYCODE_ENTER)),

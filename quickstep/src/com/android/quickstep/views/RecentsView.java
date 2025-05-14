@@ -35,6 +35,7 @@ import static com.android.app.animation.Interpolators.LINEAR;
 import static com.android.app.animation.Interpolators.clampToProgress;
 import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
 import static com.android.launcher3.BaseActivity.STATE_HANDLER_INVISIBILITY_FLAGS;
+import static com.android.launcher3.Flags.enableCoroutineThreadingImprovements;
 import static com.android.launcher3.Flags.enableDesktopExplodedView;
 import static com.android.launcher3.Flags.enableExpressiveDismissTaskMotion;
 import static com.android.launcher3.Flags.enableLargeDesktopWindowingTile;
@@ -187,6 +188,7 @@ import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.GestureState;
 import com.android.quickstep.HighResLoadingState;
 import com.android.quickstep.OverviewCommandHelper;
+import com.android.quickstep.OverviewComponentObserver;
 import com.android.quickstep.RecentsAnimationController;
 import com.android.quickstep.RecentsAnimationTargets;
 import com.android.quickstep.RecentsFilterState;
@@ -704,7 +706,7 @@ public abstract class RecentsView<
 
     // Used to keep track of the last requested task list id, so that we do not request to load the
     // tasks again if we have already requested it and the task list has not changed
-    private int mTaskListChangeId = -1;
+    private int mAppliedTaskListChangeId = -1;
 
     // Only valid until the launcher state changes to NORMAL
     /**
@@ -830,6 +832,8 @@ public abstract class RecentsView<
 
     @Nullable
     private DesktopRecentsTransitionController mDesktopRecentsTransitionController;
+
+    private boolean mIs3PLauncher = false;
 
     private MultiWindowModeChangedListener mMultiWindowModeChangedListener =
             new MultiWindowModeChangedListener() {
@@ -1064,7 +1068,7 @@ public abstract class RecentsView<
      * Invalidates the list of tasks so that an update occurs to the list of tasks if requested.
      */
     private void invalidateTaskList() {
-        mTaskListChangeId = -1;
+        mAppliedTaskListChangeId = -1;
     }
 
     public OverScroller getScroller() {
@@ -1227,10 +1231,11 @@ public abstract class RecentsView<
 
     public void init(OverviewActionsView actionsView, SplitSelectStateController splitController,
             @Nullable DesktopRecentsTransitionController desktopRecentsTransitionController) {
+        mIs3PLauncher = !OverviewComponentObserver.INSTANCE.get(mContext).isHomeAndOverviewSame();
         mActionsView = actionsView;
         mActionsView.updateHiddenFlags(HIDDEN_NO_TASKS, !hasTaskViews());
         // Update flags for 1p/3p launchers
-        mActionsView.updateFor3pLauncher(!supportsAppPairs());
+        mActionsView.updateFor3pLauncher(mIs3PLauncher);
         mSplitSelectStateController = splitController;
         mDesktopRecentsTransitionController = desktopRecentsTransitionController;
     }
@@ -1926,7 +1931,7 @@ public abstract class RecentsView<
         return super.isPageScrollsInitialized() && mLoadPlanEverApplied;
     }
 
-    protected void applyLoadPlan(List<GroupTask> taskGroups) {
+    protected void applyLoadPlan(List<GroupTask> taskGroups, int taskListChangeId) {
         if (enableRefactorTaskThumbnail() && !(isAttachedToWindow()
                 && RecentsDependencies.Companion.hasScope(mContext))) {
             // This can happen if a TaskView callback is triggered after the view is destroyed
@@ -1937,7 +1942,8 @@ public abstract class RecentsView<
         }
         if (mPendingAnimation != null) {
             final List<GroupTask> finalTaskGroups = taskGroups;
-            mPendingAnimation.addEndListener(success -> applyLoadPlan(finalTaskGroups));
+            mPendingAnimation.addEndListener(
+                    success -> applyLoadPlan(finalTaskGroups, taskListChangeId));
             return;
         }
 
@@ -2171,6 +2177,7 @@ public abstract class RecentsView<
             mIgnoreResetTaskId = INVALID_TASK_ID;
         }
 
+        mAppliedTaskListChangeId = taskListChangeId;
         resetTaskVisuals();
         onTaskStackUpdated();
         updateEnabledOverlays();
@@ -2601,7 +2608,7 @@ public abstract class RecentsView<
      */
     public void loadVisibleTaskData(@TaskView.TaskDataChanges int dataChanges) {
         boolean hasLeftOverview = !mOverviewStateEnabled && mScroller.isFinished();
-        if (hasLeftOverview || mTaskListChangeId == -1) {
+        if (hasLeftOverview || mAppliedTaskListChangeId == -1) {
             // Skip loading visible task data if we've already left the overview state, or if the
             // task list hasn't been loaded yet (the task views will not reflect the task list)
             return;
@@ -2754,7 +2761,7 @@ public abstract class RecentsView<
         setCurrentTask(-1);
         mCurrentPageScrollDiff = 0;
         mIgnoreResetTaskId = -1;
-        mTaskListChangeId = -1;
+        mAppliedTaskListChangeId = -1;
         setFocusedTaskViewId(INVALID_TASK_ID);
         mAnyTaskHasBeenDismissed = false;
 
@@ -2778,6 +2785,14 @@ public abstract class RecentsView<
             setEnableDrawingLiveTile(false);
         }
         mBlurUtils.setDrawLiveTileBelowRecents(false);
+
+        if (enableCoroutineThreadingImprovements()) {
+            // TODO(b/391842220): This should not need to be explicitly called from here. When TVs
+            //  are added and removed with the RecentsView lifecycle, this can be removed.
+            //  This is was added because without it cancelling jobs was happening after work was
+            //  scheduled for those jobs resulting in delays.
+            mUtils.getTaskViews().forEach(TaskView::cancelJobs);
+        }
         // These are relatively expensive and don't need to be done this frame (RecentsView isn't
         // visible anyway), so defer by a frame to get off the critical path, e.g. app to home.
         // Defer onto the main thread rather than the view message queue since this will not always
@@ -2891,15 +2906,15 @@ public abstract class RecentsView<
      * Reloads the view if anything in recents changed.
      */
     public void reloadIfNeeded() {
-        if (!mModel.isTaskListValid(mTaskListChangeId)) {
-            mTaskListChangeId = mModel.getTasks(this::applyLoadPlan, RecentsFilterState
+        if (!mModel.isTaskListValid(mAppliedTaskListChangeId)) {
+            mModel.getTasks(this::applyLoadPlan, RecentsFilterState
                     .getFilter(mFilterState.getPackageNameToFilter(), mContainer.getDisplayId()));
-            Log.d(TAG, "reloadIfNeeded - getTasks: " + mTaskListChangeId);
+            Log.d(TAG, "reloadIfNeeded - getTasks: " + mAppliedTaskListChangeId);
             if (enableRefactorTaskThumbnail()) {
                 mRecentsViewModel.refreshAllTaskData();
             }
         } else {
-            Log.d(TAG, "reloadIfNeeded - task list still valid: " + mTaskListChangeId);
+            Log.d(TAG, "reloadIfNeeded - task list still valid: " + mAppliedTaskListChangeId);
         }
     }
 
@@ -4363,17 +4378,14 @@ public abstract class RecentsView<
         mActionsView.updateHiddenFlags(HIDDEN_SPLIT_SELECT_ACTIVE, isSplitSelectionActive());
         // Update flags to see if actions bar should show buttons for a single task or a pair of
         // tasks.
-        boolean canSaveAppPair = isCurrentSplit && supportsAppPairs() &&
-                getSplitSelectController().getAppPairsController().canSaveAppPair(groupedTaskView);
+        boolean canSaveAppPair = isCurrentSplit
+                && !mIs3PLauncher
+                && getSplitSelectController().getAppPairsController().canSaveAppPair(
+                        groupedTaskView);
         mActionsView.updateForGroupedTask(isCurrentSplit, canSaveAppPair);
 
         boolean isCurrentDesktop = taskView instanceof DesktopTaskView;
         mActionsView.updateHiddenFlags(HIDDEN_DESKTOP, isCurrentDesktop);
-    }
-
-    /** Returns if app pairs are supported in this launcher. Overridden in subclasses. */
-    public boolean supportsAppPairs() {
-        return true;
     }
 
     /**

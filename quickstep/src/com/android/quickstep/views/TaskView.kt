@@ -45,6 +45,7 @@ import androidx.core.view.updateLayoutParams
 import com.android.app.animation.Interpolators
 import com.android.app.tracing.traceSection
 import com.android.launcher3.AbstractFloatingView
+import com.android.launcher3.Flags.enableCoroutineThreadingImprovements
 import com.android.launcher3.Flags.enableCursorHoverStates
 import com.android.launcher3.Flags.enableDesktopExplodedView
 import com.android.launcher3.Flags.enableLargeDesktopWindowingTile
@@ -939,21 +940,39 @@ constructor(
     override fun onDetachedFromWindow() =
         traceSection("TaskView.onDetachedFromWindow") {
             super.onDetachedFromWindow()
-            if (enableRefactorTaskThumbnail()) {
-                // The jobs are being cancelled in the background thread. So we make a copy of the
-                // list to prevent cleaning a new job that might be added to this list during
-                // onAttach or another moment in the lifecycle.
-                val coroutineJobsToCancel = coroutineJobs.toList()
-                coroutineJobs.clear()
-                coroutineScope.launch(dispatcherProvider.lightweightBackground) {
-                    traceSection("TaskView.onDetachedFromWindow.cancellingJobs") {
-                        coroutineJobsToCancel.forEach {
-                            it.cancel("TaskView detaching from window")
-                        }
+            cancelJobs()
+        }
+
+    fun cancelJobs() {
+        if (enableRefactorTaskThumbnail()) {
+            // The jobs are being cancelled in the background thread. So we make a copy of the
+            // list to prevent cleaning a new job that might be added to this list during
+            // onAttach or another moment in the lifecycle.
+            val coroutineJobsToCancel = coroutineJobs.toList()
+            coroutineJobs.clear()
+            if (enableCoroutineThreadingImprovements() && coroutineJobsToCancel.isNotEmpty()) {
+                // TODO(b/391842220): This should ideally be handled in the completion block of the
+                //  jobs above to be cancelled.
+                taskContainers.forEach {
+                    it.setState(
+                        state = null,
+                        hasHeader = false,
+                        canShowAppTimer = false,
+                        clickCloseListener = null,
+                    )
+                    if (enableOverviewIconMenu()) {
+                        setIconState(it, null)
                     }
                 }
             }
+
+            coroutineScope.launch(dispatcherProvider.lightweightBackground) {
+                traceSection("TaskView.onDetachedFromWindow.cancellingJobs") {
+                    coroutineJobsToCancel.forEach { it.cancel("TaskView detaching from window") }
+                }
+            }
         }
+    }
 
     /** Updates this task view to the given {@param task}. */
     open fun bind(

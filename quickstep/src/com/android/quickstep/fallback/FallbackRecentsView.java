@@ -197,7 +197,7 @@ public class FallbackRecentsView<CONTAINER_TYPE extends Context & RecentsViewCon
     }
 
     @Override
-    protected void applyLoadPlan(List<GroupTask> taskGroups) {
+    protected void applyLoadPlan(List<GroupTask> taskGroups, int taskListChangeId) {
         // When quick-switching on 3p-launcher, we add a "stub" tile corresponding to Launcher
         // as well. This tile is never shown as we have setCurrentTaskHidden, but allows use to
         // track the index of the next task appropriately, as if we are switching on any other app.
@@ -221,7 +221,7 @@ public class FallbackRecentsView<CONTAINER_TYPE extends Context & RecentsViewCon
                 taskGroups = newList;
             }
         }
-        super.applyLoadPlan(taskGroups);
+        super.applyLoadPlan(taskGroups, taskListChangeId);
     }
 
     @Override
@@ -338,11 +338,5 @@ public class FallbackRecentsView<CONTAINER_TYPE extends Context & RecentsViewCon
     @Override
     public boolean canLaunchFullscreenTask() {
         return !mContainer.isInState(OVERVIEW_SPLIT_SELECT);
-    }
-
-    /** Returns if app pairs are supported in this launcher. */
-    @Override
-    public boolean supportsAppPairs() {
-        return false;
     }
 }

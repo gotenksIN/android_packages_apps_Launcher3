@@ -69,6 +69,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -231,7 +232,21 @@ public class RecentsModel implements RecentTasksDataSource, TaskStackChangeListe
      * @return the request id associated with this call.
      */
     public int getTasks(@Nullable Consumer<List<GroupTask>> callback, Predicate<GroupTask> filter) {
-        return mTaskList.getTasks(false /* loadKeysOnly */, callback, filter);
+        return mTaskList.getTasks(/* loadKeysOnly= */ false, callback, filter);
+    }
+
+    /**
+     * Fetches the list of recent tasks, based on a filter
+     *
+     * @param callback The callback to receive the task plan and request ID once its complete or
+     *                 null. This is always called on the UI thread.
+     * @param filter  Returns true if a GroupTask should be included into the list passed into
+     *                callback.
+     * @return the request id associated with this call.
+     */
+    public int getTasks(
+            @Nullable BiConsumer<List<GroupTask>, Integer> callback, Predicate<GroupTask> filter) {
+        return mTaskList.getTasks(/* loadKeysOnly= */ false, callback, filter);
     }
 
     /**

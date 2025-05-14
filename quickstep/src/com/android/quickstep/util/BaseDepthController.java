@@ -177,7 +177,7 @@ public class BaseDepthController {
     protected void onInvalidSurface() { }
 
     protected void applyDepthAndBlur() {
-        applyDepthAndBlur(null, /* applyImmediately */ false);
+        applyDepthAndBlur(null, /* applyImmediately */ false, /* skipSimilarBlur */ true);
     }
 
     /**
@@ -187,14 +187,14 @@ public class BaseDepthController {
      * @param applyImmediately whether to apply the blur immediately or defer to the next frame.
      */
     protected void applyDepthAndBlur(SurfaceControl.Transaction transaction,
-            boolean applyImmediately) {
+            boolean applyImmediately, boolean skipSimilarBlur) {
         try (transaction) {
-            applyDepthAndBlurInternal(transaction, applyImmediately);
+            applyDepthAndBlurInternal(transaction, applyImmediately, skipSimilarBlur);
         }
     }
 
     private void applyDepthAndBlurInternal(SurfaceControl.Transaction transaction,
-            boolean applyImmediately) {
+            boolean applyImmediately, boolean skipSimilarBlur) {
         float depth = mDepth;
         IBinder windowToken = mLauncher.getRootView().getWindowToken();
         if (windowToken != null) {
@@ -239,8 +239,6 @@ public class BaseDepthController {
         int previousBlur = mCurrentBlur;
         int newBlur = mBlursEnabled && !hasOpaqueBg ? (int) (blurAmount * mMaxBlurRadius) : 0;
         int delta = Math.abs(newBlur - previousBlur);
-        // Don't skip blur if a transaction is provided.
-        boolean skipSimilarBlur = transaction == null;
         if (skipSimilarBlur && delta < Utilities.dpToPx(1) && newBlur != 0 && previousBlur != 0) {
             Log.d(TAG, "Skipping small blur delta. newBlur: " + newBlur + " previousBlur: "
                     + previousBlur + " delta: " + delta + " surface: " + blurSurface);
@@ -356,7 +354,7 @@ public class BaseDepthController {
             mBaseSurfaceOverride = baseSurfaceOverride;
             Log.d(TAG, "setBaseSurfaceOverride: applying blur behind leash " + baseSurfaceOverride);
             SurfaceControl.Transaction transaction = setupBlurSurface();
-            applyDepthAndBlur(transaction, applyImmediately);
+            applyDepthAndBlur(transaction, applyImmediately, /* skipSimilarBlur */ false);
         }
     }
 
@@ -398,7 +396,8 @@ public class BaseDepthController {
             if (enableOverviewBackgroundWallpaperBlur()) {
                 transaction = setupBlurSurface();
             }
-            applyDepthAndBlur(transaction, /* applyImmediately */ false);
+            applyDepthAndBlur(transaction, /* applyImmediately */ false,
+                    /* skipSimilarBlur */ false);
         }
     }
 

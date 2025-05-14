@@ -24,7 +24,6 @@ import android.os.Trace
 import android.util.Log
 import android.view.Display.DEFAULT_DISPLAY
 import android.view.View
-import android.window.DesktopExperienceFlags
 import android.window.TransitionInfo
 import androidx.annotation.BinderThread
 import androidx.annotation.UiThread
@@ -590,14 +589,17 @@ constructor(
         ) {
             return
         }
-
         // When the overview is launched via alt tab (command type is TYPE_KEYBOARD_INPUT),
         // the touch mode somehow is not change to false by the Android framework.
         // The subsequent tab to go through tasks in overview can only be dispatched to
         // focuses views, while focus can only be requested in
         // {@link View#requestFocusNoSearch(int, Rect)} when touch mode is false. To note,
         // here we launch overview with live tile.
-        recentsView.viewRootImpl.touchModeChanged(false)
+        if (recentsView.isAttachedToWindow) {
+            recentsView.viewRootImpl.touchModeChanged(false)
+        } else {
+            recentsView.post { recentsView.viewRootImpl.touchModeChanged(false) }
+        }
         // Ensure that recents view has focus so that it receives the followup key inputs
         // Stops requesting focused after first view gets focused.
         recentsView

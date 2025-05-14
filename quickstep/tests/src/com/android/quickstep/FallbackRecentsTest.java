@@ -23,6 +23,7 @@ import static androidx.test.InstrumentationRegistry.getInstrumentation;
 import static com.android.launcher3.tapl.LauncherInstrumentation.WAIT_TIME_MS;
 import static com.android.launcher3.tapl.TestHelpers.getHomeIntentInPackage;
 import static com.android.launcher3.tapl.TestHelpers.getLauncherInMyProcess;
+import static com.android.launcher3.ui.TaplTestsLauncher3Test.getAppPackageName;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.rule.ShellCommandRule.disableHeadsUpNotification;
 import static com.android.launcher3.util.rule.ShellCommandRule.getLauncherCommand;
@@ -30,7 +31,6 @@ import static com.android.launcher3.util.ui.AbstractLauncherUiTest.DEFAULT_BROAD
 import static com.android.launcher3.util.ui.AbstractLauncherUiTest.resolveSystemApp;
 import static com.android.launcher3.util.ui.AbstractLauncherUiTest.startAppFast;
 import static com.android.launcher3.util.ui.AbstractLauncherUiTest.startTestActivity;
-import static com.android.launcher3.ui.TaplTestsLauncher3Test.getAppPackageName;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
