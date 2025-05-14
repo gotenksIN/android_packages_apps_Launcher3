@@ -37,6 +37,7 @@ import com.android.launcher3.logging.FileLog
 import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.CollectionInfo
 import com.android.launcher3.model.data.ItemInfo
+import com.android.launcher3.model.data.LauncherAppWidgetInfo
 import com.android.launcher3.model.data.PredictedContainerInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.model.repository.HomeScreenRepository
@@ -190,7 +191,7 @@ constructor(
         if (newItem && item.itemType == ITEM_TYPE_DEEP_SHORTCUT) {
             updateShortcutPinnedState(context, item.user)
         }
-        if (Flags.modelRepository() && repo != null) {
+        if (newItem && Flags.modelRepository() && repo != null) {
             repo.dispatchChange(this, AddEvent(listOf(item), owner))
         }
 
@@ -259,11 +260,15 @@ constructor(
         // Collect all model shortcuts
         val allWorkspaceItems =
             mutableListOf<ShortcutKey>().apply {
-                updateAndCollectWorkspaceItemInfos(user) {
-                    if (it.itemType == ITEM_TYPE_DEEP_SHORTCUT) add(ShortcutKey.fromItemInfo(it))
-                    // We don't care about the returned list
-                    false
-                }
+                updateAndCollectWorkspaceItemInfos(
+                    user,
+                    {
+                        if (it.itemType == ITEM_TYPE_DEEP_SHORTCUT)
+                            add(ShortcutKey.fromItemInfo(it))
+                        // We don't care about the returned list
+                        false
+                    },
+                )
             }
         allWorkspaceItems.addAll(
             ItemInstallQueue.INSTANCE[context].getPendingShortcuts(user).toList()
@@ -351,30 +356,40 @@ constructor(
     }
 
     /**
-     * Calls the [op] for all workspaceItems in the in-memory model (both persisted items and
-     * dynamic/predicted items for the [userHandle]) and returns a list of updates to be dispatched
-     * to the callbacks. Note the call is not synchronized over the model, that should be handled by
-     * the called.
+     * Calls the [workspaceItemOp] for all workspaceItems [widgetItemOp] for all widget items in the
+     * in-memory model (both persisted items and dynamic/predicted items for the [userHandle]) and
+     * returns a list of updates to be dispatched to the callbacks. Note the call is not
+     * synchronized over the model, that should be handled by the caller.
      */
+    @JvmOverloads
     fun updateAndCollectWorkspaceItemInfos(
         userHandle: UserHandle,
-        op: (WorkspaceItemInfo) -> Boolean,
-    ): MutableList<ItemInfo> =
-        itemsIdMap.filterTo(mutableListOf()) {
-            when {
-                it is WorkspaceItemInfo && userHandle == it.user -> op.invoke(it)
-                it is PredictedContainerInfo -> {
-                    // Do not use filter or any as we want to run the update on every item. If any
-                    // single item was updated, we add the container to the list of updates
-                    it.getContents().count { predictedItem ->
-                        predictedItem is WorkspaceItemInfo &&
-                            predictedItem.user == userHandle &&
-                            op.invoke(predictedItem)
-                    } > 0
+        workspaceItemOp: (WorkspaceItemInfo) -> Boolean,
+        widgetItemOp: ((LauncherAppWidgetInfo) -> Boolean)? = null,
+    ): List<ItemInfo> =
+        itemsIdMap
+            .filter {
+                when {
+                    it is WorkspaceItemInfo && userHandle == it.user -> workspaceItemOp.invoke(it)
+                    widgetItemOp != null && it is LauncherAppWidgetInfo && userHandle == it.user ->
+                        widgetItemOp.invoke(it)
+                    it is PredictedContainerInfo -> {
+                        // Do not use filter or any as we want to run the update on every item. If
+                        // any
+                        // single item was updated, we add the container to the list of updates
+                        it.getContents().count { predictedItem ->
+                            predictedItem is WorkspaceItemInfo &&
+                                predictedItem.user == userHandle &&
+                                workspaceItemOp.invoke(predictedItem)
+                        } > 0
+                    }
+                    else -> false
                 }
-                else -> false
             }
-        }
+            .apply {
+                // Dispatch an update
+                if (isNotEmpty()) updateItems(this, null)
+            }
 
     /** An object containing items corresponding to a fixed container */
     class FixedContainerItems(@JvmField val containerId: Int, items: List<ItemInfo>) {

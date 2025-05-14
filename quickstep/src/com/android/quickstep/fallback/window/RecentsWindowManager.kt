@@ -382,7 +382,7 @@ constructor(
     }
 
     override fun shouldAnimateStateChange(): Boolean {
-        return true
+        return false
     }
 
     override fun isInState(state: RecentsState?): Boolean {
