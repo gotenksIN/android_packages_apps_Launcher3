@@ -114,7 +114,7 @@ public class TaskbarAllAppsSlideInView extends AbstractSlideInView<TaskbarOverla
     }
 
     private void showOnFullyAttachedToWindow(boolean animate) {
-        if (mActivityContext.isBackgroundBlurEnabled()) {
+        if (mActivityContext.isAllAppsBackgroundBlurEnabled()) {
             ViewRootImpl overlayVri = mActivityContext.getRootView().getViewRootImpl();
             if (overlayVri == null) {
                 Log.w(TAG, "overlayVRI is null, cannot notifyRendererOfExpensiveFrame()");

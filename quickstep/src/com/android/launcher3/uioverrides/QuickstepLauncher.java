@@ -301,6 +301,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     protected void setupViews() {
+        getTheme().applyStyle(getOverviewBlurStyleResId(), true);
         getAppWidgetHolder().setOnViewCreationCallback(new QuickstepInteractionHandler(this));
         super.setupViews();
 
@@ -456,9 +457,15 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     }
 
     @Override
-    public boolean isBackgroundBlurEnabled() {
-        return mDepthController != null && mDepthController.areBlursEnabled() && (
-                Flags.allAppsBlur() || enableOverviewBackgroundWallpaperBlur());
+    public boolean isAllAppsBackgroundBlurEnabled() {
+        return mDepthController != null && mDepthController.areBlursEnabled()
+                && Flags.allAppsBlur();
+    }
+
+    @Override
+    public boolean isOverviewBackgroundBlurEnabled() {
+        return mDepthController != null && mDepthController.areBlursEnabled()
+                && enableOverviewBackgroundWallpaperBlur();
     }
 
     @Override
@@ -466,17 +473,18 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         if (!Flags.allAppsBlur() && !enableOverviewBackgroundWallpaperBlur()) {
             return;
         }
-        int blurStyleResId = getBlurStyleResId();
-        getTheme().applyStyle(blurStyleResId, true);
         if (Flags.allAppsBlur()) {
+            int blurStyleResId = getAllAppsBlurStyleResId();
+            getTheme().applyStyle(blurStyleResId, true);
             getAppsView().onThemeChanged(
                     new ContextThemeWrapper(getApplicationContext(), blurStyleResId));
         }
         if (enableOverviewBackgroundWallpaperBlur()) {
+            getTheme().applyStyle(getOverviewBlurStyleResId(), true);
             getScrimView().setBackgroundColor(
                     getStateManager().getState().getWorkspaceScrimColor(this));
             RecentsView<?, ?> recentsView = getOverviewPanel();
-            recentsView.updateBlurStyle(isBackgroundBlurEnabled());
+            recentsView.updateBlurStyle(isOverviewBackgroundBlurEnabled());
         }
     }
 
@@ -1574,5 +1582,11 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     @Override
     public void returnToHomescreen() {
         getStateManager().goToState(LauncherState.NORMAL);
+    }
+
+    @Override
+    public int getOverviewBlurStyleResId() {
+        return isOverviewBackgroundBlurEnabled() ? R.style.OverviewBlurStyle
+                : R.style.OverviewBlurFallbackStyle;
     }
 }

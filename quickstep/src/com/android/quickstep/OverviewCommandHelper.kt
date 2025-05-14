@@ -83,7 +83,8 @@ constructor(
     private val taskAnimationManagerRepository: PerDisplayRepository<TaskAnimationManager>,
     private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime,
 ) {
-    private val coroutineScope = CoroutineScope(SupervisorJob() + dispatcherProvider.background)
+    private val coroutineScope =
+        CoroutineScope(SupervisorJob() + dispatcherProvider.lightweightBackground)
 
     private val commandQueue = ConcurrentLinkedDeque<CommandInfo>()
 

@@ -1139,7 +1139,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     private Animator getBackgroundAnimator() {
         LauncherState launcherState = mLauncher.getStateManager().getState();
         boolean currentlyBlurringAllApps = Flags.allAppsBlur() && launcherState == ALL_APPS
-                && mLauncher.isBackgroundBlurEnabled();
+                && mLauncher.isAllAppsBackgroundBlurEnabled();
         if (currentlyBlurringAllApps) {
             // Don't additionally animate/blur the background for this launch (All Apps content
             // already scales slightly to simulate depth).

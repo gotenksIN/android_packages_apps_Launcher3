@@ -251,9 +251,11 @@ constructor(
         if (isShowing()) {
             return
         }
+        theme.applyStyle(overviewBlurStyleResId, true)
         if (windowView == null) {
             windowView = layoutInflater.inflate(R.layout.fallback_recents_activity, null)
         }
+
         windowManager.addView(windowView, windowLayoutParams)
 
         windowView?.let {
@@ -501,6 +503,10 @@ constructor(
 
     override fun createAtomicAnimationFactory(): AtomicAnimationFactory<RecentsState?>? {
         return RecentsAtomicAnimationFactory<RecentsWindowManager, RecentsState>(this)
+    }
+
+    override fun getOverviewBlurStyleResId(): Int {
+        return R.style.OverviewBlurFallbackStyle
     }
 
     @AssistedFactory

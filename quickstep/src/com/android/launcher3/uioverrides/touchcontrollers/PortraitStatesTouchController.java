@@ -220,7 +220,8 @@ public class PortraitStatesTouchController extends AbstractStateChangeTouchContr
     @Override
     protected void onReinitToState(LauncherState newToState) {
         super.onReinitToState(newToState);
-        if (Flags.allAppsBlur() && mLauncher.isBackgroundBlurEnabled() && newToState == ALL_APPS) {
+        if (Flags.allAppsBlur() && mLauncher.isAllAppsBackgroundBlurEnabled()
+                && newToState == ALL_APPS) {
             // About to start blurring during swipe to All Apps; prepare the renderer.
             Trace.instantForTrack(TRACE_TAG_APP, TAG, "notifyRendererForGpuLoadUp");
             mLauncher.getRootView().getViewRootImpl().notifyRendererForGpuLoadUp(

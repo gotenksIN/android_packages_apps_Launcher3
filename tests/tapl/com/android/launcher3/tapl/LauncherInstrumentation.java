@@ -2735,4 +2735,10 @@ public final class LauncherInstrumentation {
                 () -> "Didn't detect finishing wallpaper-open animation",
                 actionName);
     }
+
+    /** Returns the magnetic detach threshold when dismissing a task view. */
+    public int getMagneticDetachThreshold() {
+        return getTestInfo(TestProtocol.REQUEST_DISMISS_MAGNETIC_DETACH_THRESHOLD).getInt(
+                TestProtocol.TEST_INFO_RESPONSE_FIELD);
+    }
 }
