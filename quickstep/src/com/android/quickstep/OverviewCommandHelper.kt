@@ -82,7 +82,8 @@ constructor(
     private val taskAnimationManagerRepository: PerDisplayRepository<TaskAnimationManager>,
     private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime,
 ) {
-    private val coroutineScope = CoroutineScope(SupervisorJob() + dispatcherProvider.background)
+    private val coroutineScope =
+        CoroutineScope(SupervisorJob() + dispatcherProvider.lightweightBackground)
 
     private val commandQueue = ConcurrentLinkedDeque<CommandInfo>()
 
@@ -356,6 +357,15 @@ constructor(
                 containerInterface.getTaskbarController()
             }
 
+        val taskAnimationManager = taskAnimationManagerRepository[command.displayId]
+        if (taskAnimationManager == null) {
+            Log.e(TAG, "No TaskAnimationManager found for display ${command.displayId}")
+            ActiveGestureProtoLogProxy.logOnTaskAnimationManagerNotAvailable(
+                command.displayId
+            )
+            return false
+        }
+
         when (command.type) {
             HIDE_ALT_TAB -> {
                 if (
@@ -382,13 +392,15 @@ constructor(
 
             HOME -> {
                 ActiveGestureProtoLogProxy.logExecuteHomeCommand()
-                // Although IActivityTaskManager$Stub$Proxy.startActivity is a slow binder call,
-                // we should still call it on main thread because launcher is waiting for
-                // ActivityTaskManager to resume it. Also calling startActivity() on bg thread
-                // could potentially delay resuming launcher. See b/348668521 for more details.
-                touchInteractionService.startActivity(
-                    overviewComponentObserver.getHomeIntent(command.displayId)
-                )
+                taskAnimationManager.maybeStartHomeAction {
+                    // Although IActivityTaskManager$Stub$Proxy.startActivity is a slow binder call,
+                    // we should still call it on main thread because launcher is waiting for
+                    // ActivityTaskManager to resume it. Also calling startActivity() on bg thread
+                    // could potentially delay resuming launcher. See b/348668521 for more details.
+                    touchInteractionService.startActivity(
+                        overviewComponentObserver.getHomeIntent(command.displayId)
+                    )
+                }
                 return true
             }
 
@@ -501,15 +513,6 @@ constructor(
                 }
             }
 
-        val taskAnimationManager =
-            taskAnimationManagerRepository.get(command.displayId)
-                ?: run {
-                    Log.e(TAG, "No TaskAnimationManager found for display ${command.displayId}")
-                    ActiveGestureProtoLogProxy.logOnTaskAnimationManagerNotAvailable(
-                        command.displayId
-                    )
-                    return false
-                }
         if (taskAnimationManager.isRecentsAnimationRunning) {
             command.setAnimationCallbacks(
                 taskAnimationManager.continueRecentsAnimation(gestureState)
@@ -586,14 +589,17 @@ constructor(
         ) {
             return
         }
-
         // When the overview is launched via alt tab (command type is TYPE_KEYBOARD_INPUT),
         // the touch mode somehow is not change to false by the Android framework.
         // The subsequent tab to go through tasks in overview can only be dispatched to
         // focuses views, while focus can only be requested in
         // {@link View#requestFocusNoSearch(int, Rect)} when touch mode is false. To note,
         // here we launch overview with live tile.
-        recentsView.viewRootImpl.touchModeChanged(false)
+        if (recentsView.isAttachedToWindow) {
+            recentsView.viewRootImpl.touchModeChanged(false)
+        } else {
+            recentsView.post { recentsView.viewRootImpl.touchModeChanged(false) }
+        }
         // Ensure that recents view has focus so that it receives the followup key inputs
         // Stops requesting focused after first view gets focused.
         recentsView

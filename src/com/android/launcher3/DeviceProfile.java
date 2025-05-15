@@ -96,6 +96,7 @@ public class DeviceProfile {
     };
 
     public final InvariantDeviceProfile inv;
+    private final DisplayOptionSpec mDisplayOptionSpec;
     private final Info mInfo;
     private final DisplayMetrics mMetrics;
     private final IconSizeSteps mIconSizeSteps;
@@ -324,6 +325,7 @@ public class DeviceProfile {
     @VisibleForTesting
     public DeviceProfile() {
         inv = null;
+        mDisplayOptionSpec = null;
         mInfo = null;
         mMetrics = null;
         mIconSizeSteps = null;
@@ -406,6 +408,7 @@ public class DeviceProfile {
         windowY = windowBounds.bounds.top;
         this.rotationHint = windowBounds.rotationHint;
         mInsets.set(windowBounds.insets);
+        this.mDisplayOptionSpec = displayOptionSpec;
 
         // TODO(b/241386436): shouldn't change any launcher behaviour
         mIsResponsiveGrid = inv.workspaceSpecsId != INVALID_RESOURCE_HANDLE
@@ -472,7 +475,7 @@ public class DeviceProfile {
             taskbarHeight = res.getDimensionPixelSize(R.dimen.taskbar_size);
             stashedTaskbarHeight = res.getDimensionPixelSize(R.dimen.taskbar_stashed_size);
             taskbarBottomMargin = 0;
-            startAlignTaskbar = inv.startAlignTaskbar[mTypeIndex];
+            startAlignTaskbar = displayOptionSpec.startAlignTaskbar;
         }
 
         edgeMarginPx = res.getDimensionPixelSize(R.dimen.dynamic_grid_edge_margin);
@@ -1072,7 +1075,8 @@ public class DeviceProfile {
                 .setIsMultiDisplay(isMultiDisplay)
                 .setMultiWindowMode(isMultiWindowMode)
                 .setDotRendererCache(dotRendererCache)
-                .setGestureMode(isGestureMode);
+                .setGestureMode(isGestureMode)
+                .setDisplayOptionSpec(mDisplayOptionSpec);
     }
 
     public DeviceProfile copy(Context context) {
@@ -2572,6 +2576,11 @@ public class DeviceProfile {
         public Builder setSecondaryDisplayOptionSpec() {
             mDisplayOptionSpec = createDisplayOptionSpec(mContext, mInfo,
                     mWindowBounds.isLandscape());
+            return this;
+        }
+
+        private Builder setDisplayOptionSpec(DisplayOptionSpec displayOptionSpec) {
+            mDisplayOptionSpec = displayOptionSpec;
             return this;
         }
 

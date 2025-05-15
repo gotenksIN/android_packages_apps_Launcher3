@@ -136,7 +136,7 @@ public final class WidgetsPredictionUpdateTask implements ModelUpdateTask {
         PredictedContainerInfo pci =
                 new PredictedContainerInfo(mPredictorState.containerId, items);
 
-        dataModel.itemsIdMap.put(mPredictorState.containerId, pci);
+        dataModel.updateAndDispatchItem(pci /* item */, null /* owner */);
         taskController.bindUpdatedWorkspaceItems(Collections.singleton(pci));
 
         // Don't store widgets prediction to disk because it is not used frequently.

@@ -35,8 +35,8 @@ import com.android.launcher3.LauncherModel;
 import com.android.launcher3.model.BgDataModel.Callbacks;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.ItemInfo;
+import com.android.launcher3.model.data.WorkspaceData;
 import com.android.launcher3.util.Executors;
-import com.android.launcher3.util.IntSparseArrayMap;
 import com.android.launcher3.util.LauncherLayoutBuilder;
 import com.android.launcher3.util.PackageUserKey;
 import com.android.launcher3.util.SandboxApplication;
@@ -176,8 +176,7 @@ public class ModelMultiCallbacksTest {
         MyCallbacks() { }
 
         @Override
-        public void bindCompleteModel(
-                IntSparseArrayMap<ItemInfo> itemIdMap, boolean isBindingSync) {
+        public void bindCompleteModel(WorkspaceData itemIdMap, boolean isBindingSync) {
             mItems = itemIdMap.stream().toList();
         }
 

@@ -71,7 +71,7 @@ public class PredictionUpdateTask implements ModelUpdateTask {
         LauncherPrefs.get(context).put(LAST_PREDICTION_ENABLED, !mTargets.isEmpty());
 
         Set<UserHandle> usersForChangedShortcuts =
-                dataModel.getPredictedContents(mPredictorState.containerId).stream()
+                dataModel.itemsIdMap.getPredictedContents(mPredictorState.containerId).stream()
                         .filter(info -> info.itemType == ITEM_TYPE_DEEP_SHORTCUT)
                         .map(info -> info.user)
                         .collect(Collectors.toSet());
@@ -120,7 +120,7 @@ public class PredictionUpdateTask implements ModelUpdateTask {
         }
 
         PredictedContainerInfo pci = new PredictedContainerInfo(mPredictorState.containerId, items);
-        dataModel.itemsIdMap.put(pci.id, pci);
+        dataModel.updateAndDispatchItem(pci /* item */, null /* owner */);
         taskController.bindUpdatedWorkspaceItems(Collections.singleton(pci));
         usersForChangedShortcuts.forEach(u -> dataModel.updateShortcutPinnedState(context, u));
 

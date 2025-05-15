@@ -8,8 +8,8 @@ import android.util.Pair
 import androidx.annotation.AnyThread
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
-import com.android.launcher3.BuildConfig.QSB_ON_FIRST_SCREEN
-import com.android.launcher3.LauncherConstants.TraceEvents
+import com.android.launcher3.LauncherConstants.TraceEvents.DISPLAY_WORKSPACE_TRACE_METHOD_NAME
+import com.android.launcher3.LauncherConstants.TraceEvents.SINGLE_TRACE_COOKIE
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT
 import com.android.launcher3.WorkspaceLayoutManager.FIRST_SCREEN_ID
@@ -24,6 +24,7 @@ import com.android.launcher3.model.StringCache
 import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.PredictedContainerInfo
+import com.android.launcher3.model.data.WorkspaceData
 import com.android.launcher3.popup.PopupContainerWithArrow
 import com.android.launcher3.util.ComponentKey
 import com.android.launcher3.util.Executors
@@ -32,7 +33,6 @@ import com.android.launcher3.util.IntArray as LIntArray
 import com.android.launcher3.util.IntArray
 import com.android.launcher3.util.IntSet as LIntSet
 import com.android.launcher3.util.IntSet
-import com.android.launcher3.util.IntSparseArrayMap
 import com.android.launcher3.util.ItemInfoMatcher
 import com.android.launcher3.util.PackageUserKey
 import com.android.launcher3.util.Preconditions
@@ -97,10 +97,7 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
         workspaceItemCount: Int,
         isBindSync: Boolean,
     ) {
-        Trace.endAsyncSection(
-            TraceEvents.DISPLAY_WORKSPACE_TRACE_METHOD_NAME,
-            TraceEvents.DISPLAY_WORKSPACE_TRACE_COOKIE,
-        )
+        Trace.endAsyncSection(DISPLAY_WORKSPACE_TRACE_METHOD_NAME, SINGLE_TRACE_COOKIE)
         synchronouslyBoundPages = boundPages
         pagesToBindSynchronously = LIntSet()
         clearPendingBinds()
@@ -401,10 +398,7 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
     }
 
     @AnyThread
-    override fun bindCompleteModelAsync(
-        itemIdMap: IntSparseArrayMap<ItemInfo>,
-        isBindingSync: Boolean,
-    ) {
+    override fun bindCompleteModelAsync(itemIdMap: WorkspaceData, isBindingSync: Boolean) {
         val taskTracker = CancellationSignal()
         activeBindTask.getAndSet(taskTracker).cancel()
 
@@ -447,13 +441,7 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
 
         MAIN_EXECUTOR.execute { clearPendingBinds() }
 
-        val orderedScreenIds =
-            IntSet()
-                .apply {
-                    itemIdMap.forEach { if (it.container == CONTAINER_DESKTOP) add(it.screenId) }
-                    if (QSB_ON_FIRST_SCREEN || isEmpty) add(Workspace.FIRST_SCREEN_ID)
-                }
-                .array
+        val orderedScreenIds = itemIdMap.collectWorkspaceScreens()
         val currentScreenIds = getPagesToBindSynchronously(orderedScreenIds)
 
         fun setupPendingBind(pendingExecutor: Executor) {
@@ -530,7 +518,12 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
             onCompleteSignal.executeAllAndDestroy()
         }
 
-        val workspaceItemCount = itemIdMap.size()
+        // Only include the first level items on desktop (excluding folder contents) for item count
+        val workspaceItemCount =
+            currentWorkspaceItems.size +
+                otherWorkspaceItems.size +
+                currentAppWidgets.size +
+                otherAppWidgets.size
         executeCallbacksTask {
             onInitialBindComplete(
                 currentScreenIds,

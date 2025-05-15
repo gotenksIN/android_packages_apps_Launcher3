@@ -38,7 +38,6 @@ import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.BaseActivity
 import com.android.launcher3.LauncherAnimationRunner
 import com.android.launcher3.LauncherAnimationRunner.RemoteAnimationFactory
-import com.android.launcher3.LauncherState.NORMAL
 import com.android.launcher3.R
 import com.android.launcher3.compat.AccessibilityManagerCompat
 import com.android.launcher3.dagger.LauncherAppSingleton
@@ -75,9 +74,9 @@ import com.android.quickstep.fallback.RecentsState
 import com.android.quickstep.fallback.RecentsState.BACKGROUND_APP
 import com.android.quickstep.fallback.RecentsState.BG_LAUNCHER
 import com.android.quickstep.fallback.RecentsState.DEFAULT
+import com.android.quickstep.fallback.RecentsState.HOME
 import com.android.quickstep.fallback.RecentsState.MODAL_TASK
 import com.android.quickstep.fallback.RecentsState.OVERVIEW_SPLIT_SELECT
-import com.android.quickstep.fallback.toLauncherState
 import com.android.quickstep.fallback.toLauncherStateOrdinal
 import com.android.quickstep.util.RecentsAtomicAnimationFactory
 import com.android.quickstep.util.RecentsWindowProtoLogProxy
@@ -251,9 +250,11 @@ constructor(
         if (isShowing()) {
             return
         }
+        theme.applyStyle(overviewBlurStyleResId, true)
         if (windowView == null) {
             windowView = layoutInflater.inflate(R.layout.fallback_recents_activity, null)
         }
+
         windowManager.addView(windowView, windowLayoutParams)
 
         windowView?.let {
@@ -339,6 +340,7 @@ constructor(
     fun cleanupRecentsWindow() {
         RecentsWindowProtoLogProxy.logCleanup(isShowing())
         if (isShowing()) {
+            AbstractFloatingView.closeAllOpenViews(this, /* animate= */ false)
             windowManager.removeViewImmediate(windowView)
         }
         stateManager.moveToRestState()
@@ -382,7 +384,7 @@ constructor(
     }
 
     override fun shouldAnimateStateChange(): Boolean {
-        return true
+        return false
     }
 
     override fun isInState(state: RecentsState?): Boolean {
@@ -397,7 +399,7 @@ constructor(
     override fun onStateSetEnd(state: RecentsState) {
         super.onStateSetEnd(state)
         RecentsWindowProtoLogProxy.logOnStateSetEnd(state.toString())
-        if (state.toLauncherState() == NORMAL) {
+        if (!state.isRecentsViewVisible) {
             cleanupRecentsWindow()
         }
         AccessibilityManagerCompat.sendStateEventToTest(baseContext, state.toLauncherStateOrdinal())
@@ -444,7 +446,7 @@ constructor(
             stateManager.goToState(DEFAULT, true)
             true
         } else if (isInState(DEFAULT)) {
-            returnToHomescreen()
+            stateManager.goToState(HOME, true)
             true
         } else {
             super<RecentsWindowContext>.onRootViewDispatchKeyEvent(event)
@@ -464,7 +466,7 @@ constructor(
     }
 
     override fun isStarted(): Boolean {
-        return isShowing() && isInState(DEFAULT)
+        return isShowing() && stateManager.state.isRecentsViewVisible
     }
 
     /** Adds a callback for the provided activity event */
@@ -501,6 +503,10 @@ constructor(
 
     override fun createAtomicAnimationFactory(): AtomicAnimationFactory<RecentsState?>? {
         return RecentsAtomicAnimationFactory<RecentsWindowManager, RecentsState>(this)
+    }
+
+    override fun getOverviewBlurStyleResId(): Int {
+        return R.style.OverviewBlurFallbackStyle
     }
 
     @AssistedFactory

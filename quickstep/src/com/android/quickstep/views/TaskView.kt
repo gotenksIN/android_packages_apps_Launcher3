@@ -45,6 +45,7 @@ import androidx.core.view.updateLayoutParams
 import com.android.app.animation.Interpolators
 import com.android.app.tracing.traceSection
 import com.android.launcher3.AbstractFloatingView
+import com.android.launcher3.Flags.enableCoroutineThreadingImprovements
 import com.android.launcher3.Flags.enableCursorHoverStates
 import com.android.launcher3.Flags.enableDesktopExplodedView
 import com.android.launcher3.Flags.enableLargeDesktopWindowingTile
@@ -81,6 +82,7 @@ import com.android.quickstep.RemoteAnimationTargets
 import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle
 import com.android.quickstep.TaskOverlayFactory
 import com.android.quickstep.TaskViewUtils
+import com.android.quickstep.fallback.window.RecentsWindowFlags.enableOverviewOnConnectedDisplays
 import com.android.quickstep.orientation.RecentsPagedOrientationHandler
 import com.android.quickstep.recents.di.RecentsDependencies
 import com.android.quickstep.recents.di.get
@@ -171,7 +173,7 @@ constructor(
         get() =
             this == recentsView?.focusedTaskView ||
                 (enableLargeDesktopWindowingTile() && type == TaskViewType.DESKTOP) ||
-                isExternalDisplay
+                (isExternalDisplay && !enableOverviewOnConnectedDisplays())
 
     val recentsView: RecentsView<*, *>?
         get() = parent as? RecentsView<*, *>
@@ -345,7 +347,7 @@ constructor(
      * The modalness of this view is how it should be displayed when it is shown on its own in the
      * modal state of overview. 0 being in context with other tasks, 1 being shown on its own.
      */
-    protected var modalness = 0f
+    var modalness = 0f
         set(value) {
             if (field == value) {
                 return
@@ -938,21 +940,39 @@ constructor(
     override fun onDetachedFromWindow() =
         traceSection("TaskView.onDetachedFromWindow") {
             super.onDetachedFromWindow()
-            if (enableRefactorTaskThumbnail()) {
-                // The jobs are being cancelled in the background thread. So we make a copy of the
-                // list to prevent cleaning a new job that might be added to this list during
-                // onAttach or another moment in the lifecycle.
-                val coroutineJobsToCancel = coroutineJobs.toList()
-                coroutineJobs.clear()
-                coroutineScope.launch(dispatcherProvider.background) {
-                    traceSection("TaskView.onDetachedFromWindow.cancellingJobs") {
-                        coroutineJobsToCancel.forEach {
-                            it.cancel("TaskView detaching from window")
-                        }
+            cancelJobs()
+        }
+
+    fun cancelJobs() {
+        if (enableRefactorTaskThumbnail()) {
+            // The jobs are being cancelled in the background thread. So we make a copy of the
+            // list to prevent cleaning a new job that might be added to this list during
+            // onAttach or another moment in the lifecycle.
+            val coroutineJobsToCancel = coroutineJobs.toList()
+            coroutineJobs.clear()
+            if (enableCoroutineThreadingImprovements() && coroutineJobsToCancel.isNotEmpty()) {
+                // TODO(b/391842220): This should ideally be handled in the completion block of the
+                //  jobs above to be cancelled.
+                taskContainers.forEach {
+                    it.setState(
+                        state = null,
+                        hasHeader = false,
+                        canShowAppTimer = false,
+                        clickCloseListener = null,
+                    )
+                    if (enableOverviewIconMenu()) {
+                        setIconState(it, null)
                     }
                 }
             }
+
+            coroutineScope.launch(dispatcherProvider.lightweightBackground) {
+                traceSection("TaskView.onDetachedFromWindow.cancellingJobs") {
+                    coroutineJobsToCancel.forEach { it.cancel("TaskView detaching from window") }
+                }
+            }
         }
+    }
 
     /** Updates this task view to the given {@param task}. */
     open fun bind(

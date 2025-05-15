@@ -54,11 +54,11 @@ import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.PredictedContainerInfo;
+import com.android.launcher3.model.data.WorkspaceData;
 import com.android.launcher3.popup.PopupContainerWithArrow;
 import com.android.launcher3.popup.PopupDataProvider;
 import com.android.launcher3.touch.ItemClickHandler.ItemClickProxy;
 import com.android.launcher3.util.ComponentKey;
-import com.android.launcher3.util.IntSparseArrayMap;
 import com.android.launcher3.util.PackageUserKey;
 import com.android.launcher3.util.Preconditions;
 import com.android.launcher3.util.Themes;
@@ -254,7 +254,7 @@ public class SecondaryDisplayLauncher extends BaseActivity
 
     @Override
     public void bindCompleteModel(
-            @NonNull IntSparseArrayMap<ItemInfo> itemIdMap, boolean isBindingSync) {
+            @NonNull WorkspaceData itemIdMap, boolean isBindingSync) {
         if (itemIdMap.get(CONTAINER_ALL_APPS_PREDICTION) instanceof PredictedContainerInfo pci) {
             mSecondaryDisplayQuickstepDelegate.setPredictedApps(pci);
         }

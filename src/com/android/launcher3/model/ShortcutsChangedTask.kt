@@ -49,12 +49,15 @@ class ShortcutsChangedTask(
         // Find WorkspaceItemInfo's that have changed on the workspace.
         val matchingShortcutIds = mutableSetOf<String>()
         synchronized(dataModel) {
-            dataModel.updateAndCollectWorkspaceItemInfos(user) {
-                if (itemFilter.invoke(it)) matchingShortcutIds.add(it.deepShortcutId)
+            dataModel.updateAndCollectWorkspaceItemInfos(
+                user,
+                {
+                    if (itemFilter.invoke(it)) matchingShortcutIds.add(it.deepShortcutId)
 
-                // We don't care about the returned list
-                false
-            }
+                    // We don't care about the returned list
+                    false
+                },
+            )
         }
 
         if (matchingShortcutIds.isNotEmpty()) {
@@ -79,25 +82,29 @@ class ShortcutsChangedTask(
             val updatedWorkspaceItemInfos: List<ItemInfo>
             synchronized(dataModel) {
                 updatedWorkspaceItemInfos =
-                    dataModel.updateAndCollectWorkspaceItemInfos(user) {
-                        if (!itemFilter.invoke(it)) return@updateAndCollectWorkspaceItemInfos false
-                        val shortcutId =
-                            it.deepShortcutId ?: return@updateAndCollectWorkspaceItemInfos false
-                        val fullDetails =
-                            pinnedShortcuts[shortcutId]
-                                ?: return@updateAndCollectWorkspaceItemInfos false
+                    dataModel.updateAndCollectWorkspaceItemInfos(
+                        user,
+                        {
+                            if (!itemFilter.invoke(it))
+                                return@updateAndCollectWorkspaceItemInfos false
+                            val shortcutId =
+                                it.deepShortcutId ?: return@updateAndCollectWorkspaceItemInfos false
+                            val fullDetails =
+                                pinnedShortcuts[shortcutId]
+                                    ?: return@updateAndCollectWorkspaceItemInfos false
 
-                        if (!fullDetails.isPinned && !Flags.restoreArchivedShortcuts())
-                            return@updateAndCollectWorkspaceItemInfos false
+                            if (!fullDetails.isPinned && !Flags.restoreArchivedShortcuts())
+                                return@updateAndCollectWorkspaceItemInfos false
 
-                        nonPinnedIds.remove(shortcutId)
-                        it.updateFromDeepShortcutInfo(fullDetails, context)
-                        taskController.iconCache.getShortcutIcon(
-                            it,
-                            CacheableShortcutInfo(fullDetails, infoWrapper),
-                        )
-                        true
-                    }
+                            nonPinnedIds.remove(shortcutId)
+                            it.updateFromDeepShortcutInfo(fullDetails, context)
+                            taskController.iconCache.getShortcutIcon(
+                                it,
+                                CacheableShortcutInfo(fullDetails, infoWrapper),
+                            )
+                            true
+                        },
+                    )
             }
 
             taskController.bindUpdatedWorkspaceItems(updatedWorkspaceItemInfos)

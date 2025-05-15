@@ -15,8 +15,6 @@
  */
 package com.android.launcher3.model;
 
-import static com.android.launcher3.model.ModelUtils.WIDGET_FILTER;
-
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -26,7 +24,6 @@ import androidx.annotation.NonNull;
 import com.android.launcher3.LauncherModel.ModelUpdateTask;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.ItemInfo;
-import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.pm.PackageInstallInfo;
 import com.android.launcher3.util.InstantAppResolver;
 
@@ -78,26 +75,23 @@ public class PackageInstallStateChangedTask implements ModelUpdateTask {
 
         synchronized (dataModel) {
             final List<ItemInfo> updates = dataModel.updateAndCollectWorkspaceItemInfos(
-                    mInstallInfo.user, si -> {
+                    mInstallInfo.user,
+                    si -> {
                         if (si.hasPromiseIconUi()
                                 && mInstallInfo.packageName.equals(si.getTargetPackage())) {
                             si.setProgressLevel(mInstallInfo);
                             return true;
                         }
                         return false;
-            });
-
-            dataModel.itemsIdMap.stream()
-                    .filter(WIDGET_FILTER)
-                    .filter(item -> mInstallInfo.user.equals(item.user))
-                    .map(item -> (LauncherAppWidgetInfo) item)
-                    .filter(widget -> widget.providerName.getPackageName()
-                            .equals(mInstallInfo.packageName))
-                    .forEach(widget -> {
-                        widget.installProgress = mInstallInfo.progress;
-                        updates.add(widget);
+                    },
+                    widget -> {
+                        if (widget.providerName.getPackageName()
+                                .equals(mInstallInfo.packageName)) {
+                            widget.installProgress = mInstallInfo.progress;
+                            return true;
+                        }
+                        return false;
                     });
-
             if (!updates.isEmpty()) {
                 taskController.bindUpdatedWorkspaceItems(updates);
             }

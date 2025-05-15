@@ -32,9 +32,9 @@ import com.android.launcher3.model.BgDataModel;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.PredictedContainerInfo;
+import com.android.launcher3.model.data.WorkspaceData;
 import com.android.launcher3.taskbar.TaskbarView.TaskbarLayoutParams;
 import com.android.launcher3.util.ComponentKey;
-import com.android.launcher3.util.IntSparseArrayMap;
 import com.android.launcher3.util.ItemInfoMatcher;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.PackageUserKey;
@@ -79,10 +79,9 @@ public class TaskbarModelCallbacks implements
     }
 
     @Override
-    public void bindCompleteModel(IntSparseArrayMap<ItemInfo> itemIdMap, boolean isBindingSync) {
+    public void bindCompleteModel(WorkspaceData itemIdMap, boolean isBindingSync) {
         mHotseatItems.clear();
-        mPredictedItems = itemIdMap.get(CONTAINER_HOTSEAT_PREDICTION)
-                instanceof PredictedContainerInfo pci ? pci.getContents() : Collections.emptyList();
+        mPredictedItems = itemIdMap.getPredictedContents(CONTAINER_HOTSEAT_PREDICTION);
         handleItemsAdded(itemIdMap);
 
         if (itemIdMap.get(CONTAINER_ALL_APPS_PREDICTION) instanceof PredictedContainerInfo pci) {

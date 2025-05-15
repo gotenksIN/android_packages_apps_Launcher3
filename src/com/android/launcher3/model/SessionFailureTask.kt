@@ -45,13 +45,16 @@ class SessionFailureTask(val packageName: String, val user: UserHandle) : ModelU
                     user,
                 )
                 val updatedItems =
-                    dataModel.updateAndCollectWorkspaceItemInfos(user) { info ->
-                        if (info.isArchived) {
-                            // Refresh icons on the workspace for archived apps.
-                            iconCache.getTitleAndIcon(info, info.matchingLookupFlag)
-                            true
-                        } else false
-                    }
+                    dataModel.updateAndCollectWorkspaceItemInfos(
+                        user,
+                        { info ->
+                            if (info.isArchived) {
+                                // Refresh icons on the workspace for archived apps.
+                                iconCache.getTitleAndIcon(info, info.matchingLookupFlag)
+                                true
+                            } else false
+                        },
+                    )
                 if (updatedItems.isNotEmpty()) {
                     taskController.bindUpdatedWorkspaceItems(updatedItems)
                 }
