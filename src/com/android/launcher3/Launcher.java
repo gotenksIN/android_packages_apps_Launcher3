@@ -24,6 +24,7 @@ import static com.android.app.animation.Interpolators.EMPHASIZED;
 import static com.android.launcher3.AbstractFloatingView.TYPE_FOLDER;
 import static com.android.launcher3.AbstractFloatingView.TYPE_ICON_SURFACE;
 import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
+import static com.android.launcher3.AbstractFloatingView.TYPE_WIDGETS_FULL_SHEET;
 import static com.android.launcher3.AbstractFloatingView.getTopOpenViewWithType;
 import static com.android.launcher3.Flags.allAppsBlur;
 import static com.android.launcher3.Flags.enableAddAppWidgetViaConfigActivityV2;
@@ -2852,6 +2853,30 @@ public class Launcher extends StatefulActivity<LauncherState>
      */
     public void launchAppPair(AppPairIcon appPairIcon) {
         // Overridden
+    }
+
+    /**
+     * Opens the widget picker UI. Returns true if opened.
+     */
+    public boolean openWidgetPicker() {
+        if (getPackageManager().isSafeMode()) {
+            Toast.makeText(this, R.string.safemode_widget_error, Toast.LENGTH_SHORT).show();
+            return false;
+        } else {
+            openWidgetsFullSheet();
+            return true;
+        }
+    }
+
+    /** Returns WidgetsFullSheet that was opened, or null if nothing was opened. */
+    @VisibleForTesting
+    public WidgetsFullSheet openWidgetsFullSheet() {
+        AbstractFloatingView floatingView = AbstractFloatingView.getTopOpenViewWithType(
+                this, TYPE_WIDGETS_FULL_SHEET);
+        if (floatingView != null) {
+            return (WidgetsFullSheet) floatingView;
+        }
+        return WidgetsFullSheet.show(this, true /* animated */);
     }
 
     /**

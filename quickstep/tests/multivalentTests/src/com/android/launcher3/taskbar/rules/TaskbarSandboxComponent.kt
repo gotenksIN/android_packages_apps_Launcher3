@@ -18,7 +18,10 @@ package com.android.launcher3.taskbar.rules
 
 import android.content.Context
 import com.android.app.displaylib.PerDisplayRepository
+import com.android.launcher3.Flags
+import com.android.launcher3.LauncherPrefChangeListener
 import com.android.launcher3.LauncherPrefs
+import com.android.launcher3.LauncherPrefs.Companion.TASKBAR_PINNING
 import com.android.launcher3.concurrent.ExecutorsModule
 import com.android.launcher3.dagger.ApiWrapperModule
 import com.android.launcher3.dagger.AppModule
@@ -99,14 +102,53 @@ class DisplayControllerSpy
 constructor(
     @ApplicationContext context: Context,
     wmProxy: WindowManagerProxy,
-    prefs: LauncherPrefs,
+    private val prefs: LauncherPrefs,
     lifecycle: DaggerSingletonTracker,
 ) : DisplayController(context, wmProxy, prefs, lifecycle) {
 
     var infoModifier: ((Info) -> Info)? = null
+    var infoModifierForDisplay: ((Info?) -> Info?)? = null
+
+    private var prefListener: LauncherPrefChangeListener? = null
+
+    init {
+        // When overview on CD is disabled, DisplayController only adds the info associated with
+        // the DEFAULT_DISPLAY. So, instead of changing the production code of DisplayController to
+        // use display from context we manually add the info associated with the virtual display.
+        if (!Flags.enableOverviewOnConnectedDisplays()) {
+            getOrCreatePerDisplayInfo(context.display)
+            lifecycle.addCloseable { removePerDisplayInfo(context.displayId) }
+        }
+    }
 
     override fun getInfo(): Info = infoModifier?.invoke(super.getInfo()) ?: super.getInfo()
+
+    override fun getInfoForDisplay(displayId: Int): Info? =
+        infoModifierForDisplay?.invoke(super.getInfoForDisplay(displayId))
+            ?: super.getInfoForDisplay(displayId)
+
+    /**
+     * Sets up [TASKBAR_PINNING] pref listener for the given display.
+     *
+     * <p>DisplayController sets up LauncherPrefChangeListener only for the DEFAULT_DISPLAY, this is
+     * correct but tests rely on treating the created virtual display as default. So, instead of
+     * changing the production code of DisplayController to be more testable, we add a custom
+     * listener for our virtual display.
+     */
+    fun setupTaskbarPinningPrefListener(displayId: Int) {
+        prefListener =
+            LauncherPrefChangeListener { notifyConfigChangeForDisplay(displayId) }
+                .also { prefs.addListener(it, TASKBAR_PINNING) }
+    }
+
+    fun removeTaskbarPinningPrefListener() {
+        prefListener?.let { prefs.removeListener(it, TASKBAR_PINNING) }
+    }
 }
+
+/** Convenient extension to access [DisplayControllerSpy] from [TaskbarWindowSandboxContext]. */
+val TaskbarWindowSandboxContext.displayControllerSpy: DisplayControllerSpy?
+    get() = DisplayController.INSTANCE[this] as? DisplayControllerSpy
 
 @Module
 object DesktopVisibilityControllerModule {

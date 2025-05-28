@@ -632,3 +632,11 @@ flag {
   description: "Improves item removal and resizing within home screen"
   bug: "416087474"
 }
+
+flag {
+  name: "enable_widget_picker_refactor"
+  namespace: "launcher"
+  description: "Enables the refactored code for widget picker using separate activity and module"
+  bug: "370950552"
+}
+

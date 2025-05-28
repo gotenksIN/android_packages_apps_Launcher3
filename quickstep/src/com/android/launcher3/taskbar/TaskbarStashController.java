@@ -653,11 +653,13 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
      * @return if we should allow taskbar to auto stash
      */
     public boolean shouldAllowTaskbarToAutoStash() {
-        boolean isTransientTaskbar = mActivity.isTransientTaskbar();
-        boolean isInDesktop = mActivity.isInDesktopMode();
+        if (mActivity.isTransientTaskbar()) {
+            return true;
+        }
+
         boolean isTaskbarPinningOnInDesktopMode = LauncherPrefs.TASKBAR_PINNING_IN_DESKTOP_MODE.get(
                 mActivity);
-        return isTransientTaskbar || (isInDesktop && !isTaskbarPinningOnInDesktopMode);
+        return !isTaskbarPinningOnInDesktopMode && mActivity.isTaskbarShowingDesktopTasks();
     }
 
     /**
@@ -688,7 +690,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
         }
         if (mActivity.isTransientTaskbar()) {
             updateAndAnimateTransientTaskbar(!hasAnyFlag(FLAG_STASHED_IN_APP_AUTO));
-        } else if (mActivity.isInDesktopMode()) {
+        } else if (mActivity.isTaskbarShowingDesktopTasks()) {
             updateAndAnimatePinnedTaskbar(!hasAnyFlag(FLAG_STASHED_IN_APP_AUTO));
         }
     }

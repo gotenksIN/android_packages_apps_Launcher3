@@ -454,7 +454,8 @@ public class DisplayController implements DesktopVisibilityListener {
         }
     }
 
-    private PerDisplayInfo getOrCreatePerDisplayInfo(Display display) {
+    @VisibleForTesting
+    protected PerDisplayInfo getOrCreatePerDisplayInfo(Display display) {
         int displayId = display.getDisplayId();
         PerDisplayInfo perDisplayInfo = mPerDisplayInfo.get(displayId);
         if (perDisplayInfo != null) {
@@ -477,7 +478,8 @@ public class DisplayController implements DesktopVisibilityListener {
      * Clean up resources for the given display id.
      * @param displayId The display id
      */
-    void removePerDisplayInfo(int displayId) {
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+    protected void removePerDisplayInfo(int displayId) {
         PerDisplayInfo info = mPerDisplayInfo.get(displayId);
         if (info == null) return;
         info.cleanup();
@@ -769,7 +771,8 @@ public class DisplayController implements DesktopVisibilityListener {
         }
     }
 
-    private class PerDisplayInfo implements ComponentCallbacks {
+    @VisibleForTesting
+    protected class PerDisplayInfo implements ComponentCallbacks {
         final int mDisplayId;
         final CopyOnWriteArrayList<DisplayInfoChangeListener> mListeners =
                 new CopyOnWriteArrayList<>();

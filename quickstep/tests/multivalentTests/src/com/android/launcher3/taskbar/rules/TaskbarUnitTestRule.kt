@@ -125,9 +125,11 @@ class TaskbarUnitTestRule(
                                 ),
                                 ProductionDispatchers.main,
                             ) {
-                            override fun recreateTaskbars() {
-                                super.recreateTaskbars()
-                                if (currentActivityContext != null) {
+                            override fun recreateTaskbarForDisplay(displayId: Int, duration: Int) {
+                                super.recreateTaskbarForDisplay(displayId, duration)
+                                if (
+                                    displayId == context.displayId && currentActivityContext != null
+                                ) {
                                     injectControllers()
                                     // TODO(b/346394875): we should test a non-default uiController.
                                     activityContext.setUIController(TaskbarUIController.DEFAULT)
@@ -154,6 +156,7 @@ class TaskbarUnitTestRule(
                     base.evaluate()
                 } finally {
                     instrumentation.runOnMainSync { taskbarManager.destroy() }
+                    context.displayControllerSpy?.removeTaskbarPinningPrefListener()
                 }
             }
         }

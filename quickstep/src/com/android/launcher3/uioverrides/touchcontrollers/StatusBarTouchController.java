@@ -22,10 +22,12 @@ import static android.view.MotionEvent.ACTION_UP;
 import static android.view.WindowManager.LayoutParams.FLAG_SLIPPERY;
 
 import static com.android.launcher3.MotionEventsUtils.isTrackpadScroll;
+import static com.android.launcher3.Utilities.shouldEnableMouseInteractionChanges;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_SWIPE_DOWN_WORKSPACE_NOTISHADE_OPEN;
 
 import android.graphics.PointF;
 import android.util.SparseArray;
+import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
 import android.view.Window;
@@ -155,7 +157,9 @@ public class StatusBarTouchController implements TouchController {
     private boolean canInterceptTouch(MotionEvent ev) {
         if (isTrackpadScroll(ev) || !mIsEnabledCheck.get()
                 || AbstractFloatingView.getTopOpenViewWithType(mLauncher,
-                AbstractFloatingView.TYPE_STATUS_BAR_SWIPE_DOWN_DISALLOW) != null) {
+                AbstractFloatingView.TYPE_STATUS_BAR_SWIPE_DOWN_DISALLOW) != null || (
+                shouldEnableMouseInteractionChanges(mLauncher.asContext())
+                        && ev.getSource() == InputDevice.SOURCE_MOUSE)) {
             return false;
         } else {
             // For NORMAL state, only listen if the event originated above the navbar height
