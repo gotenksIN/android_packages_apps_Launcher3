@@ -4555,7 +4555,7 @@ public abstract class RecentsView<
     /** Dismisses the entire [taskView]. */
     public void dismissTaskView(TaskView taskView, boolean animateTaskView, boolean removeTask) {
         if (enableExpressiveDismissTaskMotion() && (!showAsGrid() || enableGridOnlyOverview())) {
-            mDismissUtils.createTaskDismissSettlingSpringAnimation(taskView, removeTask,
+            mDismissUtils.createTaskDismissSpringAnimation(taskView, removeTask,
                     false /* isSplitSelection */);
         } else {
             PendingAnimation pa = new PendingAnimation(DISMISS_TASK_DURATION);
@@ -5347,7 +5347,7 @@ public abstract class RecentsView<
                             mContainer.getDeviceProfile().isTablet);
             if (animator.getAnimatedFraction() > splitTimings.getGridSlideStartOffset()
                     && !hasRunDismiss.get()) {
-                mDismissUtils.createTaskDismissSettlingSpringAnimation(
+                mDismissUtils.createTaskDismissSpringAnimation(
                         taskView, false /* shouldRemoveTaskView */,
                         true /* isSplitSelection */);
                 hasRunDismiss.set(true);
@@ -7014,11 +7014,11 @@ public abstract class RecentsView<
      * spring animation. As it passes the threshold of its settling state, its neighbors will
      * spring in response to the perceived impact of the settling task.
      */
-    public SpringAnimation runTaskDismissSettlingSpringAnimation(TaskView draggedTaskView,
-            float velocity, boolean isDismissing, int dismissLength, int dismissThreshold,
-            float finalPosition, boolean shouldRemoveTaskView, boolean isSplitSelection,
-            @NonNull Function0<Unit> onEndRunnable) {
-        return mDismissUtils.createTaskDismissSettlingSpringAnimation(draggedTaskView, velocity,
+    public RecentsDismissUtils.SpringSet runTaskDismissSettlingSpringAnimation(
+            TaskView draggedTaskView, float velocity, boolean isDismissing, int dismissLength,
+            int dismissThreshold, float finalPosition, boolean shouldRemoveTaskView,
+            boolean isSplitSelection, @NonNull Function0<Unit> onEndRunnable) {
+        return mDismissUtils.createTaskDismissSpringAnimation(draggedTaskView, velocity,
                 isDismissing, dismissLength, dismissThreshold, finalPosition, shouldRemoveTaskView,
                 isSplitSelection, onEndRunnable);
     }
@@ -7041,13 +7041,5 @@ public abstract class RecentsView<
      */
     public void setDrawAboveRecents(RemoteTargetHandle[] remoteTargetHandles) {
         mBlurUtils.setDrawAboveRecents(remoteTargetHandles);
-    }
-
-    /**
-     * Updates the overview components in battery saver mode
-     */
-    public void updateBlurStyle(boolean isBackgroundBlurEnabled) {
-        mActionsView.updateBlurStyle(isBackgroundBlurEnabled);
-        mClearAllButton.updateBlurStyle(isBackgroundBlurEnabled);
     }
 }

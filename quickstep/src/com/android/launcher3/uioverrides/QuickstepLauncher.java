@@ -277,6 +277,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     private final OverviewChangeListener mOverviewChangeListener = this::onOverviewTargetChanged;
 
+    private boolean mOverviewBlurEnabled;
+
     private final TaskViewRecentsTouchContext mTaskViewRecentsTouchContext =
             new TaskViewRecentsTouchContext() {
                 @Override
@@ -300,6 +302,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     protected void setupViews() {
         getAppWidgetHolder().setOnViewCreationCallback(new QuickstepInteractionHandler(this));
         mDepthController = new DepthController(this);
+        mOverviewBlurEnabled = isOverviewBackgroundBlurEnabled();
         getTheme().applyStyle(getOverviewBlurStyleResId(), true);
         super.setupViews();
 
@@ -456,17 +459,17 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public boolean isAllAppsBackgroundBlurEnabled() {
-        return mDepthController != null && mDepthController.areBlursEnabled()
+        return mDepthController != null && mDepthController.isCrossWindowBlursEnabled()
                 && Flags.allAppsBlur();
     }
 
     @Override
     public boolean isOverviewBackgroundBlurEnabled() {
-        return mDepthController != null && mDepthController.areBlursEnabled()
+        return mDepthController != null && mDepthController.isCrossWindowBlursEnabled()
                 && enableOverviewBackgroundWallpaperBlur();
     }
 
-    @Override
+    /** Apply the blur or blur fallback style to the current theme. */
     public void updateBlurStyle() {
         if (Flags.allAppsBlur()) {
             int allAppsBlurStyleResId = getAllAppsBlurStyleResId();
@@ -475,11 +478,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                     new ContextThemeWrapper(getApplicationContext(), allAppsBlurStyleResId));
         }
         if (enableOverviewBackgroundWallpaperBlur()) {
-            getTheme().applyStyle(getOverviewBlurStyleResId(), true);
-            getScrimView().setBackgroundColor(
-                    getStateManager().getState().getWorkspaceScrimColor(this));
-            RecentsView<?, ?> recentsView = getOverviewPanel();
-            recentsView.updateBlurStyle(isOverviewBackgroundBlurEnabled());
+            if (isOverviewBackgroundBlurEnabled() != mOverviewBlurEnabled) {
+                mWallpaperThemeManager.recreateToUpdateTheme();
+            }
         }
     }
 

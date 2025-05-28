@@ -1763,7 +1763,7 @@ public final class LauncherInstrumentation {
         return mDevice;
     }
 
-    private static String eventListToString(List<Integer> actualEvents) {
+    static String eventListToString(List<Integer> actualEvents) {
         if (actualEvents.isEmpty()) return "no events";
 
         return "["
@@ -1793,7 +1793,7 @@ public final class LauncherInstrumentation {
                 actionName);
     }
 
-    private boolean isSwitchToStateEvent(
+    boolean isSwitchToStateEvent(
             AccessibilityEvent event, int expectedState, List<Integer> actualEvents) {
         if (!TestProtocol.SWITCHED_TO_STATE_MESSAGE.equals(event.getClassName())) return false;
 

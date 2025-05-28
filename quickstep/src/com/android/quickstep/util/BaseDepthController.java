@@ -43,6 +43,7 @@ import com.android.launcher3.LauncherState;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.statemanager.StateManager;
+import com.android.launcher3.uioverrides.QuickstepLauncher;
 import com.android.launcher3.util.MultiPropertyFactory;
 import com.android.launcher3.util.MultiPropertyFactory.MultiProperty;
 import com.android.systemui.shared.system.BlurUtils;
@@ -75,7 +76,7 @@ public class BaseDepthController {
     // b/291401432
     private static final String TAG = "BaseDepthController";
 
-    protected final Launcher mLauncher;
+    protected final QuickstepLauncher mLauncher;
     /** Property to set the depth for state transition. */
     public final MultiProperty stateDepth;
     /** Property to set the depth for widget picker. */
@@ -106,9 +107,6 @@ public class BaseDepthController {
     /** Pause blur but allow transparent, can be used when launch something behind the Launcher. */
     protected boolean mPauseBlurs;
 
-    // Combination of mCrossWindowBlursEnabled, Launcher's ScrimView opacity, and mPauseBlurs.
-    private boolean mBlursEnabled;
-
     /**
      * Last blur value, in pixels, that was applied.
      */
@@ -126,12 +124,11 @@ public class BaseDepthController {
      */
     private EarlyWakeupInfo mEarlyWakeupInfo = new EarlyWakeupInfo();
 
-    public BaseDepthController(Launcher activity) {
+    public BaseDepthController(QuickstepLauncher activity) {
         mLauncher = activity;
         if (Flags.allAppsBlur() || enableOverviewBackgroundWallpaperBlur()) {
             mCrossWindowBlursEnabled =
                     CrossWindowBlurListeners.getInstance().isCrossWindowBlurEnabled();
-            mBlursEnabled = calculateBlursEnabled();
             mMaxBlurRadius = activity.getResources().getDimensionPixelSize(
                     R.dimen.max_depth_blur_radius_enhanced);
         } else {
@@ -147,12 +144,21 @@ public class BaseDepthController {
         mEarlyWakeupInfo.trace = BaseDepthController.class.getName();
     }
 
+    /**
+     * Returns if cross window blurs are enabled. In other words, whether launcher should use blurs
+     * style UI or fallback style UI.
+     */
+    public boolean isCrossWindowBlursEnabled() {
+        return mCrossWindowBlursEnabled;
+    }
+
     protected void setCrossWindowBlursEnabled(boolean isEnabled) {
         if (mCrossWindowBlursEnabled == isEnabled) {
             return;
         }
         mCrossWindowBlursEnabled = isEnabled;
-        onBlurChange();
+        mLauncher.updateBlurStyle();
+        applyDepthAndBlur();
     }
 
     public void setHasContentBehindLauncher(boolean hasContentBehindLauncher) {
@@ -164,25 +170,7 @@ public class BaseDepthController {
             return;
         }
         mPauseBlurs = pause;
-        onBlurChange();
-    }
-
-    protected final void onBlurChange() {
-        boolean blursEnabled = calculateBlursEnabled();
-        if (mBlursEnabled == blursEnabled) {
-            return;
-        }
-        mBlursEnabled = blursEnabled;
-        mLauncher.updateBlurStyle();
         applyDepthAndBlur();
-    }
-
-    /**
-     * @return {@code true} if cross window blurs are enabled, the scrim is translucent, and blurs
-     * are not currently paused. In other words, whether depth changes will also apply blur.
-     */
-    public boolean areBlursEnabled() {
-        return mBlursEnabled;
     }
 
     protected void onInvalidSurface() { }
@@ -248,7 +236,8 @@ public class BaseDepthController {
                         : mBaseSurface;
 
         int previousBlur = mCurrentBlur;
-        int newBlur = mBlursEnabled && !hasOpaqueBg ? (int) (blurAmount * mMaxBlurRadius) : 0;
+        int newBlur = mCrossWindowBlursEnabled && !hasOpaqueBg && !mPauseBlurs ? (int) (blurAmount
+                * mMaxBlurRadius) : 0;
         int delta = Math.abs(newBlur - previousBlur);
         if (skipSimilarBlur && delta < Utilities.dpToPx(1) && newBlur != 0 && previousBlur != 0) {
             Log.d(TAG, "Skipping small blur delta. newBlur: " + newBlur + " previousBlur: "
@@ -421,9 +410,5 @@ public class BaseDepthController {
 
     private SurfaceControl.Transaction createTransaction() {
         return new SurfaceControl.Transaction();
-    }
-
-    private Boolean calculateBlursEnabled() {
-        return mCrossWindowBlursEnabled && !mPauseBlurs;
     }
 }

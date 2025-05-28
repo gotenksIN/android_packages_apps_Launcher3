@@ -294,11 +294,11 @@ public interface TaskShortcutFactory {
         }
     }
 
-    class CloseSystemShortcut extends SystemShortcut {
+    class RemoveTaskSystemShortcut extends SystemShortcut {
         private final TaskContainer mTaskContainer;
 
-        public CloseSystemShortcut(int iconResId, int textResId, RecentsViewContainer container,
-                TaskContainer taskContainer) {
+        public RemoveTaskSystemShortcut(int iconResId, int textResId,
+                RecentsViewContainer container, TaskContainer taskContainer) {
             super(iconResId, textResId, container, taskContainer.getTaskView().getFirstItemInfo(),
                     taskContainer.getTaskView());
             mTaskContainer = taskContainer;
@@ -548,13 +548,13 @@ public interface TaskShortcutFactory {
         }
     };
 
-    TaskShortcutFactory CLOSE = new TaskShortcutFactory() {
+    TaskShortcutFactory REMOVE_TASK = new TaskShortcutFactory() {
         @Override
         public List<SystemShortcut> getShortcuts(RecentsViewContainer container,
                 TaskContainer taskContainer) {
-            return Collections.singletonList(new CloseSystemShortcut(
-                    R.drawable.ic_close_option,
-                    R.string.recent_task_option_close, container, taskContainer));
+            return Collections.singletonList(new RemoveTaskSystemShortcut(
+                    R.drawable.ic_remove_task_option,
+                    R.string.recent_task_option_remove_task, container, taskContainer));
         }
 
         @Override

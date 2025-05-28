@@ -46,6 +46,7 @@ import com.android.mechanics.spec.MotionSpec
 import com.android.mechanics.spring.SpringParameters
 import com.android.mechanics.view.DistanceGestureContext
 import com.android.mechanics.view.ViewMotionValue
+import com.android.quickstep.views.RecentsDismissUtils
 import com.android.quickstep.views.RecentsView
 import com.android.quickstep.views.RecentsView.RECENTS_SCALE_PROPERTY
 import com.android.quickstep.views.RecentsViewContainer
@@ -86,7 +87,7 @@ CONTAINER : StatefulContainer<T> {
 
     private var taskBeingDragged: TaskView? = null
     private var taskDragDisplacementValue: ViewMotionValue? = null
-    private var springAnimation: SpringAnimation? = null
+    private var springAnimation: RecentsDismissUtils.SpringSet? = null
     private var dismissLength: Int = 0
     private var verticalFactor: Int = 0
     private var hasDismissThresholdHapticRun = false

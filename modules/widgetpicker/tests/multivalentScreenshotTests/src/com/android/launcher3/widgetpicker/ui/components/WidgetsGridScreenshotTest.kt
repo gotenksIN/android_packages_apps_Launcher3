@@ -34,6 +34,7 @@ import com.android.launcher3.widgetpicker.goldenpathmanager.WidgetPickerGoldenPa
 import com.android.launcher3.widgetpicker.shared.model.WidgetId
 import com.android.launcher3.widgetpicker.shared.model.WidgetPreview
 import com.android.launcher3.widgetpicker.ui.model.WidgetSizeGroup
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,6 +46,7 @@ import platform.test.screenshot.getEmulatedDevicePathConfig
 import platform.test.screenshot.utils.compose.ComposeScreenshotTestRule
 
 @RunWith(ParameterizedAndroidJunit4::class)
+@Ignore("b/418064758: Re-enable when flaky test is fixed.")
 class WidgetsGridScreenshotTest(emulationSpec: DeviceEmulationSpec) {
     @get:Rule(order = 0) val disableAnimationsRule = DisableAnimationsRule()
 
