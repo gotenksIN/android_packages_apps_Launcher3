@@ -104,6 +104,10 @@ class PersistentBubbleStashController(
             return -bubbleBarVerticalCenterForHome + bubbleBarHeight / 2
         }
 
+    /**
+     * Returns bubble bar Y target position according to [isBubblesShowingOnHome] value. Value could
+     * be adjusted to the display override progress.
+     */
     override val bubbleBarTranslationY: Float
         get() =
             if (inAppDisplayOverrideProgress > 0f && launcherState == BubbleLauncherState.HOME) {
@@ -116,7 +120,7 @@ class PersistentBubbleStashController(
                     Interpolators.LINEAR,
                 )
             } else {
-                super.bubbleBarTranslationY
+                targetTranslationYForState
             }
 
     override var inAppDisplayOverrideProgress: Float = 0f
