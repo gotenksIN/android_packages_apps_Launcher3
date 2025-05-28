@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -69,6 +70,11 @@ class WidgetsGridScreenshotTest(emulationSpec: DeviceEmulationSpec) {
         screenshotRule.screenshotTest("widgetsGrid_oneByOneWidgets") { OneByOneWidgetsPreview() }
     }
 
+    @Test
+    fun widgetsGrid_remoteViews() {
+        screenshotRule.screenshotTest("widgetsGrid_remoteViews") { RemoteViewWidgetsPreview() }
+    }
+
     companion object {
         @Parameters(name = "{0}")
         @JvmStatic
@@ -98,6 +104,20 @@ private fun OneByOneWidgetsPreview() {
     val testWidth = 420.dp
     val testWidthPx = with(LocalDensity.current) { testWidth.roundToPx() }
     val sample = WidgetsGridTestSamples.oneByOneWidgets(testWidthPx)
+
+    GridPreview(groups = sample.widgetSizeGroups, testWidth = testWidth, previews = sample.previews)
+}
+
+@Preview(widthDp = 420)
+@Composable
+private fun RemoteViewWidgetsPreview() {
+    val testWidth = 420.dp
+    val testWidthPx = with(LocalDensity.current) { testWidth.roundToPx() }
+    val sample =
+        WidgetsGridTestSamples.remoteViewWidgets(
+            packageName = LocalContext.current.packageName,
+            screenWidth = testWidthPx,
+        )
 
     GridPreview(groups = sample.widgetSizeGroups, testWidth = testWidth, previews = sample.previews)
 }

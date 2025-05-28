@@ -141,7 +141,7 @@
 
     <dimen name="quick_switch_scaling_scroll_threshold">100dp</dimen>
 
-    <dimen name="recents_empty_message_text_size">16sp</dimen>
+    <dimen name="recents_empty_message_text_size">14sp</dimen>
     <dimen name="recents_empty_message_text_padding">16dp</dimen>
 
     <dimen name="max_shadow_radius">0dp</dimen>
@@ -202,6 +202,8 @@
     <dimen name="gesture_tutorial_menu_done_button_spacing">72dp</dimen>
     <dimen name="gesture_tutorial_done_button_bottom_margin">40dp</dimen>
     <dimen name="gesture_tutorial_done_button_end_margin">24dp</dimen>
+    <dimen name="gesture_tutorial_done_button_width">142dp</dimen>
+    <dimen name="gesture_tutorial_done_button_padding">16dp</dimen>
 
     <!-- Gesture Tutorial mock conversations -->
     <dimen name="gesture_tutorial_message_icon_size">44dp</dimen>

@@ -33,6 +33,7 @@ import com.android.app.animation.Animations
 import com.android.app.animation.Interpolators
 import com.android.app.animation.Interpolators.EMPHASIZED
 import com.android.app.animation.Interpolators.LINEAR
+import com.android.launcher3.LauncherAnimUtils.VIEW_ALPHA
 import com.android.launcher3.LauncherAnimUtils.HOTSEAT_SCALE_PROPERTY_FACTORY
 import com.android.launcher3.LauncherAnimUtils.SCALE_INDEX_WORKSPACE_STATE
 import com.android.launcher3.LauncherAnimUtils.WORKSPACE_SCALE_PROPERTY_FACTORY
@@ -145,14 +146,16 @@ class ScalingWorkspaceRevealAnim(
             // it's popping into existence out of nowhere.
             val fadeClamp = FADE_DURATION_MS.toFloat() / SCALE_DURATION_MS
             workspace.alpha = MIN_ALPHA
-            animation.setViewAlpha(
+            animation.setFloat(
                 workspace,
+                VIEW_ALPHA,
                 MAX_ALPHA,
                 Interpolators.clampToProgress(LINEAR, 0f, fadeClamp),
             )
             hotseat.alpha = MIN_ALPHA
-            animation.setViewAlpha(
+            animation.setFloat(
                 hotseat,
+                VIEW_ALPHA,
                 MAX_ALPHA,
                 Interpolators.clampToProgress(LINEAR, 0f, fadeClamp),
             )
@@ -242,13 +245,16 @@ class ScalingWorkspaceRevealAnim(
                 }
             }
         )
+
         animation.addListener(
             AnimatorListeners.forEndCallback(
                 Runnable {
-                    // The workspace might stay at a transparent state when the animation is
-                    // cancelled, and the alpha will not be recovered (this doesn't apply to scales
-                    // somehow). Resetting the alpha for the workspace here.
-                    workspace.alpha = 1.0F
+                    Log.d(TAG, "onAnimationEnd, workspace and hotseat are visible")
+                    // Ensure that the workspace and the hotseat are visible at the end
+                    // of the animation regardless of what happens with this animation
+                    // itself.
+                    workspace.alpha = MAX_ALPHA
+                    hotseat.alpha = MAX_ALPHA
 
                     workspace.setLayerType(View.LAYER_TYPE_NONE, null)
                     hotseat.setLayerType(View.LAYER_TYPE_NONE, null)
@@ -258,8 +264,6 @@ class ScalingWorkspaceRevealAnim(
                     Animations.setOngoingAnimation(hotseat, animation = null)
                     removeBlurLayer()
                     depthController?.pauseBlursOnWindows(false)
-
-                    Log.d(TAG, "alpha of workspace at the end of animation: ${workspace.alpha}")
                 }
             )
         )

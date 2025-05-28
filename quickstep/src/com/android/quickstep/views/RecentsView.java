@@ -177,7 +177,6 @@ import com.android.launcher3.util.ResourceBasedOverride.Overrides;
 import com.android.launcher3.util.RunnableList;
 import com.android.launcher3.util.SplitConfigurationOptions.SplitSelectSource;
 import com.android.launcher3.util.SplitConfigurationOptions.StagePosition;
-import com.android.launcher3.util.Themes;
 import com.android.launcher3.util.TraceHelper;
 import com.android.launcher3.util.TranslateEdgeEffect;
 import com.android.launcher3.util.VibratorWrapper;
@@ -245,6 +244,7 @@ import com.android.systemui.shared.system.TaskStackChangeListener;
 import com.android.systemui.shared.system.TaskStackChangeListeners;
 import com.android.wm.shell.common.pip.IPipAnimationListener;
 import com.android.wm.shell.shared.GroupedTaskInfo;
+import com.android.wm.shell.shared.TypefaceUtils;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource;
 import com.android.wm.shell.shared.pip.PipFlags;
@@ -974,15 +974,18 @@ public abstract class RecentsView<
         mClampedScrollOffsetBound = getResources().getDimensionPixelSize(
                 R.dimen.transient_taskbar_clamped_offset_bound);
 
-        mEmptyIcon = context.getDrawable(R.drawable.ic_empty_recents);
+        mEmptyIcon = context.getDrawable(R.drawable.ic_view_carousel);
         mEmptyIcon.setCallback(this);
         mEmptyMessage = context.getText(R.string.recents_empty_message);
         mEmptyMessagePaint = new TextPaint();
-        mEmptyMessagePaint.setColor(Themes.getAttrColor(context, android.R.attr.textColorPrimary));
+        mEmptyMessagePaint.setColor(
+                getResources().getColor(R.color.materialColorOnSurface, context.getTheme()));
+
         mEmptyMessagePaint.setTextSize(getResources()
                 .getDimension(R.dimen.recents_empty_message_text_size));
         Typeface typeface = Typeface.create(
-                Typeface.create(Themes.getDefaultBodyFont(context), Typeface.NORMAL),
+                Typeface.create(TypefaceUtils.FontFamily.GSF_LABEL_LARGE.getValue(),
+                        Typeface.NORMAL),
                 getFontWeight(),
                 false);
         mEmptyMessagePaint.setTypeface(typeface);

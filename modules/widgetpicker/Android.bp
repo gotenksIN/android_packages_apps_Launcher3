@@ -111,6 +111,7 @@ android_library {
         "src/com/android/launcher3/widgetpicker/ui/components/Strings.kt",
         "src/com/android/launcher3/widgetpicker/ui/components/WidgetDetails.kt",
         "src/com/android/launcher3/widgetpicker/ui/components/WidgetPreview.kt",
+        "src/com/android/launcher3/widgetpicker/ui/components/WidgetPreviewHostView.kt",
         "src/com/android/launcher3/widgetpicker/ui/components/WidgetsGrid.kt",
         "src/com/android/launcher3/widgetpicker/ui/components/ExpandCollapseIndicator.kt",
         "src/com/android/launcher3/widgetpicker/ui/components/WidgetAppsListHeader.kt",
