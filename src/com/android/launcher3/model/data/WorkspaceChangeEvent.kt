@@ -16,27 +16,29 @@
 
 package com.android.launcher3.model.data
 
+import java.lang.ref.WeakReference
 import java.util.function.Predicate
 
 /** Represents a change being made to the existing [WorkspaceData] */
-sealed interface WorkspaceChangeEvent {
+sealed class WorkspaceChangeEvent(actualOwner: Any?) {
+
+    private val ownerRef = WeakReference(actualOwner)
 
     // The source of the change. If its user driven, it will point to the UI component where
     // the user is interacting or null if the change was made as a result of some system
     // event. Clients can use this to exclude self-made changes.
     val owner: Any?
+        get() = ownerRef.get()
 
     /** New items were added to the model */
-    data class AddEvent(val items: List<ItemInfo>, override val owner: Any?) : WorkspaceChangeEvent
+    class AddEvent(val items: List<ItemInfo>, owner: Any?) : WorkspaceChangeEvent(owner)
 
     /** Some properties of existing items changed */
-    data class UpdateEvent(val items: List<ItemInfo>, override val owner: Any?) :
-        WorkspaceChangeEvent
+    class UpdateEvent(val items: List<ItemInfo>, owner: Any?) : WorkspaceChangeEvent(owner)
 
     /**
      * Some items were removed from the model. Note that the event uses a [Predicate] instead of
      * actual [ItemInfo] as the items may not exist anymore
      */
-    data class RemoveEvent(val items: Predicate<ItemInfo?>, override val owner: Any?) :
-        WorkspaceChangeEvent
+    class RemoveEvent(val items: Predicate<ItemInfo?>, owner: Any?) : WorkspaceChangeEvent(owner)
 }

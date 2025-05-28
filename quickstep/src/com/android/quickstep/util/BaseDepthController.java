@@ -28,6 +28,7 @@ import android.os.Trace;
 import android.util.FloatProperty;
 import android.util.Log;
 import android.view.AttachedSurfaceControl;
+import android.view.CrossWindowBlurListeners;
 import android.view.SurfaceControl;
 
 import androidx.annotation.NonNull;
@@ -122,9 +123,11 @@ public class BaseDepthController {
     public BaseDepthController(Launcher activity) {
         mLauncher = activity;
         if (Flags.allAppsBlur() || enableOverviewBackgroundWallpaperBlur()) {
+            mCrossWindowBlursEnabled =
+                    CrossWindowBlurListeners.getInstance().isCrossWindowBlurEnabled();
+            mBlursEnabled = calculateBlursEnabled();
             mMaxBlurRadius = activity.getResources().getDimensionPixelSize(
                     R.dimen.max_depth_blur_radius_enhanced);
-            mLauncher.updateBlurStyle();
         } else {
             mMaxBlurRadius = activity.getResources().getInteger(R.integer.max_depth_blur_radius);
         }
@@ -157,7 +160,7 @@ public class BaseDepthController {
     }
 
     protected final void onBlurChange() {
-        boolean blursEnabled = mCrossWindowBlursEnabled && !mPauseBlurs;
+        boolean blursEnabled = calculateBlursEnabled();
         if (mBlursEnabled == blursEnabled) {
             return;
         }
@@ -411,5 +414,9 @@ public class BaseDepthController {
 
     private SurfaceControl.Transaction createTransaction() {
         return new SurfaceControl.Transaction();
+    }
+
+    private Boolean calculateBlursEnabled() {
+        return mCrossWindowBlursEnabled && !mPauseBlurs;
     }
 }

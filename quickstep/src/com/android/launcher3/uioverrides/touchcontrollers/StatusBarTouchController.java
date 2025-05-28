@@ -32,11 +32,12 @@ import android.view.Window;
 import android.view.WindowManager;
 
 import com.android.launcher3.AbstractFloatingView;
+import com.android.launcher3.BaseActivity;
 import com.android.launcher3.DeviceProfile;
-import com.android.launcher3.Launcher;
-import com.android.launcher3.LauncherState;
 import com.android.launcher3.util.TouchController;
 import com.android.quickstep.SystemUiProxy;
+
+import java.util.function.Supplier;
 
 /**
  * TouchController for handling touch events that get sent to the StatusBar. Once the
@@ -47,21 +48,23 @@ public class StatusBarTouchController implements TouchController {
 
     private static final String TAG = "StatusBarController";
 
-    private final Launcher mLauncher;
+    private final BaseActivity mLauncher;
     private final SystemUiProxy mSystemUiProxy;
     private final float mTouchSlop;
     private int mLastAction;
     private final SparseArray<PointF> mDownEvents;
+    private final Supplier<Boolean> mIsEnabledCheck;
 
     /* If {@code false}, this controller should not handle the input {@link MotionEvent}.*/
     private boolean mCanIntercept;
 
-    public StatusBarTouchController(Launcher l) {
+    public StatusBarTouchController(BaseActivity l, Supplier<Boolean> isEnabledCheck) {
         mLauncher = l;
         mSystemUiProxy = SystemUiProxy.INSTANCE.get(mLauncher);
         // Guard against TAPs by increasing the touch slop.
         mTouchSlop = 2 * ViewConfiguration.get(l).getScaledTouchSlop();
         mDownEvents = new SparseArray<>();
+        mIsEnabledCheck = isEnabledCheck;
     }
 
     @Override
@@ -150,7 +153,7 @@ public class StatusBarTouchController implements TouchController {
     }
 
     private boolean canInterceptTouch(MotionEvent ev) {
-        if (isTrackpadScroll(ev) || !mLauncher.isInState(LauncherState.NORMAL)
+        if (isTrackpadScroll(ev) || !mIsEnabledCheck.get()
                 || AbstractFloatingView.getTopOpenViewWithType(mLauncher,
                 AbstractFloatingView.TYPE_STATUS_BAR_SWIPE_DOWN_DISALLOW) != null) {
             return false;

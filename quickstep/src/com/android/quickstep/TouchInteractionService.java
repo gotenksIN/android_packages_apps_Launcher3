@@ -232,9 +232,15 @@ public class TouchInteractionService extends Service {
                 int displayId = tis.focusedDisplayIdForOverviewOnConnectedDisplays();
                 RecentsAnimationDeviceState deviceState = tis.mDeviceStateRepository.get(
                         displayId);
-                // If currently screen pinning, do not enter overview
-                if (deviceState != null && deviceState.isScreenPinningActive()) {
-                    return;
+                if (deviceState != null) {
+                    if (deviceState.isScreenPinningActive()) {
+                        return;
+                    }
+                    if (!deviceState.canStartOverviewCommand()) {
+                        Log.d(TAG, "onOverviewShown ignored for display " + displayId
+                                + " because the command is blocked");
+                        return;
+                    }
                 }
                 TaskUtils.closeSystemWindowsAsync(CLOSE_SYSTEM_WINDOWS_REASON_RECENTS);
                 tis.mOverviewCommandHelper.addCommand(CommandType.TOGGLE, displayId);
@@ -245,13 +251,23 @@ public class TouchInteractionService extends Service {
         @Override
         public void onOverviewShown(boolean triggeredFromAltTab) {
             executeForTouchInteractionService(tis -> {
+                final int displayId =
+                        triggeredFromAltTab
+                                ? tis.focusedDisplayIdForAltTabKqsOnConnectedDisplays()
+                                : tis.focusedDisplayIdForOverviewOnConnectedDisplays();
+                RecentsAnimationDeviceState deviceState = tis.mDeviceStateRepository.get(
+                        displayId);
+                if (deviceState != null && !deviceState.canStartOverviewCommand()) {
+                    Log.d(TAG, "onOverviewShown ignored for display " + displayId
+                            + " because the command is blocked");
+                    return;
+                }
+
                 if (triggeredFromAltTab) {
                     TaskUtils.closeSystemWindowsAsync(CLOSE_SYSTEM_WINDOWS_REASON_RECENTS);
-                    tis.mOverviewCommandHelper.addCommand(CommandType.SHOW_ALT_TAB,
-                            tis.focusedDisplayIdForAltTabKqsOnConnectedDisplays());
+                    tis.mOverviewCommandHelper.addCommand(CommandType.SHOW_ALT_TAB, displayId);
                 } else {
-                    tis.mOverviewCommandHelper.addCommand(CommandType.SHOW_WITH_FOCUS,
-                            tis.focusedDisplayIdForOverviewOnConnectedDisplays());
+                    tis.mOverviewCommandHelper.addCommand(CommandType.SHOW_WITH_FOCUS, displayId);
                 }
             });
         }
@@ -263,6 +279,13 @@ public class TouchInteractionService extends Service {
                 if (triggeredFromAltTab && !triggeredFromHomeKey) {
                     // onOverviewShownFromAltTab hides the overview and ends at the target app
                     int displayId = tis.focusedDisplayIdForAltTabKqsOnConnectedDisplays();
+                    RecentsAnimationDeviceState deviceState = tis.mDeviceStateRepository.get(
+                            displayId);
+                    if (deviceState != null && !deviceState.canStartOverviewCommand()) {
+                        Log.d(TAG, "onOverviewHidden ignored for display " + displayId
+                                + " because the command is blocked");
+                        return;
+                    }
                     tis.mOverviewCommandHelper.addCommand(CommandType.HIDE_ALT_TAB, displayId);
                 }
             });
