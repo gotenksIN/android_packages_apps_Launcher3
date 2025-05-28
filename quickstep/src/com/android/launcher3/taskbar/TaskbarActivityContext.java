@@ -593,6 +593,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 && !mDeviceProfile.isTaskbarPresent;
     }
 
+    public boolean isTaskbarInMinimalState() {
+        return mControllers.taskbarViewController.isTaskbarInMinimalState();
+    }
+
     /**
      * @return {@code true} if {@link #isPhoneMode()} is true and we're using 3 button-nav
      */

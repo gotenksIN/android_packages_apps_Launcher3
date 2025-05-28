@@ -16,8 +16,6 @@
 
 package com.android.launcher3;
 
-import static android.app.PendingIntent.FLAG_IMMUTABLE;
-import static android.app.PendingIntent.FLAG_UPDATE_CURRENT;
 import static android.content.pm.ActivityInfo.CONFIG_UI_MODE;
 import static android.view.WindowInsetsAnimation.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE;
 import static android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
@@ -29,7 +27,6 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
 import static com.android.launcher3.AbstractFloatingView.getTopOpenViewWithType;
 import static com.android.launcher3.Flags.allAppsBlur;
 import static com.android.launcher3.Flags.enableAddAppWidgetViaConfigActivityV2;
-import static com.android.launcher3.Flags.enableStrictMode;
 import static com.android.launcher3.Flags.enableWorkspaceInflation;
 import static com.android.launcher3.LauncherAnimUtils.HOTSEAT_SCALE_PROPERTY_FACTORY;
 import static com.android.launcher3.LauncherAnimUtils.SCALE_INDEX_WIDGET_TRANSITION;
@@ -104,10 +101,6 @@ import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ValueAnimator;
 import android.annotation.TargetApi;
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetManager;
 import android.content.ActivityNotFoundException;
@@ -125,7 +118,6 @@ import android.graphics.RectF;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
-import android.os.StrictMode;
 import android.os.SystemClock;
 import android.os.Trace;
 import android.os.UserHandle;
@@ -239,7 +231,6 @@ import com.android.launcher3.util.Themes;
 import com.android.launcher3.util.Thunk;
 import com.android.launcher3.util.TouchController;
 import com.android.launcher3.util.TraceHelper;
-import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.FloatingIconView;
 import com.android.launcher3.views.FloatingSurfaceView;
 import com.android.launcher3.views.OptionsPopupView;
@@ -290,8 +281,6 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     static final boolean LOGD = false;
 
-    static final boolean DEBUG_STRICT_MODE = false;
-
     private static final float BOUNCE_ANIMATION_TENSION = 1.3f;
 
     /**
@@ -302,8 +291,6 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     public static final String INTENT_ACTION_ALL_APPS_TOGGLE =
             "launcher.intent_action_all_apps_toggle";
-
-    private static boolean sIsNewProcess = true;
 
     private StateManager<LauncherState, Launcher> mStateManager;
 
@@ -425,60 +412,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         Trace.beginAsyncSection(DISPLAY_ALL_APPS_TRACE_METHOD_NAME, SINGLE_TRACE_COOKIE);
         mStartupLatencyLogger = StartupLatencyLogger.getLogger(this);
         mStartupLatencyLogger.logStart(LAUNCHER_LATENCY_STARTUP_ACTIVITY_ON_CREATE);
-
-        if (DEBUG_STRICT_MODE
-                || (FeatureFlags.IS_STUDIO_BUILD && enableStrictMode())) {
-            StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder()
-                    .detectDiskReads()
-                    .detectDiskWrites()
-                    .detectNetwork()   // or .detectAll() for all detectable problems
-                    .penaltyLog()
-                    .build());
-            StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder()
-                    .detectLeakedSqlLiteObjects()
-                    .detectLeakedClosableObjects()
-                    .detectActivityLeaks()
-                    .penaltyLog()
-                    .penaltyDeath()
-                    .build());
-        }
-
-        if (Utilities.IS_DEBUG_DEVICE && FeatureFlags.NOTIFY_CRASHES.get()) {
-            final String notificationChannelId = "com.android.launcher3.Debug";
-            final String notificationChannelName = "Debug";
-            final String notificationTag = "Debug";
-            final int notificationId = 0;
-
-            NotificationManager notificationManager = getSystemService(NotificationManager.class);
-            notificationManager.createNotificationChannel(new NotificationChannel(
-                    notificationChannelId, notificationChannelName,
-                    NotificationManager.IMPORTANCE_HIGH));
-
-            Thread.currentThread().setUncaughtExceptionHandler((thread, throwable) -> {
-                String stackTrace = Log.getStackTraceString(throwable);
-
-                Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                shareIntent.setType("text/plain");
-                shareIntent.putExtra(Intent.EXTRA_TEXT, stackTrace);
-                shareIntent = Intent.createChooser(shareIntent, null);
-                PendingIntent sharePendingIntent = PendingIntent.getActivity(
-                        this, 0, shareIntent, FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
-
-                Notification notification = new Notification.Builder(this, notificationChannelId)
-                        .setSmallIcon(android.R.drawable.ic_menu_close_clear_cancel)
-                        .setContentTitle("Launcher crash detected!")
-                        .setStyle(new Notification.BigTextStyle().bigText(stackTrace))
-                        .addAction(android.R.drawable.ic_menu_share, "Share", sharePendingIntent)
-                        .build();
-                notificationManager.notify(notificationTag, notificationId, notification);
-
-                Thread.UncaughtExceptionHandler defaultUncaughtExceptionHandler =
-                        Thread.getDefaultUncaughtExceptionHandler();
-                if (defaultUncaughtExceptionHandler != null) {
-                    defaultUncaughtExceptionHandler.uncaughtException(thread, throwable);
-                }
-            });
-        }
 
         super.onCreate(savedInstanceState);
         setWallpaperDependentTheme(this);
@@ -2189,7 +2122,8 @@ public class Launcher extends StatefulActivity<LauncherState>
                     if (FeatureFlags.IS_STUDIO_BUILD) {
                         throw (new RuntimeException(desc));
                     } else {
-                        getModelWriter().deleteItemFromDatabase(item, desc);
+                        // b/417021465 - Avoid mutating the model in the UI layer.
+                        Log.e(TAG, desc, new Exception());
                         continue;
                     }
                 }
@@ -2654,14 +2588,6 @@ public class Launcher extends StatefulActivity<LauncherState>
     /** Enables/disabled the hotseat prediction icon long press edu for testing. */
     @VisibleForTesting
     public void enableHotseatEdu(boolean enable) {}
-
-
-    /**
-     * Just a wrapper around the type cast to allow easier tracking of calls.
-     */
-    public static <T extends Launcher> T cast(ActivityContext activityContext) {
-        return (T) activityContext;
-    }
 
     public boolean supportsAdaptiveIconAnimation(View clickedView) {
         return false;

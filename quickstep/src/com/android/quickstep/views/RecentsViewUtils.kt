@@ -605,7 +605,7 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
         with(recentsView) {
             Log.d(TAG, "onPrepareGestureEndAnimation - endTarget: $endTarget")
             mCurrentGestureEndTarget = endTarget
-            val endState: BaseState<*> = mSizeStrategy.stateFromGestureEndTarget(endTarget)
+            val endState: BaseState<*> = mContainerInterface.stateFromGestureEndTarget(endTarget)
 
             // Starting the desk exploded animation when the gesture from an app is released.
             if (enableDesktopExplodedView()) {

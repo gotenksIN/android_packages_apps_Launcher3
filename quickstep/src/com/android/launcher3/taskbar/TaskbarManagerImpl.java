@@ -91,6 +91,7 @@ import com.android.launcher3.util.LooperExecutor;
 import com.android.launcher3.util.SettingsCache;
 import com.android.launcher3.util.SimpleBroadcastReceiver;
 import com.android.quickstep.AllAppsActionManager;
+import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.OverviewComponentObserver;
 import com.android.quickstep.RecentsActivity;
 import com.android.quickstep.SystemDecorationChangeObserver;
@@ -727,12 +728,14 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
     /** Creates a {@link TaskbarUIController} to use with non default displays. */
     private TaskbarUIController createTaskbarUIControllerForNonDefaultDisplay(int displayId) {
         debugTaskbarManager("createTaskbarUIControllerForNonDefaultDisplay", displayId);
-        RecentsViewContainer rvc = OverviewComponentObserver.INSTANCE.get(
-                mBaseContext).getContainerInterface(displayId).getCreatedContainer();
-        if (rvc instanceof RecentsWindowManager) {
-            return createTaskbarUIControllerForRecentsViewContainer(rvc, displayId);
+        BaseContainerInterface<?, ?> containerInterface = OverviewComponentObserver.INSTANCE.get(
+                mBaseContext).getContainerInterface(displayId);
+        if (containerInterface != null) {
+            RecentsViewContainer container = containerInterface.getCreatedContainer();
+            if (container instanceof RecentsWindowManager) {
+                return createTaskbarUIControllerForRecentsViewContainer(container, displayId);
+            }
         }
-
         return new TaskbarUIController();
     }
 

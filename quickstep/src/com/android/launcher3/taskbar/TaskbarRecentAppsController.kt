@@ -242,26 +242,21 @@ class TaskbarRecentAppsController(
     private fun reloadRecentTasksIfNeeded() {
         if (!recentsModel.isTaskListValid(taskListChangeId)) {
             taskListChangeId =
-                recentsModel.getTasks(
-                    { tasks ->
-                        recentTasksLoaded = true
-                        allRecentTasks = tasks
-                        val oldRunningTaskdIds = runningTaskIds
-                        val oldMinimizedTaskIds = minimizedTaskIds
-                        desktopTasks =
-                            allRecentTasks.filterIsInstance<DesktopTask>().flatMap { it.tasks }
-                        val runningTasksChanged = oldRunningTaskdIds != runningTaskIds
-                        val minimizedTasksChanged = oldMinimizedTaskIds != minimizedTaskIds
-                        if (
-                            onRecentsOrHotseatChanged() ||
-                                runningTasksChanged ||
-                                minimizedTasksChanged
-                        ) {
-                            controllers.taskbarViewController.commitRunningAppsToUI()
-                        }
-                    },
-                    RecentsFilterState.EMPTY_FILTER,
-                )
+                recentsModel.getTasks(RecentsFilterState.EMPTY_FILTER) { tasks ->
+                    recentTasksLoaded = true
+                    allRecentTasks = tasks
+                    val oldRunningTaskdIds = runningTaskIds
+                    val oldMinimizedTaskIds = minimizedTaskIds
+                    desktopTasks =
+                        allRecentTasks.filterIsInstance<DesktopTask>().flatMap { it.tasks }
+                    val runningTasksChanged = oldRunningTaskdIds != runningTaskIds
+                    val minimizedTasksChanged = oldMinimizedTaskIds != minimizedTaskIds
+                    if (
+                        onRecentsOrHotseatChanged() || runningTasksChanged || minimizedTasksChanged
+                    ) {
+                        controllers.taskbarViewController.commitRunningAppsToUI()
+                    }
+                }
         }
     }
 

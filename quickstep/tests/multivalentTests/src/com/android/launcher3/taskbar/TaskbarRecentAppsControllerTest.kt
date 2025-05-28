@@ -154,7 +154,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
     @Test
     fun canShowRunningAndRecentAppsIsFalseAfterInit_getTasksOnlyCalledInInit() {
         // getTasks() should have been called once from init().
-        verify(mockRecentsModel, times(1)).getTasks(any<Consumer<List<GroupTask>>>(), any())
+        verify(mockRecentsModel, times(1)).getTasks(any(), any<Consumer<List<GroupTask>>>())
         recentAppsController.canShowRunningApps = false
         recentAppsController.canShowRecentApps = false
         prepareHotseatAndRunningAndRecentApps(
@@ -163,7 +163,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
             recentTaskPackages = listOf(RECENT_PACKAGE_1, RECENT_PACKAGE_2),
         )
         // Verify that getTasks() was not called again after the init().
-        verify(mockRecentsModel, times(1)).getTasks(any<Consumer<List<GroupTask>>>(), any())
+        verify(mockRecentsModel, times(1)).getTasks(any(), any<Consumer<List<GroupTask>>>())
     }
 
     @Test
@@ -1064,12 +1064,12 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
                 addAll(recentTasks)
             }
         doAnswer {
-                val callback: Consumer<ArrayList<GroupTask>> = it.getArgument(0)
+                val callback: Consumer<ArrayList<GroupTask>> = it.getArgument(1)
                 callback.accept(allTasks)
                 taskListChangeId
             }
             .whenever(mockRecentsModel)
-            .getTasks(any<Consumer<List<GroupTask>>>(), any())
+            .getTasks(any(), any<Consumer<List<GroupTask>>>())
         recentTasksChangedListener?.onRecentTasksChanged()
     }
 

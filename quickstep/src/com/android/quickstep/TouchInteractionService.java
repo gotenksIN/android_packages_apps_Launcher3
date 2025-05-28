@@ -77,6 +77,7 @@ import com.android.launcher3.Flags;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.anim.AnimatedFloat;
+import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.desktop.DesktopAppLaunchTransitionManager;
 import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.statemanager.StatefulActivity;
@@ -332,10 +333,13 @@ public class TouchInteractionService extends Service {
         @Override
         public void enterStageSplitFromRunningApp(int displayId, boolean leftOrTop) {
             executeForTouchInteractionService(tis -> {
-                RecentsViewContainer container = tis.mOverviewComponentObserver
-                        .getContainerInterface(displayId).getCreatedContainer();
-                if (container != null) {
-                    container.enterStageSplitFromRunningApp(leftOrTop, displayId);
+                BaseContainerInterface<?, ?> containerInterface = tis.mOverviewComponentObserver
+                        .getContainerInterface(displayId);
+                if (containerInterface != null) {
+                    RecentsViewContainer container = containerInterface.getCreatedContainer();
+                    if (container != null) {
+                        container.enterStageSplitFromRunningApp(leftOrTop, displayId);
+                    }
                 }
             });
         }
@@ -814,7 +818,8 @@ public class TouchInteractionService extends Service {
         mOverviewCommandHelper = new OverviewCommandHelper(this,
                 mOverviewComponentObserver, mDisplayRepository, mTaskbarManager,
                 mTaskAnimationManagerRepository);
-        mActionCornerHandler = new ActionCornerHandler(mOverviewCommandHelper);
+        mActionCornerHandler = LauncherComponentProvider.get(
+                this).getActionCornerHandlerFactory().create(mOverviewCommandHelper);
         mUserUnlocked = true;
         mInputConsumer.registerInputConsumer();
         mDeviceStateRepository.forEach(/* createIfAbsent= */ true, deviceState ->
@@ -1352,12 +1357,13 @@ public class TouchInteractionService extends Service {
             if (deviceState != null) {
                 deviceState.dump(pw);
             }
-            RecentsViewContainer createdOverviewContainer =
+            BaseContainerInterface<?, ?> containerInterface =
                     mOverviewComponentObserver == null ? null
                             : mOverviewComponentObserver.getContainerInterface(
-                                    displayId).getCreatedContainer();
-            boolean resumed = mOverviewComponentObserver != null
-                    && mOverviewComponentObserver.getContainerInterface(displayId).isResumed();
+                                    displayId);
+            RecentsViewContainer createdOverviewContainer = containerInterface == null ? null :
+                    containerInterface.getCreatedContainer();
+            boolean resumed = containerInterface != null && containerInterface.isResumed();
             pw.println("\tcreatedOverviewActivity=" + createdOverviewContainer);
             pw.println("\tresumed=" + resumed);
             if (createdOverviewContainer != null) {

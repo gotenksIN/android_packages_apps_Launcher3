@@ -25,8 +25,6 @@ import android.util.SparseArray
 import androidx.annotation.AnyThread
 import com.android.launcher3.BuildConfig
 import com.android.launcher3.Flags
-import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
-import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APP_PAIR
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FOLDER
@@ -35,7 +33,6 @@ import com.android.launcher3.logging.DumpManager
 import com.android.launcher3.logging.DumpManager.LauncherDumpable
 import com.android.launcher3.logging.FileLog
 import com.android.launcher3.model.data.AppInfo
-import com.android.launcher3.model.data.CollectionInfo
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.LauncherAppWidgetInfo
 import com.android.launcher3.model.data.PredictedContainerInfo
@@ -167,24 +164,21 @@ constructor(
         }
     }
 
-    @Synchronized
     @JvmOverloads
     fun addItem(context: Context, item: ItemInfo, owner: Any? = null) {
-        mutableWorkspaceData.addItem(item, owner)
-        if (item.itemType == ITEM_TYPE_DEEP_SHORTCUT) {
-            updateShortcutPinnedState(context, item.user)
-        }
-        updateHomeRepository()
+        addItems(context, listOf(item), owner)
+    }
 
-        if (
-            BuildConfig.IS_DEBUG_DEVICE &&
-                item.container != CONTAINER_DESKTOP &&
-                item.container != CONTAINER_HOTSEAT &&
-                (itemsIdMap[item.container] !is CollectionInfo)
-        ) {
-            // Adding an item to a nonexistent collection.
-            Log.e(TAG, "attempted to add item: $item to a nonexistent app collection")
-        }
+    @Synchronized
+    @JvmOverloads
+    fun addItems(context: Context, items: List<ItemInfo>, owner: Any? = null) {
+        mutableWorkspaceData.addItems(items, owner)
+        items
+            .filter { it.itemType == ITEM_TYPE_DEEP_SHORTCUT }
+            .map { it.user }
+            .distinct()
+            .forEach { updateShortcutPinnedState(context, it) }
+        updateHomeRepository()
     }
 
     @Synchronized

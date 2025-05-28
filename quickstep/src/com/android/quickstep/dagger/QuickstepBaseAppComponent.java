@@ -32,6 +32,7 @@ import com.android.quickstep.SystemDecorationChangeObserver;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.TaskAnimationManager;
 import com.android.quickstep.TopTaskTracker;
+import com.android.quickstep.actioncorner.ActionCornerHandler;
 import com.android.quickstep.fallback.window.RecentsWindowManager;
 import com.android.quickstep.inputconsumers.NavHandleLongPressHandler;
 import com.android.quickstep.logging.SettingsChangeLogger;
@@ -85,4 +86,7 @@ public interface QuickstepBaseAppComponent extends LauncherBaseAppComponent {
 
     DisplayRepository getDisplayRepository();
     NavHandleLongPressHandler getNavHandleLongPressHandler();
+
+    /** Gets the factory to create a new ActionCornerHandlerFactory */
+    ActionCornerHandler.Factory getActionCornerHandlerFactory();
 }

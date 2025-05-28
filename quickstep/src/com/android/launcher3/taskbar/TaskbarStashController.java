@@ -365,6 +365,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
         // For now, assume we're in an app, since LauncherTaskbarUIController won't be able to tell
         // us that we're paused until a bit later. This avoids flickering upon recreating taskbar.
         updateStateForFlag(FLAG_IN_APP, true);
+        updateStateForFlag(FLAG_IN_OVERVIEW, mTaskbarSharedState.isTaskbarOnOverview);
         updateStateForFlag(FLAG_STASHED_BUBBLE_BAR_ON_PHONE, mActivity.isBubbleBarOnPhone());
 
         applyState(/* duration = */ 0);
@@ -1358,6 +1359,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
             mAnimator.cancel();
             mAnimator = null;
         }
+        mTaskbarSharedState.isTaskbarOnOverview = hasAnyFlag(FLAG_IN_OVERVIEW);
         UI_HELPER_EXECUTOR.execute(
                 () -> mAccessibilityManager.unregisterSystemAction(SYSTEM_ACTION_ID_TASKBAR));
     }

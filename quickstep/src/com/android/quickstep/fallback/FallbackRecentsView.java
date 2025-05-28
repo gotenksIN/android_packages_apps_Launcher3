@@ -41,9 +41,7 @@ import com.android.launcher3.statemanager.StateManager.StateListener;
 import com.android.launcher3.statemanager.StatefulContainer;
 import com.android.launcher3.util.SplitConfigurationOptions;
 import com.android.launcher3.util.SplitConfigurationOptions.SplitSelectSource;
-import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.GestureState;
-import com.android.quickstep.OverviewComponentObserver;
 import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle;
 import com.android.quickstep.fallback.window.RecentsWindowManager;
 import com.android.quickstep.util.GroupTask;
@@ -77,12 +75,6 @@ public class FallbackRecentsView<CONTAINER_TYPE extends Context & RecentsViewCon
     public FallbackRecentsView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         mContainer.getStateManager().addStateListener(this);
-    }
-
-    @Override
-    public BaseContainerInterface<RecentsState, ?> getContainerInterface(int displayId) {
-        return (BaseContainerInterface<RecentsState, ?>) OverviewComponentObserver.INSTANCE.get(
-                mContext).getContainerInterface(displayId);
     }
 
     @Override

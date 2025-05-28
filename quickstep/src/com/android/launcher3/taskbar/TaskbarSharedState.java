@@ -49,6 +49,8 @@ public class TaskbarSharedState {
     // TaskbarManager#onSystemUiFlagsChanged
     @SystemUiStateFlags
     public long sysuiStateFlags;
+    // TaskBarStashController#init()
+    public boolean isTaskbarOnOverview;
 
     // TaskbarManager#disableNavBarElements()
     public int disableNavBarDisplayId;

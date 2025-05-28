@@ -80,7 +80,6 @@ import android.app.ActivityOptions;
 import android.app.WindowConfiguration;
 import android.app.role.RoleManager;
 import android.content.ComponentName;
-import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.Matrix;
@@ -180,6 +179,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map.Entry;
 
 /**
  * Manages the opening and closing app transitions from Launcher
@@ -286,8 +286,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
     private final SystemUiProxy mSystemUiProxy;
 
-    public QuickstepTransitionManager(Context context) {
-        mLauncher = Launcher.cast(Launcher.getLauncher(context));
+    public QuickstepTransitionManager(QuickstepLauncher launcher) {
+        mLauncher = launcher;
         mDragLayer = mLauncher.getDragLayer();
         mHandler = new Handler(Looper.getMainLooper());
         mDeviceProfile = mLauncher.getDeviceProfile();
@@ -313,11 +313,12 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             mSystemUiProxy.setStartingWindowListener(mStartingWindowListener);
         }
 
-        mOpeningXInterpolator = AnimationUtils.loadInterpolator(context, R.interpolator.app_open_x);
-        mOpeningInterpolator = AnimationUtils.loadInterpolator(context,
-                R.interpolator.emphasized_interpolator);
+        mOpeningXInterpolator = AnimationUtils.loadInterpolator(
+                launcher, R.interpolator.app_open_x);
+        mOpeningInterpolator = AnimationUtils.loadInterpolator(
+                launcher, R.interpolator.emphasized_interpolator);
         mCoordinateTransfer = new RemoteAnimationCoordinateTransfer(mLauncher);
-        mLatencyTracker = LatencyTracker.getInstance(context);
+        mLatencyTracker = LatencyTracker.getInstance(launcher);
     }
 
     @Override

@@ -755,7 +755,9 @@ constructor(
                     AccessibilityNodeInfo.CollectionItemInfo(
                         0,
                         1,
-                        it.getAccessibilityChildren().indexOf(this@TaskView),
+                        // We only care about TaskView's for the `CollectionInfo` that Talkback uses
+                        // to read out.
+                        it.taskViews.reversed().indexOf(this@TaskView),
                         1,
                         false,
                     )
@@ -1527,7 +1529,7 @@ constructor(
                     // checking whether to handle resume, but that can come in before
                     // startHome() changes the state, so force-refresh here to ensure the
                     // taskbar is updated
-                    it.mSizeStrategy.taskbarController?.refreshResumedState()
+                    it.mContainerInterface.taskbarController?.refreshResumedState()
                 }
             }
         }

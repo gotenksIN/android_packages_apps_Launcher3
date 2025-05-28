@@ -18,7 +18,6 @@ package com.android.launcher3.util;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION;
 
-import static com.android.launcher3.Flags.enableOverviewOnConnectedDisplays;
 import static com.android.launcher3.InvariantDeviceProfile.TYPE_MULTI_DISPLAY;
 import static com.android.launcher3.InvariantDeviceProfile.TYPE_PHONE;
 import static com.android.launcher3.InvariantDeviceProfile.TYPE_TABLET;
@@ -163,7 +162,7 @@ public class DisplayController implements DesktopVisibilityListener {
         FileLog.i(TAG, "(CTOR) perDisplayBounds: "
                 + defaultPerDisplayInfo.mInfo.mPerDisplayBounds);
 
-        if (enableOverviewOnConnectedDisplays()) {
+        if (mWMProxy.enableOverviewOnConnectedDisplays()) {
             final DisplayManager.DisplayListener displayListener =
                     new DisplayManager.DisplayListener() {
                         @Override
@@ -267,7 +266,7 @@ public class DisplayController implements DesktopVisibilityListener {
     // if it is not associated with a display.
     private static Info getInfo(Context context) {
         DisplayController controller = INSTANCE.get(context);
-        if (enableOverviewOnConnectedDisplays()) {
+        if (controller.mWMProxy.enableOverviewOnConnectedDisplays()) {
             Display display = controller.mWMProxy.getDisplay(context);
             int displayId = display.getDisplayId();
             Info info = controller.getInfoForDisplay(displayId);
@@ -362,7 +361,7 @@ public class DisplayController implements DesktopVisibilityListener {
     }
 
     public @Nullable Info getInfoForDisplay(int displayId) {
-        if (enableOverviewOnConnectedDisplays()) {
+        if (mWMProxy.enableOverviewOnConnectedDisplays()) {
             PerDisplayInfo perDisplayInfo = mPerDisplayInfo.get(displayId);
             if (perDisplayInfo != null) {
                 return perDisplayInfo.mInfo;
