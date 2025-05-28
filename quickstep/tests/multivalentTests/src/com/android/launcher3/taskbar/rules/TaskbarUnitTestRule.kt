@@ -33,7 +33,9 @@ import com.android.launcher3.taskbar.bubbles.BubbleControllers
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR
 import com.android.launcher3.util.TestUtil
+import com.android.launcher3.util.coroutines.ProductionDispatchers
 import com.android.quickstep.AllAppsActionManager
+import com.android.quickstep.LauncherDisplaysWithDecorationsRepositoryCompat
 import com.android.quickstep.fallback.window.RecentsWindowManager
 import com.android.quickstep.input.QuickstepKeyGestureEventsManager
 import java.lang.reflect.Field
@@ -118,6 +120,10 @@ class TaskbarUnitTestRule(
                                 },
                                 object : TaskbarNavButtonCallbacks {},
                                 RecentsWindowManager.REPOSITORY_INSTANCE.get(context),
+                                LauncherDisplaysWithDecorationsRepositoryCompat.INSTANCE.get(
+                                    context
+                                ),
+                                ProductionDispatchers.main,
                             ) {
                             override fun recreateTaskbars() {
                                 super.recreateTaskbars()

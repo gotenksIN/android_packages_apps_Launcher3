@@ -54,6 +54,8 @@ import com.android.launcher3.util.DaggerSingletonObject
 import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.Executors
 import com.android.launcher3.util.RunnableList
+import com.android.launcher3.util.ScreenOnTracker
+import com.android.launcher3.util.ScreenOnTracker.ScreenOnListener
 import com.android.launcher3.util.SystemUiController
 import com.android.launcher3.util.WallpaperColorHints
 import com.android.launcher3.views.BaseDragLayer
@@ -110,6 +112,7 @@ constructor(
     wallpaperColorHints: WallpaperColorHints,
     private val systemUiProxy: SystemUiProxy,
     private val recentsModel: RecentsModel,
+    private val screenOnTracker: ScreenOnTracker,
 ) :
     RecentsWindowContext(windowContext, wallpaperColorHints.hints),
     RecentsViewContainer,
@@ -231,6 +234,12 @@ constructor(
             }
         }
 
+    private val screenChangedListener = ScreenOnListener { isOn ->
+        if (!isOn) {
+            cleanupRecentsWindow()
+        }
+    }
+
     init {
         fallbackWindowInterface.setRecentsWindowManager(this)
         homeVisibilityState.addListener(homeVisibilityListener)
@@ -309,6 +318,7 @@ constructor(
 
         this.callbacks = callbacks
         callbacks?.addListener(recentsAnimationListener)
+        screenOnTracker.addListener(screenChangedListener)
         onViewCreated()
     }
 
@@ -355,6 +365,7 @@ constructor(
         stateManager.moveToRestState()
         callbacks?.removeListener(recentsAnimationListener)
         callbacks = null
+        screenOnTracker.removeListener(screenChangedListener)
     }
 
     private fun isShowing(): Boolean {

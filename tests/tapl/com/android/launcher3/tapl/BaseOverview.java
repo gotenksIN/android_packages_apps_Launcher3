@@ -477,6 +477,11 @@ public class BaseOverview extends LauncherInstrumentation.VisibleContainer {
             // button on tablets.
             return false;
         }
+        if (task.isDesktop() && !isTablet) {
+            testLogD(TAG, "Not expecting an actions bar: device is phone and task is desktop");
+            // Overview actions aren't visible for desktop tasks.
+            return false;
+        }
         testLogD(TAG, "Expecting an actions bar");
         return true;
     }

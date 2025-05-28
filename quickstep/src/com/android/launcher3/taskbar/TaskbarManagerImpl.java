@@ -41,6 +41,7 @@ import static com.android.launcher3.util.FlagDebugUtils.formatFlagChange;
 import static com.android.quickstep.util.SystemActionConstants.ACTION_SHOW_TASKBAR;
 import static com.android.quickstep.util.SystemActionConstants.SYSTEM_ACTION_ID_TASKBAR;
 import static com.android.wm.shell.shared.desktopmode.DesktopModeStatus.enableMultipleDesktops;
+import static com.android.window.flags.Flags.enableSysDecorsCallbacksViaWm;
 
 import android.animation.AnimatorSet;
 import android.annotation.SuppressLint;
@@ -73,6 +74,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import com.android.app.displaylib.DisplayDecorationListener;
+import com.android.app.displaylib.DisplaysWithDecorationsRepositoryCompat;
 import com.android.app.displaylib.PerDisplayRepository;
 import com.android.internal.util.LatencyTracker;
 import com.android.launcher3.DeviceProfile;
@@ -95,7 +98,6 @@ import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.OverviewComponentObserver;
 import com.android.quickstep.RecentsActivity;
 import com.android.quickstep.SystemDecorationChangeObserver;
-import com.android.quickstep.SystemDecorationChangeObserver.DisplayDecorationListener;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.fallback.window.RecentsWindowManager;
 import com.android.quickstep.util.ContextualSearchInvoker;
@@ -111,6 +113,8 @@ import com.android.systemui.shared.system.TaskStackChangeListener;
 import com.android.systemui.shared.system.TaskStackChangeListeners;
 import com.android.systemui.unfold.UnfoldTransitionProgressProvider;
 import com.android.systemui.unfold.util.ScopedUnfoldTransitionProgressProvider;
+
+import kotlinx.coroutines.CoroutineDispatcher;
 
 import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
@@ -166,6 +170,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
     private ComponentCallbacks mPrimaryComponentCallbacks;
 
     private final SimpleBroadcastReceiver mShutdownReceiver;
+    private final DisplaysWithDecorationsRepositoryCompat mDisplaysWithDecorationsRepositoryCompat;
 
     private final LooperExecutor mPerWindowUiExecutor =
             new LooperExecutor("TaskbarUiThread", THREAD_PRIORITY_FOREGROUND);
@@ -457,12 +462,15 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
             Context context,
             AllAppsActionManager allAppsActionManager,
             TaskbarNavButtonCallbacks navCallbacks,
-            PerDisplayRepository<RecentsWindowManager> recentsWindowManagerRepository) {
+            PerDisplayRepository<RecentsWindowManager> recentsWindowManagerRepository,
+            DisplaysWithDecorationsRepositoryCompat displaysWithDecorationsRepositoryCompat,
+            CoroutineDispatcher dispatcher) {
         mBaseContext = context;
         mPrimaryDisplayId = mBaseContext.getDisplayId();
         mAllAppsActionManager = allAppsActionManager;
         mNavCallbacks = navCallbacks;
         mRecentsWindowManagerRepository = recentsWindowManagerRepository;
+        mDisplaysWithDecorationsRepositoryCompat = displaysWithDecorationsRepositoryCompat;
 
         // Set up primary display.
         debugPrimaryTaskbar("TaskbarManager constructor");
@@ -481,8 +489,14 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
                 .register(USER_SETUP_COMPLETE_URI, mOnSettingsChangeListener);
         SettingsCache.INSTANCE.get(mPrimaryWindowContext)
                 .register(NAV_BAR_KIDS_MODE, mOnSettingsChangeListener);
-        SystemDecorationChangeObserver.getINSTANCE().get(mPrimaryWindowContext)
-                .registerDisplayDecorationListener(this);
+        if (enableSysDecorsCallbacksViaWm()) {
+            displaysWithDecorationsRepositoryCompat
+                    .registerDisplayDecorationListener(this, dispatcher);
+        } else {
+            SystemDecorationChangeObserver.getINSTANCE().get(mPrimaryWindowContext)
+                    .registerDisplayDecorationListener(this);
+            addSystemDecorationForDisplaysAtBoot();
+        }
         mShutdownReceiver =
                 new SimpleBroadcastReceiver(
                         mPrimaryWindowContext, UI_HELPER_EXECUTOR, i -> destroyAllTaskbars());
@@ -510,12 +524,13 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         }
         recreateTaskbarForDisplay(mPrimaryDisplayId, /* duration= */ 0);
 
-        // TODO b/408503553: Remove when WM is used instead of CommandQueue for system decorations.
-        addSystemDecorationForDisplaysAtBoot();
         debugPrimaryTaskbar("TaskbarManager created");
     }
 
-    /** Calls {@link #onDisplayAddSystemDecorations(int)} for all displays. */
+    /**
+     * Calls {@link #onDisplayAddSystemDecorations(int)} for all displays
+     * TODO b/408503553: Remove when WM is used instead of CommandQueue for system decorations.
+     */
     private void addSystemDecorationForDisplaysAtBoot() {
         if (mDisplayManager == null) {
             return;
@@ -1160,8 +1175,12 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
                 .unregister(USER_SETUP_COMPLETE_URI, mOnSettingsChangeListener);
         SettingsCache.INSTANCE.get(mPrimaryWindowContext)
                 .unregister(NAV_BAR_KIDS_MODE, mOnSettingsChangeListener);
-        SystemDecorationChangeObserver.getINSTANCE().get(mPrimaryWindowContext)
-                .unregisterDisplayDecorationListener(this);
+        if (enableSysDecorsCallbacksViaWm()) {
+            mDisplaysWithDecorationsRepositoryCompat.unregisterDisplayDecorationListener(this);
+        } else {
+            SystemDecorationChangeObserver.getINSTANCE().get(mPrimaryWindowContext)
+                    .unregisterDisplayDecorationListener(this);
+        }
         debugPrimaryTaskbar("destroy: unregistering component callbacks");
         removeAndUnregisterComponentCallbacks(mPrimaryDisplayId);
         mShutdownReceiver.unregisterReceiverSafely();

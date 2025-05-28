@@ -27,6 +27,8 @@ import com.android.app.displaylib.DefaultDisplayOnlyInstanceRepositoryImpl
 import com.android.app.displaylib.DisplayLibBackground
 import com.android.app.displaylib.DisplayLibComponent
 import com.android.app.displaylib.DisplayRepository
+import com.android.app.displaylib.DisplaysWithDecorationsRepository
+import com.android.app.displaylib.DisplaysWithDecorationsRepositoryCompat
 import com.android.app.displaylib.PerDisplayInstanceRepositoryImpl
 import com.android.app.displaylib.PerDisplayRepository
 import com.android.app.displaylib.SingleInstanceRepositoryImpl
@@ -238,6 +240,22 @@ object DisplayLibModule {
         displayLibComponent: DisplayLibComponent
     ): DisplayRepository {
         return displayLibComponent.displayRepository
+    }
+
+    @Provides
+    @LauncherAppSingleton
+    fun providesDisplaysWithDecorationsRepository(
+        displayLibComponent: DisplayLibComponent
+    ): DisplaysWithDecorationsRepository {
+        return displayLibComponent.displaysWithDecorationsRepository
+    }
+
+    @Provides
+    @LauncherAppSingleton
+    fun providesDisplaysWithDecorationsRepositoryCompat(
+        displayLibComponent: DisplayLibComponent
+    ): DisplaysWithDecorationsRepositoryCompat {
+        return displayLibComponent.displaysWithDecorationsRepositoryCompat
     }
 
     @Provides

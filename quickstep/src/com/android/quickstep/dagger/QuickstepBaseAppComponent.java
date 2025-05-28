@@ -17,6 +17,7 @@
 package com.android.quickstep.dagger;
 
 import com.android.app.displaylib.DisplayRepository;
+import com.android.app.displaylib.DisplaysWithDecorationsRepositoryCompat;
 import com.android.app.displaylib.PerDisplayRepository;
 import com.android.launcher3.dagger.LauncherAppComponent;
 import com.android.launcher3.dagger.LauncherBaseAppComponent;
@@ -89,4 +90,6 @@ public interface QuickstepBaseAppComponent extends LauncherBaseAppComponent {
 
     /** Gets the factory to create a new ActionCornerHandlerFactory */
     ActionCornerHandler.Factory getActionCornerHandlerFactory();
+
+    DisplaysWithDecorationsRepositoryCompat getDisplaysWithDecorationsRepositoryCompat();
 }

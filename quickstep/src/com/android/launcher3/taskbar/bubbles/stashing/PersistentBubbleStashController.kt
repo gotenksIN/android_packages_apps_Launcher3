@@ -60,6 +60,10 @@ class PersistentBubbleStashController(
                 // if there are no bubbles, there's nothing to show, so just return.
                 return
             }
+            if (transitionFromHome && inAppDisplayOverrideProgress != 0f) {
+                // was on -1 page and leaving it, - reset the inAppDisplayOverrideProgress
+                inAppDisplayOverrideProgress = 0f
+            }
             // If we're transitioning anywhere, bubble bar should be collapsed
             updateExpandedState(expand = false)
             if (transitionFromHome || field == BubbleLauncherState.HOME) {

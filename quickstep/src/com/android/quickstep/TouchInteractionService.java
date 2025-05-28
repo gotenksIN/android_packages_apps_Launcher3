@@ -70,6 +70,7 @@ import androidx.annotation.UiThread;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.app.displaylib.DisplayRepository;
+import com.android.app.displaylib.DisplaysWithDecorationsRepositoryCompat;
 import com.android.app.displaylib.PerDisplayRepository;
 import com.android.launcher3.ConstantItem;
 import com.android.launcher3.EncryptionType;
@@ -98,6 +99,7 @@ import com.android.launcher3.util.PluginManagerWrapper;
 import com.android.launcher3.util.SafeCloseable;
 import com.android.launcher3.util.ScreenOnTracker;
 import com.android.launcher3.util.TraceHelper;
+import com.android.launcher3.util.coroutines.ProductionDispatchers;
 import com.android.quickstep.OverviewCommandHelper.CommandType;
 import com.android.quickstep.OverviewComponentObserver.OverviewChangeListener;
 import com.android.quickstep.actioncorner.ActionCornerHandler;
@@ -138,6 +140,8 @@ import com.android.wm.shell.recents.IRecentTasks;
 import com.android.wm.shell.shared.IShellTransitions;
 import com.android.wm.shell.splitscreen.ISplitScreen;
 import com.android.wm.shell.startingsurface.IStartingWindow;
+
+import kotlinx.coroutines.CoroutineDispatcher;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -722,6 +726,8 @@ public class TouchInteractionService extends Service {
     private DisplayRepository mDisplayRepository;
 
     private QuickstepKeyGestureEventsManager mQuickstepKeyGestureEventsHandler;
+    private DisplaysWithDecorationsRepositoryCompat mDisplaysWithDecorationsRepositoryCompat;
+    private CoroutineDispatcher mCoroutineDispatcher;
 
     @Override
     public void onCreate() {
@@ -738,6 +744,9 @@ public class TouchInteractionService extends Service {
         mRecentsWindowManagerRepository = RecentsWindowManager.REPOSITORY_INSTANCE.get(this);
         mSystemDecorationChangeObserver = SystemDecorationChangeObserver.getINSTANCE().get(this);
         mQuickstepKeyGestureEventsHandler = new QuickstepKeyGestureEventsManager(this);
+        mCoroutineDispatcher = ProductionDispatchers.INSTANCE.getMain();
+        mDisplaysWithDecorationsRepositoryCompat =
+                LauncherDisplaysWithDecorationsRepositoryCompat.getINSTANCE().get(this);
         mAllAppsActionManager = new AllAppsActionManager(this, UI_HELPER_EXECUTOR,
                 mQuickstepKeyGestureEventsHandler,
                 () -> mTaskbarManager.createAllAppsPendingIntent());
@@ -752,7 +761,8 @@ public class TouchInteractionService extends Service {
 
         mTaskbarManager = new TaskbarManagerImplWrapper(
             new TaskbarManagerImpl(this, mAllAppsActionManager, mNavCallbacks,
-                mRecentsWindowManagerRepository));
+                mRecentsWindowManagerRepository, mDisplaysWithDecorationsRepositoryCompat,
+                    mCoroutineDispatcher));
         mDesktopAppLaunchTransitionManager =
                 new DesktopAppLaunchTransitionManager(this, SystemUiProxy.INSTANCE.get(this));
         mDesktopAppLaunchTransitionManager.registerTransitions();
@@ -1497,7 +1507,8 @@ public class TouchInteractionService extends Service {
 
         private InputMonitorDisplayModel(
                 Context context, SystemDecorationChangeObserver systemDecorationChangeObserver) {
-            super(context, systemDecorationChangeObserver);
+            super(context, systemDecorationChangeObserver, mDisplaysWithDecorationsRepositoryCompat,
+                    mCoroutineDispatcher);
             initializeDisplays();
         }
 

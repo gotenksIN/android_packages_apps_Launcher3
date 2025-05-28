@@ -18,6 +18,8 @@ package com.android.launcher3.util;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION;
 
+import static com.android.launcher3.Flags.enableScalabilityForDesktopExperience;
+import static com.android.launcher3.InvariantDeviceProfile.TYPE_DESKTOP;
 import static com.android.launcher3.InvariantDeviceProfile.TYPE_MULTI_DISPLAY;
 import static com.android.launcher3.InvariantDeviceProfile.TYPE_PHONE;
 import static com.android.launcher3.InvariantDeviceProfile.TYPE_TABLET;
@@ -53,6 +55,7 @@ import androidx.annotation.VisibleForTesting;
 import com.android.launcher3.InvariantDeviceProfile.DeviceType;
 import com.android.launcher3.LauncherPrefChangeListener;
 import com.android.launcher3.LauncherPrefs;
+import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.dagger.LauncherAppComponent;
@@ -507,6 +510,7 @@ public class DisplayController implements DesktopVisibilityListener {
 
         private final boolean mShowLockedTaskbarOnHome;
         private final boolean mIsHomeVisible;
+        private final boolean mIsDesktopFormFactor;
 
         private final boolean mShowDesktopTaskbarForFreeformDisplay;
 
@@ -573,6 +577,8 @@ public class DisplayController implements DesktopVisibilityListener {
             mShowDesktopTaskbarForFreeformDisplay = wmProxy.showDesktopTaskbarForFreeformDisplay(
                     displayInfoContext);
             mIsHomeVisible = wmProxy.isHomeVisible();
+            mIsDesktopFormFactor = enableScalabilityForDesktopExperience()
+                    && displayInfoContext.getResources().getBoolean(R.bool.desktop_form_factor);
         }
 
         /**
@@ -657,6 +663,10 @@ public class DisplayController implements DesktopVisibilityListener {
         }
 
         public @DeviceType int getDeviceType() {
+            if (mIsDesktopFormFactor) {
+                return TYPE_DESKTOP;
+            }
+
             int flagPhone = 1 << 0;
             int flagTablet = 1 << 1;
 

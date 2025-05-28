@@ -403,6 +403,9 @@ public class GridCustomizationsProxy implements ProxyProvider {
             this.lifeCycleTracker = lifeCycleTracker;
             this.renderer = renderer;
             lifeCycleTracker.add(() -> destroyed = true);
+            // Preview grid change currently affects actual widget size. Revert grid changes
+            // when preview is destroyed to make sure Launcher widgets display correctly.
+            lifeCycleTracker.add(() -> renderer.updateGrid(null));
         }
 
         @Override
@@ -426,9 +429,7 @@ public class GridCustomizationsProxy implements ProxyProvider {
                     break;
                 case MESSAGE_ID_UPDATE_GRID:
                     String gridName = message.getData().getString(KEY_GRID_NAME);
-                    if (!TextUtils.isEmpty(gridName)) {
-                        renderer.updateGrid(gridName);
-                    }
+                    renderer.updateGrid(gridName);
                     break;
                 case MESSAGE_ID_UPDATE_COLOR:
                     if (Flags.newCustomizationPickerUi()) {

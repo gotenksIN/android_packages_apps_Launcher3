@@ -418,23 +418,6 @@ constructor(
 
         /** Binds the cache of string resources */
         fun bindStringCache(cache: StringCache) {}
-
-        companion object {
-            // If the launcher has permission to access deep shortcuts.
-            const val FLAG_HAS_SHORTCUT_PERMISSION: Int = 1 shl 0
-
-            // If quiet mode is enabled for any user
-            const val FLAG_QUIET_MODE_ENABLED: Int = 1 shl 1
-
-            // If launcher can change quiet mode
-            const val FLAG_QUIET_MODE_CHANGE_PERMISSION: Int = 1 shl 2
-
-            // If quiet mode is enabled for work profile user
-            const val FLAG_WORK_PROFILE_QUIET_MODE_ENABLED: Int = 1 shl 3
-
-            // If quiet mode is enabled for private profile user
-            const val FLAG_PRIVATE_PROFILE_QUIET_MODE_ENABLED: Int = 1 shl 4
-        }
     }
 
     companion object {
