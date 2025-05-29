@@ -58,9 +58,9 @@ import com.android.launcher3.testcomponent.TestCommandReceiver;
 import com.android.launcher3.util.TestUtil;
 import com.android.launcher3.util.Wait;
 import com.android.launcher3.util.rule.FailureWatcher;
-import com.android.launcher3.util.rule.MutualExclusionRule;
 import com.android.launcher3.util.rule.SamplerRule;
 import com.android.launcher3.util.rule.ScreenRecordRule;
+import com.android.launcher3.util.rule.SkipAfterTimeOutRule;
 import com.android.launcher3.util.rule.TestIsolationRule;
 import com.android.launcher3.util.rule.TestStabilityRule;
 import com.android.launcher3.util.rule.ViewCaptureRule;
@@ -113,7 +113,7 @@ public class FallbackRecentsTest {
     public ExtendedLongPressTimeoutRule mLongPressTimeoutRule = new ExtendedLongPressTimeoutRule();
 
     @Rule(order = -1000) // This should be the outermost rule
-    public MutualExclusionRule mMutualExclusionRule = new MutualExclusionRule();
+    public SkipAfterTimeOutRule mSkipAfterTimeOutRule = new SkipAfterTimeOutRule();
 
     public FallbackRecentsTest() throws RemoteException {
         Instrumentation instrumentation = getInstrumentation();

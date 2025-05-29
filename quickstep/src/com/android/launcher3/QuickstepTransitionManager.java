@@ -80,7 +80,6 @@ import android.app.ActivityOptions;
 import android.app.WindowConfiguration;
 import android.app.role.RoleManager;
 import android.content.ComponentName;
-import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.Matrix;
@@ -121,6 +120,7 @@ import androidx.annotation.Nullable;
 import androidx.core.graphics.ColorUtils;
 
 import com.android.app.animation.Animations;
+import com.android.app.animation.Interpolators;
 import com.android.internal.jank.Cuj;
 import com.android.internal.util.LatencyTracker;
 import com.android.launcher3.DeviceProfile.OnDeviceProfileChangeListener;
@@ -180,6 +180,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map.Entry;
 
 /**
  * Manages the opening and closing app transitions from Launcher
@@ -232,7 +233,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     private static final int MAX_NUM_TASKS = 5;
 
     // Cross-fade duration between App Widget and App
-    private static final int WIDGET_CROSSFADE_DURATION_MILLIS = 125;
+    private static final int WIDGET_CROSSFADE_DURATION_MILLIS = 666;
 
     protected final QuickstepLauncher mLauncher;
     protected final DragLayer mDragLayer;
@@ -286,8 +287,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
     private final SystemUiProxy mSystemUiProxy;
 
-    public QuickstepTransitionManager(Context context) {
-        mLauncher = Launcher.cast(Launcher.getLauncher(context));
+    public QuickstepTransitionManager(QuickstepLauncher launcher) {
+        mLauncher = launcher;
         mDragLayer = mLauncher.getDragLayer();
         mHandler = new Handler(Looper.getMainLooper());
         mDeviceProfile = mLauncher.getDeviceProfile();
@@ -313,11 +314,12 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             mSystemUiProxy.setStartingWindowListener(mStartingWindowListener);
         }
 
-        mOpeningXInterpolator = AnimationUtils.loadInterpolator(context, R.interpolator.app_open_x);
-        mOpeningInterpolator = AnimationUtils.loadInterpolator(context,
-                R.interpolator.emphasized_interpolator);
+        mOpeningXInterpolator = AnimationUtils.loadInterpolator(
+                launcher, R.interpolator.app_open_x);
+        mOpeningInterpolator = AnimationUtils.loadInterpolator(
+                launcher, R.interpolator.emphasized_interpolator);
         mCoordinateTransfer = new RemoteAnimationCoordinateTransfer(mLauncher);
-        mLatencyTracker = LatencyTracker.getInstance(context);
+        mLatencyTracker = LatencyTracker.getInstance(launcher);
     }
 
     @Override
@@ -1137,17 +1139,15 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
     /** Returns animator that controls depth/blur of the background during app/widget opening. */
     private Animator getBackgroundAnimator() {
-        LauncherState launcherState = mLauncher.getStateManager().getState();
-        boolean currentlyBlurringAllApps = Flags.allAppsBlur() && launcherState == ALL_APPS
-                && mLauncher.isAllAppsBackgroundBlurEnabled();
-        if (currentlyBlurringAllApps) {
-            // Don't additionally animate/blur the background for this launch (All Apps content
-            // already scales slightly to simulate depth).
+        if (Flags.allAppsBlur()) {
+            // Don't animate/blur the background for this launch, regardless of the launcher state.
+            // We have too many performance issues with the blur.
             return new AnimatorSet();
         }
 
         // When launching an app from overview that doesn't map to a task, we still want to just
         // blur the wallpaper instead of the launcher surface as well
+        LauncherState launcherState = mLauncher.getStateManager().getState();
         boolean allowBlurringLauncher =
                 launcherState != OVERVIEW && BlurUtils.supportsBlursOnWindows();
 
@@ -1489,15 +1489,20 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             FloatingIconView finalFloatingIconView = floatingIconView;
 
             // We want the window alpha to be 0 once this threshold is met, so that the
-            // FolderIconView can be seen morphing into the icon shape.
+            // FloatingIconView can be seen morphing into the icon shape.
             final float windowAlphaThreshold = 1f - SHAPE_PROGRESS_DURATION;
 
             RectFSpringAnim.OnUpdateListener runner = new SpringAnimRunner(targets, targetRect,
                     closingWindowStartRect, closingWindowOriginalRect, startWindowCornerRadius) {
                 @Override
                 public void onUpdate(RectF currentRectF, float progress) {
-                    finalFloatingIconView.update(1f, currentRectF, progress, windowAlphaThreshold,
-                            getCornerRadius(progress), false);
+                    // We want the icon alpha to be 1 once this threshold is met, so that it can be
+                    // seen morphing into the icon shape. But before the threshold, we want to limit
+                    // the alpha to reduce the blur effect behind the window.
+                    float iconAlpha =
+                            Interpolators.clampToProgress(progress, 0f, windowAlphaThreshold);
+                    finalFloatingIconView.update(iconAlpha, currentRectF, progress,
+                            windowAlphaThreshold, getCornerRadius(progress), false);
 
                     super.onUpdate(currentRectF, progress);
                 }

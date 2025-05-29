@@ -31,7 +31,6 @@ import android.widget.LinearLayout;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
-import androidx.core.view.ViewGroupKt;
 
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Insettable;
@@ -44,9 +43,6 @@ import com.android.quickstep.TaskOverlayFactory.OverlayUICallbacks;
 import com.android.quickstep.util.LayoutUtils;
 import com.android.wm.shell.shared.TypefaceUtils;
 import com.android.wm.shell.shared.TypefaceUtils.FontFamily;
-
-import kotlin.Unit;
-import kotlin.sequences.SequencesKt;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -418,23 +414,5 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
                 : R.drawable.ic_save_app_pair_up_down;
         mSaveAppPairButton.setCompoundDrawablesRelativeWithIntrinsicBounds(
                 appPairIconRes, 0, 0, 0);
-    }
-
-    /**
-     * Change the background when blur is enabled/disabled
-     */
-    public void updateBlurStyle(Boolean isBackgroundBlurEnabled) {
-        updateChildrenBackground(isBackgroundBlurEnabled
-                ? R.drawable.overview_action_button_background_blur :
-                R.drawable.overview_action_button_background);
-    }
-
-    private void updateChildrenBackground(int drawableId) {
-        SequencesKt.forEach(ViewGroupKt.getDescendants(this), view -> {
-            if (view instanceof Button) {
-                view.setBackgroundResource(drawableId);
-            }
-            return Unit.INSTANCE;
-        });
     }
 }

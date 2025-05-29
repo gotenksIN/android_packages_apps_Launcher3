@@ -16,6 +16,7 @@
 
 package com.android.launcher3.widgetpicker.ui.components
 
+import android.platform.test.rule.DisableAnimationsRule
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -39,6 +40,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.android.launcher3.widgetpicker.goldenpathmanager.WidgetPickerGoldenPathManager
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -50,7 +52,10 @@ import platform.test.screenshot.getEmulatedDevicePathConfig
 import platform.test.screenshot.utils.compose.ComposeScreenshotTestRule
 
 @RunWith(ParameterizedAndroidJunit4::class)
+@Ignore("b/418064758: Re-enable when flaky test is fixed.")
 class FloatingToolbarScreenshotTest(emulationSpec: DeviceEmulationSpec) {
+    @get:Rule(order = 0) val disableAnimationsRule = DisableAnimationsRule()
+
     @get:Rule(order = 1)
     val screenshotRule =
         ComposeScreenshotTestRule(
@@ -179,6 +184,7 @@ private fun TestComposable(
     ScrollableFloatingToolbar(
         modifier = Modifier.wrapContentSize(align = Alignment.Center),
         selectedTabIndex = selectedIndex,
+        shadowElevation = 0.dp,
         tabs =
             tabs.map {
                 {

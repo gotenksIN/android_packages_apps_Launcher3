@@ -180,6 +180,12 @@ public class RemoteTargetGluer {
             RemoteAnimationTarget topLeftTarget = targets.findTask(mSplitBounds.leftTopTaskId);
             RemoteAnimationTarget bottomRightTarget = targets.findTask(
                     mSplitBounds.rightBottomTaskId);
+            if (topLeftTarget == null) {
+                Log.e(TAG, "topLeftTarget not found. mSplitBounds: " + mSplitBounds);
+            }
+            if (bottomRightTarget == null) {
+                Log.e(TAG, "bottomRightTarget not found. mSplitBounds: " + mSplitBounds);
+            }
             List<RemoteAnimationTarget> overlayTargets = Arrays.stream(targets.apps).filter(
                     target -> target.windowConfiguration.getWindowingMode()
                             != WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW).toList();

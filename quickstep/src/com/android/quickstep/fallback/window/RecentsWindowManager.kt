@@ -54,10 +54,14 @@ import com.android.launcher3.util.DaggerSingletonObject
 import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.Executors
 import com.android.launcher3.util.RunnableList
+import com.android.launcher3.util.ScreenOnTracker
+import com.android.launcher3.util.ScreenOnTracker.ScreenOnListener
 import com.android.launcher3.util.SystemUiController
 import com.android.launcher3.util.WallpaperColorHints
 import com.android.launcher3.views.BaseDragLayer
 import com.android.launcher3.views.ScrimView
+import com.android.quickstep.BaseContainerInterface
+import com.android.quickstep.FallbackWindowInterface
 import com.android.quickstep.HomeVisibilityState
 import com.android.quickstep.OverviewComponentObserver
 import com.android.quickstep.RecentsAnimationCallbacks
@@ -104,9 +108,11 @@ class RecentsWindowManager
 @AssistedInject
 constructor(
     @Assisted windowContext: Context,
+    @Assisted private val fallbackWindowInterface: FallbackWindowInterface,
     wallpaperColorHints: WallpaperColorHints,
     private val systemUiProxy: SystemUiProxy,
     private val recentsModel: RecentsModel,
+    private val screenOnTracker: ScreenOnTracker,
 ) :
     RecentsWindowContext(windowContext, wallpaperColorHints.hints),
     RecentsViewContainer,
@@ -149,7 +155,17 @@ constructor(
     private var callbacks: RecentsAnimationCallbacks? = null
 
     private var taskbarUIController: TaskbarUIController? = null
-    private var tisBindHelper: TISBindHelper = TISBindHelper(this) {}
+    private val tisBindHelper: TISBindHelper = TISBindHelper(this) {}
+    private val splitSelectStateController: SplitSelectStateController =
+        SplitSelectStateController(
+            /* container= */ this,
+            stateManager,
+            /* depthController= */ null,
+            statsLogManager,
+            systemUiProxy,
+            recentsModel,
+            /* activityBackCallback= */ null,
+        )
 
     // Callback array that corresponds to events defined in @ActivityEvent
     private val eventCallbacks =
@@ -218,7 +234,14 @@ constructor(
             }
         }
 
+    private val screenChangedListener = ScreenOnListener { isOn ->
+        if (!isOn) {
+            cleanupRecentsWindow()
+        }
+    }
+
     init {
+        fallbackWindowInterface.setRecentsWindowManager(this)
         homeVisibilityState.addListener(homeVisibilityListener)
     }
 
@@ -234,8 +257,9 @@ constructor(
 
     override fun destroy() {
         super.destroy()
+        fallbackWindowInterface.setRecentsWindowManager(null)
+        tisBindHelper.onDestroy()
         Executors.MAIN_EXECUTOR.execute {
-            tisBindHelper.onDestroy()
             onViewDestroyed()
             cleanupRecentsWindow()
             callbacks?.removeListener(recentsAnimationListener)
@@ -264,15 +288,7 @@ constructor(
                     ?.apply {
                         init(
                             actionsView,
-                            SplitSelectStateController(
-                                /* container= */ this@RecentsWindowManager,
-                                stateManager,
-                                /* depthController= */ null,
-                                statsLogManager,
-                                systemUiProxy,
-                                recentsModel,
-                                /* activityBackCallback= */ null,
-                            ),
+                            splitSelectStateController,
                             DesktopRecentsTransitionController(
                                 stateManager,
                                 systemUiProxy,
@@ -302,6 +318,7 @@ constructor(
 
         this.callbacks = callbacks
         callbacks?.addListener(recentsAnimationListener)
+        screenOnTracker.addListener(screenChangedListener)
         onViewCreated()
     }
 
@@ -323,6 +340,7 @@ constructor(
     }
 
     private fun startHomeInternal() {
+        val displayId = displayId
         val runner = LauncherAnimationRunner(mainThreadHandler, animationToHomeFactory, true)
         val options =
             ActivityOptions.makeRemoteAnimation(
@@ -333,7 +351,8 @@ constructor(
                     "StartHomeFromRecents",
                 ),
             )
-        OverviewComponentObserver.startHomeIntentSafely(this, options.toBundle(), TAG)
+        options.launchDisplayId = displayId
+        OverviewComponentObserver.startHomeIntentSafely(this, options.toBundle(), TAG, displayId)
         stateManager.moveToRestState()
     }
 
@@ -346,6 +365,7 @@ constructor(
         stateManager.moveToRestState()
         callbacks?.removeListener(recentsAnimationListener)
         callbacks = null
+        screenOnTracker.removeListener(screenChangedListener)
     }
 
     private fun isShowing(): Boolean {
@@ -416,8 +436,16 @@ constructor(
         return scrimView
     }
 
+    override fun <T : BaseContainerInterface<*, *>?> getContainerInterface(): T {
+        return fallbackWindowInterface as T
+    }
+
     override fun <T : View?> getOverviewPanel(): T {
         return recentsView as T
+    }
+
+    override fun getSplitSelectStateController(): SplitSelectStateController {
+        return splitSelectStateController
     }
 
     override fun getRootView(): View? {
@@ -512,7 +540,10 @@ constructor(
     @AssistedFactory
     interface Factory {
         /** Creates a new instance of [RecentsWindowManager] for a given [context]. */
-        fun create(@WindowContext context: Context): RecentsWindowManager
+        fun create(
+            @WindowContext context: Context,
+            fallbackWindowInterface: FallbackWindowInterface,
+        ): RecentsWindowManager
     }
 }
 
@@ -522,9 +553,14 @@ class RecentsWindowManagerInstanceProvider
 constructor(
     private val factory: RecentsWindowManager.Factory,
     @WindowContext private val windowContextRepository: PerDisplayRepository<Context>,
+    private val fallbackWindowInterfaceRepository: PerDisplayRepository<FallbackWindowInterface>,
 ) : PerDisplayInstanceProviderWithTeardown<RecentsWindowManager> {
     override fun createInstance(displayId: Int) =
-        windowContextRepository[displayId]?.let { factory.create(it) }
+        windowContextRepository[displayId]?.let { windowContext ->
+            fallbackWindowInterfaceRepository[displayId]?.let { fallbackWindowInterface ->
+                factory.create(windowContext, fallbackWindowInterface)
+            }
+        }
 
     override fun destroyInstance(instance: RecentsWindowManager) {
         instance.destroy()

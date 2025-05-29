@@ -25,6 +25,9 @@ android_app {
         "SystemUI_optimized_defaults",
     ],
     platform_apis: true,
+    privileged: true,
+    certificate: "platform",
+    system_ext_specific: true,
     static_libs: [
         "widget_picker_ui_components",
     ],
@@ -36,17 +39,21 @@ android_test {
     srcs: [
         "multivalentScreenshotTests/src/com/android/launcher3/widgetpicker/goldenpathmanager/WidgetPickerGoldenPathManager.kt",
         "multivalentScreenshotTests/src/com/android/launcher3/widgetpicker/ui/components/FloatingToolbarScreenshotTest.kt",
+        "multivalentScreenshotTests/src/com/android/launcher3/widgetpicker/ui/components/WidgetsGridScreenshotTest.kt",
+        "multivalentScreenshotTests/src/com/android/launcher3/widgetpicker/ui/components/WidgetsGridTestSamples.kt",
     ],
-    sdk_version: "current",
+    platform_apis: true,
     static_libs: [
         "widget_picker_ui_components",
         "collector-device-lib-platform",
+        "widget_picker_window_size_class",
         "testables",
         "androidx.compose.runtime_runtime",
         "junit",
         "androidx.test.ext.junit",
         "androidx.test.rules",
         "androidx.test.runner",
+        "platform-test-rules",
         "platform-screenshot-diff-core",
         "platform-parametric-runner-lib",
         "ScreenshotComposeUtilsLib",
@@ -66,4 +73,7 @@ android_test {
     test_suites: ["device-tests"],
     certificate: "platform",
     asset_dirs: ["multivalentScreenshotTests/assets/widgetpicker_screenshots"],
+    resource_dirs: [
+        "multivalentScreenshotTests/res",
+    ],
 }

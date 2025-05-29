@@ -347,7 +347,7 @@ constructor(
      * The modalness of this view is how it should be displayed when it is shown on its own in the
      * modal state of overview. 0 being in context with other tasks, 1 being shown on its own.
      */
-    var modalness = 0f
+    protected var modalness = 0f
         set(value) {
             if (field == value) {
                 return
@@ -755,7 +755,9 @@ constructor(
                     AccessibilityNodeInfo.CollectionItemInfo(
                         0,
                         1,
-                        it.getAccessibilityChildren().indexOf(this@TaskView),
+                        // We only care about TaskView's for the `CollectionInfo` that Talkback uses
+                        // to read out.
+                        it.taskViews.reversed().indexOf(this@TaskView),
                         1,
                         false,
                     )
@@ -1291,19 +1293,19 @@ constructor(
         with(iconView) {
             if (icon != null) {
                 setDrawable(icon)
-                setOnClickListener {
+                asView().setOnClickListener {
                     if (!confirmSecondSplitSelectApp()) {
                         showTaskMenu(this)
                     }
                 }
-                setOnLongClickListener {
+                asView().setOnLongClickListener {
                     requestDisallowInterceptTouchEvent(true)
                     showTaskMenu(this)
                 }
             } else {
                 setDrawable(null)
-                setOnClickListener(null)
-                setOnLongClickListener(null)
+                asView().setOnClickListener(null)
+                asView().setOnLongClickListener(null)
             }
         }
     }
@@ -1527,7 +1529,7 @@ constructor(
                     // checking whether to handle resume, but that can come in before
                     // startHome() changes the state, so force-refresh here to ensure the
                     // taskbar is updated
-                    it.mSizeStrategy.taskbarController?.refreshResumedState()
+                    it.mContainerInterface.taskbarController?.refreshResumedState()
                 }
             }
         }
@@ -1699,8 +1701,8 @@ constructor(
         tempCenterCoordinates: FloatArray,
         transformingTouchDelegate: TransformingTouchDelegate,
     ) {
-        val viewHalfWidth = view.width / 2f
-        val viewHalfHeight = view.height / 2f
+        val viewHalfWidth = view.asView().width / 2f
+        val viewHalfHeight = view.asView().height / 2f
         Utilities.getDescendantCoordRelativeToAncestor(
             view.asView(),
             container.dragLayer,
@@ -1874,7 +1876,7 @@ constructor(
     protected open fun onFullscreenProgressChanged(fullscreenProgress: Float) {
         taskContainers.forEach {
             if (!enableOverviewIconMenu()) {
-                it.iconView.setVisibility(if (fullscreenProgress < 1) VISIBLE else INVISIBLE)
+                it.iconView.asView().visibility = if (fullscreenProgress < 1) VISIBLE else INVISIBLE
             }
             it.overlay.setFullscreenProgress(fullscreenProgress)
         }

@@ -70,6 +70,7 @@ import androidx.annotation.UiThread;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.app.displaylib.DisplayRepository;
+import com.android.app.displaylib.DisplaysWithDecorationsRepositoryCompat;
 import com.android.app.displaylib.PerDisplayRepository;
 import com.android.launcher3.ConstantItem;
 import com.android.launcher3.EncryptionType;
@@ -77,6 +78,7 @@ import com.android.launcher3.Flags;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.anim.AnimatedFloat;
+import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.desktop.DesktopAppLaunchTransitionManager;
 import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.statemanager.StatefulActivity;
@@ -97,6 +99,7 @@ import com.android.launcher3.util.PluginManagerWrapper;
 import com.android.launcher3.util.SafeCloseable;
 import com.android.launcher3.util.ScreenOnTracker;
 import com.android.launcher3.util.TraceHelper;
+import com.android.launcher3.util.coroutines.ProductionDispatchers;
 import com.android.quickstep.OverviewCommandHelper.CommandType;
 import com.android.quickstep.OverviewComponentObserver.OverviewChangeListener;
 import com.android.quickstep.actioncorner.ActionCornerHandler;
@@ -137,6 +140,8 @@ import com.android.wm.shell.recents.IRecentTasks;
 import com.android.wm.shell.shared.IShellTransitions;
 import com.android.wm.shell.splitscreen.ISplitScreen;
 import com.android.wm.shell.startingsurface.IStartingWindow;
+
+import kotlinx.coroutines.CoroutineDispatcher;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -231,9 +236,15 @@ public class TouchInteractionService extends Service {
                 int displayId = tis.focusedDisplayIdForOverviewOnConnectedDisplays();
                 RecentsAnimationDeviceState deviceState = tis.mDeviceStateRepository.get(
                         displayId);
-                // If currently screen pinning, do not enter overview
-                if (deviceState != null && deviceState.isScreenPinningActive()) {
-                    return;
+                if (deviceState != null) {
+                    if (deviceState.isScreenPinningActive()) {
+                        return;
+                    }
+                    if (!deviceState.canStartOverviewCommand()) {
+                        Log.d(TAG, "onOverviewShown ignored for display " + displayId
+                                + " because the command is blocked");
+                        return;
+                    }
                 }
                 TaskUtils.closeSystemWindowsAsync(CLOSE_SYSTEM_WINDOWS_REASON_RECENTS);
                 tis.mOverviewCommandHelper.addCommand(CommandType.TOGGLE, displayId);
@@ -244,13 +255,23 @@ public class TouchInteractionService extends Service {
         @Override
         public void onOverviewShown(boolean triggeredFromAltTab) {
             executeForTouchInteractionService(tis -> {
+                final int displayId =
+                        triggeredFromAltTab
+                                ? tis.focusedDisplayIdForAltTabKqsOnConnectedDisplays()
+                                : tis.focusedDisplayIdForOverviewOnConnectedDisplays();
+                RecentsAnimationDeviceState deviceState = tis.mDeviceStateRepository.get(
+                        displayId);
+                if (deviceState != null && !deviceState.canStartOverviewCommand()) {
+                    Log.d(TAG, "onOverviewShown ignored for display " + displayId
+                            + " because the command is blocked");
+                    return;
+                }
+
                 if (triggeredFromAltTab) {
                     TaskUtils.closeSystemWindowsAsync(CLOSE_SYSTEM_WINDOWS_REASON_RECENTS);
-                    tis.mOverviewCommandHelper.addCommand(CommandType.SHOW_ALT_TAB,
-                            tis.focusedDisplayIdForAltTabKqsOnConnectedDisplays());
+                    tis.mOverviewCommandHelper.addCommand(CommandType.SHOW_ALT_TAB, displayId);
                 } else {
-                    tis.mOverviewCommandHelper.addCommand(CommandType.SHOW_WITH_FOCUS,
-                            tis.focusedDisplayIdForOverviewOnConnectedDisplays());
+                    tis.mOverviewCommandHelper.addCommand(CommandType.SHOW_WITH_FOCUS, displayId);
                 }
             });
         }
@@ -262,6 +283,13 @@ public class TouchInteractionService extends Service {
                 if (triggeredFromAltTab && !triggeredFromHomeKey) {
                     // onOverviewShownFromAltTab hides the overview and ends at the target app
                     int displayId = tis.focusedDisplayIdForAltTabKqsOnConnectedDisplays();
+                    RecentsAnimationDeviceState deviceState = tis.mDeviceStateRepository.get(
+                            displayId);
+                    if (deviceState != null && !deviceState.canStartOverviewCommand()) {
+                        Log.d(TAG, "onOverviewHidden ignored for display " + displayId
+                                + " because the command is blocked");
+                        return;
+                    }
                     tis.mOverviewCommandHelper.addCommand(CommandType.HIDE_ALT_TAB, displayId);
                 }
             });
@@ -332,10 +360,13 @@ public class TouchInteractionService extends Service {
         @Override
         public void enterStageSplitFromRunningApp(int displayId, boolean leftOrTop) {
             executeForTouchInteractionService(tis -> {
-                RecentsViewContainer container = tis.mOverviewComponentObserver
-                        .getContainerInterface(displayId).getCreatedContainer();
-                if (container != null) {
-                    container.enterStageSplitFromRunningApp(leftOrTop, displayId);
+                BaseContainerInterface<?, ?> containerInterface = tis.mOverviewComponentObserver
+                        .getContainerInterface(displayId);
+                if (containerInterface != null) {
+                    RecentsViewContainer container = containerInterface.getCreatedContainer();
+                    if (container != null) {
+                        container.enterStageSplitFromRunningApp(leftOrTop, displayId);
+                    }
                 }
             });
         }
@@ -695,6 +726,8 @@ public class TouchInteractionService extends Service {
     private DisplayRepository mDisplayRepository;
 
     private QuickstepKeyGestureEventsManager mQuickstepKeyGestureEventsHandler;
+    private DisplaysWithDecorationsRepositoryCompat mDisplaysWithDecorationsRepositoryCompat;
+    private CoroutineDispatcher mCoroutineDispatcher;
 
     @Override
     public void onCreate() {
@@ -711,6 +744,9 @@ public class TouchInteractionService extends Service {
         mRecentsWindowManagerRepository = RecentsWindowManager.REPOSITORY_INSTANCE.get(this);
         mSystemDecorationChangeObserver = SystemDecorationChangeObserver.getINSTANCE().get(this);
         mQuickstepKeyGestureEventsHandler = new QuickstepKeyGestureEventsManager(this);
+        mCoroutineDispatcher = ProductionDispatchers.INSTANCE.getMain();
+        mDisplaysWithDecorationsRepositoryCompat =
+                LauncherDisplaysWithDecorationsRepositoryCompat.getINSTANCE().get(this);
         mAllAppsActionManager = new AllAppsActionManager(this, UI_HELPER_EXECUTOR,
                 mQuickstepKeyGestureEventsHandler,
                 () -> mTaskbarManager.createAllAppsPendingIntent());
@@ -725,7 +761,8 @@ public class TouchInteractionService extends Service {
 
         mTaskbarManager = new TaskbarManagerImplWrapper(
             new TaskbarManagerImpl(this, mAllAppsActionManager, mNavCallbacks,
-                mRecentsWindowManagerRepository));
+                mRecentsWindowManagerRepository, mDisplaysWithDecorationsRepositoryCompat,
+                    mCoroutineDispatcher));
         mDesktopAppLaunchTransitionManager =
                 new DesktopAppLaunchTransitionManager(this, SystemUiProxy.INSTANCE.get(this));
         mDesktopAppLaunchTransitionManager.registerTransitions();
@@ -814,7 +851,8 @@ public class TouchInteractionService extends Service {
         mOverviewCommandHelper = new OverviewCommandHelper(this,
                 mOverviewComponentObserver, mDisplayRepository, mTaskbarManager,
                 mTaskAnimationManagerRepository);
-        mActionCornerHandler = new ActionCornerHandler(mOverviewCommandHelper);
+        mActionCornerHandler = LauncherComponentProvider.get(
+                this).getActionCornerHandlerFactory().create(mOverviewCommandHelper);
         mUserUnlocked = true;
         mInputConsumer.registerInputConsumer();
         mDeviceStateRepository.forEach(/* createIfAbsent= */ true, deviceState ->
@@ -1352,12 +1390,13 @@ public class TouchInteractionService extends Service {
             if (deviceState != null) {
                 deviceState.dump(pw);
             }
-            RecentsViewContainer createdOverviewContainer =
+            BaseContainerInterface<?, ?> containerInterface =
                     mOverviewComponentObserver == null ? null
                             : mOverviewComponentObserver.getContainerInterface(
-                                    displayId).getCreatedContainer();
-            boolean resumed = mOverviewComponentObserver != null
-                    && mOverviewComponentObserver.getContainerInterface(displayId).isResumed();
+                                    displayId);
+            RecentsViewContainer createdOverviewContainer = containerInterface == null ? null :
+                    containerInterface.getCreatedContainer();
+            boolean resumed = containerInterface != null && containerInterface.isResumed();
             pw.println("\tcreatedOverviewActivity=" + createdOverviewContainer);
             pw.println("\tresumed=" + resumed);
             if (createdOverviewContainer != null) {
@@ -1468,7 +1507,8 @@ public class TouchInteractionService extends Service {
 
         private InputMonitorDisplayModel(
                 Context context, SystemDecorationChangeObserver systemDecorationChangeObserver) {
-            super(context, systemDecorationChangeObserver);
+            super(context, systemDecorationChangeObserver, mDisplaysWithDecorationsRepositoryCompat,
+                    mCoroutineDispatcher);
             initializeDisplays();
         }
 

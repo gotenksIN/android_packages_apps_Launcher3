@@ -225,14 +225,14 @@ public class RecentsModel implements RecentTasksDataSource, TaskStackChangeListe
     /**
      * Fetches the list of recent tasks, based on a filter
      *
+     * @param filter   Returns true if a GroupTask should be included into the list passed into
+     *                 callback.
      * @param callback The callback to receive the task plan once its complete or null. This is
-     *                always called on the UI thread.
-     * @param filter  Returns true if a GroupTask should be included into the list passed into
-     *                callback.
+     *                 always called on the UI thread.
      * @return the request id associated with this call.
      */
-    public int getTasks(@Nullable Consumer<List<GroupTask>> callback, Predicate<GroupTask> filter) {
-        return mTaskList.getTasks(/* loadKeysOnly= */ false, callback, filter);
+    public int getTasks(Predicate<GroupTask> filter, @Nullable Consumer<List<GroupTask>> callback) {
+        return mTaskList.getTasks(false /* loadKeysOnly */, callback, filter);
     }
 
     /**

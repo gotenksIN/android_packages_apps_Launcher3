@@ -62,9 +62,9 @@ class MockedRecentsModelHelper {
                 taskListId
             }
 
-        on { getTasks(anyOrNull<Consumer<List<GroupTask>>>(), anyOrNull()) } doAnswer
+        on { getTasks(anyOrNull(), anyOrNull<Consumer<List<GroupTask>>>()) } doAnswer
             {
-                val request = it.getArgument<Consumer<List<GroupTask>>?>(0)
+                val request = it.getArgument<Consumer<List<GroupTask>>?>(1)
                 if (request != null) {
                     taskRequests.add { response -> request.accept(response) }
                 }

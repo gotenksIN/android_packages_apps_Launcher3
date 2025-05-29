@@ -52,7 +52,6 @@ import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_T
 import android.app.ActivityTaskManager;
 import android.content.Context;
 import android.graphics.Region;
-import android.inputmethodservice.InputMethodService;
 import android.net.Uri;
 import android.os.RemoteException;
 import android.os.SystemProperties;
@@ -86,11 +85,11 @@ import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags;
 import com.android.systemui.shared.system.TaskStackChangeListener;
 import com.android.systemui.shared.system.TaskStackChangeListeners;
 
-import java.io.PrintWriter;
-
 import dagger.assisted.Assisted;
 import dagger.assisted.AssistedFactory;
 import dagger.assisted.AssistedInject;
+
+import java.io.PrintWriter;
 
 /**
  * Manages the state of the system during a swipe up gesture.
@@ -107,6 +106,16 @@ public class RecentsAnimationDeviceState implements DisplayInfoChangeListener, E
             REPOSITORY_INSTANCE = new DaggerSingletonObject<>(
             QuickstepBaseAppComponent::getRecentsAnimationDeviceStateRepository);
 
+    /** The SysUI state ignores trackpad, touch gestures, and keyboard shortcuts. */
+    private static final long GESTURE_OR_KB_SHORTCUT_DISABLING_STATES =
+            SYSUI_STATE_NOTIFICATION_PANEL_EXPANDED
+                    | SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING
+                    | SYSUI_STATE_QUICK_SETTINGS_EXPANDED
+                    | SYSUI_STATE_MAGNIFICATION_OVERLAP
+                    | SYSUI_STATE_DEVICE_DREAMING
+                    | SYSUI_STATE_DISABLE_GESTURE_SPLIT_INVOCATION
+                    | SYSUI_STATE_DISABLE_GESTURE_PIP_ANIMATING;
+
     private final Context mContext;
     private final DisplayController mDisplayController;
 
@@ -115,9 +124,6 @@ public class RecentsAnimationDeviceState implements DisplayInfoChangeListener, E
 
     private final RotationTouchHelper mRotationTouchHelper;
     private final TaskStackChangeListener mPipListener;
-    // Cache for better performance since it doesn't change at runtime.
-    private final boolean mCanImeRenderGesturalNavButtons =
-            InputMethodService.canImeRenderGesturalNavButtons();
 
     private @SystemUiStateFlags long mSystemUiStateFlags = QuickStepContract.SYSUI_STATE_AWAKE;
     private NavigationMode mMode = THREE_BUTTONS;
@@ -413,19 +419,22 @@ public class RecentsAnimationDeviceState implements DisplayInfoChangeListener, E
     }
 
     /**
+     * @return whether SystemUI is in a state that allows the overview command from being started.
+     */
+    public boolean canStartOverviewCommand() {
+        final long sysUiStateFlags = getSysuiStateFlags();
+        final boolean overviewEnabled = !isOverviewDisabled();
+        return overviewEnabled && (sysUiStateFlags & GESTURE_OR_KB_SHORTCUT_DISABLING_STATES) == 0;
+    }
+
+    /**
      * Common logic to determine if either trackpad or finger gesture can be started
      */
     private boolean canStartAnyGesture() {
         boolean homeOrOverviewEnabled = (getSysuiStateFlags() & SYSUI_STATE_HOME_DISABLED) == 0
                 || (getSysuiStateFlags() & SYSUI_STATE_OVERVIEW_DISABLED) == 0;
-        long gestureDisablingStates = SYSUI_STATE_NOTIFICATION_PANEL_EXPANDED
-                        | SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING
-                        | SYSUI_STATE_QUICK_SETTINGS_EXPANDED
-                        | SYSUI_STATE_MAGNIFICATION_OVERLAP
-                        | SYSUI_STATE_DEVICE_DREAMING
-                        | SYSUI_STATE_DISABLE_GESTURE_SPLIT_INVOCATION
-                        | SYSUI_STATE_DISABLE_GESTURE_PIP_ANIMATING;
-        return (gestureDisablingStates & getSysuiStateFlags()) == 0 && homeOrOverviewEnabled;
+        return (GESTURE_OR_KB_SHORTCUT_DISABLING_STATES & getSysuiStateFlags()) == 0
+                && homeOrOverviewEnabled;
     }
 
     /**
@@ -605,8 +614,7 @@ public class RecentsAnimationDeviceState implements DisplayInfoChangeListener, E
 
     /** Returns whether IME is rendering nav buttons, and IME is currently showing. */
     public boolean isImeRenderingNavButtons() {
-        return mCanImeRenderGesturalNavButtons && mMode == NO_BUTTON
-                && ((getSysuiStateFlags() & SYSUI_STATE_IME_VISIBLE) != 0);
+        return mMode == NO_BUTTON && ((getSysuiStateFlags() & SYSUI_STATE_IME_VISIBLE) != 0);
     }
 
     /**

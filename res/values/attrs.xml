@@ -48,6 +48,8 @@
     <attr name="overviewScrimColor" format="color" />
     <attr name="overviewScrimColorFallback" format="color" />
     <attr name="overviewScrimColorBlur" format="color" />
+    <attr name="overviewActionsContainerStyle" format="reference" />
+    <attr name="overviewActionButtonStyle" format="reference" />
     <attr name="popupNotificationDotColor" format="color" />
     <attr name="notificationDotColor" format="color" />
     <attr name="focusOutlineColor" format="color" />
@@ -296,6 +298,8 @@
             <flag name="tablet" value="2" />
             <!-- Enable on multi display devices only -->
             <flag name="multi_display" value="4" />
+            <!-- Enable on desktop devices only -->
+            <flag name="desktop" value="8" />
         </attr>
 
         <!-- By default all are false -->

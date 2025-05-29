@@ -73,7 +73,6 @@ import android.graphics.Region.Op;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.PaintDrawable;
 import android.graphics.drawable.RotateDrawable;
-import android.inputmethodservice.InputMethodService;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.SystemProperties;
@@ -311,8 +310,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         }
         mNavButtonsView.setLayoutParams(navButtonsViewLayoutParams);
 
-        mIsImeRenderingNavButtons =
-                InputMethodService.canImeRenderGesturalNavButtons() && mContext.imeDrawsImeNavBar();
+        mIsImeRenderingNavButtons = mContext.imeDrawsImeNavBar();
         if (!mIsImeRenderingNavButtons) {
             // IME switcher
             final int switcherResId = Flags.imeSwitcherRevamp()
@@ -922,7 +920,8 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                     navButtonController.onButtonLongClick(buttonType, view));
             buttonView.setOnTouchListener((v, event) -> {
                 if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                    buttonView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                    buttonView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY,
+                            HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                 }
                 return false;
             });
@@ -966,7 +965,8 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                 hasSentDownEvent.set(false);
                 mHandler.postDelayed(longPressTimeout, PREDICTIVE_BACK_TIMEOUT_MS);
                 rect.set(0, 0, v.getWidth(), v.getHeight());
-                buttonView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                buttonView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY,
+                        HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
             }
             boolean isCancelled = motionEventAction == MotionEvent.ACTION_CANCEL
                     || (!rect.contains(event.getX(), event.getY())

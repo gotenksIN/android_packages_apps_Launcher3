@@ -46,6 +46,7 @@ android {
         named("androidTest") {
             java.setSrcDirs(listOf("$widgetPickerDir/tests/multivalentScreenshotTests/src/"))
             manifest.srcFile("$widgetPickerDir/tests/AndroidManifest.xml")
+            res.setSrcDirs(listOf("$widgetPickerDir/tests/multivalentScreenshotTests/res"))
         }
     }
     signingConfigs {

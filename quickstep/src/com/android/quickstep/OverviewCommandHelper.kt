@@ -100,7 +100,7 @@ constructor(
         overviewComponentObserver.getContainerInterface(displayId)
 
     private fun getVisibleRecentsView(displayId: Int) =
-        getContainerInterface(displayId).getVisibleRecentsView<RecentsView<*, *>>()
+        getContainerInterface(displayId)?.getVisibleRecentsView<RecentsView<*, *>>()
 
     /**
      * Adds a command to be executed next, after all pending tasks are completed. Max commands that
@@ -337,11 +337,12 @@ constructor(
         }
     }
 
+    // Returns false if callbacks should be awaited, true otherwise.
     private fun executeWhenRecentsIsNotVisible(
         command: CommandInfo,
         onCallbackResult: () -> Unit,
     ): Boolean {
-        val containerInterface = getContainerInterface(command.displayId)
+        val containerInterface = getContainerInterface(command.displayId) ?: return true
         val recentsViewContainer = containerInterface.getCreatedContainer()
         val recentsView: RecentsView<*, *>? = recentsViewContainer?.getOverviewPanel()
         val deviceProfile = recentsViewContainer?.getDeviceProfile()
@@ -360,9 +361,7 @@ constructor(
         val taskAnimationManager = taskAnimationManagerRepository[command.displayId]
         if (taskAnimationManager == null) {
             Log.e(TAG, "No TaskAnimationManager found for display ${command.displayId}")
-            ActiveGestureProtoLogProxy.logOnTaskAnimationManagerNotAvailable(
-                command.displayId
-            )
+            ActiveGestureProtoLogProxy.logOnTaskAnimationManagerNotAvailable(command.displayId)
             return false
         }
 
@@ -467,7 +466,7 @@ constructor(
             // Can happen e.g. when a display is disconnected, so try to handle gracefully.
             Log.d(TAG, "AbsSwipeUpHandler not available for displayId=${command.displayId})")
             ActiveGestureProtoLogProxy.logOnAbsSwipeUpHandlerNotAvailable(command.displayId)
-            return false
+            return true
         }
         interactionHandler.setGestureEndCallback {
             onTransitionComplete(command, interactionHandler, onCallbackResult)
@@ -635,7 +634,7 @@ constructor(
     }
 
     private fun logShowOverviewFrom(command: CommandInfo) {
-        val containerInterface = getContainerInterface(command.displayId)
+        val containerInterface = getContainerInterface(command.displayId) ?: return
         val container = containerInterface.getCreatedContainer() ?: return
         val event =
             when (command.type) {
