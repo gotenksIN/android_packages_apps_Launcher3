@@ -295,6 +295,10 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
     private boolean mIsTaskbarSystemActionRegistered = false;
     private TaskbarSharedState mTaskbarSharedState;
 
+    // Used to mark whether we are in test mode to mark whether the nav bar shows in SUW
+    @VisibleForTesting
+    boolean mShouldHideNavbarForTest;
+
     public TaskbarStashController(TaskbarActivityContext activity) {
         mActivity = activity;
         mSystemUiProxy = SystemUiProxy.INSTANCE.get(activity);
@@ -376,11 +380,14 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
 
         mTaskbarBackgroundAlphaForStash.setValue(shouldHideTaskbarBackground ? 0 : 1);
 
-        // if taskbar should auto stash attempt to start timeout.
-        if (shouldAllowTaskbarToAutoStash()) {
-            tryStartTaskbarTimeout();
-        }
         notifyStashChange(/* visible */ false, /* stashed */ isStashedInApp());
+
+        mControllers.runAfterInit(() -> {
+            // if taskbar should auto stash attempt to start timeout.
+            if (shouldAllowTaskbarToAutoStash()) {
+                tryStartTaskbarTimeout();
+            }
+        });
     }
 
     /**
@@ -522,11 +529,14 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
 
         if (supportsVisualStashing() && hasAnyFlag(FLAGS_REPORT_STASHED_INSETS_TO_APP)) {
             DeviceProfile dp = mActivity.getDeviceProfile();
-            if (hasAnyFlag(FLAG_STASHED_IN_APP_SETUP) && (dp.isTaskbarPresent
-                    || mActivity.isPhoneGestureNavMode())) {
-                // We always show the back button in SUW but in portrait the SUW layout may not
-                // be wide enough to support overlapping the nav bar with its content.
-                // We're sending different res values in portrait vs landscape
+            // If the navigation bar is hidden in SUW, we can draw the SUW content lower so we avoid
+            // reporting a higher inset
+            if (hasAnyFlag(FLAG_STASHED_IN_APP_SETUP)
+                    && (dp.isTaskbarPresent || mActivity.isPhoneGestureNavMode())
+                    && !isNavbarHiddeninSUW()) {
+                // When we show the back button in SUW, the SUW layout may not be wide enough to
+                // support overlapping the nav bar with its content in portrait. So we send
+                // different res values in portrait vs landscape
                 return mActivity.getResources().getDimensionPixelSize(R.dimen.taskbar_suw_insets);
             }
             boolean isAnimating = mAnimator != null && mAnimator.isStarted();
@@ -542,6 +552,16 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
         }
 
         return mUnstashedHeight;
+    }
+
+    /**
+     * Returns whether the navigation bar is visible during the Setup Wizard.
+     *
+     * {@link #mShouldHideNavbarForTest} is only used by tests
+     */
+    private boolean isNavbarHiddeninSUW() {
+        return mShouldHideNavbarForTest
+                || mControllers.navbarButtonsViewController.isNavbarHiddenInSUW();
     }
 
     /**
@@ -1239,7 +1259,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
         }
         // Do not stash if in small screen, with 3 button nav, and in landscape.
         if (mActivity.isPhoneMode() && mActivity.isThreeButtonNav()
-                && mActivity.getDeviceProfile().isLandscape) {
+                && mActivity.getDeviceProfile().getDeviceProperties().isLandscape()) {
             return false;
         }
 

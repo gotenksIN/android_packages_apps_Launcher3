@@ -209,11 +209,10 @@ public class AllAppsSwipeController extends AbstractStateChangeTouchController {
             if (!config.isUserControlled()) {
                 config.setInterpolator(ANIM_VERTICAL_PROGRESS, EMPHASIZED);
             }
-            config.setInterpolator(ANIM_WORKSPACE_SCALE,
-                Interpolators.reverse(ALL_APPS_SHEET_DEPTH));
-            config.setInterpolator(ANIM_HOTSEAT_SCALE, Interpolators.reverse(ALL_APPS_SHEET_DEPTH));
-            config.setInterpolator(ANIM_DEPTH, Interpolators.reverse(ALL_APPS_SHEET_DEPTH));
-            if (!Flags.allAppsBlur() && launcher.getDeviceProfile().isPhone) {
+            config.setInterpolator(ANIM_WORKSPACE_SCALE, ALL_APPS_SHEET_DEPTH);
+            config.setInterpolator(ANIM_HOTSEAT_SCALE, ALL_APPS_SHEET_DEPTH);
+            config.setInterpolator(ANIM_DEPTH, ALL_APPS_SHEET_DEPTH);
+            if (!Flags.allAppsBlur() && launcher.getDeviceProfile().getDeviceProperties().isPhone()) {
                 // On phones without blur, reveal the workspace and hotseat when leaving All Apps.
                 config.setInterpolator(ANIM_WORKSPACE_FADE, INSTANT);
                 config.setInterpolator(ANIM_HOTSEAT_FADE, INSTANT);
@@ -261,7 +260,7 @@ public class AllAppsSwipeController extends AbstractStateChangeTouchController {
             config.setInterpolator(ANIM_WORKSPACE_SCALE, ALL_APPS_SHEET_DEPTH);
             config.setInterpolator(ANIM_HOTSEAT_SCALE, ALL_APPS_SHEET_DEPTH);
             config.setInterpolator(ANIM_DEPTH, ALL_APPS_SHEET_DEPTH);
-            if (!Flags.allAppsBlur() && launcher.getDeviceProfile().isPhone) {
+            if (!Flags.allAppsBlur() && launcher.getDeviceProfile().getDeviceProperties().isPhone()) {
                 // On phones without blur, hide the workspace and hotseat when entering All Apps.
                 config.setInterpolator(ANIM_WORKSPACE_FADE, FINAL_FRAME);
                 config.setInterpolator(ANIM_HOTSEAT_FADE, FINAL_FRAME);

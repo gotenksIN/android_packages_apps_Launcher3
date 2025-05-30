@@ -273,7 +273,7 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
     private void updateForIsTablet() {
         assert mDp != null;
         // Update flags to see if split button should be hidden.
-        updateSplitButtonHiddenFlags(FLAG_SMALL_SCREEN_HIDE_SPLIT, !mDp.isTablet);
+        updateSplitButtonHiddenFlags(FLAG_SMALL_SCREEN_HIDE_SPLIT, !mDp.getDeviceProperties().isTablet());
         updateActionButtonsVisibility();
     }
 
@@ -282,7 +282,7 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
             return;
         }
         boolean showSingleTaskActions = !mIsGroupedTask;
-        boolean showGroupActions = mIsGroupedTask && mDp.isTablet && mCanSaveAppPair;
+        boolean showGroupActions = mIsGroupedTask && mDp.getDeviceProperties().isTablet() && mCanSaveAppPair;
         Log.d(TAG, "updateActionButtonsVisibility() called: showSingleTaskActions = ["
                 + showSingleTaskActions + "], showGroupActions = [" + showGroupActions + "]");
         getActionsAlphas().get(INDEX_GROUPED_ALPHA).setValue(showSingleTaskActions ? 1 : 0);
@@ -384,12 +384,12 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
             return 0;
         }
 
-        if (mDp.isTablet && enableGridOnlyOverview()) {
+        if (mDp.getDeviceProperties().isTablet() && enableGridOnlyOverview()) {
             return mDp.stashedTaskbarHeight;
         }
 
         // Align to bottom of task Rect.
-        return mDp.heightPx - mTaskSize.bottom - mDp.overviewActionsTopMarginPx
+        return mDp.getDeviceProperties().getHeightPx() - mTaskSize.bottom - mDp.overviewActionsTopMarginPx
                 - mDp.overviewActionsHeight;
     }
 

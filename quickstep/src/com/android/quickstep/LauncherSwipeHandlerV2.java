@@ -366,7 +366,7 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
         public AnimatorPlaybackController createActivityAnimationToHome() {
             // Return an empty APC here since we have an non-user controlled animation
             // to home.
-            long accuracy = 2 * Math.max(mDp.widthPx, mDp.heightPx);
+            long accuracy = 2 * Math.max(mDp.getDeviceProperties().getWidthPx(), mDp.getDeviceProperties().getHeightPx());
             return mContainer.getStateManager().createAnimationToNewWorkspace(
                     NORMAL, accuracy, StateAnimationConfig.SKIP_ALL_ANIMATIONS);
         }
