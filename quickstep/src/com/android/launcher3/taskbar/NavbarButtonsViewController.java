@@ -167,6 +167,9 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
             FLAG_NOTIFICATION_SHADE_EXPANDED | FLAG_VOICE_INTERACTION_WINDOW_SHOWING;
 
     private static final String NAV_BUTTONS_SEPARATE_WINDOW_TITLE = "Taskbar Nav Buttons";
+    private static final String SUW_THEME_SYSTEM_PROPERTY = "setupwizard.theme";
+    private static final String GLIF_EXPRESSIVE_THEME = "glif_expressive";
+    private static final String GLIF_EXPRESSIVE_LIGHT_THEME = "glif_expressive_light";
 
     private static final double SQUARE_ASPECT_RATIO_BOTTOM_BOUND = 0.95;
     private static final double SQUARE_ASPECT_RATIO_UPPER_BOUND = 1.05;
@@ -278,9 +281,9 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         if (mContext.isPhoneMode()) {
             mTaskbarTransitions = new TaskbarTransitions(mContext, mNavButtonsView);
         }
-        String SUWTheme = SystemProperties.get("setupwizard.theme", "");
-        mIsExpressiveThemeEnabled = SUWTheme.equals("glif_expressive")
-                || SUWTheme.equals("glif_expressive_light");
+        String SUWTheme = SystemProperties.get(SUW_THEME_SYSTEM_PROPERTY, "");
+        mIsExpressiveThemeEnabled = SUWTheme.equals(GLIF_EXPRESSIVE_THEME)
+                || SUWTheme.equals(GLIF_EXPRESSIVE_LIGHT_THEME);
     }
 
     /**
@@ -391,13 +394,6 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                         mControllers.taskbarDragLayerController.getNavbarBackgroundAlpha(),
                         flags -> (flags & FLAG_ONLY_BACK_FOR_BOUNCER_VISIBLE) != 0));
             }
-        } else if (!mIsImeRenderingNavButtons) {
-            View imeDownButton = addButton(R.drawable.ic_sysbar_back, BUTTON_BACK,
-                    mStartContextualContainer, mControllers.navButtonController, R.id.back);
-            imeDownButton.setRotation(Utilities.isRtl(resources) ? 90 : -90);
-            // Only show when IME is visible.
-            mPropertyHolders.add(new StatePropertyHolder(imeDownButton,
-                    flags -> (flags & FLAG_IME_VISIBLE) != 0));
         }
         mFloatingRotationButton = new FloatingRotationButton(
                 ENABLE_TASKBAR_NAVBAR_UNIFICATION ? mNavigationBarPanelContext : mContext,
@@ -509,6 +505,13 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
             navButtonController.onButtonClick(BUTTON_RECENTS, v);
             mHitboxExtender.onRecentsButtonClicked();
         });
+        mRecentsButton.addOnLayoutChangeListener(
+                (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+                    int[] location = v.getLocationOnScreen();
+                    Rect bounds = new Rect(location[0], location[1], location[0] + v.getWidth(),
+                            location[1] + v.getHeight());
+                    navButtonController.onRecentsButtonLayoutChanged(bounds);
+                });
         mPropertyHolders.add(new StatePropertyHolder(mRecentsButton,
                 flags -> (flags & FLAG_KEYGUARD_VISIBLE) == 0 && (flags & FLAG_DISABLE_RECENTS) == 0
                         && !mContext.isNavBarKidsModeActive() && !mContext.isGestureNav()));
@@ -524,6 +527,20 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         mSpace.setOnClickListener(view -> navButtonController.onButtonClick(BUTTON_SPACE, view));
         mSpace.setOnLongClickListener(view ->
                 navButtonController.onButtonLongClick(BUTTON_SPACE, view));
+    }
+
+    /**
+     * Method to determine whether the Navigation Bar is viewable in Setup Wizard
+     *
+     * @return {@code true} if the device is in Setup Wizard, the expressive theme is enabled,
+     * and Simple View is NOT enabled
+     */
+    boolean isNavbarHiddenInSUW() {
+        if (mContext == null) {
+            return false;
+        }
+        return !mContext.isUserSetupComplete() && mIsExpressiveThemeEnabled
+                && !mContext.isSimpleViewEnabled();
     }
 
     /**
@@ -1041,9 +1058,9 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
 
         // If SUW is on a large screen device that is landscape (or has a square aspect
         // ratio) the back button has to be placed accordingly
-        if ((deviceProfile.isTablet && deviceProfile.isLandscape)
-                || (deviceProfile.aspectRatio > SQUARE_ASPECT_RATIO_BOTTOM_BOUND
-                && deviceProfile.aspectRatio < SQUARE_ASPECT_RATIO_UPPER_BOUND)) {
+        if ((deviceProfile.getDeviceProperties().isTablet() && deviceProfile.getDeviceProperties().isLandscape())
+                || (deviceProfile.getDeviceProperties().getAspectRatio() > SQUARE_ASPECT_RATIO_BOTTOM_BOUND
+                && deviceProfile.getDeviceProperties().getAspectRatio() < SQUARE_ASPECT_RATIO_UPPER_BOUND)) {
             navButtonsLayoutParams.setMarginStart(
                     resources.getDimensionPixelSize(R.dimen.taskbar_back_button_suw_start_margin));
             navButtonsViewLayoutParams.bottomMargin = resources.getDimensionPixelSize(
@@ -1054,7 +1071,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
             int phoneOrPortraitSetupMargin = resources.getDimensionPixelSize(
                     R.dimen.taskbar_contextual_button_suw_margin);
             navButtonsLayoutParams.setMarginStart(phoneOrPortraitSetupMargin);
-            navButtonsLayoutParams.bottomMargin = !deviceProfile.isLandscape
+            navButtonsLayoutParams.bottomMargin = !deviceProfile.getDeviceProperties().isLandscape()
                     ? 0
                     : phoneOrPortraitSetupMargin - (resources.getDimensionPixelSize(
                             R.dimen.taskbar_nav_buttons_size) / 2);
@@ -1420,7 +1437,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
             // If the taskbar is start aligned the navigation bar is aligned to the start or end of
             // the container, depending on the bubble bar location
             if (isNavbarOnRight) {
-                navBarTargetStartX = dp.widthPx - navBarSpacing - mNavButtonContainer.getWidth();
+                navBarTargetStartX = dp.getDeviceProperties().getWidthPx() - navBarSpacing - mNavButtonContainer.getWidth();
             } else {
                 navBarTargetStartX = navBarSpacing;
             }
@@ -1433,7 +1450,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
             if (isNavbarOnRight) {
                 if (mNavButtonsView.isLayoutRtl()) {
                     float taskBarEnd = taskbarBounds.right;
-                    navBarTargetStartX = (dp.widthPx + taskBarEnd - navbarWidth) / 2;
+                    navBarTargetStartX = (dp.getDeviceProperties().getWidthPx() + taskBarEnd - navbarWidth) / 2;
                 } else {
                     navBarTargetStartX = mNavButtonContainer.getLeft();
                 }
@@ -1451,7 +1468,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         // screen.
         Rect transientTaskbarIconLayoutBoundsInParent = mControllers.taskbarViewController
                 .getTransientTaskbarIconLayoutBoundsInParent();
-        if (mContext.getDeviceProfile().isPhone
+        if (mContext.getDeviceProfile().getDeviceProperties().isPhone()
                 || transientTaskbarIconLayoutBoundsInParent.isEmpty()
                 || mNavButtonsView.getWidth() == 0) {
             return;

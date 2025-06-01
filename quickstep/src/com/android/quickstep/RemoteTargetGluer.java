@@ -69,8 +69,6 @@ public class RemoteTargetGluer {
      */
     public RemoteTargetGluer(Context context, BaseContainerInterface sizingStrategy,
             @Nullable GroupedTaskInfo groupedTaskInfo) {
-        // TODO: b/403344864 Make sure init with correct number of RemoteTargetHandle with
-        //  multi-desks feature enabled as well.
         if (enableMultipleDesktops(context)) {
             if (groupedTaskInfo != null && groupedTaskInfo.isBaseType(GroupedTaskInfo.TYPE_DESK)) {
                 // Allocate +1 to account for the DesktopWallpaperActivity added to the desk.

@@ -366,6 +366,15 @@ class TaskbarStashControllerTest {
     }
 
     @Test
+    @UserSetupMode
+    fun testGetContentHeightToReportToApps_inExpressiveTheme_setupWizardInsets() {
+        stashController.mShouldHideNavbarForTest = true
+        assertThat(stashController.contentHeightToReportToApps)
+            .isEqualTo(stashController.stashedHeight)
+        stashController.mShouldHideNavbarForTest = false
+    }
+
+    @Test
     @TaskbarMode(PINNED)
     fun testGetContentHeightToReportToApps_pinnedModeButFolded_stashedHeight() {
         getInstrumentation().runOnMainSync {

@@ -323,10 +323,10 @@ public class BaseDepthController {
         // Only blur workspace if the current state wants to blur based on the target state.
         boolean shouldBlurWorkspace =
                 stateManager.getCurrentStableState().shouldBlurWorkspace(stateManager.getState());
-        // If blur is not desired, apply 0 blur to force reset.
-        int blurRadius = shouldBlurWorkspace ? mCurrentBlur : 0;
-        RenderEffect blurEffect =
-                RenderEffect.createBlurEffect(blurRadius, blurRadius, Shader.TileMode.DECAL);
+        RenderEffect blurEffect = shouldBlurWorkspace && mCurrentBlur > 0
+                ? RenderEffect.createBlurEffect(mCurrentBlur, mCurrentBlur, Shader.TileMode.DECAL)
+                // If blur is not desired, clear the blur effect from the depth targets.
+                : null;
         mLauncher.getDepthBlurTargets().forEach(target -> target.setRenderEffect(blurEffect));
         return shouldBlurWorkspace;
     }

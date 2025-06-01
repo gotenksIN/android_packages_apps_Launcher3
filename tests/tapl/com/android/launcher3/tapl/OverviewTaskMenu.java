@@ -103,7 +103,7 @@ public class OverviewTaskMenu {
         try (LauncherInstrumentation.Closable e = mLauncher.eventsCheck();
              LauncherInstrumentation.Closable c = mLauncher.addContextLayer(
                      "before tapping the app info menu item")) {
-            mLauncher.executeAndWaitForLauncherHidden(
+            mLauncher.executeAndWaitForLauncherStop(
                     () -> mLauncher.clickLauncherObject(
                             mLauncher.findObjectInContainer(mMenu, By.text("App info"))),
                     "tapped app info menu item");
@@ -144,7 +144,7 @@ public class OverviewTaskMenu {
         try (LauncherInstrumentation.Closable ignored = mLauncher.eventsCheck();
              LauncherInstrumentation.Closable ignored1 = mLauncher.addContextLayer(
                      "before tapping the desktop menu item")) {
-            mLauncher.executeAndWaitForLauncherHidden(
+            mLauncher.executeAndWaitForLauncherStop(
                     () -> mLauncher.clickLauncherObject(
                             mLauncher.findObjectInContainer(mMenu, By.text("Desktop"))),
                     "tapped desktop menu item");
