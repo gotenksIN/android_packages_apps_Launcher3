@@ -322,8 +322,11 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
             mStashedHeight = mActivity.getResources().getDimensionPixelSize(
                     R.dimen.taskbar_stashed_size);
         } else {
-            mUnstashedHeight = mActivity.getDeviceProfile().taskbarHeight;
-            mStashedHeight = mActivity.getDeviceProfile().stashedTaskbarHeight;
+            mUnstashedHeight = mActivity.getDeviceProfile().getTaskbarProfile().getHeight();
+            mStashedHeight = mActivity
+                    .getDeviceProfile()
+                    .getTaskbarProfile()
+                    .getStashedTaskbarHeight();
         }
     }
 
@@ -512,7 +515,11 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
     public int getTouchableHeight() {
         return mIsStashed
                 ? mStashedHeight
-                : (mUnstashedHeight + mActivity.getDeviceProfile().taskbarBottomMargin);
+                : (mUnstashedHeight
+                        + mActivity.getDeviceProfile()
+                        .getTaskbarProfile()
+                        .getBottomMargin()
+                );
     }
 
     /**

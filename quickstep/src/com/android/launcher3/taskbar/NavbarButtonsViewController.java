@@ -366,7 +366,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                     flags -> (flags & flagsToRemoveTranslation) != 0, AnimatedFloat.VALUE,
                     1, 0));
             // Center nav buttons in new height for IME.
-            float transForIme = (mContext.getDeviceProfile().taskbarHeight
+            float transForIme = (mContext.getDeviceProfile().getTaskbarProfile().getHeight()
                     - mControllers.taskbarInsetsController.getTaskbarHeightForIme()) / 2f;
             // For gesture nav, nav buttons only show for IME anyway so keep them translated down.
             float defaultButtonTransY = alwaysShowButtons ? 0 : transForIme;
@@ -1433,7 +1433,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
             // Skip additional translations on the nav bar container while in SUW layout
             return 0;
         } else if (mContext.shouldStartAlignTaskbar()) {
-            int navBarSpacing = dp.inlineNavButtonsEndSpacingPx;
+            int navBarSpacing = dp.getHotseatProfile().getInlineNavButtonsEndSpacingPx();
             // If the taskbar is start aligned the navigation bar is aligned to the start or end of
             // the container, depending on the bubble bar location
             if (isNavbarOnRight) {

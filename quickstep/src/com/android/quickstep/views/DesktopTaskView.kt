@@ -164,7 +164,9 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
     var remoteTargetHandles: Array<RemoteTargetHandle>? = null
         set(value) {
             field = value
-            positionTaskWindows()
+            if (value != null) {
+                positionTaskWindows()
+            }
         }
 
     override val displayId: Int
@@ -185,7 +187,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         contentView =
             findViewById<DesktopTaskContentView>(R.id.desktop_content).apply {
                 updateLayoutParams<LayoutParams> {
-                    topMargin = container.deviceProfile.overviewTaskThumbnailTopMarginPx
+                    topMargin = container.deviceProfile.overviewProfile.taskThumbnailTopMarginPx
                 }
                 cornerRadius = contentViewFullscreenParams.currentCornerRadius
                 backgroundView = findViewById(R.id.background)
@@ -273,6 +275,10 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                     remoteTargetHandle.taskViewSimulator.setTaskRectTransform(transform)
                     remoteTargetHandle.taskViewSimulator.apply(remoteTargetHandle.transformParams)
                 }
+
+                (taskContainer.taskContentView as? TaskContentView)?.setTaskHeaderAlpha(
+                    explodeProgress
+                )
             }
 
             val overviewTaskLeft = overviewTaskBounds.left * widthScale
@@ -395,10 +401,11 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                         taskContentView
                     }
                 if (enableDesktopExplodedView() && !enableMultipleDesktops(context)) {
-                    // Note, currently there are some issues with launching an individual app window
-                    // with multi-desks enabled, see b/413378320. Will enable this functionality
-                    // after b/413378320 is fixed.
-                    snapshotView.setOnClickListener {
+                    // Note, currently there are some issues with launching an individual app
+                    // window with multi-desks enabled, see b/413378320. Will enable this
+                    // functionality after b/413378320 is fixed.
+                    taskContentView.isFocusable = true
+                    taskContentView.setOnClickListener {
                         launchTaskWithDesktopController(animated = true, task.key.id)
                     }
                 }
@@ -439,6 +446,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         if (enableOverviewIconMenu()) {
             (iconView as IconAppChipView).reset()
         }
+        remoteTargetHandles = null
     }
 
     override fun setOrientationState(orientationState: RecentsOrientedState) {
@@ -688,7 +696,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
      *   height.
      */
     private fun getScreenScaleFactors(): Pair<Float, Float> {
-        val thumbnailTopMarginPx = container.deviceProfile.overviewTaskThumbnailTopMarginPx
+        val thumbnailTopMarginPx = container.deviceProfile.overviewProfile.taskThumbnailTopMarginPx
         val taskViewWidth = layoutParams.width
         val taskViewHeight = layoutParams.height - thumbnailTopMarginPx
 
