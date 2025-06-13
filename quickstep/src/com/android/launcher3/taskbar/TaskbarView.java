@@ -363,6 +363,9 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
                     mControllerCallbacks.getOverflowOnClickListener());
             mTaskbarOverflowView.setOnLongClickListener(
                     mControllerCallbacks.getOverflowOnLongClickListener());
+            if (enableCursorHoverStates()) {
+                setHoverListenerForIcon(mTaskbarOverflowView);
+            }
         }
 
         if (ENABLE_TASKBAR_OVERFLOW.isTrue()) {

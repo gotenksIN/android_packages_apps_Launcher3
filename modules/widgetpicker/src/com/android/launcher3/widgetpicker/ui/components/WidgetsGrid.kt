@@ -188,7 +188,7 @@ private fun Previews(
                     .fillMaxSize()
                     .clearAndSetSemantics {
                         traversalIndex = index.toFloat()
-                        testTag = WIDGET_PREVIEW_TEST_TAG
+                        testTag = buildWidgetPickerTestTag(WIDGET_PREVIEW_TEST_TAG)
                     },
         ) {
             WidgetPreview(
@@ -444,4 +444,4 @@ private object WidgetGridDimensions {
     val minItemWidth = 100.dp
 }
 
-private val WIDGET_PREVIEW_TEST_TAG = widgetPickerTestTag("widget_preview")
+private const val WIDGET_PREVIEW_TEST_TAG = "widget_preview"

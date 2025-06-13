@@ -970,7 +970,10 @@ constructor(
                         canShowAppTimer = false,
                         clickCloseListener = null,
                     )
-                    if (enableOverviewIconMenu()) {
+                    // Do not set icon to null if we are actively in split selection. The task
+                    // appears to have been offloaded as we remove it during split, but we still
+                    // need the icon to show over the split task.
+                    if (enableOverviewIconMenu() && recentsView?.isSplitSelectionActive == false) {
                         setIconState(it, null)
                     }
                 }

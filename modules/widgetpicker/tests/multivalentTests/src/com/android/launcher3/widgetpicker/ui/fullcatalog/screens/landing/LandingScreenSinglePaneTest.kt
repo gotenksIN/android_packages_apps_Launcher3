@@ -212,4 +212,34 @@ class LandingScreenSinglePaneTest {
         composeTestRule.onNode(hasText(PERSONAL_TEST_APPS[0].title!!.toString()))
             .assertIsNotDisplayed()
     }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun clickingOnAppHeaderShowsWidgetsForThatApp() = testScope.runTest {
+        composeTestRule.setContent { SinglePaneTestContent() }
+
+        runCurrent()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNode(hasTextExactly(PERSONAL_LABEL)).assertExists().performClick()
+
+        runCurrent()
+        composeTestRule.waitForIdle()
+
+        // Click on the an app header
+        val appTitle = PERSONAL_TEST_APPS[0].title!!.toString()
+        composeTestRule.onNode(hasText(appTitle)).assertExists().performClick()
+
+        runCurrent()
+        composeTestRule.waitForIdle()
+
+        // Verify the widget for that selected app is displayed
+        composeTestRule.onNode(
+            hasContentDescription(
+                PERSONAL_TEST_APPS[0].widgets[0].label,
+                substring = true
+            )
+        )
+            .assertIsDisplayed()
+    }
 }

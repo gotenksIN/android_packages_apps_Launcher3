@@ -597,7 +597,7 @@ public abstract class AbsSwipeUpHandler<
 
     private void onLauncherStart() {
         final RECENTS_CONTAINER container = mContainerInterface.getCreatedContainer();
-        if (container == null || mContainer != container) {
+        if (container == null || mContainer != container || mRecentsView == null) {
             return;
         }
         if (mStateCallback.hasStates(STATE_HANDLER_INVALIDATED)) {
@@ -1017,9 +1017,11 @@ public abstract class AbsSwipeUpHandler<
                     .getOrientationState();
             DeviceProfile dp = orientationState.getLauncherDeviceProfile(
                     mGestureState.getDisplayId());
-            if (targets.minimizedHomeBounds != null && primaryTaskTarget != null) {
-                Rect overviewStackBounds = mContainerInterface
-                        .getOverviewWindowBounds(targets.minimizedHomeBounds, primaryTaskTarget);
+            Rect overviewStackBounds = mContainerInterface.getOverviewWindowBounds(
+                    targets.minimizedHomeBounds, primaryTaskTarget);
+            if (overviewStackBounds != null
+                    && !overviewStackBounds.isEmpty()
+                    && primaryTaskTarget != null) {
                 dp = dp.getMultiWindowProfile(mContext,
                         new WindowBounds(overviewStackBounds, targets.homeContentInsets));
             } else {

@@ -319,7 +319,7 @@
     <!-- Accessibility title for the Taskbar vertical divider icon. [CHAR_LIMIT=NONE] -->
     <string name="taskbar_divider_a11y_title">Taskbar Divider</string>
     <!-- Accessibility title for the Taskbar Overflow icon. [CHAR_LIMIT=NONE] -->
-    <string name="taskbar_overflow_a11y_title">Taskbar Overflow</string>
+    <string name="taskbar_overflow_a11y_title">Other recent apps</string>
 
 
     <!-- Label for moving drop target to the top or left side of the screen, depending on orientation (from the Taskbar only). -->

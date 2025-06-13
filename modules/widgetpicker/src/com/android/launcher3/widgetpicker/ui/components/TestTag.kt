@@ -16,5 +16,36 @@
 
 package com.android.launcher3.widgetpicker.ui.components
 
+import androidx.compose.runtime.Stable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.semantics.testTagsAsResourceId
+
+/**
+ * Adds a test tag to the modifier.
+ *
+ * The test tag is prefixed with the widget picker package name to avoid conflicts with other
+ * packages. This tag enables using `By.res(..)` to find UI elements in UI automator tests. See
+ * https://developer.android.com/develop/ui/compose/testing/interoperability#uiautomator-interop
+ *
+ * For unit testing, prefer content description, text or other content based selectors.
+ */
+@Stable
+fun Modifier.widgetPickerTestTag(id: String): Modifier {
+  return this.semantics { testTag = buildWidgetPickerTestTag(id) }
+}
+
+/**
+ * Mark this node as a container that contains one or more [widgetPickerTestTag] descendants.
+ *
+ * Should be used on the top level composable of a widget picker screen.
+ * @see [widgetPickerTestTag] for more details.
+ */
+@Stable
+fun Modifier.widgetPickerTestTagContainer(): Modifier {
+  return this.then(Modifier.semantics { testTagsAsResourceId = true })
+}
+
 /** Builds a test tag prefixed with the widget picker package name. */
-fun widgetPickerTestTag(id: String): String = "com.android.launcher3.widgetpicker:id/$id"
+fun buildWidgetPickerTestTag(id: String): String = "com.android.launcher3.widgetpicker:id/$id"

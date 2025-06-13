@@ -171,7 +171,7 @@ class WidgetInteractionsTest {
             WIDGET_TWO.id to TestUtils.createBitmapPreview()
         )
 
-        private val PREVIEW_TEST_TAG = widgetPickerTestTag("widget_preview")
+        private val PREVIEW_TEST_TAG = buildWidgetPickerTestTag("widget_preview")
         private const val ADD_BUTTON_TEXT = "Add"
         private val WIDGET_ONE_ADD_BUTTON_CONTENT_DESC = "Add ${WIDGET_ONE.label} widget"
         private val WIDGET_TWO_ADD_BUTTON_CONTENT_DESC = "Add ${WIDGET_TWO.label} widget"

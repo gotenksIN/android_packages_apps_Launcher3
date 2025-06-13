@@ -53,6 +53,7 @@ fun LeadingIconToolbarTab(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     iconEnterTransition: EnterTransition = LeadingIconToolbarTabDefaults.iconEnterTransition,
     iconExitTransition: ExitTransition = LeadingIconToolbarTabDefaults.iconExitTransition,
 ) {
@@ -65,7 +66,7 @@ fun LeadingIconToolbarTab(
 
     Row(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .clip(CircleShape)
                 .selectable(

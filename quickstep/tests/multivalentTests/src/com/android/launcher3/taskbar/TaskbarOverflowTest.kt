@@ -369,6 +369,8 @@ class TaskbarOverflowTest {
         createDesktopTask(createdTasks)
 
         assertThat(taskbarOverflowIconIndex).isEqualTo(initialIconCount)
+        assertThat(getOverflowIconTooltipText()).isEqualTo("Other recent apps")
+
         tapOverflowIcon()
         // Keyboard quick switch view is shown only after list of recent task is asynchronously
         // retrieved from the recents model.
@@ -377,9 +379,11 @@ class TaskbarOverflowTest {
         assertThat(getOnUiThread { keyboardQuickSwitchController.isShownFromTaskbar }).isTrue()
         assertThat(getOnUiThread { keyboardQuickSwitchController.shownTaskIds() })
             .containsExactlyElementsIn(0..<createdTasks)
+        assertThat(getOverflowIconTooltipText()).isNull()
 
         tapOverflowIcon()
         assertThat(keyboardQuickSwitchController.isShown).isFalse()
+        assertThat(getOverflowIconTooltipText()).isEqualTo("Other recent apps")
     }
 
     @Test
@@ -718,6 +722,14 @@ class TaskbarOverflowTest {
             val overflowIcon =
                 taskbarViewController.iconViews.firstOrNull { it is TaskbarOverflowView }
             assertThat(overflowIcon?.callOnClick()).isTrue()
+        }
+    }
+
+    private fun getOverflowIconTooltipText(): String? {
+        return getOnUiThread {
+            val overflowIcon =
+                taskbarViewController.iconViews.firstOrNull { it is TaskbarOverflowView }
+            (overflowIcon as? TaskbarOverflowView)?.getTextForTooltipPopup()
         }
     }
 

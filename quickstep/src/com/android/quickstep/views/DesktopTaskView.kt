@@ -401,11 +401,11 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                         taskContentView
                     }
                 if (enableDesktopExplodedView()) {
-                    taskContentView.isFocusable = true
                     taskContentView.setOnClickListener {
                         launchTaskWithDesktopController(animated = true, task.key.id)
                     }
                     if (taskContentView is TaskContentView) {
+                        taskContentView.isFocusable = true
                         taskContentView.isHoverable = true
                     }
                 }

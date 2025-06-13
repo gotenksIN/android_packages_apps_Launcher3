@@ -52,6 +52,7 @@ import com.android.launcher3.widgetpicker.ui.components.TwoPaneLayout
 import com.android.launcher3.widgetpicker.ui.components.WidgetAppHeaderStyle
 import com.android.launcher3.widgetpicker.ui.components.WidgetAppsList
 import com.android.launcher3.widgetpicker.ui.components.WidgetsGrid
+import com.android.launcher3.widgetpicker.ui.components.widgetPickerTestTag
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.DEFAULT_SELECTED_TAB
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.PERSONAL_TAB_INDEX
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.TABS_COUNT_WITHOUT_WORK_PROFILE
@@ -60,6 +61,9 @@ import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.Landing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.contentShape
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.leftPaneContentBottomPadding
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.pagerItemsSpacing
+import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneTestTags.FEATURED_WIDGETS_HEADER_TEST_TAG
+import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneTestTags.PERSONAL_WIDGETS_TAB_TEST_TAG
+import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneTestTags.WORK_WIDGETS_TAB_TEST_TAG
 import kotlinx.coroutines.launch
 
 /**
@@ -287,7 +291,9 @@ private fun LeftPaneContent(
                 onSelect = onFeaturedHeaderClick,
                 count = featuredWidgetsCount,
                 shape = contentShape,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widgetPickerTestTag(FEATURED_WIDGETS_HEADER_TEST_TAG),
             )
             HorizontalPager(
                 state = pagerState,
@@ -419,7 +425,8 @@ private fun PersonalWorkToolbar(
                             scope.launch {
                                 pagerState.animateScrollToPage(PERSONAL_TAB_INDEX)
                             }
-                        }
+                        },
+                        modifier = Modifier.widgetPickerTestTag(PERSONAL_WIDGETS_TAB_TEST_TAG),
                     )
                 }
                 add {
@@ -432,6 +439,7 @@ private fun PersonalWorkToolbar(
                                 pagerState.animateScrollToPage(WORK_TAB_INDEX)
                             }
                         },
+                        modifier = Modifier.widgetPickerTestTag(WORK_WIDGETS_TAB_TEST_TAG),
                     )
                 }
             }
@@ -458,4 +466,10 @@ private object LandingScreenTwoPaneDimens {
     const val PERSONAL_TAB_INDEX = 0
     const val WORK_TAB_INDEX = 1
     const val DEFAULT_SELECTED_TAB = PERSONAL_TAB_INDEX
+}
+
+private object LandingScreenTwoPaneTestTags {
+    const val FEATURED_WIDGETS_HEADER_TEST_TAG = "featured_widgets_tab"
+    const val PERSONAL_WIDGETS_TAB_TEST_TAG = "personal_widgets_tab"
+    const val WORK_WIDGETS_TAB_TEST_TAG = "work_widgets_tab"
 }
