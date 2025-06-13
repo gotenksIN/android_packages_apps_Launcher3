@@ -16,11 +16,10 @@
 
 package com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -28,6 +27,7 @@ import com.android.launcher3.widgetpicker.shared.model.WidgetAppId
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.components.WidgetsGrid
 import com.android.launcher3.widgetpicker.ui.components.WidgetsSearchBar
+import com.android.launcher3.widgetpicker.ui.theme.WidgetPickerTheme
 
 /**
  * View displayed when user opens the full catalog of widgets in widget picker.
@@ -106,10 +106,10 @@ private fun LandingScreen(
     ) {
     val featuredWidgetsContent: @Composable () -> Unit = {
         WidgetsGrid(
-            modifier = Modifier
-                .fillMaxSize()
-                .wrapContentSize()
-                .verticalScroll(rememberScrollState()),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .wrapContentSize(),
             widgetSizeGroups = featuredWidgetsState.sizeGroups,
             showAllWidgetDetails = false,
             previews = featuredWidgetPreviewsState.previews,

@@ -620,7 +620,7 @@ class TaskbarOverflowTest {
         fullscreenPackages: List<String>,
         desktopPackages: List<String>,
     ) {
-        val defaultDisplayId = context.virtualDisplay.display.displayId
+        val defaultDisplayId = context.displayId
         val tasks: List<GroupTask> =
             fullscreenPackages.mapIndexed({ index, p ->
                 SingleTask(

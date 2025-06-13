@@ -25,9 +25,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.Work
@@ -149,7 +147,6 @@ fun LandingScreenTwoPane(
                     browseWidgetsState = browseWidgetsState,
                     selectedPersonalWidgetAppId = selectedPersonalWidgetAppId,
                     personalWidgetPreviewsState = personalWidgetPreviewsState,
-                    widgetAppIconsState = widgetAppIconsState,
                     selectedWorkWidgetAppId = selectedWorkWidgetAppId,
                     workWidgetPreviewsState = workWidgetPreviewsState,
                     onWidgetInteraction = onWidgetInteraction,
@@ -207,7 +204,6 @@ private fun RightPaneContent(
     browseWidgetsState: BrowseWidgetsState.Data,
     selectedPersonalWidgetAppId: WidgetAppId?,
     personalWidgetPreviewsState: PreviewsState,
-    widgetAppIconsState: AppIconsState,
     selectedWorkWidgetAppId: WidgetAppId?,
     workWidgetPreviewsState: PreviewsState,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
@@ -230,12 +226,10 @@ private fun RightPaneContent(
                 WidgetsGrid(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wrapContentSize()
-                        .verticalScroll(rememberScrollState()),
+                        .wrapContentSize(),
                     showAllWidgetDetails = true,
                     widgetSizeGroups = selectedPersonalWidgets,
                     previews = personalWidgetPreviewsState.previews,
-                    appIcons = widgetAppIconsState.icons,
                     onWidgetInteraction = onWidgetInteraction,
                     showDragShadow = showDragShadow,
                 )
@@ -256,12 +250,10 @@ private fun RightPaneContent(
                 WidgetsGrid(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wrapContentSize()
-                        .verticalScroll(rememberScrollState()),
+                        .wrapContentSize(),
                     showAllWidgetDetails = true,
                     widgetSizeGroups = selectedWorkWidgets,
                     previews = workWidgetPreviewsState.previews,
-                    appIcons = widgetAppIconsState.icons,
                     onWidgetInteraction = onWidgetInteraction,
                     showDragShadow = showDragShadow,
                 )

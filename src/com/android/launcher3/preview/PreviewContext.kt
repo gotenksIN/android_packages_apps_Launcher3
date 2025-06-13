@@ -20,6 +20,7 @@ import android.content.Context
 import android.text.TextUtils
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.Item
+import com.android.launcher3.LauncherModel
 import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.ProxyPrefs
 import com.android.launcher3.WorkspaceLayoutManager
@@ -35,12 +36,9 @@ import com.android.launcher3.dagger.PerDisplayModule
 import com.android.launcher3.dagger.PluginManagerWrapperModule
 import com.android.launcher3.dagger.StaticObjectModule
 import com.android.launcher3.dagger.WindowManagerProxyModule
-import com.android.launcher3.graphics.ThemeManager
-import com.android.launcher3.model.BaseLauncherBinder.BaseLauncherBinderFactory
-import com.android.launcher3.model.BgDataModel
 import com.android.launcher3.model.LayoutParserFactory
 import com.android.launcher3.model.LayoutParserFactory.XmlLayoutParserFactory
-import com.android.launcher3.model.LoaderTask.LoaderTaskFactory
+import com.android.launcher3.model.ModelInitializer
 import com.android.launcher3.model.data.LoaderParams
 import com.android.launcher3.provider.LauncherDbUtils.selectionForWorkspaceScreen
 import com.android.launcher3.util.SandboxContext
@@ -64,8 +62,6 @@ class PreviewContext
 constructor(
     base: Context,
     gridName: String?,
-    shapeKey: String?,
-    isMonoThemeEnabled: Boolean,
     widgetHostId: Int = LauncherWidgetHolder.APPWIDGET_HOST_ID,
     layoutXml: String? = null,
     workspacePageId: Int = WorkspaceLayoutManager.FIRST_SCREEN_ID,
@@ -79,9 +75,7 @@ constructor(
         mPrefName = "preview-$randomUid"
         val prefs = ProxyPrefs(this, getSharedPreferences(mPrefName, MODE_PRIVATE))
         prefs.putOrRemove(LauncherPrefs.GRID_NAME, gridName)
-        prefs.putOrRemove(ThemeManager.PREF_ICON_SHAPE, shapeKey)
         prefs.put(LauncherPrefs.FIXED_LANDSCAPE_MODE, false)
-        prefs.put(ThemeManager.THEMED_ICONS, isMonoThemeEnabled)
 
         val isTwoPanel =
             base.appComponent.idp.supportedProfiles.any { it.deviceProperties.isTwoPanels }
@@ -174,9 +168,8 @@ constructor(
             ]
     )
     interface PreviewAppComponent : LauncherAppComponent {
-        val loaderTaskFactory: LoaderTaskFactory
-        val baseLauncherBinderFactory: BaseLauncherBinderFactory
-        val dataModel: BgDataModel
+        val model: LauncherModel
+        val modelInitializer: ModelInitializer
 
         /** Builder for NexusLauncherAppComponent. */
         @Component.Builder

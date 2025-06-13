@@ -1373,7 +1373,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         ).orElse(0);
         int taskbarWindowSize;
         boolean shouldTreatAsTransient =
-                isTransientTaskbar() || (enableTaskbarPinning() && !isThreeButtonNav());
+                isTransientTaskbar() || (enableTaskbarPinning()
+                        && mTaskbarFeatureEvaluator.getSupportsTransitionToTransientTaskbar());
 
         int extraHeightForTaskbarTooltips = enableCursorHoverStates()
                 ? resources.getDimensionPixelSize(R.dimen.arrow_toast_arrow_height)

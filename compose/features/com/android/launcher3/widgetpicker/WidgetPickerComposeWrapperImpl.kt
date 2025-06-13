@@ -18,6 +18,7 @@ package com.android.launcher3.widgetpicker
 
 import android.app.Activity.RESULT_OK
 import android.content.Context
+import androidx.compose.foundation.isSystemInDarkTheme
 import android.content.Intent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.DisposableEffect
@@ -43,6 +44,9 @@ import com.android.launcher3.widgetpicker.shared.model.HostConstraint
 import com.android.launcher3.widgetpicker.shared.model.WidgetHostInfo
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.WidgetPickerEventListeners
+import com.android.launcher3.widgetpicker.ui.theme.WidgetPickerTheme
+import com.android.launcher3.widgetpicker.theme.darkWidgetPickerColors
+import com.android.launcher3.widgetpicker.theme.lightWidgetPickerColors
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Provider
@@ -81,9 +85,17 @@ class WidgetPickerComposeWrapperImpl @Inject constructor(
                 val scope = rememberCoroutineScope()
                 val view = LocalView.current
 
+                val widgetPickerColors = if (isSystemInDarkTheme()) {
+                    darkWidgetPickerColors()
+                } else {
+                    lightWidgetPickerColors()
+                }
+
                 MaterialTheme { // TODO(b/408283627): Use launcher theme.
-                    val eventListeners = remember { callbacks }
-                    fullWidgetsCatalog.Content(eventListeners)
+                    WidgetPickerTheme(colors = widgetPickerColors) {
+                        val eventListeners = remember { callbacks }
+                        fullWidgetsCatalog.Content(eventListeners)
+                    }
                 }
 
                 DisposableEffect(view) {

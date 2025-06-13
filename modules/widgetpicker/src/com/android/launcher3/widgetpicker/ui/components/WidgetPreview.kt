@@ -34,7 +34,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -67,6 +66,7 @@ import com.android.launcher3.widgetpicker.shared.model.WidgetId
 import com.android.launcher3.widgetpicker.shared.model.WidgetPreview
 import com.android.launcher3.widgetpicker.shared.model.WidgetSizeInfo
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
+import com.android.launcher3.widgetpicker.ui.theme.WidgetPickerTheme
 import kotlin.math.roundToInt
 
 /** Renders a different types of preview for an appwidget. */
@@ -149,11 +149,11 @@ private fun PlaceholderWidgetPreview(size: DpSize, widgetRadius: Dp) {
                 .width(size.width)
                 .height(size.height)
                 .background(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    color = WidgetPickerTheme.colors.widgetPlaceholderBackground,
                     shape = RoundedCornerShape(widgetRadius),
                 ),
     ) {
-        CircularProgressIndicator()
+        CircularProgressIndicator(color = WidgetPickerTheme.colors.widgetPlaceholderContent)
     }
 }
 

@@ -48,6 +48,9 @@
     <!-- Recents: Title of a button that goes back from displaying tasks filtered by package name to displaying all tasks [CHAR LIMIT=30] -->
     <string name="recents_back" translatable="false">Back</string>
 
+    <!-- Content description for the add desk button inside recents [CHAR_LIMIT=none] -->
+    <string name="add_desk_button_content_description">Add new desk</string>
+
     <!-- Accessibility title for the list of recent apps [CHAR_LIMIT=none] -->
     <string name="accessibility_recent_apps">Recent apps</string>
 

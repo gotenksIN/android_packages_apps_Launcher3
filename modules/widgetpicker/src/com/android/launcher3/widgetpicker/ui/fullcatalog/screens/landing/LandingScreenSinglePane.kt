@@ -24,13 +24,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Work
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -60,6 +61,7 @@ import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.Landing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.bottomTabsTopPadding
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.contentShape
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.pagerItemsSpacing
+import com.android.launcher3.widgetpicker.ui.theme.WidgetPickerTheme
 import kotlinx.coroutines.launch
 
 /**
@@ -115,10 +117,12 @@ fun LandingScreenSinglePane(
                 when (pageIndex) {
                     FEATURED_TAB_INDEX -> {
                         Box(
+                            contentAlignment = Alignment.Center,
                             modifier = Modifier
                                 .fillMaxSize()
                                 .clip(contentShape)
-                                .background(MaterialTheme.colorScheme.surfaceBright)
+                                .background(WidgetPickerTheme.colors.widgetsContainerBackground)
+                                .verticalScroll(rememberScrollState())
                         ) {
                             featuredWidgetsContent()
                         }

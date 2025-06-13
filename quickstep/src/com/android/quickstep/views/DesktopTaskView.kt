@@ -405,6 +405,9 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                     taskContentView.setOnClickListener {
                         launchTaskWithDesktopController(animated = true, task.key.id)
                     }
+                    if (taskContentView is TaskContentView) {
+                        taskContentView.isHoverable = true
+                    }
                 }
 
                 TaskContainer(

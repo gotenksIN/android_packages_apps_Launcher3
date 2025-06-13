@@ -257,8 +257,8 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
      * using a popup menu).
      */
     boolean canTransitionToTransientTaskbar() {
-        return !mActivityContext.isThreeButtonNav()
-                && !mActivityContext.showDesktopTaskbarForFreeformDisplay();
+        return mActivityContext.getTaskbarFeatureEvaluator()
+                .getSupportsTransitionToTransientTaskbar();
     }
 
     /**

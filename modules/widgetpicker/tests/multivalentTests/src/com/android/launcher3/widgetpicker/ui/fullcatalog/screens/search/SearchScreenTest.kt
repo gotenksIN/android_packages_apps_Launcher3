@@ -44,6 +44,7 @@ import com.android.launcher3.widgetpicker.repository.FakeWidgetsRepository
 import com.android.launcher3.widgetpicker.shared.model.WidgetHostInfo
 import com.android.launcher3.widgetpicker.shared.model.WidgetUserProfiles
 import com.android.launcher3.widgetpicker.ui.rememberViewModel
+import com.android.launcher3.widgetpicker.ui.theme.WidgetPickerTheme
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -111,13 +112,15 @@ class SearchScreenTest {
     private fun TestContent(isCompact: Boolean) {
         val viewModel = rememberViewModel { viewModel }
 
-        SearchScreen(
-            isCompact = isCompact,
-            onExitSearchMode = {},
-            onWidgetInteraction = {},
-            showDragShadow = true,
-            viewModel = viewModel
-        )
+        WidgetPickerTheme {
+            SearchScreen(
+                isCompact = isCompact,
+                onExitSearchMode = {},
+                onWidgetInteraction = {},
+                showDragShadow = true,
+                viewModel = viewModel
+            )
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -139,17 +138,7 @@ private fun ExpandableWidgetAppHeader(
                     widgetSizeGroups = widgetApp.widgetSizeGroups,
                     showAllWidgetDetails = true,
                     previews = widgetPreviews,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceBright,
-                                shape =
-                                    when {
-                                        isLast -> WidgetAppsListDimensions.bottomLargeShape
-                                        else -> WidgetAppsListDimensions.smallShape
-                                    },
-                            ),
+                    modifier = Modifier.fillMaxWidth(),
                     onWidgetInteraction = onWidgetInteraction,
                     showDragShadow = showDragShadow,
                 )

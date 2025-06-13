@@ -39,7 +39,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
@@ -54,7 +53,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -66,6 +64,7 @@ import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.components.AddButtonDefaults.TOGGLE_ANIMATION_DURATION
 import com.android.launcher3.widgetpicker.ui.components.WidgetDetailsDimensions.INVISIBLE_ALPHA
 import com.android.launcher3.widgetpicker.ui.components.WidgetDetailsDimensions.VISIBLE_ALPHA
+import com.android.launcher3.widgetpicker.ui.theme.WidgetPickerTheme
 
 /**
  * Displays the details of the widget that can be shown below their previews.
@@ -185,7 +184,10 @@ private fun AddButton(
         Button(
             modifier = Modifier.minimumInteractiveComponentSize(),
             contentPadding = AddButtonDimensions.paddingValues,
-            colors = AddButtonDefaults.colors,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = WidgetPickerTheme.colors.addButtonBackground,
+                contentColor = WidgetPickerTheme.colors.addButtonContent
+            ),
             onClick = onClick,
         ) {
             Icon(
@@ -222,11 +224,8 @@ private fun WidgetLabel(label: String, appIcon: (@Composable () -> Unit)?, modif
             overflow = TextOverflow.Ellipsis,
             maxLines = 1,
             textAlign = TextAlign.Center,
-            style =
-                MaterialTheme.typography.bodyMedium.copy(
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Medium,
-                ),
+            color = WidgetPickerTheme.colors.widgetLabel,
+            style = WidgetPickerTheme.typography.widgetLabel,
         )
     }
 }
@@ -242,11 +241,8 @@ private fun WidgetDescription(description: CharSequence) {
         overflow = TextOverflow.Ellipsis,
         textAlign = TextAlign.Center,
         maxLines = 3,
-        style =
-            MaterialTheme.typography.bodySmall.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Normal,
-            ),
+        color = WidgetPickerTheme.colors.widgetDescription,
+        style = WidgetPickerTheme.typography.widgetDescription,
     )
 }
 
@@ -260,11 +256,8 @@ private fun WidgetSpanSizeLabel(spanX: Int, spanY: Int) {
         text = stringResource(R.string.widget_span_dimensions_format, spanX, spanY),
         textAlign = TextAlign.Center,
         maxLines = 1,
-        style =
-            MaterialTheme.typography.bodyMedium.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Normal,
-            ),
+        color = WidgetPickerTheme.colors.widgetSpanText,
+        style = WidgetPickerTheme.typography.widgetSpanText,
         modifier = Modifier.semantics { this.contentDescription = contentDescription },
     )
 }
@@ -291,10 +284,4 @@ private object AddButtonDefaults {
     const val TOGGLE_ANIMATION_DURATION = 400
     val enterTransition = fadeIn(animationSpec = tween(TOGGLE_ANIMATION_DURATION))
     val exitTransition = fadeOut(animationSpec = tween(TOGGLE_ANIMATION_DURATION))
-
-    val colors: ButtonColors
-        @Composable get() = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-        )
 }
