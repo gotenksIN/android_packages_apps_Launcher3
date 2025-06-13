@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import com.android.launcher3.widgetpicker.R
 import com.android.launcher3.widgetpicker.shared.model.WidgetAppId
 import com.android.launcher3.widgetpicker.shared.model.WidgetUserProfile
+import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.components.AppHeaderDescriptionStyle
 import com.android.launcher3.widgetpicker.ui.components.LeadingIconToolbarTab
 import com.android.launcher3.widgetpicker.ui.components.ScrollableFloatingToolbar
@@ -77,6 +78,8 @@ fun LandingScreenSinglePane(
     onPersonalWidgetAppToggle: (WidgetAppId) -> Unit,
     selectedWorkWidgetAppId: WidgetAppId?,
     onWorkWidgetAppToggle: (WidgetAppId) -> Unit,
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
 ) {
     val hasWorkProfile = remember(browseWidgetsState) { browseWidgetsState.workProfile != null }
 
@@ -133,7 +136,9 @@ fun LandingScreenSinglePane(
                                     onPersonalWidgetAppToggle(widgetApp.id)
                                 },
                                 appIcons = widgetAppIconsState.icons,
-                                widgetPreviews = personalWidgetPreviewsState.previews
+                                widgetPreviews = personalWidgetPreviewsState.previews,
+                                onWidgetInteraction = onWidgetInteraction,
+                                showDragShadow = showDragShadow,
                             )
                         }
                     }
@@ -150,7 +155,9 @@ fun LandingScreenSinglePane(
                                     onWorkWidgetAppToggle(widgetApp.id)
                                 },
                                 appIcons = widgetAppIconsState.icons,
-                                widgetPreviews = workWidgetPreviewsState.previews
+                                widgetPreviews = workWidgetPreviewsState.previews,
+                                onWidgetInteraction = onWidgetInteraction,
+                                showDragShadow = showDragShadow,
                             )
                         }
                     }

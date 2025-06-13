@@ -111,10 +111,10 @@
     <string name="taskbar_edu_suggested_app_animation_description" msgid="3443453246478079085">"Animation montrant comment accéder aux applis suggérées sur votre appareil"</string>
     <string name="taskbar_edu_suggested_search_animation_description" msgid="1874284242557104818">"Animation montrant comment rechercher un élément à l\'écran, en touchant et en maintenant le doigt sur la touche d\'action et en sélectionnant la zone dans laquelle se trouve l\'élément"</string>
     <string name="taskbar_edu_a11y_title" msgid="5417986057866415355">"Informations sur la barre des tâches"</string>
-    <string name="taskbar_edu_splitscreen" msgid="5605512479258053350">"Faites glisser une appli sur le côté pour en utiliser deux à la fois"</string>
+    <string name="taskbar_edu_splitscreen" msgid="5605512479258053350">"Faites glisser une appli sur le côté pour en utiliser deux à la fois."</string>
     <string name="taskbar_edu_stashing" msgid="5645461372669217294">"Balayez lentement vers le haut pour voir la barre des tâches"</string>
-    <string name="taskbar_edu_suggestions" msgid="8215044496435527982">"Obtenez des suggestions d\'applis en fonction de vos routines"</string>
-    <string name="taskbar_edu_pinning" msgid="6708550858580071558">"Maintenez le doigt sur le séparateur pour épingler la barre des tâches"</string>
+    <string name="taskbar_edu_suggestions" msgid="8215044496435527982">"Obtenez des suggestions d\'applis en fonction de vos routines."</string>
+    <string name="taskbar_edu_pinning" msgid="6708550858580071558">"Maintenez le doigt sur le séparateur pour épingler la barre des tâches."</string>
     <string name="taskbar_edu_features" msgid="3320337287472848162">"Faites-en plus avec la barre des tâches"</string>
     <string name="taskbar_edu_pinning_title" msgid="210102174154211712">"Toujours afficher la Barre des tâches"</string>
     <string name="taskbar_edu_pinning_standalone" msgid="2636919474366410467">"Pour toujours afficher la Barre des tâches en bas de l\'écran, maintenez le doigt sur le séparateur"</string>

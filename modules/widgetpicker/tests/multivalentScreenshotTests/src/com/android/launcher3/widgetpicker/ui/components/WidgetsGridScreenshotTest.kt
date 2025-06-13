@@ -138,8 +138,10 @@ private fun GridPreview(
         WidgetsGrid(
             widgetSizeGroups = groups,
             showAllWidgetDetails = true,
+            showDragShadow = false,
             previews = previews,
             modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+            onWidgetInteraction = {}
         )
     }
 }

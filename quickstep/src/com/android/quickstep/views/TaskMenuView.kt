@@ -97,7 +97,7 @@ constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int = 0) :
     }
 
     override fun handleClose(animate: Boolean) {
-        animateOpenOrClosed(closing = true, animated = animate)
+        animateOpenOrClosed(closing = true, animated = false)
     }
 
     override fun isOfType(type: Int): Boolean = (type and TYPE_TASK_MENU) != 0

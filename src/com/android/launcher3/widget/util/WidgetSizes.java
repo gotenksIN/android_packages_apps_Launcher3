@@ -77,7 +77,7 @@ public final class WidgetSizes {
     public static Size getWidgetItemSizePx(Context context, DeviceProfile profile,
             WidgetItem widgetItem) {
         if (widgetItem.isShortcut()) {
-            int dimension = profile.allAppsIconSizePx + 2 * context.getResources()
+            int dimension = profile.getAllAppsProfile().getIconSizePx() + 2 * context.getResources()
                     .getDimensionPixelSize(R.dimen.widget_preview_shortcut_padding);
             return new Size(dimension, dimension);
         }

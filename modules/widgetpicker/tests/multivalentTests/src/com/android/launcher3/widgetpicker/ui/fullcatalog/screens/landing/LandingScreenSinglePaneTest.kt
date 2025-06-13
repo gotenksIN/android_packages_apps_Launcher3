@@ -26,6 +26,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasTextExactly
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -65,6 +66,7 @@ import org.junit.runner.RunWith
 class LandingScreenSinglePaneTest {
     @get:Rule
     val limitDevicesRule = LimitDevicesRule()
+
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -123,6 +125,8 @@ class LandingScreenSinglePaneTest {
         LandingScreen(
             isCompact = true,
             onEnterSearchMode = {},
+            onWidgetInteraction = {},
+            showDragShadow = true,
             viewModel = viewModel,
         )
     }
@@ -141,8 +145,10 @@ class LandingScreenSinglePaneTest {
         composeTestRule.onNode(hasTextExactly(PERSONAL_LABEL)).assertExists().assertIsNotSelected()
         composeTestRule.onNode(hasTextExactly(WORK_LABEL)).assertExists().assertIsNotSelected()
         // Featured Widgets state
-        composeTestRule.onNode(hasTextExactly(featuredWidgetA.label)).assertExists()
-        composeTestRule.onNode(hasTextExactly(featuredWidgetB.label)).assertExists()
+        composeTestRule.onNode(hasContentDescription(featuredWidgetA.label, substring = true))
+            .assertExists()
+        composeTestRule.onNode(hasContentDescription(featuredWidgetB.label, substring = true))
+            .assertExists()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -163,7 +169,8 @@ class LandingScreenSinglePaneTest {
             .assertIsNotSelected()
         composeTestRule.onNode(hasTextExactly(WORK_LABEL)).assertExists().assertIsNotSelected()
         // No recommendations showing
-        composeTestRule.onNode(hasTextExactly(featuredWidgetA.label)).assertIsNotDisplayed()
+        composeTestRule.onNode(hasContentDescription(featuredWidgetA.label, substring = true))
+            .assertIsNotDisplayed()
         // Has list of personal apps showing
         composeTestRule.onNode(hasText(PERSONAL_TEST_APPS[0].title!!.toString()))
             .assertExists()
@@ -196,7 +203,8 @@ class LandingScreenSinglePaneTest {
         composeTestRule.onNode(hasTextExactly(browseTabLabel)).assertExists().assertIsNotSelected()
         composeTestRule.onNode(hasTextExactly(browseTabLabel)).onSiblings().assertCountEquals(1)
         // featured widgets showing
-        composeTestRule.onNode(hasTextExactly(featuredWidgetA.label)).assertIsDisplayed()
+        composeTestRule.onNode(hasContentDescription(featuredWidgetA.label, substring = true))
+            .assertIsDisplayed()
         // Widget apps list is not showing.
         composeTestRule.onNode(hasText(PERSONAL_TEST_APPS[0].title!!.toString()))
             .assertIsNotDisplayed()

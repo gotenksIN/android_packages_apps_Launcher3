@@ -18,12 +18,14 @@ package com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.android.launcher3.widgetpicker.shared.model.WidgetAppId
+import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.components.WidgetsGrid
 import com.android.launcher3.widgetpicker.ui.components.WidgetsSearchBar
 
@@ -32,12 +34,17 @@ import com.android.launcher3.widgetpicker.ui.components.WidgetsSearchBar
  *
  * @param isCompact indicates whether to show the compact single pane layout or the two pane layout.
  * @param onEnterSearchMode callback for when user focuses on the search bar.
+ * @param onWidgetInteraction callback for when user interacts with a widget.
+ * @param showDragShadow indicates whether to show the drag shadow when user long presses on a
+ * widget to drag it.
  * @param viewModel the view model backing the state and data for the landing screen.
  */
 @Composable
 fun LandingScreen(
     isCompact: Boolean,
     onEnterSearchMode: () -> Unit,
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
     viewModel: LandingScreenViewModel,
 ) {
     val browseState = viewModel.browseWidgetsState
@@ -74,6 +81,8 @@ fun LandingScreen(
             onPersonalWidgetAppToggle = viewModel::onSelectedPersonalAppToggle,
             selectedWorkWidgetAppId = viewModel.selectedWorkAppId,
             onWorkWidgetAppToggle = viewModel::onSelectedWorkAppToggle,
+            onWidgetInteraction = onWidgetInteraction,
+            showDragShadow = showDragShadow,
         )
     }
 }
@@ -92,16 +101,21 @@ private fun LandingScreen(
     onPersonalWidgetAppToggle: (WidgetAppId?) -> Unit,
     selectedWorkWidgetAppId: WidgetAppId?,
     onWorkWidgetAppToggle: (WidgetAppId?) -> Unit,
-) {
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
+    ) {
     val featuredWidgetsContent: @Composable () -> Unit = {
         WidgetsGrid(
             modifier = Modifier
                 .fillMaxSize()
+                .wrapContentSize()
                 .verticalScroll(rememberScrollState()),
             widgetSizeGroups = featuredWidgetsState.sizeGroups,
             showAllWidgetDetails = false,
             previews = featuredWidgetPreviewsState.previews,
-            appIcons = widgetAppIconsState.icons
+            appIcons = widgetAppIconsState.icons,
+            onWidgetInteraction = onWidgetInteraction,
+            showDragShadow = showDragShadow,
         )
     }
 
@@ -117,7 +131,9 @@ private fun LandingScreen(
                 selectedPersonalWidgetAppId = selectedPersonalWidgetAppId,
                 onPersonalWidgetAppToggle = onPersonalWidgetAppToggle,
                 selectedWorkWidgetAppId = selectedWorkWidgetAppId,
-                onWorkWidgetAppToggle = onWorkWidgetAppToggle
+                onWorkWidgetAppToggle = onWorkWidgetAppToggle,
+                onWidgetInteraction = onWidgetInteraction,
+                showDragShadow = showDragShadow,
             )
 
         else ->
@@ -133,6 +149,8 @@ private fun LandingScreen(
                 onPersonalWidgetAppToggle = onPersonalWidgetAppToggle,
                 selectedWorkWidgetAppId = selectedWorkWidgetAppId,
                 onWorkWidgetAppToggle = onWorkWidgetAppToggle,
+                onWidgetInteraction = onWidgetInteraction,
+                showDragShadow = showDragShadow,
             )
     }
 }

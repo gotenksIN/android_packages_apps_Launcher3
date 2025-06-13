@@ -111,14 +111,14 @@
     <string name="taskbar_edu_suggested_app_animation_description" msgid="3443453246478079085">"기기에서 추천 앱에 액세스하는 방법을 보여 주는 애니메이션"</string>
     <string name="taskbar_edu_suggested_search_animation_description" msgid="1874284242557104818">"작업 키를 길게 터치하여 항목이 있는 영역을 선택하여 화면에서 항목을 검색하는 방법을 보여 주는 애니메이션"</string>
     <string name="taskbar_edu_a11y_title" msgid="5417986057866415355">"태스크 바 정보"</string>
-    <string name="taskbar_edu_splitscreen" msgid="5605512479258053350">"앱을 옆으로 드래그하여 앱 2개를 동시에 사용합니다."</string>
-    <string name="taskbar_edu_stashing" msgid="5645461372669217294">"위로 천천히 스와이프하면 태스크 바가 표시됩니다."</string>
+    <string name="taskbar_edu_splitscreen" msgid="5605512479258053350">"앱 2개를 동시에 사용하려면 앱을 옆으로 드래그합니다."</string>
+    <string name="taskbar_edu_stashing" msgid="5645461372669217294">"위로 천천히 스와이프하면 태스크 바가 표시됩니다"</string>
     <string name="taskbar_edu_suggestions" msgid="8215044496435527982">"사용 습관에 따라 앱 제안을 받습니다."</string>
     <string name="taskbar_edu_pinning" msgid="6708550858580071558">"구분선을 길게 눌러 태스크 바를 고정합니다."</string>
     <string name="taskbar_edu_features" msgid="3320337287472848162">"태스크 바 최대한 활용하기"</string>
     <string name="taskbar_edu_pinning_title" msgid="210102174154211712">"태스크 바 항상 표시"</string>
     <string name="taskbar_edu_pinning_standalone" msgid="2636919474366410467">"화면 하단에 태스크 바를 항상 표시하려면 구분선을 길게 터치하세요."</string>
-    <string name="taskbar_search_edu_title" msgid="5569194922234364530">"화면 내용을 검색하려면 작업 키 길게 터치"</string>
+    <string name="taskbar_search_edu_title" msgid="5569194922234364530">"작업 키를 길게 터치하여 화면의 내용을 검색하세요"</string>
     <string name="taskbar_edu_search_disclosure" msgid="8734536088447779686">"이 제품은 사용자가 화면에서 선택한 부분을 사용하여 검색하며, Google <xliff:g id="BEGIN_PRIVACY_LINK">&lt;a href="%1$s"&gt;</xliff:g>개인정보처리방침<xliff:g id="END_PRIVACY_LINK">&lt;/a&gt;</xliff:g> 및 <xliff:g id="BEGIN_TOS_LINK">&lt;a href="%2$s"&gt;</xliff:g>서비스 약관<xliff:g id="END_TOS_LINK">&lt;/a&gt;</xliff:g>이 적용됩니다."</string>
     <string name="taskbar_edu_close" msgid="887022990168191073">"닫기"</string>
     <string name="taskbar_edu_done" msgid="6880178093977704569">"완료"</string>
@@ -143,7 +143,7 @@
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"앱을 대화창으로 열기"</string>
     <string name="quick_switch_pane_title" msgid="4677158207760585812">"최근 앱"</string>
     <string name="quick_switch_content_description" msgid="2851244536728720005">"최근 앱 목록"</string>
-    <string name="quick_switch_overflow" msgid="3679780650881041632">"{count,plural, =1{추가 앱}other{추가 앱}}"</string>
+    <string name="quick_switch_overflow" msgid="3679780650881041632">"{count,plural, =1{개의 추가 앱}other{개의 추가 앱}}"</string>
     <string name="quick_switch_desktop" msgid="8393802056024499749">"데스크톱"</string>
     <string name="quick_switch_split_task" msgid="5598194724255333896">"<xliff:g id="APP_NAME_1">%1$s</xliff:g> 및 <xliff:g id="APP_NAME_2">%2$s</xliff:g>"</string>
     <string name="quick_switch_task_with_position_in_parent" msgid="4968670948331508951">"<xliff:g id="TASK_DESCRIPTION">%1$s</xliff:g>, <xliff:g id="TOTAL_TASKS">%3$d</xliff:g>개 중 <xliff:g id="INDEX_IN_PARENT">%2$d</xliff:g>번째 항목"</string>

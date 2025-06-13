@@ -114,7 +114,9 @@ class SearchScreenTest {
         SearchScreen(
             isCompact = isCompact,
             onExitSearchMode = {},
-            viewModel = viewModel,
+            onWidgetInteraction = {},
+            showDragShadow = true,
+            viewModel = viewModel
         )
     }
 

@@ -1192,6 +1192,7 @@ constructor(
         private val startListenerSet = mutableSetOf<() -> Unit>()
         private val endListenerSet = mutableSetOf<() -> Unit>()
         private var hasStarted = false
+        private var hasEnded = false
 
         init {
             trackSpring(driverSpring, driverSpringThreshold)
@@ -1212,12 +1213,17 @@ constructor(
         }
 
         private fun onEnd() {
+            if (hasEnded) {
+                return
+            }
+            hasEnded = true
             endListenerSet.forEach { it() }
         }
 
         fun cancel(): SpringSet {
             driverSpring.cancel()
             trackedSprings.forEach { it.cancel() }
+            trackedSpringSets.forEach { it.cancel() }
             onEnd()
             return this
         }

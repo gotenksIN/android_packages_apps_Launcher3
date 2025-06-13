@@ -28,7 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -68,7 +67,7 @@ private fun HighResAppIcon(
     Box(modifier = Modifier.size(size.iconSize)) {
         Icon(
             bitmap = icon.bitmap.asImageBitmap(),
-            modifier = Modifier.fillMaxSize().clip(CircleShape),
+            modifier = Modifier.fillMaxSize(),
             contentDescription = null,
             tint = Color.Unspecified,
         )

@@ -36,6 +36,7 @@ import com.android.launcher3.widgetpicker.shared.model.WidgetAppIcon
 import com.android.launcher3.widgetpicker.shared.model.WidgetAppId
 import com.android.launcher3.widgetpicker.shared.model.WidgetId
 import com.android.launcher3.widgetpicker.shared.model.WidgetPreview
+import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.model.DisplayableWidgetApp
 
 /**
@@ -53,6 +54,8 @@ fun WidgetAppsList(
     onWidgetAppClick: (DisplayableWidgetApp) -> Unit,
     appIcons: Map<WidgetAppId, WidgetAppIcon>,
     widgetPreviews: Map<WidgetId, WidgetPreview>,
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
     headerDescriptionStyle: AppHeaderDescriptionStyle = AppHeaderDescriptionStyle.WIDGETS_COUNT,
 ) {
     val listState = rememberLazyListState()
@@ -95,6 +98,8 @@ fun WidgetAppsList(
                         description = description,
                         widgetPreviews = widgetPreviews,
                         onWidgetAppClick = onWidgetAppClick,
+                        onWidgetInteraction = onWidgetInteraction,
+                        showDragShadow = showDragShadow,
                     )
                 }
 
@@ -124,6 +129,8 @@ private fun ExpandableWidgetAppHeader(
     description: String,
     widgetPreviews: Map<WidgetId, WidgetPreview>,
     onWidgetAppClick: (DisplayableWidgetApp) -> Unit,
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
 ) {
     val expandedContent: @Composable () -> Unit =
         remember(widgetApp, widgetPreviews) {
@@ -133,7 +140,8 @@ private fun ExpandableWidgetAppHeader(
                     showAllWidgetDetails = true,
                     previews = widgetPreviews,
                     modifier =
-                        Modifier.fillMaxWidth()
+                        Modifier
+                            .fillMaxWidth()
                             .background(
                                 color = MaterialTheme.colorScheme.surfaceBright,
                                 shape =
@@ -142,6 +150,8 @@ private fun ExpandableWidgetAppHeader(
                                         else -> WidgetAppsListDimensions.smallShape
                                     },
                             ),
+                    onWidgetInteraction = onWidgetInteraction,
+                    showDragShadow = showDragShadow,
                 )
             }
         }
@@ -156,6 +166,7 @@ private fun ExpandableWidgetAppHeader(
         onClick = { onWidgetAppClick(widgetApp) },
         shape =
             when {
+                isFirst && isLast && !expanded -> WidgetAppsListDimensions.largeShape
                 isFirst -> WidgetAppsListDimensions.topLargeShape
                 isLast && !expanded -> WidgetAppsListDimensions.bottomLargeShape
                 else -> WidgetAppsListDimensions.smallShape

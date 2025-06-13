@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import com.android.launcher3.widgetpicker.R
 import com.android.launcher3.widgetpicker.shared.model.WidgetAppId
 import com.android.launcher3.widgetpicker.shared.model.WidgetUserProfile
+import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.components.AppHeaderDescriptionStyle
 import com.android.launcher3.widgetpicker.ui.components.LeadingIconToolbarTab
 import com.android.launcher3.widgetpicker.ui.components.ScrollableFloatingToolbar
@@ -62,7 +63,6 @@ import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.Landing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.leftPaneContentBottomPadding
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.pagerItemsSpacing
 import kotlinx.coroutines.launch
-
 
 /**
  * A composable function that provides a two pane layout for landing screen of the full catalog
@@ -83,7 +83,9 @@ fun LandingScreenTwoPane(
     onPersonalWidgetAppToggle: (WidgetAppId?) -> Unit,
     selectedWorkWidgetAppId: WidgetAppId?,
     onWorkWidgetAppToggle: (WidgetAppId?) -> Unit,
-) {
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
+    ) {
     val hasWorkProfile = remember(browseWidgetsState) { browseWidgetsState.workProfile != null }
     var isFeaturedSectionShowing by rememberSaveable { mutableStateOf(true) }
     val pageCount = remember {
@@ -128,6 +130,8 @@ fun LandingScreenTwoPane(
                         isFeaturedSectionShowing = false
                         onWorkWidgetAppToggle(id)
                     },
+                    onWidgetInteraction = onWidgetInteraction,
+                    showDragShadow = showDragShadow,
                 )
             },
             rightPaneTitle = rightPaneTitle(
@@ -148,6 +152,8 @@ fun LandingScreenTwoPane(
                     widgetAppIconsState = widgetAppIconsState,
                     selectedWorkWidgetAppId = selectedWorkWidgetAppId,
                     workWidgetPreviewsState = workWidgetPreviewsState,
+                    onWidgetInteraction = onWidgetInteraction,
+                    showDragShadow = showDragShadow,
                 )
             }
         )
@@ -203,8 +209,10 @@ private fun RightPaneContent(
     personalWidgetPreviewsState: PreviewsState,
     widgetAppIconsState: AppIconsState,
     selectedWorkWidgetAppId: WidgetAppId?,
-    workWidgetPreviewsState: PreviewsState
-) {
+    workWidgetPreviewsState: PreviewsState,
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
+    ) {
     when {
         isFeaturedSectionSelected -> featuredWidgets()
 
@@ -227,7 +235,9 @@ private fun RightPaneContent(
                     showAllWidgetDetails = true,
                     widgetSizeGroups = selectedPersonalWidgets,
                     previews = personalWidgetPreviewsState.previews,
-                    appIcons = widgetAppIconsState.icons
+                    appIcons = widgetAppIconsState.icons,
+                    onWidgetInteraction = onWidgetInteraction,
+                    showDragShadow = showDragShadow,
                 )
             }
         }
@@ -251,7 +261,9 @@ private fun RightPaneContent(
                     showAllWidgetDetails = true,
                     widgetSizeGroups = selectedWorkWidgets,
                     previews = workWidgetPreviewsState.previews,
-                    appIcons = widgetAppIconsState.icons
+                    appIcons = widgetAppIconsState.icons,
+                    onWidgetInteraction = onWidgetInteraction,
+                    showDragShadow = showDragShadow,
                 )
             }
         }
@@ -273,7 +285,9 @@ private fun LeftPaneContent(
     selectedWorkWidgetAppId: WidgetAppId?,
     workWidgetPreviewsState: PreviewsState,
     onWorkWidgetAppToggle: (WidgetAppId) -> Unit,
-) {
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
+    ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             SelectableSuggestionsHeader(
@@ -303,7 +317,9 @@ private fun LeftPaneContent(
                             selectedPersonalWidgetAppId = selectedPersonalWidgetAppId,
                             widgetAppIconsState = widgetAppIconsState,
                             personalWidgetPreviewsState = personalWidgetPreviewsState,
-                            onPersonalWidgetAppToggle = onPersonalWidgetAppToggle
+                            onPersonalWidgetAppToggle = onPersonalWidgetAppToggle,
+                            onWidgetInteraction = onWidgetInteraction,
+                            showDragShadow = showDragShadow,
                         )
                     }
 
@@ -313,7 +329,9 @@ private fun LeftPaneContent(
                             selectedWorkWidgetAppId = selectedWorkWidgetAppId,
                             widgetAppIconsState = widgetAppIconsState,
                             workWidgetPreviewsState = workWidgetPreviewsState,
-                            onWorkWidgetAppToggle = onWorkWidgetAppToggle
+                            onWorkWidgetAppToggle = onWorkWidgetAppToggle,
+                            onWidgetInteraction = onWidgetInteraction,
+                            showDragShadow = showDragShadow,
                         )
                     }
                 }
@@ -337,8 +355,10 @@ private fun PersonalSection(
     selectedPersonalWidgetAppId: WidgetAppId?,
     widgetAppIconsState: AppIconsState,
     personalWidgetPreviewsState: PreviewsState,
-    onPersonalWidgetAppToggle: (WidgetAppId) -> Unit
-) {
+    onPersonalWidgetAppToggle: (WidgetAppId) -> Unit,
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
+    ) {
     Box(modifier = Modifier.fillMaxSize()) {
         WidgetAppsList(
             modifier = Modifier.fillMaxSize(),
@@ -351,6 +371,8 @@ private fun PersonalSection(
             onWidgetAppClick = { widgetApp ->
                 onPersonalWidgetAppToggle(widgetApp.id)
             },
+            onWidgetInteraction = onWidgetInteraction,
+            showDragShadow = showDragShadow,
         )
     }
 }
@@ -361,8 +383,10 @@ private fun WorkSection(
     selectedWorkWidgetAppId: WidgetAppId?,
     widgetAppIconsState: AppIconsState,
     workWidgetPreviewsState: PreviewsState,
-    onWorkWidgetAppToggle: (WidgetAppId) -> Unit
-) {
+    onWorkWidgetAppToggle: (WidgetAppId) -> Unit,
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
+    ) {
     Box(modifier = Modifier.fillMaxSize()) {
         WidgetAppsList(
             modifier = Modifier.fillMaxSize(),
@@ -375,6 +399,8 @@ private fun WorkSection(
             onWidgetAppClick = { widgetApp ->
                 onWorkWidgetAppToggle(widgetApp.id)
             },
+            onWidgetInteraction = onWidgetInteraction,
+            showDragShadow = showDragShadow,
         )
     }
 }
