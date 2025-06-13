@@ -793,11 +793,15 @@ public class TaskbarLauncherStateController {
                     ALPHA_CHANNEL_TASKBAR_ALIGNMENT);
         }
 
+        float targetTaskbarIconAlpha = showTaskbar ? 1f : 0f;
+        if (mTaskbarAlphaForHome.getValue() != targetTaskbarIconAlpha) {
+            animatorSet.play(mTaskbarAlphaForHome
+                    .animateToValue(targetTaskbarIconAlpha)
+                    .setDuration(duration));
+        }
         if ((taskbarBgOffset.value != taskbarBgOffsetEnd && !taskbarBgOffset.isAnimating())
                 || taskbarBgOffset.isAnimatingToValue(taskbarBgOffsetStart)) {
             taskbarBgOffset.cancelAnimation();
-            Animator taskbarIconAlpha = mTaskbarAlphaForHome.animateToValue(
-                    showTaskbar ? 1f : 0f);
             AnimatedFloat taskbarIconTranslationYForHome =
                     mControllers.taskbarViewController.mTaskbarIconTranslationYForHome;
             ObjectAnimator taskbarBackgroundOffset = taskbarBgOffset.animateToValue(
@@ -817,11 +821,9 @@ public class TaskbarLauncherStateController {
                         taskbarHeight);
             }
 
-            taskbarIconAlpha.setDuration(duration);
             taskbarIconsYTranslation.setDuration(duration);
             taskbarBackgroundOffset.setDuration(duration);
 
-            animatorSet.play(taskbarIconAlpha);
             animatorSet.play(taskbarIconsYTranslation);
             animatorSet.play(taskbarBackgroundOffset);
         }

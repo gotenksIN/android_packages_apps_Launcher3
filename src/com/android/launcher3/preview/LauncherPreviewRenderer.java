@@ -116,7 +116,8 @@ public class LauncherPreviewRenderer extends BaseContext
         super(context, Themes.getActivityThemeRes(context));
         mUiHandler = new Handler(Looper.getMainLooper());
         mIdp = idp;
-        mDp = getDeviceProfileForPreview(context).toBuilder(context).build();
+        mDp = getDeviceProfileForPreview(context).toBuilder(context)
+                .setViewScaleProvider(new PreviewScaleProvider(this)).build();
         mInsets = getInsets(context);
         mDp.updateInsets(mInsets);
 

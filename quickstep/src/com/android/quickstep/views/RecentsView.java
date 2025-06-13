@@ -949,7 +949,13 @@ public abstract class RecentsView<
                 mContainer.getDisplay())) {
             mAddDesktopButton = (AddDesktopButton) LayoutInflater.from(context).inflate(
                     R.layout.overview_add_desktop_button, this, false);
-            mAddDesktopButton.setOnClickListener(this::createDesk);
+            mAddDesktopButton.setOnClickListener(view -> {
+                AddDesktopButton button = (AddDesktopButton) view;
+                button.animateVisibility(/* toVisible = */ false, () -> {
+                    createDesk(view);
+                    button.animateVisibility(/* toVisible = */ true);
+                });
+            });
 
             mDesktopVisibilityController = DesktopVisibilityController.INSTANCE.get(mContext);
             // Update its visibility based on whether we can create a desk or not.
@@ -5039,7 +5045,8 @@ public abstract class RecentsView<
      *
      * @param offsetProgress From 0 to 1 where 0 means no offset and 1 means offset offscreen.
      */
-    private float getHorizontalOffsetSize(int childIndex, int midpointIndex, float offsetProgress) {
+    protected float getHorizontalOffsetSize(int childIndex, int midpointIndex,
+            float offsetProgress) {
         if (offsetProgress == 0) {
             // Don't bother calculating everything below if we won't offset anyway.
             return 0;

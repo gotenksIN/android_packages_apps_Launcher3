@@ -1392,7 +1392,8 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         TaskbarActivityContext newTaskbar = new TaskbarActivityContext(displayId,
                 getWindowContext(displayId), navigationBarPanelContext, dp,
                 getNavButtonController(displayId), mUnfoldProgressProvider,
-                !isExternalDisplay(displayId), SystemUiProxy.INSTANCE.get(mBaseContext));
+                !isExternalDisplay(displayId), getPrimaryDisplayId(),
+                SystemUiProxy.INSTANCE.get(mBaseContext));
 
         addTaskbarToMap(displayId, newTaskbar);
         return newTaskbar;

@@ -419,9 +419,6 @@ public class GridCustomizationsProxy implements ProxyProvider {
             this.lifeCycleTracker = lifeCycleTracker;
             this.renderer = renderer;
             lifeCycleTracker.add(() -> destroyed = true);
-            // Preview grid change currently affects actual widget size. Revert grid changes
-            // when preview is destroyed to make sure Launcher widgets display correctly.
-            lifeCycleTracker.add(() -> renderer.updateGrid(null));
         }
 
         @Override
