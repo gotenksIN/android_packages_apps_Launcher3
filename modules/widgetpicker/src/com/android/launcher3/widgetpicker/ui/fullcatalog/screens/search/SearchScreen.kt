@@ -20,14 +20,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.android.launcher3.widgetpicker.R
 import com.android.launcher3.widgetpicker.shared.model.WidgetAppId
+import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.components.AppHeaderDescriptionStyle
 import com.android.launcher3.widgetpicker.ui.components.SinglePaneLayout
 import com.android.launcher3.widgetpicker.ui.components.TwoPaneLayout
@@ -45,7 +44,9 @@ import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.Preview
 fun SearchScreen(
     isCompact: Boolean,
     onExitSearchMode: () -> Unit,
-    viewModel: SearchScreenViewModel,
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
+    viewModel: SearchScreenViewModel
 ) {
     SearchScreen(
         isCompact = isCompact,
@@ -57,6 +58,8 @@ fun SearchScreen(
         onSearch = viewModel::onQueryChange,
         onSelectedWidgetAppToggle = viewModel::onSelectedWidgetAppToggle,
         onExitSearchMode = onExitSearchMode,
+        onWidgetInteraction = onWidgetInteraction,
+        showDragShadow = showDragShadow,
     )
 }
 
@@ -71,6 +74,8 @@ private fun SearchScreen(
     onSearch: (String) -> Unit,
     onSelectedWidgetAppToggle: (id: WidgetAppId) -> Unit,
     onExitSearchMode: () -> Unit,
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
 ) {
     val searchBar: @Composable () -> Unit = {
         WidgetsSearchBar(
@@ -92,7 +97,9 @@ private fun SearchScreen(
             selectedWidgetAppId = selectedWidgetAppId,
             appIconsState = appIconsState,
             widgetPreviewsState = widgetPreviewsState,
-            onSelectedWidgetAppChange = onSelectedWidgetAppToggle
+            onSelectedWidgetAppChange = onSelectedWidgetAppToggle,
+            onWidgetInteraction = onWidgetInteraction,
+            showDragShadow = showDragShadow,
         )
     } else {
         SearchScreenTwoPane(
@@ -101,7 +108,9 @@ private fun SearchScreen(
             selectedWidgetAppId = selectedWidgetAppId,
             appIconsState = appIconsState,
             widgetPreviewsState = widgetPreviewsState,
-            onSelectedWidgetAppChange = onSelectedWidgetAppToggle
+            onSelectedWidgetAppChange = onSelectedWidgetAppToggle,
+            onWidgetInteraction = onWidgetInteraction,
+            showDragShadow = showDragShadow,
         )
     }
 }
@@ -113,7 +122,9 @@ private fun SearchScreenSinglePane(
     selectedWidgetAppId: WidgetAppId?,
     appIconsState: AppIconsState,
     widgetPreviewsState: PreviewsState,
-    onSelectedWidgetAppChange: (id: WidgetAppId) -> Unit
+    onSelectedWidgetAppChange: (id: WidgetAppId) -> Unit,
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
 ) {
     SinglePaneLayout(
         searchBar = searchBar,
@@ -129,7 +140,9 @@ private fun SearchScreenSinglePane(
                         onSelectedWidgetAppChange(widgetApp.id)
                     },
                     appIcons = appIconsState.icons,
-                    widgetPreviews = widgetPreviewsState.previews
+                    widgetPreviews = widgetPreviewsState.previews,
+                    onWidgetInteraction = onWidgetInteraction,
+                    showDragShadow = showDragShadow,
                 )
             }
         }
@@ -143,7 +156,9 @@ fun SearchScreenTwoPane(
     selectedWidgetAppId: WidgetAppId?,
     appIconsState: AppIconsState,
     widgetPreviewsState: PreviewsState,
-    onSelectedWidgetAppChange: (id: WidgetAppId) -> Unit
+    onSelectedWidgetAppChange: (id: WidgetAppId) -> Unit,
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
 ) {
     TwoPaneLayout(
         searchBar = searchBar,
@@ -160,6 +175,8 @@ fun SearchScreenTwoPane(
                     onWidgetAppClick = { widgetApp ->
                         onSelectedWidgetAppChange(widgetApp.id)
                     },
+                    onWidgetInteraction = onWidgetInteraction,
+                    showDragShadow = showDragShadow,
                 )
             }
         },
@@ -181,12 +198,12 @@ fun SearchScreenTwoPane(
                 WidgetsGrid(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wrapContentSize()
-                        .verticalScroll(rememberScrollState()),
+                        .wrapContentSize(),
                     showAllWidgetDetails = true,
                     widgetSizeGroups = selectedWidgets,
                     previews = widgetPreviewsState.previews,
-                    appIcons = appIconsState.icons
+                    onWidgetInteraction = onWidgetInteraction,
+                    showDragShadow = showDragShadow,
                 )
             }
         },

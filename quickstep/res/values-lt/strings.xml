@@ -112,7 +112,7 @@
     <string name="taskbar_edu_suggested_search_animation_description" msgid="1874284242557104818">"Animacija, kaip ieškoti elemento ekrane, paliečiant ir palaikant veiksmų klavišą ir pasirenkant sritį, kurioje yra elementas"</string>
     <string name="taskbar_edu_a11y_title" msgid="5417986057866415355">"Užduočių juostos mokomoji informacija"</string>
     <string name="taskbar_edu_splitscreen" msgid="5605512479258053350">"Nuvilkę programą į šoną vienu metu naudokite dvi programas"</string>
-    <string name="taskbar_edu_stashing" msgid="5645461372669217294">"Trumpai perbraukite, kad būtų rodoma Užduočių juosta"</string>
+    <string name="taskbar_edu_stashing" msgid="5645461372669217294">"Lėtai braukite, kad būtų rodoma Užduočių juosta"</string>
     <string name="taskbar_edu_suggestions" msgid="8215044496435527982">"Gaukite programų pasiūlymų pagal savo veiklą"</string>
     <string name="taskbar_edu_pinning" msgid="6708550858580071558">"Ilgai paspauskite daliklį, kad prisegtumėte užduočių juostą"</string>
     <string name="taskbar_edu_features" msgid="3320337287472848162">"Atlikite daugiau naudodami Užduočių juostą"</string>

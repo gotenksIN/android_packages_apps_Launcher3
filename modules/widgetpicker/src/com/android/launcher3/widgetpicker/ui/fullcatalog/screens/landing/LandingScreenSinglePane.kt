@@ -16,6 +16,7 @@
 
 package com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing
 
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,13 +25,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Work
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -42,12 +44,14 @@ import androidx.compose.ui.unit.dp
 import com.android.launcher3.widgetpicker.R
 import com.android.launcher3.widgetpicker.shared.model.WidgetAppId
 import com.android.launcher3.widgetpicker.shared.model.WidgetUserProfile
+import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.components.AppHeaderDescriptionStyle
 import com.android.launcher3.widgetpicker.ui.components.LeadingIconToolbarTab
 import com.android.launcher3.widgetpicker.ui.components.ScrollableFloatingToolbar
 import com.android.launcher3.widgetpicker.ui.components.SinglePaneLayout
 import com.android.launcher3.widgetpicker.ui.components.WidgetAppHeaderStyle
 import com.android.launcher3.widgetpicker.ui.components.WidgetAppsList
+import com.android.launcher3.widgetpicker.ui.components.widgetPickerTestTag
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.DEFAULT_SELECTED_TAB
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.FEATURED_TAB_INDEX
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.PERSONAL_TAB_INDEX
@@ -59,6 +63,10 @@ import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.Landing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.bottomTabsTopPadding
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.contentShape
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.pagerItemsSpacing
+import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneTestTags.FEATURED_WIDGETS_TAB_TEST_TAG
+import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneTestTags.PERSONAL_WIDGETS_TAB_TEST_TAG
+import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneTestTags.WORK_WIDGETS_TAB_TEST_TAG
+import com.android.launcher3.widgetpicker.ui.theme.WidgetPickerTheme
 import kotlinx.coroutines.launch
 
 /**
@@ -77,6 +85,8 @@ fun LandingScreenSinglePane(
     onPersonalWidgetAppToggle: (WidgetAppId) -> Unit,
     selectedWorkWidgetAppId: WidgetAppId?,
     onWorkWidgetAppToggle: (WidgetAppId) -> Unit,
+    onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
+    showDragShadow: Boolean,
 ) {
     val hasWorkProfile = remember(browseWidgetsState) { browseWidgetsState.workProfile != null }
 
@@ -112,10 +122,12 @@ fun LandingScreenSinglePane(
                 when (pageIndex) {
                     FEATURED_TAB_INDEX -> {
                         Box(
+                            contentAlignment = Alignment.Center,
                             modifier = Modifier
                                 .fillMaxSize()
                                 .clip(contentShape)
-                                .background(MaterialTheme.colorScheme.surfaceBright)
+                                .background(WidgetPickerTheme.colors.widgetsContainerBackground)
+                                .verticalScroll(rememberScrollState())
                         ) {
                             featuredWidgetsContent()
                         }
@@ -133,7 +145,9 @@ fun LandingScreenSinglePane(
                                     onPersonalWidgetAppToggle(widgetApp.id)
                                 },
                                 appIcons = widgetAppIconsState.icons,
-                                widgetPreviews = personalWidgetPreviewsState.previews
+                                widgetPreviews = personalWidgetPreviewsState.previews,
+                                onWidgetInteraction = onWidgetInteraction,
+                                showDragShadow = showDragShadow,
                             )
                         }
                     }
@@ -150,7 +164,9 @@ fun LandingScreenSinglePane(
                                     onWorkWidgetAppToggle(widgetApp.id)
                                 },
                                 appIcons = widgetAppIconsState.icons,
-                                widgetPreviews = workWidgetPreviewsState.previews
+                                widgetPreviews = workWidgetPreviewsState.previews,
+                                onWidgetInteraction = onWidgetInteraction,
+                                showDragShadow = showDragShadow,
                             )
                         }
                     }
@@ -179,6 +195,7 @@ private fun BottomTabs(
                         pagerState.animateScrollToPage(FEATURED_TAB_INDEX)
                     }
                 },
+                modifier = Modifier.widgetPickerTestTag(FEATURED_WIDGETS_TAB_TEST_TAG),
             )
         }
 
@@ -193,6 +210,7 @@ private fun BottomTabs(
                             pagerState.animateScrollToPage(PERSONAL_TAB_INDEX)
                         }
                     },
+                    modifier = Modifier.widgetPickerTestTag(PERSONAL_WIDGETS_TAB_TEST_TAG),
                 )
             }
         } else {
@@ -206,6 +224,7 @@ private fun BottomTabs(
                             pagerState.animateScrollToPage(PERSONAL_TAB_INDEX)
                         }
                     },
+                    modifier = Modifier.widgetPickerTestTag(PERSONAL_WIDGETS_TAB_TEST_TAG),
                 )
             }
             add {
@@ -218,6 +237,7 @@ private fun BottomTabs(
                             pagerState.animateScrollToPage(WORK_TAB_INDEX)
                         }
                     },
+                    modifier = Modifier.widgetPickerTestTag(WORK_WIDGETS_TAB_TEST_TAG),
                 )
             }
         }
@@ -251,4 +271,10 @@ private object LandingScreenSinglePaneDimens {
     val bottomTabsTopPadding = 8.dp
     val bottomTabsHorizontalPadding = 32.dp
     val bottomTabsBottomPadding = 8.dp
+}
+
+private object LandingScreenSinglePaneTestTags {
+    const val FEATURED_WIDGETS_TAB_TEST_TAG = "featured_widgets_tab"
+    const val PERSONAL_WIDGETS_TAB_TEST_TAG = "personal_widgets_tab"
+    const val WORK_WIDGETS_TAB_TEST_TAG = "work_widgets_tab"
 }

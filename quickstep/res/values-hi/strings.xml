@@ -25,7 +25,7 @@
     <string name="recent_task_option_external_display" msgid="4533840664313389484">"बाहरी डिसप्ले पर जाएं"</string>
     <string name="recent_task_option_remove_task" msgid="803559928027541555">"मिटाएं"</string>
     <string name="recent_task_desktop" msgid="8081113562549637334">"डेस्कटॉप"</string>
-    <string name="recents_empty_message" msgid="7040467240571714191">"हाल ही का कोई आइटम नहीं है"</string>
+    <string name="recents_empty_message" msgid="7040467240571714191">"हाल ही में कोई ऐप्लिकेशन खोला नहीं गया"</string>
     <string name="accessibility_app_usage_settings" msgid="6312864233673544149">"ऐप्लिकेशन इस्तेमाल की सेटिंग"</string>
     <string name="recents_clear_all" msgid="5328176793634888831">"सभी हटाएं"</string>
     <string name="accessibility_recent_apps" msgid="4058661986695117371">"हाल ही में इस्तेमाल किए गए ऐप्लिकेशन"</string>
@@ -115,7 +115,7 @@
     <string name="taskbar_edu_stashing" msgid="5645461372669217294">"टास्कबार देखने के लिए, ऊपर की ओर धीरे से स्वाइप करें"</string>
     <string name="taskbar_edu_suggestions" msgid="8215044496435527982">"इस्तेमाल के आधार पर ऐप्लिकेशन के सुझाव पाएं"</string>
     <string name="taskbar_edu_pinning" msgid="6708550858580071558">"टास्कबार को पिन करने के लिए डिवाइडर को दबाकर रखें"</string>
-    <string name="taskbar_edu_features" msgid="3320337287472848162">"टास्कबार के साथ कई और काम करें"</string>
+    <string name="taskbar_edu_features" msgid="3320337287472848162">"टास्कबार की मदद से कई और काम करें"</string>
     <string name="taskbar_edu_pinning_title" msgid="210102174154211712">"टास्कबार को हमेशा दिखाएं"</string>
     <string name="taskbar_edu_pinning_standalone" msgid="2636919474366410467">"टास्कबार को हमेशा अपनी स्क्रीन के नीचे दिखाने के लिए, डिवाइडर दबाकर रखें"</string>
     <string name="taskbar_search_edu_title" msgid="5569194922234364530">"स्क्रीन पर दिख रहे कॉन्टेंट को खोजने के लिए, ऐक्शन बटन को दबाकर रखें"</string>
