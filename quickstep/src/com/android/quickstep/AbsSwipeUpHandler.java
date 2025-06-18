@@ -137,7 +137,6 @@ import com.android.launcher3.util.VibratorWrapper;
 import com.android.launcher3.util.WindowBounds;
 import com.android.quickstep.GestureState.GestureEndTarget;
 import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle;
-import com.android.quickstep.fallback.window.RecentsWindowManager;
 import com.android.quickstep.util.ActiveGestureErrorDetector;
 import com.android.quickstep.util.ActiveGestureLog;
 import com.android.quickstep.util.ActiveGestureProtoLogProxy;
@@ -160,6 +159,7 @@ import com.android.quickstep.views.RecentsViewContainer;
 import com.android.quickstep.views.TaskContainer;
 import com.android.quickstep.views.TaskView;
 import com.android.quickstep.views.TaskViewType;
+import com.android.quickstep.window.RecentsWindowManager;
 import com.android.systemui.animation.TransitionAnimator;
 import com.android.systemui.contextualeducation.GestureType;
 import com.android.systemui.shared.recents.model.ThumbnailData;
@@ -216,6 +216,7 @@ public abstract class AbsSwipeUpHandler<
     protected @Nullable RECENTS_CONTAINER mContainer;
     protected @Nullable RECENTS_VIEW mRecentsView;
     protected Runnable mGestureEndCallback;
+    protected Runnable mGestureAnimationEndCallback;
     protected MultiStateCallback mStateCallback;
     protected boolean mCanceled;
     private boolean mRecentsViewScrollLinked = false;
@@ -1072,12 +1073,10 @@ public abstract class AbsSwipeUpHandler<
                     }
                     mHandled = true;
 
-                    InteractionJankMonitorWrapper.begin(mRecentsView, Cuj.CUJ_LAUNCHER_QUICK_SWITCH,
-                            2000 /* ms timeout */);
-                    InteractionJankMonitorWrapper.begin(mRecentsView,
-                            Cuj.CUJ_LAUNCHER_APP_CLOSE_TO_HOME);
-                    InteractionJankMonitorWrapper.begin(mRecentsView,
-                            Cuj.CUJ_LAUNCHER_APP_SWIPE_TO_RECENTS);
+                    InteractionJankMonitorWrapper.begin(
+                            rv, Cuj.CUJ_LAUNCHER_QUICK_SWITCH, /* timeoutMs= */ 2000);
+                    InteractionJankMonitorWrapper.begin(rv, Cuj.CUJ_LAUNCHER_APP_CLOSE_TO_HOME);
+                    InteractionJankMonitorWrapper.begin(rv, Cuj.CUJ_LAUNCHER_APP_SWIPE_TO_RECENTS);
 
                     rv.post(() -> rv.getViewTreeObserver().removeOnDrawListener(this));
                 }
@@ -2176,6 +2175,9 @@ public abstract class AbsSwipeUpHandler<
         if (mRecentsView != null) {
             mRecentsView.onGestureAnimationEnd();
         }
+        if (mGestureAnimationEndCallback != null) {
+            mGestureAnimationEndCallback.run();
+        }
         resetLauncherListeners();
     }
 
@@ -2394,6 +2396,10 @@ public abstract class AbsSwipeUpHandler<
 
     public void setGestureEndCallback(Runnable gestureEndCallback) {
         mGestureEndCallback = gestureEndCallback;
+    }
+
+    public void setGestureAnimationEndCallback(Runnable gestureAnimationEndCallback) {
+        mGestureAnimationEndCallback = gestureAnimationEndCallback;
     }
 
     protected void linkRecentsViewScroll() {

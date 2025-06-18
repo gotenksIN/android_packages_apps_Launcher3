@@ -16,13 +16,13 @@
 
 package com.android.launcher3.widgetpicker.ui
 
-import android.appwidget.AppWidgetProviderInfo
 import android.graphics.Rect
+import com.android.launcher3.widgetpicker.shared.model.WidgetInfo
 import com.android.launcher3.widgetpicker.shared.model.WidgetPreview
 
 /**
- * General interface that clients can implement to listen to events from different types of
- * widget picker.
+ * General interface that clients can implement to listen to events from different types of widget
+ * picker.
  */
 interface WidgetPickerEventListeners {
     /** Called when the widget picker is dismissed. */
@@ -32,33 +32,53 @@ interface WidgetPickerEventListeners {
     fun onWidgetInteraction(widgetInteractionInfo: WidgetInteractionInfo)
 }
 
-/** Information passed in event listener when a widget is dragged or added from picker. */
-sealed class WidgetInteractionInfo {
+/**
+ * Information passed in event listener when a widget is dragged or added from picker.
+ *
+ * @param source the UI section form which the widget was interacted with.
+ */
+sealed class WidgetInteractionInfo(open val source: WidgetInteractionSource) {
     /**
      * Information passed in event listener when a widget is dragged.
      *
-     * @param providerInfo metadata for the provider of the widget being dragged.
+     * @param widgetInfo metadata for the provider of the widget being dragged.
      * @param bounds current bounds of the widget's preview considering the drag offset and scale.
      * @param widthPx measured width of the preview.
      * @param heightPx measured height of the preview.
      * @param previewInfo information necessary to render a preview within host
      * @param mimeType a unique mime type set on clip data for the drag session
+     * @param source the UI section form which the widget was interacted with.
      */
     data class WidgetDragInfo(
-        val providerInfo: AppWidgetProviderInfo,
+        val widgetInfo: WidgetInfo,
         val bounds: Rect,
         val widthPx: Int,
         val heightPx: Int,
         val previewInfo: WidgetPreview,
         val mimeType: String,
-    ) : WidgetInteractionInfo()
+        override val source: WidgetInteractionSource,
+    ) : WidgetInteractionInfo(source)
 
     /**
      * Information passed in event listener when a widget is added using tap to add.
      *
-     * @param providerInfo metadata for the provider of the widget being added.
+     * @param widgetInfo metadata for the provider of the widget being added.
+     * @param source the UI section form which the widget was interacted with.
      */
     data class WidgetAddInfo(
-        val providerInfo: AppWidgetProviderInfo
-    ) : WidgetInteractionInfo()
+        val widgetInfo: WidgetInfo,
+        override val source: WidgetInteractionSource,
+    ) : WidgetInteractionInfo(source)
+}
+
+/** Indicates the section from which the widget is being added from. */
+enum class WidgetInteractionSource {
+    /** The UI section that features / recommends widgets to the user. */
+    FEATURED,
+
+    /** The list of all widgets grouped under their apps. */
+    BROWSE,
+
+    /** The section that displays widgets or their apps that match the user query in search bar. */
+    SEARCH,
 }

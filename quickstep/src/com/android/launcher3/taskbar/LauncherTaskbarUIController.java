@@ -15,8 +15,6 @@
  */
 package com.android.launcher3.taskbar;
 
-import static android.window.DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_WALLPAPER_ACTIVITY;
-
 import static com.android.launcher3.Flags.syncAppLaunchWithTaskbarStash;
 import static com.android.launcher3.QuickstepTransitionManager.TASKBAR_TO_APP_DURATION;
 import static com.android.launcher3.QuickstepTransitionManager.TRANSIENT_TASKBAR_TRANSITION_DURATION;
@@ -34,7 +32,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.DeviceProfile;
-import com.android.launcher3.Flags;
 import com.android.launcher3.Hotseat;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.Utilities;
@@ -55,10 +52,10 @@ import com.android.quickstep.LauncherActivityInterface;
 import com.android.quickstep.OverviewComponentObserver;
 import com.android.quickstep.RecentsAnimationCallbacks;
 import com.android.quickstep.SystemUiProxy;
-import com.android.quickstep.fallback.window.RecentsWindowManager;
 import com.android.quickstep.util.SplitTask;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.RecentsViewContainer;
+import com.android.quickstep.window.RecentsWindowManager;
 import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags;
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
 
@@ -246,10 +243,6 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     private int getTaskbarAnimationDuration(boolean isVisible) {
         // fast animation duration since we will not be playing workspace reveal animation.
         boolean shouldOverrideToFastAnimation = !isHotseatIconOnTopWhenAligned();
-        if (!Flags.predictiveBackToHomePolish()) {
-            shouldOverrideToFastAnimation |= mLauncher.getPredictiveBackToHomeInProgress();
-        }
-
         boolean isPinned = mControllers.taskbarActivityContext.isPinnedTaskbar();
         if (isVisible || isPinned) {
             return getTaskbarToHomeDuration(shouldOverrideToFastAnimation, isPinned);
@@ -270,13 +263,6 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
                 && !state.isTaskbarAlignedWithHotseat(mLauncher);
         if (isVisible && (nonInteractiveState || mSkipLauncherVisibilityChange)) {
             return null;
-        }
-
-        if (!ENABLE_DESKTOP_WINDOWING_WALLPAPER_ACTIVITY.isTrue()
-                && mControllers.taskbarDesktopModeController.isInDesktopModeAndNotInOverview(
-                mControllers.taskbarActivityContext.getDisplayId())) {
-            // TODO: b/333533253 - Remove after flag rollout
-            isVisible = false;
         }
 
         mTaskbarLauncherStateController.updateStateForFlag(FLAG_VISIBLE, isVisible);

@@ -51,6 +51,7 @@ import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
 
 import java.io.PrintWriter;
 import java.util.Collections;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -281,6 +282,29 @@ public class TaskbarUIController implements BubbleBarController.BubbleBarLocatio
     }
 
     /**
+     * Adds the provided `task` as a second app in splitscreen.
+     */
+    public void moveRunningTaskToSplitSelection(@NonNull Task task, @Nullable ItemInfo itemInfo,
+            View startingView) {
+        // When launching from Taskbar, set FLAG_IN_APP immediately to reduce potential visual noise
+        // during the app open transition.
+        if (mControllers.taskbarStashController != null) {
+            mControllers.taskbarStashController.updateStateForFlag(FLAG_IN_APP, true);
+            mControllers.taskbarStashController.applyState();
+        }
+
+        getRecentsView().confirmSplitSelect(
+                null /* containerTaskView */,
+                task /* task */,
+                task.icon,
+                startingView,
+                task.thumbnail != null ? task.thumbnail.getThumbnail() : null /* thumbnail */,
+                null /* intent */,
+                null /* user */,
+                itemInfo);
+    }
+
+    /**
      * Uses the clicked Taskbar icon to launch a second app for splitscreen.
      */
     public void triggerSecondAppForSplit(ItemInfoWithIcon info, Intent intent, View startingView) {
@@ -351,12 +375,15 @@ public class TaskbarUIController implements BubbleBarController.BubbleBarLocatio
      * If the overlay or view are closed, or the overview task is focused, then Overview is
      * launched. If the overview task is launched, then the first hidden task is focused.
      *
-     * @return the index of what task should be focused in ; -1 iff Overview shouldn't be launched
+     * @return the set of task ids associated with the task view that should be focused; null iff
+     *         overview shouldn't be launched
      */
-    public int launchFocusedTask() {
-        int focusedTaskIndex = mControllers.keyboardQuickSwitchController.launchFocusedTask();
+    @Nullable
+    public Set<Integer> launchFocusedTask() {
+        Set<Integer> focusedTaskIds =
+                mControllers.keyboardQuickSwitchController.launchFocusedTask();
         mControllers.keyboardQuickSwitchController.closeQuickSwitchView();
-        return focusedTaskIndex;
+        return focusedTaskIds;
     }
 
     /**

@@ -16,7 +16,6 @@
 
 package com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing
 
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,6 +44,7 @@ import com.android.launcher3.widgetpicker.R
 import com.android.launcher3.widgetpicker.shared.model.WidgetAppId
 import com.android.launcher3.widgetpicker.shared.model.WidgetUserProfile
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
+import com.android.launcher3.widgetpicker.ui.WidgetInteractionSource
 import com.android.launcher3.widgetpicker.ui.components.AppHeaderDescriptionStyle
 import com.android.launcher3.widgetpicker.ui.components.LeadingIconToolbarTab
 import com.android.launcher3.widgetpicker.ui.components.ScrollableFloatingToolbar
@@ -61,6 +61,7 @@ import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.Landing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.bottomTabsBottomPadding
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.bottomTabsHorizontalPadding
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.bottomTabsTopPadding
+import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.contentBottomEdgeSpacing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.contentShape
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneDimens.pagerItemsSpacing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenSinglePaneTestTags.FEATURED_WIDGETS_TAB_TEST_TAG
@@ -90,16 +91,17 @@ fun LandingScreenSinglePane(
 ) {
     val hasWorkProfile = remember(browseWidgetsState) { browseWidgetsState.workProfile != null }
 
-    val pagerState = rememberPagerState(
-        initialPage = DEFAULT_SELECTED_TAB,
-        pageCount = {
-            if (hasWorkProfile) {
-                TABS_COUNT_WITH_WORK_PROFILE
-            } else {
-                TABS_COUNT_WITHOUT_WORK_PROFILE
-            }
-        }
-    )
+    val pagerState =
+        rememberPagerState(
+            initialPage = DEFAULT_SELECTED_TAB,
+            pageCount = {
+                if (hasWorkProfile) {
+                    TABS_COUNT_WITH_WORK_PROFILE
+                } else {
+                    TABS_COUNT_WITHOUT_WORK_PROFILE
+                }
+            },
+        )
 
     SinglePaneLayout(
         searchBar = searchBarContent,
@@ -107,7 +109,7 @@ fun LandingScreenSinglePane(
             BottomTabs(
                 personalUserProfile = browseWidgetsState.personalProfile,
                 workUserProfile = browseWidgetsState.workProfile,
-                pagerState = pagerState
+                pagerState = pagerState,
             )
         },
         content = {
@@ -115,19 +117,18 @@ fun LandingScreenSinglePane(
                 state = pagerState,
                 verticalAlignment = Alignment.Top,
                 pageSpacing = pagerItemsSpacing,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(contentShape),
+                modifier = Modifier.fillMaxWidth().clip(contentShape),
             ) { pageIndex ->
                 when (pageIndex) {
                     FEATURED_TAB_INDEX -> {
                         Box(
                             contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(contentShape)
-                                .background(WidgetPickerTheme.colors.widgetsContainerBackground)
-                                .verticalScroll(rememberScrollState())
+                            modifier =
+                                Modifier.fillMaxSize()
+                                    .clip(contentShape)
+                                    .background(WidgetPickerTheme.colors.widgetsContainerBackground)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(bottom = contentBottomEdgeSpacing),
                         ) {
                             featuredWidgetsContent()
                         }
@@ -146,33 +147,45 @@ fun LandingScreenSinglePane(
                                 },
                                 appIcons = widgetAppIconsState.icons,
                                 widgetPreviews = personalWidgetPreviewsState.previews,
+                                widgetInteractionSource = WidgetInteractionSource.BROWSE,
                                 onWidgetInteraction = onWidgetInteraction,
                                 showDragShadow = showDragShadow,
+                                bottomContentSpacing = contentBottomEdgeSpacing,
                             )
                         }
                     }
 
-                    WORK_TAB_INDEX -> if (hasWorkProfile) {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            WidgetAppsList(
-                                modifier = Modifier.fillMaxSize(),
-                                widgetApps = browseWidgetsState.workWidgetApps,
-                                selectedWidgetAppId = selectedWorkWidgetAppId,
-                                widgetAppHeaderStyle = WidgetAppHeaderStyle.EXPANDABLE,
-                                headerDescriptionStyle = AppHeaderDescriptionStyle.WIDGETS_COUNT,
-                                onWidgetAppClick = { widgetApp ->
-                                    onWorkWidgetAppToggle(widgetApp.id)
-                                },
-                                appIcons = widgetAppIconsState.icons,
-                                widgetPreviews = workWidgetPreviewsState.previews,
-                                onWidgetInteraction = onWidgetInteraction,
-                                showDragShadow = showDragShadow,
-                            )
+                    WORK_TAB_INDEX ->
+                        if (hasWorkProfile) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                WidgetAppsList(
+                                    modifier = Modifier.fillMaxSize(),
+                                    widgetApps = browseWidgetsState.workWidgetApps,
+                                    selectedWidgetAppId = selectedWorkWidgetAppId,
+                                    widgetAppHeaderStyle = WidgetAppHeaderStyle.EXPANDABLE,
+                                    headerDescriptionStyle =
+                                        AppHeaderDescriptionStyle.WIDGETS_COUNT,
+                                    onWidgetAppClick = { widgetApp ->
+                                        onWorkWidgetAppToggle(widgetApp.id)
+                                    },
+                                    appIcons = widgetAppIconsState.icons,
+                                    widgetPreviews = workWidgetPreviewsState.previews,
+                                    onWidgetInteraction = onWidgetInteraction,
+                                    showDragShadow = showDragShadow,
+                                    bottomContentSpacing = contentBottomEdgeSpacing,
+                                    widgetInteractionSource = WidgetInteractionSource.BROWSE,
+                                    emptyWidgetsErrorMessage =
+                                        browseWidgetsState.workProfile?.let { workProfile ->
+                                            workProfile.pausedProfileMessage.takeIf {
+                                                workProfile.paused
+                                            }
+                                        },
+                                )
+                            }
                         }
-                    }
                 }
             }
-        }
+        },
     )
 }
 
@@ -180,7 +193,7 @@ fun LandingScreenSinglePane(
 private fun BottomTabs(
     pagerState: PagerState,
     personalUserProfile: WidgetUserProfile,
-    workUserProfile: WidgetUserProfile?
+    workUserProfile: WidgetUserProfile?,
 ) {
     val scope = rememberCoroutineScope()
 
@@ -190,11 +203,7 @@ private fun BottomTabs(
                 label = stringResource(R.string.featured_widgets_tab_label),
                 leadingIcon = Icons.Filled.Star,
                 selected = pagerState.currentPage == FEATURED_TAB_INDEX,
-                onClick = {
-                    scope.launch {
-                        pagerState.animateScrollToPage(FEATURED_TAB_INDEX)
-                    }
-                },
+                onClick = { scope.launch { pagerState.animateScrollToPage(FEATURED_TAB_INDEX) } },
                 modifier = Modifier.widgetPickerTestTag(FEATURED_WIDGETS_TAB_TEST_TAG),
             )
         }
@@ -206,9 +215,7 @@ private fun BottomTabs(
                     leadingIcon = Icons.AutoMirrored.Filled.List,
                     selected = pagerState.currentPage == PERSONAL_TAB_INDEX,
                     onClick = {
-                        scope.launch {
-                            pagerState.animateScrollToPage(PERSONAL_TAB_INDEX)
-                        }
+                        scope.launch { pagerState.animateScrollToPage(PERSONAL_TAB_INDEX) }
                     },
                     modifier = Modifier.widgetPickerTestTag(PERSONAL_WIDGETS_TAB_TEST_TAG),
                 )
@@ -220,9 +227,7 @@ private fun BottomTabs(
                     leadingIcon = Icons.Filled.Person,
                     selected = pagerState.currentPage == PERSONAL_TAB_INDEX,
                     onClick = {
-                        scope.launch {
-                            pagerState.animateScrollToPage(PERSONAL_TAB_INDEX)
-                        }
+                        scope.launch { pagerState.animateScrollToPage(PERSONAL_TAB_INDEX) }
                     },
                     modifier = Modifier.widgetPickerTestTag(PERSONAL_WIDGETS_TAB_TEST_TAG),
                 )
@@ -232,11 +237,7 @@ private fun BottomTabs(
                     label = workUserProfile.label,
                     leadingIcon = Icons.Outlined.Work,
                     selected = pagerState.currentPage == WORK_TAB_INDEX,
-                    onClick = {
-                        scope.launch {
-                            pagerState.animateScrollToPage(WORK_TAB_INDEX)
-                        }
-                    },
+                    onClick = { scope.launch { pagerState.animateScrollToPage(WORK_TAB_INDEX) } },
                     modifier = Modifier.widgetPickerTestTag(WORK_WIDGETS_TAB_TEST_TAG),
                 )
             }
@@ -245,14 +246,10 @@ private fun BottomTabs(
 
     ScrollableFloatingToolbar(
         modifier =
-            Modifier
-                .padding(horizontal = bottomTabsHorizontalPadding)
-                .padding(
-                    top = bottomTabsTopPadding,
-                    bottom = bottomTabsBottomPadding
-                ),
+            Modifier.padding(horizontal = bottomTabsHorizontalPadding)
+                .padding(top = bottomTabsTopPadding, bottom = bottomTabsBottomPadding),
         selectedTabIndex = pagerState.currentPage,
-        tabs = tabs
+        tabs = tabs,
     )
 }
 
@@ -271,6 +268,9 @@ private object LandingScreenSinglePaneDimens {
     val bottomTabsTopPadding = 8.dp
     val bottomTabsHorizontalPadding = 32.dp
     val bottomTabsBottomPadding = 8.dp
+
+    // Single pane always shows floating tabs over the content; hence has a static bottom spacing.
+    val contentBottomEdgeSpacing = 70.dp
 }
 
 private object LandingScreenSinglePaneTestTags {

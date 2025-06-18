@@ -16,17 +16,22 @@
 
 package com.android.launcher3.widgetpicker.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.android.launcher3.widgetpicker.R
 import com.android.launcher3.widgetpicker.shared.model.AppIcon
@@ -36,7 +41,9 @@ import com.android.launcher3.widgetpicker.shared.model.WidgetAppId
 import com.android.launcher3.widgetpicker.shared.model.WidgetId
 import com.android.launcher3.widgetpicker.shared.model.WidgetPreview
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
+import com.android.launcher3.widgetpicker.ui.WidgetInteractionSource
 import com.android.launcher3.widgetpicker.ui.model.DisplayableWidgetApp
+import com.android.launcher3.widgetpicker.ui.theme.WidgetPickerTheme
 
 /**
  * Displays a various apps on device that host widgets.
@@ -53,67 +60,97 @@ fun WidgetAppsList(
     onWidgetAppClick: (DisplayableWidgetApp) -> Unit,
     appIcons: Map<WidgetAppId, WidgetAppIcon>,
     widgetPreviews: Map<WidgetId, WidgetPreview>,
+    widgetInteractionSource: WidgetInteractionSource,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
     showDragShadow: Boolean,
+    bottomContentSpacing: Dp = 0.dp,
     headerDescriptionStyle: AppHeaderDescriptionStyle = AppHeaderDescriptionStyle.WIDGETS_COUNT,
+    emptyWidgetsErrorMessage: String? = null,
 ) {
-    val listState = rememberLazyListState()
+    if (widgetApps.isEmpty()) {
+        NoWidgetsError(
+            modifier = modifier,
+            errorMessage =
+                emptyWidgetsErrorMessage
+                    ?: stringResource(R.string.widgets_list_no_widgets_available),
+        )
+    } else {
+        val listState = rememberLazyListState()
 
-    LazyColumn(
-        state = listState,
-        verticalArrangement = Arrangement.spacedBy(WidgetAppsListDimensions.itemSpacing),
-        modifier = modifier.clip(WidgetAppsListDimensions.largeShape),
-    ) {
-        items(
-            count = widgetApps.size,
-            key = { index -> widgetApps[index].id.toString() },
-            contentType = { widgetAppHeaderStyle },
-        ) { index ->
-            val widgetApp = widgetApps[index]
-            val selected = widgetApp.id == selectedWidgetAppId
+        LazyColumn(
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(WidgetAppsListDimensions.itemSpacing),
+            modifier = modifier.clip(WidgetAppsListDimensions.largeShape),
+        ) {
+            items(
+                count = widgetApps.size,
+                key = { index -> widgetApps[index].id.toString() },
+                contentType = { widgetAppHeaderStyle },
+            ) { index ->
+                val widgetApp = widgetApps[index]
+                val selected = widgetApp.id == selectedWidgetAppId
 
-            val title = widgetApp.widgetHeaderTitle()
-            val description = widgetApp.widgetHeaderDescription(headerDescriptionStyle)
+                val title = widgetApp.widgetHeaderTitle()
+                val description = widgetApp.widgetHeaderDescription(headerDescriptionStyle)
 
-            val appIconForItem =
-                remember(appIcons) {
-                    appIcons[widgetApp.id]
-                        ?: WidgetAppIcon(AppIcon.PlaceHolderAppIcon, AppIconBadge.NoBadge)
+                val appIconForItem =
+                    remember(appIcons) {
+                        appIcons[widgetApp.id]
+                            ?: WidgetAppIcon(AppIcon.PlaceHolderAppIcon, AppIconBadge.NoBadge)
+                    }
+                val appIcon: @Composable () -> Unit =
+                    remember(appIconForItem) {
+                        { WidgetAppIcon(widgetAppIcon = appIconForItem, size = AppIconSize.MEDIUM) }
+                    }
+
+                when (widgetAppHeaderStyle) {
+                    WidgetAppHeaderStyle.EXPANDABLE -> {
+                        ExpandableWidgetAppHeader(
+                            isFirst = index == 0,
+                            isLast = index == widgetApps.lastIndex,
+                            expanded = selected,
+                            widgetApp = widgetApp,
+                            appIcon = appIcon,
+                            title = title,
+                            description = description,
+                            widgetPreviews = widgetPreviews,
+                            onWidgetAppClick = onWidgetAppClick,
+                            widgetInteractionSource = widgetInteractionSource,
+                            onWidgetInteraction = onWidgetInteraction,
+                            showDragShadow = showDragShadow,
+                        )
+                    }
+
+                    WidgetAppHeaderStyle.CLICKABLE ->
+                        SelectableListHeader(
+                            modifier = Modifier.fillMaxWidth(),
+                            leadingAppIcon = appIcon,
+                            selected = selected,
+                            title = title,
+                            subTitle = description,
+                            shape = WidgetAppsListDimensions.largeShape,
+                            onSelect = { onWidgetAppClick(widgetApp) },
+                        )
                 }
-            val appIcon: @Composable () -> Unit =
-                remember(appIconForItem) {
-                    { WidgetAppIcon(widgetAppIcon = appIconForItem, size = AppIconSize.MEDIUM) }
-                }
+            }
 
-            when (widgetAppHeaderStyle) {
-                WidgetAppHeaderStyle.EXPANDABLE -> {
-                    ExpandableWidgetAppHeader(
-                        isFirst = index == 0,
-                        isLast = index == widgetApps.lastIndex,
-                        expanded = selected,
-                        widgetApp = widgetApp,
-                        appIcon = appIcon,
-                        title = title,
-                        description = description,
-                        widgetPreviews = widgetPreviews,
-                        onWidgetAppClick = onWidgetAppClick,
-                        onWidgetInteraction = onWidgetInteraction,
-                        showDragShadow = showDragShadow,
-                    )
+            if (bottomContentSpacing > 0.dp) {
+                item(key = SPACER_LIST_ITEM_TYPE, contentType = SPACER_LIST_ITEM_TYPE) {
+                    Spacer(modifier.height(bottomContentSpacing))
                 }
-
-                WidgetAppHeaderStyle.CLICKABLE ->
-                    SelectableListHeader(
-                        modifier = Modifier.fillMaxWidth(),
-                        leadingAppIcon = appIcon,
-                        selected = selected,
-                        title = title,
-                        subTitle = description,
-                        shape = WidgetAppsListDimensions.largeShape,
-                        onSelect = { onWidgetAppClick(widgetApp) },
-                    )
             }
         }
+    }
+}
+
+@Composable
+private fun NoWidgetsError(modifier: Modifier, errorMessage: String) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Text(
+            text = errorMessage,
+            style = WidgetPickerTheme.typography.noWidgetsErrorText,
+            color = WidgetPickerTheme.colors.noWidgetsErrorText,
+        )
     }
 }
 
@@ -128,6 +165,7 @@ private fun ExpandableWidgetAppHeader(
     description: String,
     widgetPreviews: Map<WidgetId, WidgetPreview>,
     onWidgetAppClick: (DisplayableWidgetApp) -> Unit,
+    widgetInteractionSource: WidgetInteractionSource,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
     showDragShadow: Boolean,
 ) {
@@ -139,6 +177,7 @@ private fun ExpandableWidgetAppHeader(
                     showAllWidgetDetails = true,
                     previews = widgetPreviews,
                     modifier = Modifier.fillMaxWidth(),
+                    widgetInteractionSource = widgetInteractionSource,
                     onWidgetInteraction = onWidgetInteraction,
                     showDragShadow = showDragShadow,
                 )
@@ -157,7 +196,7 @@ private fun ExpandableWidgetAppHeader(
             when {
                 isFirst && isLast && !expanded -> WidgetAppsListDimensions.largeShape
                 isFirst -> WidgetAppsListDimensions.topLargeShape
-                isLast && !expanded -> WidgetAppsListDimensions.bottomLargeShape
+                isLast -> WidgetAppsListDimensions.bottomLargeShape
                 else -> WidgetAppsListDimensions.smallShape
             },
     )
@@ -191,6 +230,8 @@ enum class AppHeaderDescriptionStyle {
     WIDGETS_COUNT,
     COMBINED_WIDGETS_TITLE,
 }
+
+private const val SPACER_LIST_ITEM_TYPE = "spacer"
 
 private object WidgetAppsListDimensions {
     val itemSpacing = 4.dp

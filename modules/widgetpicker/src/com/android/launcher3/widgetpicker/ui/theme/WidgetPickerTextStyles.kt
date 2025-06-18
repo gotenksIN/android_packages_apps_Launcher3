@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
  * @param unSelectedListHeaderSubTitle style for the sub-title text shown below the
  *   [unSelectedListHeaderTitle] for the widget app that's collapsed / un-selected in the list of
  *   widget apps.
+ * @param noWidgetsErrorText style for the text indicating that there are no widgets available.
  * @param widgetLabel style for the text showing widget's label below its preview.
  * @param widgetSpanText style for the text showing the dimensions of the widget.
  * @param widgetDescription style for the text showing the long description of the widget.
@@ -59,6 +60,9 @@ data class WidgetPickerTextStyles(
     val unSelectedListHeaderTitle: TextStyle,
     val selectedListHeaderSubTitle: TextStyle,
     val unSelectedListHeaderSubTitle: TextStyle,
+
+    // No widgets error
+    val noWidgetsErrorText: TextStyle,
 
     // Widget details
     val widgetLabel: TextStyle,
@@ -108,6 +112,9 @@ fun defaultWidgetPickerTextStyles() =
             MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
         unSelectedListHeaderSubTitle =
             MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Normal),
+
+        // No widgets error
+        noWidgetsErrorText = MaterialTheme.typography.bodyLarge,
 
         // Widget details
         widgetLabel = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),

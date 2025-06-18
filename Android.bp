@@ -157,7 +157,6 @@ java_genrule {
         "--protolog-class com.android.internal.protolog.common.ProtoLog " +
         "--loggroups-class com.android.quickstep.util.QuickstepProtoLogGroup " +
         "--loggroups-jar $(location :launcher-quickstep_protolog-groups) " +
-        "--viewer-config-type proto " +
         "--viewer-config $(out) " +
         "$(locations :launcher-quickstep-unprocessed-protolog-src)",
     out: ["launcher.quickstep.protolog.pb"],

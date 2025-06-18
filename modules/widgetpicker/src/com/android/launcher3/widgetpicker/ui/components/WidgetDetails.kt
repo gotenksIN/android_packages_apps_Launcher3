@@ -36,7 +36,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -61,6 +60,7 @@ import com.android.launcher3.widgetpicker.R
 import com.android.launcher3.widgetpicker.shared.model.PickableWidget
 import com.android.launcher3.widgetpicker.shared.model.WidgetId
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
+import com.android.launcher3.widgetpicker.ui.WidgetInteractionSource
 import com.android.launcher3.widgetpicker.ui.components.AddButtonDefaults.TOGGLE_ANIMATION_DURATION
 import com.android.launcher3.widgetpicker.ui.components.WidgetDetailsDimensions.INVISIBLE_ALPHA
 import com.android.launcher3.widgetpicker.ui.components.WidgetDetailsDimensions.VISIBLE_ALPHA
@@ -75,6 +75,7 @@ import com.android.launcher3.widgetpicker.ui.theme.WidgetPickerTheme
  * @param showAllDetails when set, besides the widget label, also shows widget spans and 1-3 line
  *   long description
  * @param showAddButton when set, displays the add button instead of details.
+ * @param widgetInteractionSource section in which this widget is being displayed
  * @param onWidgetAddClick callback when user clicks on the add button to add the widget
  * @param modifier modifier for the top level composable.
  */
@@ -84,67 +85,63 @@ fun WidgetDetails(
     appIcon: (@Composable () -> Unit)?,
     showAllDetails: Boolean,
     showAddButton: Boolean,
+    widgetInteractionSource: WidgetInteractionSource,
     onWidgetAddClick: (WidgetInteractionInfo.WidgetAddInfo) -> Unit,
     onAddButtonToggle: (WidgetId) -> Unit,
     modifier: Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
-    val contentDescription = stringResource(
-        R.string.widget_details_accessibility_label,
-        widget.label,
-        widget.sizeInfo.spanX,
-        widget.sizeInfo.spanY
-    )
+    val contentDescription =
+        stringResource(
+            R.string.widget_details_accessibility_label,
+            widget.label,
+            widget.sizeInfo.spanX,
+            widget.sizeInfo.spanY,
+        )
 
-    val detailsAlpha: Float by animateFloatAsState(
-        targetValue = if (showAddButton) INVISIBLE_ALPHA else VISIBLE_ALPHA,
-        animationSpec = tween(durationMillis = TOGGLE_ANIMATION_DURATION),
-        label = "detailsAlphaAnimation"
-    )
+    val detailsAlpha: Float by
+        animateFloatAsState(
+            targetValue = if (showAddButton) INVISIBLE_ALPHA else VISIBLE_ALPHA,
+            animationSpec = tween(durationMillis = TOGGLE_ANIMATION_DURATION),
+            label = "detailsAlphaAnimation",
+        )
 
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier
-            .fillMaxSize()
-            .clickable(
-                onClickLabel = if (showAddButton) {
-                    stringResource(R.string.widget_tap_to_hide_add_button_label)
-                } else {
-                    stringResource(R.string.widget_tap_to_show_add_button_label)
-                },
-                interactionSource = interactionSource,
-                indication = null
-            ) {
-                haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                onAddButtonToggle(
-                    widget.id
-                )
-            }
-            .padding(
-                horizontal = WidgetDetailsDimensions.horizontalPadding,
-                vertical = WidgetDetailsDimensions.verticalPadding
-            )
+        modifier =
+            modifier
+                .fillMaxSize()
+                .clickable(
+                    onClickLabel =
+                        if (showAddButton) {
+                            stringResource(R.string.widget_tap_to_hide_add_button_label)
+                        } else {
+                            stringResource(R.string.widget_tap_to_show_add_button_label)
+                        },
+                    interactionSource = interactionSource,
+                    indication = null,
+                ) {
+                    haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                    onAddButtonToggle(widget.id)
+                }
+                .padding(
+                    horizontal = WidgetDetailsDimensions.horizontalPadding,
+                    vertical = WidgetDetailsDimensions.verticalPadding,
+                ),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top,
-            modifier = Modifier
-                .clearAndSetSemantics { this.contentDescription = contentDescription }
-                .minimumInteractiveComponentSize()
-                .graphicsLayer { alpha = detailsAlpha }
-                .fillMaxSize()
+            modifier =
+                Modifier.clearAndSetSemantics { this.contentDescription = contentDescription }
+                    .minimumInteractiveComponentSize()
+                    .graphicsLayer { alpha = detailsAlpha }
+                    .fillMaxSize(),
         ) {
-            WidgetLabel(
-                label = widget.label,
-                appIcon = appIcon,
-                modifier = Modifier
-            )
+            WidgetLabel(label = widget.label, appIcon = appIcon, modifier = Modifier)
             if (showAllDetails) {
-                WidgetSpanSizeLabel(
-                    spanX = widget.sizeInfo.spanX,
-                    spanY = widget.sizeInfo.spanY
-                )
+                WidgetSpanSizeLabel(spanX = widget.sizeInfo.spanX, spanY = widget.sizeInfo.spanY)
                 widget.description?.let { WidgetDescription(it) }
             }
         }
@@ -152,14 +149,15 @@ fun WidgetDetails(
             visible = showAddButton,
             modifier = Modifier.fillMaxSize(),
             enter = AddButtonDefaults.enterTransition,
-            exit = AddButtonDefaults.exitTransition
+            exit = AddButtonDefaults.exitTransition,
         ) {
             AddButton(
                 widget = widget,
                 onClick = {
                     onWidgetAddClick(
                         WidgetInteractionInfo.WidgetAddInfo(
-                            widget.appWidgetProviderInfo
+                            source = widgetInteractionSource,
+                            widgetInfo = widget.widgetInfo,
                         )
                     )
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -170,33 +168,28 @@ fun WidgetDetails(
 }
 
 @Composable
-private fun AddButton(
-    widget: PickableWidget,
-    onClick: () -> Unit,
-) {
+private fun AddButton(widget: PickableWidget, onClick: () -> Unit) {
     val accessibleDescription =
         stringResource(R.string.widget_tap_to_add_button_content_description, widget.label)
 
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Button(
             modifier = Modifier.minimumInteractiveComponentSize(),
             contentPadding = AddButtonDimensions.paddingValues,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = WidgetPickerTheme.colors.addButtonBackground,
-                contentColor = WidgetPickerTheme.colors.addButtonContent
-            ),
+            colors =
+                ButtonDefaults.buttonColors(
+                    containerColor = WidgetPickerTheme.colors.addButtonBackground,
+                    contentColor = WidgetPickerTheme.colors.addButtonContent,
+                ),
             onClick = onClick,
         ) {
             Icon(
                 imageVector = Icons.Filled.Add,
-                contentDescription = null // decorative
+                contentDescription = null, // decorative
             )
             Text(
                 modifier = Modifier.semantics { this.contentDescription = accessibleDescription },
-                text = stringResource(R.string.widget_tap_to_add_button_label)
+                text = stringResource(R.string.widget_tap_to_add_button_label),
             )
         }
     }
@@ -208,15 +201,13 @@ private fun WidgetLabel(label: String, appIcon: (@Composable () -> Unit)?, modif
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         if (appIcon != null) {
             appIcon()
             Spacer(
                 modifier =
-                    Modifier
-                        .width(WidgetDetailsDimensions.appIconLabelSpacing)
-                        .fillMaxHeight()
+                    Modifier.width(WidgetDetailsDimensions.appIconLabelSpacing).fillMaxHeight()
             )
         }
         Text(
@@ -272,12 +263,7 @@ private object WidgetDetailsDimensions {
 }
 
 private object AddButtonDimensions {
-    val paddingValues = PaddingValues(
-        start = 8.dp,
-        top = 11.dp,
-        end = 16.dp,
-        bottom = 11.dp
-    )
+    val paddingValues = PaddingValues(start = 8.dp, top = 11.dp, end = 16.dp, bottom = 11.dp)
 }
 
 private object AddButtonDefaults {

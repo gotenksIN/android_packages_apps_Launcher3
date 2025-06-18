@@ -65,14 +65,11 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 @AllowedDevices(allowed = [DeviceProduct.CF_PHONE])
 class LandingScreenSinglePaneTest {
-    @get:Rule
-    val limitDevicesRule = LimitDevicesRule()
+    @get:Rule val limitDevicesRule = LimitDevicesRule()
 
-    @get:Rule
-    val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+    @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val testDispatcher = UnconfinedTestDispatcher()
+    @OptIn(ExperimentalCoroutinesApi::class) private val testDispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(testDispatcher)
     private val context = InstrumentationRegistry.getInstrumentation().context
 
@@ -88,34 +85,35 @@ class LandingScreenSinglePaneTest {
 
     @Before
     fun setUp() {
-        viewModel = LandingScreenViewModel(
-            widgetsInteractor = WidgetsInteractor(
-                widgetsRepository = widgetsRepository,
-                widgetUsersRepository = widgetsUsersRepository,
-                filterWidgetsForHostUseCase = FilterWidgetsForHostUseCase(WidgetHostInfo()),
-                getWidgetAppsByProfileUseCase = GroupWidgetAppsByProfileUseCase(),
-                backgroundContext = testDispatcher
-            ),
-            widgetAppIconsInteractor = WidgetAppIconsInteractor(
-                widgetAppIconsRepository = widgetAppIconsRepository,
-                widgetsRepository = widgetsRepository,
-                backgroundContext = testDispatcher
+        viewModel =
+            LandingScreenViewModel(
+                widgetsInteractor =
+                    WidgetsInteractor(
+                        widgetsRepository = widgetsRepository,
+                        widgetUsersRepository = widgetsUsersRepository,
+                        filterWidgetsForHostUseCase = FilterWidgetsForHostUseCase(WidgetHostInfo()),
+                        getWidgetAppsByProfileUseCase = GroupWidgetAppsByProfileUseCase(),
+                        backgroundContext = testDispatcher,
+                    ),
+                widgetAppIconsInteractor =
+                    WidgetAppIconsInteractor(
+                        widgetAppIconsRepository = widgetAppIconsRepository,
+                        widgetsRepository = widgetsRepository,
+                        backgroundContext = testDispatcher,
+                    ),
             )
-        )
 
-        featuredTabLabel =
-            context.resources.getString(R.string.featured_widgets_tab_label)
-        browseTabLabel =
-            context.resources.getString(R.string.browse_widgets_tab_label)
+        featuredTabLabel = context.resources.getString(R.string.featured_widgets_tab_label)
+        browseTabLabel = context.resources.getString(R.string.browse_widgets_tab_label)
 
         widgetsRepository.seedWidgets(PERSONAL_TEST_APPS + WORK_TEST_APPS)
         widgetsRepository.seedFeaturedWidgets(setOf(featuredWidgetA.id, featuredWidgetB.id))
         widgetsUsersRepository.seedUserProfiles(
             WidgetUserProfiles(
                 personal = TestUtils.widgetUserProfilePersonal,
-                work = TestUtils.widgetUserProfileWork
+                work = TestUtils.widgetUserProfileWork,
             ),
-            workProfileUser = workUser
+            workProfileUser = workUser,
         )
     }
 
@@ -136,110 +134,173 @@ class LandingScreenSinglePaneTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun showsFeaturedSectionByDefault() = testScope.runTest {
-        composeTestRule.setContent { SinglePaneTestContent() }
+    fun noWidgets_showsError() =
+        testScope.runTest {
+            widgetsRepository.seedWidgets(listOf())
 
-        runCurrent()
-        composeTestRule.waitForIdle()
+            composeTestRule.setContent { SinglePaneTestContent() }
 
-        // Toolbar tabs state
-        composeTestRule.onNode(hasTextExactly(featuredTabLabel))
-            .assertIsSelected()
-        composeTestRule.onNode(hasTextExactly(PERSONAL_LABEL)).assertExists().assertIsNotSelected()
-        composeTestRule.onNode(hasTextExactly(WORK_LABEL)).assertExists().assertIsNotSelected()
-        // Featured Widgets state
-        composeTestRule.onNode(hasContentDescription(featuredWidgetA.label, substring = true))
-            .assertExists()
-        composeTestRule.onNode(hasContentDescription(featuredWidgetB.label, substring = true))
-            .assertExists()
-    }
+            runCurrent()
+            composeTestRule.waitForIdle()
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun clickingOnAnotherTabShowsAppsList() = testScope.runTest {
-        composeTestRule.setContent { SinglePaneTestContent() }
+            composeTestRule.onNode(hasTextExactly(PERSONAL_LABEL)).assertExists().performClick()
+            runCurrent()
+            composeTestRule.waitForIdle()
 
-        runCurrent()
-        composeTestRule.waitForIdle()
-
-        composeTestRule.onNode(hasTextExactly(PERSONAL_LABEL)).assertExists().performClick()
-        runCurrent()
-        composeTestRule.waitForIdle()
-
-        // Toolbar tabs state
-        composeTestRule.onNode(hasTextExactly(PERSONAL_LABEL)).assertExists().assertIsSelected()
-        composeTestRule.onNode(hasTextExactly(featuredTabLabel))
-            .assertIsNotSelected()
-        composeTestRule.onNode(hasTextExactly(WORK_LABEL)).assertExists().assertIsNotSelected()
-        // No recommendations showing
-        composeTestRule.onNode(hasContentDescription(featuredWidgetA.label, substring = true))
-            .assertIsNotDisplayed()
-        // Has list of personal apps showing
-        composeTestRule.onNode(hasText(PERSONAL_TEST_APPS[0].title!!.toString()))
-            .assertExists()
-        // But not the work apps
-        composeTestRule.onNode(hasText(WORK_TEST_APPS[0].title!!.toString()))
-            .assertIsNotDisplayed()
-    }
+            composeTestRule
+                .onNode(hasText("Widgets and shortcuts aren\'t available"))
+                .assertExists()
+        }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun noWorkProfile() = testScope.runTest {
-        widgetsRepository.seedWidgets(PERSONAL_TEST_APPS)
-        widgetsRepository.seedFeaturedWidgets(setOf(featuredWidgetA.id))
-        widgetsUsersRepository.seedUserProfiles(
-            WidgetUserProfiles(
-                personal = TestUtils.widgetUserProfilePersonal,
-                work = null
-            ),
-            workProfileUser = null
-        )
+    fun showsFeaturedSectionByDefault() =
+        testScope.runTest {
+            composeTestRule.setContent { SinglePaneTestContent() }
 
-        composeTestRule.setContent { SinglePaneTestContent() }
+            runCurrent()
+            composeTestRule.waitForIdle()
 
-        runCurrent()
-        composeTestRule.waitForIdle()
-
-        // Toolbar tabs state shows 2 tabs (featured / browse)
-        composeTestRule.onNode(hasTextExactly(featuredTabLabel))
-            .assertIsSelected()
-        composeTestRule.onNode(hasTextExactly(browseTabLabel)).assertExists().assertIsNotSelected()
-        composeTestRule.onNode(hasTextExactly(browseTabLabel)).onSiblings().assertCountEquals(1)
-        // featured widgets showing
-        composeTestRule.onNode(hasContentDescription(featuredWidgetA.label, substring = true))
-            .assertIsDisplayed()
-        // Widget apps list is not showing.
-        composeTestRule.onNode(hasText(PERSONAL_TEST_APPS[0].title!!.toString()))
-            .assertIsNotDisplayed()
-    }
+            // Toolbar tabs state
+            composeTestRule.onNode(hasTextExactly(featuredTabLabel)).assertIsSelected()
+            composeTestRule
+                .onNode(hasTextExactly(PERSONAL_LABEL))
+                .assertExists()
+                .assertIsNotSelected()
+            composeTestRule.onNode(hasTextExactly(WORK_LABEL)).assertExists().assertIsNotSelected()
+            // Featured Widgets state
+            composeTestRule
+                .onNode(hasContentDescription(featuredWidgetA.label, substring = true))
+                .assertExists()
+            composeTestRule
+                .onNode(hasContentDescription(featuredWidgetB.label, substring = true))
+                .assertExists()
+        }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun clickingOnAppHeaderShowsWidgetsForThatApp() = testScope.runTest {
-        composeTestRule.setContent { SinglePaneTestContent() }
+    fun clickingOnAnotherTabShowsAppsList() =
+        testScope.runTest {
+            composeTestRule.setContent { SinglePaneTestContent() }
 
-        runCurrent()
-        composeTestRule.waitForIdle()
+            runCurrent()
+            composeTestRule.waitForIdle()
 
-        composeTestRule.onNode(hasTextExactly(PERSONAL_LABEL)).assertExists().performClick()
+            composeTestRule.onNode(hasTextExactly(PERSONAL_LABEL)).assertExists().performClick()
+            runCurrent()
+            composeTestRule.waitForIdle()
 
-        runCurrent()
-        composeTestRule.waitForIdle()
+            // Toolbar tabs state
+            composeTestRule.onNode(hasTextExactly(PERSONAL_LABEL)).assertExists().assertIsSelected()
+            composeTestRule.onNode(hasTextExactly(featuredTabLabel)).assertIsNotSelected()
+            composeTestRule.onNode(hasTextExactly(WORK_LABEL)).assertExists().assertIsNotSelected()
+            // No recommendations showing
+            composeTestRule
+                .onNode(hasContentDescription(featuredWidgetA.label, substring = true))
+                .assertIsNotDisplayed()
+            // Has list of personal apps showing
+            composeTestRule.onNode(hasText(PERSONAL_TEST_APPS[0].title!!.toString())).assertExists()
+            // But not the work apps
+            composeTestRule
+                .onNode(hasText(WORK_TEST_APPS[0].title!!.toString()))
+                .assertIsNotDisplayed()
+        }
 
-        // Click on the an app header
-        val appTitle = PERSONAL_TEST_APPS[0].title!!.toString()
-        composeTestRule.onNode(hasText(appTitle)).assertExists().performClick()
-
-        runCurrent()
-        composeTestRule.waitForIdle()
-
-        // Verify the widget for that selected app is displayed
-        composeTestRule.onNode(
-            hasContentDescription(
-                PERSONAL_TEST_APPS[0].widgets[0].label,
-                substring = true
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun noWorkProfile() =
+        testScope.runTest {
+            widgetsRepository.seedWidgets(PERSONAL_TEST_APPS)
+            widgetsRepository.seedFeaturedWidgets(setOf(featuredWidgetA.id))
+            widgetsUsersRepository.seedUserProfiles(
+                WidgetUserProfiles(personal = TestUtils.widgetUserProfilePersonal, work = null),
+                workProfileUser = null,
             )
-        )
-            .assertIsDisplayed()
-    }
+
+            composeTestRule.setContent { SinglePaneTestContent() }
+
+            runCurrent()
+            composeTestRule.waitForIdle()
+
+            // Toolbar tabs state shows 2 tabs (featured / browse)
+            composeTestRule.onNode(hasTextExactly(featuredTabLabel)).assertIsSelected()
+            composeTestRule
+                .onNode(hasTextExactly(browseTabLabel))
+                .assertExists()
+                .assertIsNotSelected()
+            composeTestRule.onNode(hasTextExactly(browseTabLabel)).onSiblings().assertCountEquals(1)
+            // featured widgets showing
+            composeTestRule
+                .onNode(hasContentDescription(featuredWidgetA.label, substring = true))
+                .assertIsDisplayed()
+            // Widget apps list is not showing.
+            composeTestRule
+                .onNode(hasText(PERSONAL_TEST_APPS[0].title!!.toString()))
+                .assertIsNotDisplayed()
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun pausedWorkProfile_workWidgetsNotShown() =
+        testScope.runTest {
+            val pausedError = "work apps paused"
+            widgetsRepository.seedWidgets(PERSONAL_TEST_APPS + WORK_TEST_APPS)
+            widgetsRepository.seedFeaturedWidgets(setOf(featuredWidgetA.id))
+            widgetsUsersRepository.seedUserProfiles(
+                WidgetUserProfiles(
+                    personal = TestUtils.widgetUserProfilePersonal,
+                    work =
+                        TestUtils.widgetUserProfileWork.copy(
+                            paused = true,
+                            pausedProfileMessage = "work apps paused",
+                        ),
+                ),
+                workProfileUser = workUser,
+            )
+
+            composeTestRule.setContent { SinglePaneTestContent() }
+
+            runCurrent()
+            composeTestRule.waitForIdle()
+
+            composeTestRule.onNode(hasTextExactly(WORK_LABEL)).assertExists().performClick()
+
+            runCurrent()
+            composeTestRule.waitForIdle()
+
+            composeTestRule.onNode(hasText(pausedError)).assertIsDisplayed()
+            // And work apps aren't displayed
+            composeTestRule
+                .onNode(hasText(WORK_TEST_APPS[0].title!!.toString()))
+                .assertIsNotDisplayed()
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun clickingOnAppHeaderShowsWidgetsForThatApp() =
+        testScope.runTest {
+            composeTestRule.setContent { SinglePaneTestContent() }
+
+            runCurrent()
+            composeTestRule.waitForIdle()
+
+            composeTestRule.onNode(hasTextExactly(PERSONAL_LABEL)).assertExists().performClick()
+
+            runCurrent()
+            composeTestRule.waitForIdle()
+
+            // Click on the an app header
+            val appTitle = PERSONAL_TEST_APPS[0].title!!.toString()
+            composeTestRule.onNode(hasText(appTitle)).assertExists().performClick()
+
+            runCurrent()
+            composeTestRule.waitForIdle()
+
+            // Verify the widget for that selected app is displayed
+            composeTestRule
+                .onNode(
+                    hasContentDescription(PERSONAL_TEST_APPS[0].widgets[0].label, substring = true)
+                )
+                .assertIsDisplayed()
+        }
 }

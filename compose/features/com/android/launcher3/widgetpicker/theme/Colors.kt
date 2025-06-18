@@ -55,6 +55,9 @@ fun darkWidgetPickerColors() =
         listHeaderTitle = colorResource(R.color.widget_picker_header_app_title_color_dark),
         listHeaderSubTitle = colorResource(R.color.widget_picker_header_app_subtitle_color_dark),
 
+        // Error message
+        noWidgetsErrorText = colorResource(R.color.widget_picker_no_widget_error_color_dark),
+
         // Widgets container
         widgetsContainerBackground =
             colorResource(R.color.widget_picker_widgets_container_background_dark),
@@ -124,6 +127,9 @@ fun lightWidgetPickerColors() =
             colorResource(R.color.widget_picker_featured_header_icon_color_light),
         listHeaderTitle = colorResource(R.color.widget_picker_header_app_title_color_light),
         listHeaderSubTitle = colorResource(R.color.widget_picker_header_app_subtitle_color_light),
+
+        // Error message
+        noWidgetsErrorText = colorResource(R.color.widget_picker_no_widget_error_color_light),
 
         // Widgets container
         widgetsContainerBackground =

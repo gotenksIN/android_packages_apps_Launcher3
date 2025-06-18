@@ -151,6 +151,7 @@
     <color name="widget_picker_featured_header_icon_color_light">
         @color/system_primary_light
     </color>
+    <color name="widget_picker_no_widget_error_color_light">@color/system_on_surface_light</color>
 
     <color name="widget_picker_preview_placeholder_background_light">
         @color/system_secondary_container_light
@@ -222,6 +223,7 @@
     <color name="widget_picker_featured_header_icon_color_dark">
         @color/system_primary_dark
     </color>
+    <color name="widget_picker_no_widget_error_color_dark">@color/system_on_surface_dark</color>
 
     <color name="widget_picker_preview_placeholder_background_dark">
         @color/system_secondary_container_dark
@@ -251,6 +253,9 @@
     </color>
     <color name="widget_cell_title_color_dark">@color/system_on_surface_dark</color>
     <color name="widget_cell_subtitle_color_dark">@color/system_on_surface_variant_dark</color>
+
+    <color name="suw_all_set_expressive_theme_color">#ECDFE5</color>
+    <color name="suw_all_set_scrim">#40000000</color>
 
     <color name="material_color_surface_container_lowest">#FFFFFF</color>
     <color name="material_color_on_surface">#1B1B1F</color>

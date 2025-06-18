@@ -28,56 +28,51 @@ import androidx.compose.ui.graphics.Color
  * @param dragHandle color of the drag handle shown in the widget picker bottom sheet.
  * @param sheetTitle color of the title of entire bottom sheet
  * @param sheetDescription color of long description displayed below the title of the bottom sheet.
- *
  * @param expandCollapseIndicatorIcon color of the expand collapse button shown in the expandable
- * list of apps in the single pane view of the widget picker.
+ *   list of apps in the single pane view of the widget picker.
  * @param expandCollapseIndicatorBackground background color shown below the
- * [expandCollapseIndicatorIcon]
+ *   [expandCollapseIndicatorIcon]
  * @param expandableListItemsBackground background color of the expandable list of widget apps shown
- * in the single pane view of widget picker.
- * @param selectedListHeaderBackground background color of a widget app header that's selected
- * (in left pane of two pane picker view).
+ *   in the single pane view of widget picker.
+ * @param selectedListHeaderBackground background color of a widget app header that's selected (in
+ *   left pane of two pane picker view).
  * @param unselectedListHeaderBackground background color of a widget app headers that's not
- * selected (in left pane of two pane picker view).
+ *   selected (in left pane of two pane picker view).
  * @param widgetsContainerBackground background color of the container that displays widgets.
  * @param featuredHeaderLeadingIconBackground background color of the leading icon of the featured
- * widgets header (in left pane of two pane picker view).
+ *   widgets header (in left pane of two pane picker view).
  * @param featuredHeaderLeadingIcon color of the leading icon of the featured widgets header (in
- * left pane of two pane picker view).
+ *   left pane of two pane picker view).
  * @param listHeaderTitle color of the title text of widget app headers (in left pane of two pane
- * picker view).
+ *   picker view).
  * @param listHeaderSubTitle color of the subtitle text of widget app headers (in left pane of two
- * pane picker view).
- *
+ *   pane picker view).
+ * @param noWidgetsErrorText color of the message shown when no widgets are available or matched.
  * @param placeholderAppIcon base color of the placeholder (without alpha) shown while app icon
- * isn't loaded yet.
- *
+ *   isn't loaded yet.
  * @param widgetLabel color of the text showing widget's label below its preview.
  * @param widgetSpanText color of text showing the dimensions of the widget.
  * @param widgetDescription color of the text showing the long description of the widget.
  * @param addButtonContent color of the text / icon shown within the add button shown for a widget.
  * @param addButtonBackground background color of the add button shown for a widget.
- *
  * @param widgetPlaceholderBackground background color of the placeholder shown while a widget's
- * preview isn't loaded yet.
+ *   preview isn't loaded yet.
  * @param widgetPlaceholderContent color of the content (e.g. loading spinner) shown over the
- * [widgetPlaceholderBackground]
- *
+ *   [widgetPlaceholderBackground]
  * @param toolbarBackground color of the background of the floating toolbar that shows the tabs.
- * @param toolbarTabSelectedBackground background color of a selected tab (personal / work
- * / browse / featured) in a floating toolbar.
- * @param toolbarTabUnSelectedBackground background color of an unselected tab (personal / work
- * / browse / featured) in a floating toolbar.
+ * @param toolbarTabSelectedBackground background color of a selected tab (personal / work / browse
+ *   / featured) in a floating toolbar.
+ * @param toolbarTabUnSelectedBackground background color of an unselected tab (personal / work /
+ *   browse / featured) in a floating toolbar.
  * @param toolbarTabContent color of the text and icons in a tab within a floating toolbar.
- *
  * @param searchBarBackground background color of the search bar.
  * @param searchBarPlaceholderText color of the placeholder text shown in the search bar.
  * @param searchBarText color of the text that use types in the search bar.
  * @param searchBarSearchIcon color of the search icon shown leading the text in search bar.
  * @param searchBarBackButtonIcon color of the icon in the back button shown in place of
- * [searchBarSearchIcon] when user is in search mode.
- * @param searchBarCloseButtonIcon color of close icon button shown trailing in the search bar when
- * user has typed some text.
+ *   [searchBarSearchIcon] when user is in search mode.
+ * @param searchBarClearButtonIcon color of close icon button shown trailing in the search bar when
+ *   user has typed some text.
  * @param searchBarCursor color of the cursor in the search bar
  */
 data class WidgetPickerColors(
@@ -98,6 +93,9 @@ data class WidgetPickerColors(
     // trailing indicator
     val expandCollapseIndicatorIcon: Color,
     val expandCollapseIndicatorBackground: Color,
+
+    // Error message
+    val noWidgetsErrorText: Color,
 
     // Widgets container
     val widgetsContainerBackground: Color,
@@ -139,12 +137,13 @@ data class WidgetPickerColors(
  * part of the widget picker. It enables the host to map the widget picker colors different system
  * tokens than default.
  */
-val LocalWidgetPickerColors = staticCompositionLocalOf<WidgetPickerColors> {
-    throw IllegalStateException(
-        "No WidgetPickerColors configured. Make sure to use WidgetPickerTheme in your top level "
-                + "Composable."
-    )
-}
+val LocalWidgetPickerColors =
+    staticCompositionLocalOf<WidgetPickerColors> {
+        throw IllegalStateException(
+            "No WidgetPickerColors configured. Make sure to use WidgetPickerTheme in your top level " +
+                "Composable."
+        )
+    }
 
 /**
  * Default colors that can either be used as is in host theme or used a reference to define your own
@@ -178,6 +177,9 @@ fun defaultWidgetPickerColors() =
         expandCollapseIndicatorIcon = MaterialTheme.colorScheme.onSecondaryContainer,
         expandCollapseIndicatorBackground = MaterialTheme.colorScheme.secondaryContainer,
 
+        // Error text
+        noWidgetsErrorText = MaterialTheme.colorScheme.onSurface,
+
         // App icon
         placeholderAppIcon = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
 
@@ -199,5 +201,5 @@ fun defaultWidgetPickerColors() =
         searchBarSearchIcon = MaterialTheme.colorScheme.onSurfaceVariant,
         searchBarBackButtonIcon = MaterialTheme.colorScheme.onSurfaceVariant,
         searchBarClearButtonIcon = MaterialTheme.colorScheme.onSurfaceVariant,
-        searchBarCursor = MaterialTheme.colorScheme.primary
+        searchBarCursor = MaterialTheme.colorScheme.primary,
     )

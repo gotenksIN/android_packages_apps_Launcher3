@@ -77,9 +77,12 @@ public class TaplTestsLockedTaskbar extends AbstractTaplTestsTaskbar {
 
     @Override
     public void setUp() throws Exception {
-        Assume.assumeTrue(mLauncher.isTablet());
+        Assume.assumeTrue("Ignoring test because device is not a tablet",
+            mLauncher.isTablet());
         Assume.assumeTrue(Flags.enterDesktopByDefaultOnFreeformDisplays());
-        Assume.assumeTrue(DesktopModeStatus.canEnterDesktopMode(getTargetContext()));
+        Assume.assumeTrue(
+            "Ignoring test because device does not support desktop mode",
+            DesktopModeStatus.canEnterDesktopMode(getTargetContext()));
         super.setUp();
     }
 

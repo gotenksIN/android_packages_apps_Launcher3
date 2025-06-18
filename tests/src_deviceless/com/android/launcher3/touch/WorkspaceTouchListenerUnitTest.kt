@@ -27,96 +27,84 @@ import com.android.launcher3.Launcher
 import com.android.launcher3.LauncherState
 import com.android.launcher3.Workspace
 import com.android.launcher3.dragndrop.DragLayer
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Before
+import com.google.common.truth.Truth.assertWithMessage
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.ArgumentCaptor
-import org.mockito.Mock
-import org.mockito.Mockito.any
-import org.mockito.Mockito.never
-import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when` as whenever
-import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.stub
+import org.mockito.kotlin.verify
 import org.robolectric.annotation.LooperMode
 
 @LooperMode(LooperMode.Mode.PAUSED)
 @RunWith(AndroidJUnit4::class)
 class WorkspaceTouchListenerUnitTest {
-    @Mock private lateinit var mMockLauncher: Launcher
-    @Mock private lateinit var mMockWorkspace: Workspace<*>
-    @Mock private lateinit var mDragLayer: DragLayer
+    private val context: Context = ApplicationProvider.getApplicationContext()
 
-    private lateinit var mContext: Context
-    private lateinit var mWorkspaceTouchListener: WorkspaceTouchListener
+    private val dragLayer =
+        mock<DragLayer> {
+            // Ensure a drag layer can be used for simulated touch events.
+            on { width } doReturn 200
+            on { height } doReturn 200
+        }
+    private val mockLauncher =
+        mock<Launcher> {
+            on { dragLayer } doReturn dragLayer
 
-    @Before
-    fun setUp() {
-        MockitoAnnotations.openMocks(this)
-        mContext = ApplicationProvider.getApplicationContext()
-
-        // Provide real Resources for ViewConfiguration initialization
-        whenever(mMockLauncher.resources).thenReturn(mContext.resources)
-        whenever(mMockLauncher.isInState(LauncherState.NORMAL)).thenReturn(true)
-        whenever(mMockLauncher.deviceProfile)
-            .thenReturn(InvariantDeviceProfile.INSTANCE[mContext].getDeviceProfile(mContext))
-
-        // Ensure a drag layer can be used for simulated touch events.
-        whenever(mMockLauncher.dragLayer).thenReturn(mDragLayer)
-        whenever(mDragLayer.width).thenReturn(200)
-        whenever(mDragLayer.height).thenReturn(200)
-
-        mWorkspaceTouchListener = WorkspaceTouchListener(mMockLauncher, mMockWorkspace)
-        mMockLauncher.onTopResumedActivityChanged(false)
-    }
+            // Provide real Resources for ViewConfiguration initialization
+            on { resources } doReturn context.resources
+            on { isInState(LauncherState.NORMAL) } doReturn true
+            on { deviceProfile } doReturn
+                InvariantDeviceProfile.INSTANCE[context].getDeviceProfile(context)
+        }
+    private val mockWorkspace = mock<Workspace<*>>()
+    private val workspaceTouchListener = WorkspaceTouchListener(mockLauncher, mockWorkspace)
 
     @Test
     fun onWorkspaceTouch_whenHomeBehindDesktop_launchesHomeIntent() {
-        whenever(mMockLauncher.shouldShowHomeBehindDesktop()).thenReturn(true)
+        mockLauncher.stub { on { shouldShowHomeBehindDesktop() } doReturn true }
 
         // Simulate a tap event in the workspace.
         val downTime = SystemClock.uptimeMillis()
         val downEvent =
             MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, 100f, 100f, 0)
-        mWorkspaceTouchListener.onTouch(null, downEvent)
+        workspaceTouchListener.onTouch(null, downEvent)
         val upEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_UP, 100f, 100f, 0)
-        mWorkspaceTouchListener.onTouch(null, upEvent)
+        workspaceTouchListener.onTouch(null, upEvent)
 
         // Verify startActivity was called with the correct Intent
-        val intentCaptor = ArgumentCaptor.forClass(Intent::class.java)
-        verify(mMockLauncher).startActivity(intentCaptor.capture())
-
-        val capturedIntent = intentCaptor.value
-        assertEquals(
-            "Intent action should be ACTION_MAIN",
-            Intent.ACTION_MAIN,
-            capturedIntent.action,
-        )
-        assertTrue(
-            "Intent should have CATEGORY_HOME",
-            capturedIntent.hasCategory(Intent.CATEGORY_HOME),
-        )
-        assertTrue(
-            "Intent should have FLAG_ACTIVITY_NEW_TASK",
-            (capturedIntent.flags and Intent.FLAG_ACTIVITY_NEW_TASK) ==
-                Intent.FLAG_ACTIVITY_NEW_TASK,
-        )
+        val capturedIntent =
+            argumentCaptor<Intent>().let { intentCaptor ->
+                verify(mockLauncher).startActivity(intentCaptor.capture())
+                intentCaptor.lastValue
+            }
+        assertWithMessage("Intent action should be ACTION_MAIN")
+            .that(capturedIntent.action)
+            .isEqualTo(Intent.ACTION_MAIN)
+        assertWithMessage("Intent should have CATEGORY_HOME")
+            .that(capturedIntent.hasCategory(Intent.CATEGORY_HOME))
+            .isTrue()
+        assertWithMessage("Intent should have FLAG_ACTIVITY_NEW_TASK")
+            .that(capturedIntent.flags and Intent.FLAG_ACTIVITY_NEW_TASK)
+            .isEqualTo(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
     @Test
     fun onWorkspaceTouch_doesNotLaunchHomeIntent() {
-        whenever(mMockLauncher.shouldShowHomeBehindDesktop()).thenReturn(false)
+        mockLauncher.stub { on { shouldShowHomeBehindDesktop() } doReturn false }
 
         // Simulate a tap event in the workspace.
         val downTime = SystemClock.uptimeMillis()
         val downEvent =
             MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, 100f, 100f, 0)
-        mWorkspaceTouchListener.onTouch(null, downEvent)
+        workspaceTouchListener.onTouch(null, downEvent)
         val upEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_UP, 100f, 100f, 0)
-        mWorkspaceTouchListener.onTouch(null, upEvent)
+        workspaceTouchListener.onTouch(null, upEvent)
 
         // Verify that no Intent is called.
-        verify(mMockLauncher, never()).startActivity(any(Intent::class.java))
+        verify(mockLauncher, never()).startActivity(any<Intent>())
     }
 }
