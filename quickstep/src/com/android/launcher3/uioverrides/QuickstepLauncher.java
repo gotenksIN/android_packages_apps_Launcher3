@@ -20,7 +20,6 @@ import static android.os.Trace.TRACE_TAG_APP;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_OPTIMIZE_MEASURE;
 import static android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED;
-import static android.window.DesktopModeFlags.ENABLE_DESKTOP_WINDOWING_WALLPAPER_ACTIVITY;
 
 import static com.android.app.animation.Interpolators.EMPHASIZED;
 import static com.android.internal.jank.Cuj.CUJ_LAUNCHER_LAUNCH_APP_PAIR_FROM_WORKSPACE;
@@ -36,6 +35,7 @@ import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPLICATION;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT;
 import static com.android.launcher3.LauncherState.ALL_APPS;
+import static com.android.launcher3.LauncherState.FLAG_SKIP_STATE_ANNOUNCEMENT;
 import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.LauncherState.NO_OFFSET;
 import static com.android.launcher3.LauncherState.OVERVIEW;
@@ -184,8 +184,6 @@ import com.android.quickstep.RecentsModel;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.TaskUtils;
 import com.android.quickstep.TouchInteractionService.TISBinder;
-import com.android.quickstep.fallback.window.RecentsWindowFlags;
-import com.android.quickstep.fallback.window.RecentsWindowManager;
 import com.android.quickstep.util.ActiveGestureProtoLogProxy;
 import com.android.quickstep.util.AsyncClockEventDelegate;
 import com.android.quickstep.util.LauncherUnfoldAnimationController;
@@ -202,6 +200,8 @@ import com.android.quickstep.views.OverviewActionsView;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.RecentsViewContainer;
 import com.android.quickstep.views.TaskView;
+import com.android.quickstep.window.RecentsWindowFlags;
+import com.android.quickstep.window.RecentsWindowManager;
 import com.android.systemui.animation.back.FlingOnBackAnimationCallback;
 import com.android.systemui.shared.recents.model.Task;
 import com.android.systemui.shared.system.ActivityManagerWrapper;
@@ -307,6 +307,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         mOverviewBlurEnabled = isOverviewBackgroundBlurEnabled();
         getTheme().applyStyle(getOverviewBlurStyleResId(), true);
         super.setupViews();
+        mDepthController.setSurfaceTransactionApplier(getRootView());
 
         mActionsView = findViewById(R.id.overview_actions_view);
         RecentsView<?, LauncherState> overviewPanel = getOverviewPanel();
@@ -505,7 +506,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         shortcuts.add(WIDGETS);
         shortcuts.add(INSTALL);
         if (Flags.enableLongPressRemoveShortcut()
-                && (container == CONTAINER_HOTSEAT || container == CONTAINER_DESKTOP)) {
+                && (container == CONTAINER_HOTSEAT || container == CONTAINER_DESKTOP
+                || /* Folder */ container > 0)) {
             shortcuts.add(REMOVE);
         }
         shortcuts.add(DONT_SUGGEST_APP);
@@ -675,6 +677,15 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
             }
 
         }
+    }
+
+    @Override
+    protected void setTitle(@NonNull LauncherState state) {
+        if (state.hasFlag(FLAG_SKIP_STATE_ANNOUNCEMENT)) {
+            // Prevent accessibility title update announcement
+            getWindow().getAttributes().accessibilityTitle = getString(state.getTitle());
+        }
+        super.setTitle(state);
     }
 
     @Override
@@ -897,7 +908,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
             RecentsWindowManager defaultRecentsWindowManager =
                     RecentsWindowManager.REPOSITORY_INSTANCE.get(this).get(DEFAULT_DISPLAY);
             if (defaultRecentsWindowManager != null) {
-                defaultRecentsWindowManager.cleanupRecentsWindow();
+                defaultRecentsWindowManager.hideRecentsWindow();
             }
         }
     }
@@ -1082,15 +1093,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public void setResumed() {
-        DesktopVisibilityController desktopVisibilityController =
-                DesktopVisibilityController.INSTANCE.get(this);
-        if (!ENABLE_DESKTOP_WINDOWING_WALLPAPER_ACTIVITY.isTrue()
-                && desktopVisibilityController.isInDesktopModeAndNotInOverview(getDisplayId())
-                && !desktopVisibilityController.isRecentsGestureInProgress()) {
-            // Return early to skip setting activity to appear as resumed
-            // TODO: b/333533253 - Remove after flag rollout
-            return;
-        }
         super.setResumed();
     }
 

@@ -46,6 +46,7 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.Display;
+import android.view.DisplayCutout;
 
 import androidx.annotation.AnyThread;
 import androidx.annotation.NonNull;
@@ -255,6 +256,13 @@ public class DisplayController implements DesktopVisibilityListener {
      */
     public static boolean isInDesktopMode(Context context) {
         return getInfo(context).isInDesktopMode();
+    }
+
+    /**
+     * Returns whether the display is in desktop-first mode.
+     */
+    public static boolean isInDesktopFirstMode(Context context) {
+        return getInfo(context).isInDesktopFirstMode();
     }
 
     /**
@@ -507,6 +515,7 @@ public class DisplayController implements DesktopVisibilityListener {
         public final int rotation;
         public final Point currentSize;
         public final Rect cutout;
+        public final DisplayCutout displayCutout;
 
         // Configuration property
         public final float fontScale;
@@ -524,6 +533,7 @@ public class DisplayController implements DesktopVisibilityListener {
         private final boolean mIsTaskbarPinned;
 
         private final boolean mIsInDesktopMode;
+        private final boolean mIsInDesktopFirstMode;
 
         private final boolean mShowLockedTaskbarOnHome;
         private final boolean mIsHomeVisible;
@@ -552,7 +562,9 @@ public class DisplayController implements DesktopVisibilityListener {
             normalizedDisplayInfo = displayInfo.normalize(wmProxy);
             rotation = displayInfo.rotation;
             currentSize = displayInfo.size;
+
             cutout = WindowManagerProxy.getSafeInsets(displayInfo.cutout);
+            displayCutout = displayInfo.cutout;
 
             Configuration config = displayInfoContext.getResources().getConfiguration();
             fontScale = config.fontScale;
@@ -600,6 +612,7 @@ public class DisplayController implements DesktopVisibilityListener {
 
             mIsTaskbarPinned = LauncherPrefs.get(displayInfoContext).get(TASKBAR_PINNING);
             mIsInDesktopMode = wmProxy.isInDesktopMode(DEFAULT_DISPLAY);
+            mIsInDesktopFirstMode = wmProxy.isDisplayDesktopFirst(displayInfoContext);
             mShowLockedTaskbarOnHome = wmProxy.showLockedTaskbarOnHome(displayInfoContext);
             mShowDesktopTaskbarForFreeformDisplay = wmProxy.showDesktopTaskbarForFreeformDisplay(
                     displayInfoContext);
@@ -650,6 +663,13 @@ public class DisplayController implements DesktopVisibilityListener {
          */
         public boolean isInDesktopMode() {
             return mIsInDesktopMode;
+        }
+
+        /**
+         * Returns whether the display is in desktop-first mode.
+         */
+        public boolean isInDesktopFirstMode() {
+            return mIsInDesktopFirstMode;
         }
 
         /**
@@ -767,6 +787,7 @@ public class DisplayController implements DesktopVisibilityListener {
             pw.println("  navigationMode=" + info.getNavigationMode().name());
             pw.println("  isTaskbarPinned=" + info.mIsTaskbarPinned);
             pw.println("  isInDesktopMode=" + info.mIsInDesktopMode);
+            pw.println("  isInDesktopFirstMode=" + info.isInDesktopFirstMode());
             pw.println("  showLockedTaskbarOnHome=" + info.showLockedTaskbarOnHome());
             pw.println("  currentSize=" + info.currentSize);
             info.mPerDisplayBounds.forEach((key, value) -> pw.println(

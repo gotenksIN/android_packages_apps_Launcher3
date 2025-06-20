@@ -378,7 +378,7 @@ class TaskbarOverflowTest {
 
         assertThat(getOnUiThread { keyboardQuickSwitchController.isShownFromTaskbar }).isTrue()
         assertThat(getOnUiThread { keyboardQuickSwitchController.shownTaskIds() })
-            .containsExactlyElementsIn(0..<createdTasks)
+            .containsExactlyElementsIn(0..targetOverflowSize)
         assertThat(getOverflowIconTooltipText()).isNull()
 
         tapOverflowIcon()
@@ -452,7 +452,7 @@ class TaskbarOverflowTest {
 
         assertThat(getOnUiThread { keyboardQuickSwitchController.isShownFromTaskbar }).isTrue()
         assertThat(getOnUiThread { keyboardQuickSwitchController.shownTaskIds() })
-            .containsExactlyElementsIn(listOf(0) + (2..<createdTasks).toList())
+            .containsExactlyElementsIn(listOf(0) + (2..targetOverflowSize + 1).toList())
     }
 
     @Test
@@ -488,8 +488,11 @@ class TaskbarOverflowTest {
         runOnMainSync { recentsModel.resolvePendingTaskRequests() }
 
         assertThat(getOnUiThread { keyboardQuickSwitchController.isShownFromTaskbar }).isTrue()
+        // Taskbar is in overflow by `targetOverflowSize`, so overflow UI should have
+        // `targetOverflowSize + 1` items, to account for a spot in taskbar taken by the overflow
+        // icon. Task IDs for running desktop apps start at 1 - 0 is used for fullscreen task.
         assertThat(getOnUiThread { keyboardQuickSwitchController.shownTaskIds() })
-            .containsExactlyElementsIn(listOf(1) + (3..<createdTasks + 1).toList())
+            .containsExactlyElementsIn(listOf(1) + (3..targetOverflowSize + 2).toList())
     }
 
     @Test
@@ -607,7 +610,7 @@ class TaskbarOverflowTest {
             taskbarUnitTestRule.activityContext.dragLayer.findViewById(R.id.taskbar_view)
         taskbarView.updateItems(hotseatItems, recentAppsController.shownTasks)
         modelCallback.recentAppsController = recentAppsController
-        context.baseContext.appComponent.launcherAppState.model.addCallbacksAndLoad(modelCallback)
+        context.baseContext.appComponent.launcherAppState.model.addCallbacks(modelCallback)
         modelCallback.bindItemsAdded(hotseatItems.toList())
         return taskbarView
     }

@@ -554,6 +554,22 @@ constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int = 0) :
             ) {
                 iconView.requestFocus()
                 return true
+            } else {
+                val currentFocus = findFocus() ?: return super.dispatchKeyEvent(event)
+
+                val nextFocus =
+                    when (event.keyCode) {
+                        KeyEvent.KEYCODE_DPAD_UP -> focusSearch(currentFocus, FOCUS_BACKWARD)
+                        KeyEvent.KEYCODE_DPAD_DOWN -> focusSearch(currentFocus, FOCUS_FORWARD)
+                        KeyEvent.KEYCODE_TAB ->
+                            focusSearch(
+                                currentFocus,
+                                if (event.isShiftPressed) FOCUS_BACKWARD else FOCUS_FORWARD,
+                            )
+                        else -> null
+                    }
+
+                return nextFocus?.requestFocus() ?: super.dispatchKeyEvent(event)
             }
         }
         return super.dispatchKeyEvent(event)

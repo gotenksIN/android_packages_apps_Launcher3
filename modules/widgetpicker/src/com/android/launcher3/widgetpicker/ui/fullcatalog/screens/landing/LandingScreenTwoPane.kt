@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
@@ -39,11 +38,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.android.launcher3.widgetpicker.R
 import com.android.launcher3.widgetpicker.shared.model.WidgetAppId
 import com.android.launcher3.widgetpicker.shared.model.WidgetUserProfile
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
+import com.android.launcher3.widgetpicker.ui.WidgetInteractionSource
 import com.android.launcher3.widgetpicker.ui.components.AppHeaderDescriptionStyle
 import com.android.launcher3.widgetpicker.ui.components.LeadingIconToolbarTab
 import com.android.launcher3.widgetpicker.ui.components.ScrollableFloatingToolbar
@@ -59,7 +60,7 @@ import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.Landing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.TABS_COUNT_WITH_WORK_PROFILE
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.WORK_TAB_INDEX
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.contentShape
-import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.leftPaneContentBottomPadding
+import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.leftPaneContentBottomEdgeSpacing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.pagerItemsSpacing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneTestTags.FEATURED_WIDGETS_HEADER_TEST_TAG
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneTestTags.PERSONAL_WIDGETS_TAB_TEST_TAG
@@ -67,8 +68,8 @@ import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.Landing
 import kotlinx.coroutines.launch
 
 /**
- * A composable function that provides a two pane layout for landing screen of the full catalog
- * of widgets in the widget picker.
+ * A composable function that provides a two pane layout for landing screen of the full catalog of
+ * widgets in the widget picker.
  *
  * Ideal for large screens.
  */
@@ -87,7 +88,7 @@ fun LandingScreenTwoPane(
     onWorkWidgetAppToggle: (WidgetAppId?) -> Unit,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
     showDragShadow: Boolean,
-    ) {
+) {
     val hasWorkProfile = remember(browseWidgetsState) { browseWidgetsState.workProfile != null }
     var isFeaturedSectionShowing by rememberSaveable { mutableStateOf(true) }
     val pageCount = remember {
@@ -99,10 +100,7 @@ fun LandingScreenTwoPane(
     }
 
     val pagerState =
-        rememberPagerState(
-            initialPage = DEFAULT_SELECTED_TAB,
-            pageCount = { pageCount }
-        )
+        rememberPagerState(initialPage = DEFAULT_SELECTED_TAB, pageCount = { pageCount })
 
     Box(modifier = Modifier.fillMaxSize()) {
         TwoPaneLayout(
@@ -136,13 +134,14 @@ fun LandingScreenTwoPane(
                     showDragShadow = showDragShadow,
                 )
             },
-            rightPaneTitle = rightPaneTitle(
-                showingFeaturedTab = isFeaturedSectionShowing,
-                currentPageIndex = pagerState.currentPage,
-                browseWidgetsState = browseWidgetsState,
-                selectedPersonalWidgetAppId = selectedPersonalWidgetAppId,
-                selectedWorkWidgetAppId = selectedWorkWidgetAppId
-            ),
+            rightPaneTitle =
+                rightPaneTitle(
+                    showingFeaturedTab = isFeaturedSectionShowing,
+                    currentPageIndex = pagerState.currentPage,
+                    browseWidgetsState = browseWidgetsState,
+                    selectedPersonalWidgetAppId = selectedPersonalWidgetAppId,
+                    selectedWorkWidgetAppId = selectedWorkWidgetAppId,
+                ),
             rightContent = {
                 RightPaneContent(
                     pagerState = pagerState,
@@ -156,7 +155,7 @@ fun LandingScreenTwoPane(
                     onWidgetInteraction = onWidgetInteraction,
                     showDragShadow = showDragShadow,
                 )
-            }
+            },
         )
     }
 }
@@ -184,17 +183,13 @@ private fun rightPaneTitle(
             }
         }
 
-
     return if (showingFeaturedTab) {
         stringResource(
             R.string.widget_picker_right_pane_accessibility_label,
-            stringResource(R.string.featured_widgets_tab_label)
+            stringResource(R.string.featured_widgets_tab_label),
         )
     } else if (selectedAppName != null) {
-        stringResource(
-            R.string.widget_picker_right_pane_accessibility_label,
-            selectedAppName
-        )
+        stringResource(R.string.widget_picker_right_pane_accessibility_label, selectedAppName)
     } else {
         null
     }
@@ -212,7 +207,7 @@ private fun RightPaneContent(
     workWidgetPreviewsState: PreviewsState,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
     showDragShadow: Boolean,
-    ) {
+) {
     when {
         isFeaturedSectionSelected -> featuredWidgets()
 
@@ -221,19 +216,18 @@ private fun RightPaneContent(
                 val selectedPersonalWidgets =
                     remember(selectedPersonalWidgetAppId, browseWidgetsState.personalWidgetApps) {
                         selectedPersonalWidgetAppId.let { selectedId ->
-                            browseWidgetsState.personalWidgetApps.find {
-                                it.id == selectedId
-                            }?.widgetSizeGroups
+                            browseWidgetsState.personalWidgetApps
+                                .find { it.id == selectedId }
+                                ?.widgetSizeGroups
                         } ?: listOf()
                     }
 
                 WidgetsGrid(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentSize(),
+                    modifier = Modifier.fillMaxWidth().wrapContentSize(),
                     showAllWidgetDetails = true,
                     widgetSizeGroups = selectedPersonalWidgets,
                     previews = personalWidgetPreviewsState.previews,
+                    widgetInteractionSource = WidgetInteractionSource.BROWSE,
                     onWidgetInteraction = onWidgetInteraction,
                     showDragShadow = showDragShadow,
                 )
@@ -245,20 +239,19 @@ private fun RightPaneContent(
                 val selectedWorkWidgets =
                     remember(selectedWorkWidgetAppId, browseWidgetsState.workWidgetApps) {
                         selectedWorkWidgetAppId.let { selectedId ->
-                            browseWidgetsState.workWidgetApps.find {
-                                it.id == selectedId
-                            }?.widgetSizeGroups
+                            browseWidgetsState.workWidgetApps
+                                .find { it.id == selectedId }
+                                ?.widgetSizeGroups
                         } ?: listOf()
                     }
 
                 WidgetsGrid(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentSize(),
+                    modifier = Modifier.fillMaxWidth().wrapContentSize(),
                     showAllWidgetDetails = true,
                     widgetSizeGroups = selectedWorkWidgets,
                     previews = workWidgetPreviewsState.previews,
                     onWidgetInteraction = onWidgetInteraction,
+                    widgetInteractionSource = WidgetInteractionSource.BROWSE,
                     showDragShadow = showDragShadow,
                 )
             }
@@ -283,7 +276,10 @@ private fun LeftPaneContent(
     onWorkWidgetAppToggle: (WidgetAppId) -> Unit,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
     showDragShadow: Boolean,
-    ) {
+) {
+    val leftPaneContentBottomEdgeSpacing =
+        leftPaneContentBottomEdgeSpacing(hasFloatingToolbar = hasWorkProfile)
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             SelectableSuggestionsHeader(
@@ -291,22 +287,14 @@ private fun LeftPaneContent(
                 onSelect = onFeaturedHeaderClick,
                 count = featuredWidgetsCount,
                 shape = contentShape,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widgetPickerTestTag(FEATURED_WIDGETS_HEADER_TEST_TAG),
+                modifier =
+                    Modifier.fillMaxWidth().widgetPickerTestTag(FEATURED_WIDGETS_HEADER_TEST_TAG),
             )
             HorizontalPager(
                 state = pagerState,
                 verticalAlignment = Alignment.Top,
                 pageSpacing = pagerItemsSpacing,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        bottom = leftPaneContentBottomPadding(
-                            hasFloatingToolbar = hasWorkProfile
-                        )
-                    )
-                    .weight(1f),
+                modifier = Modifier.fillMaxWidth().weight(1f),
             ) { index ->
                 when (index) {
                     PERSONAL_TAB_INDEX -> {
@@ -318,20 +306,23 @@ private fun LeftPaneContent(
                             onPersonalWidgetAppToggle = onPersonalWidgetAppToggle,
                             onWidgetInteraction = onWidgetInteraction,
                             showDragShadow = showDragShadow,
+                            bottomContentSpacing = leftPaneContentBottomEdgeSpacing,
                         )
                     }
 
-                    WORK_TAB_INDEX -> if (hasWorkProfile) {
-                        WorkSection(
-                            browseWidgetsState = browseWidgetsState,
-                            selectedWorkWidgetAppId = selectedWorkWidgetAppId,
-                            widgetAppIconsState = widgetAppIconsState,
-                            workWidgetPreviewsState = workWidgetPreviewsState,
-                            onWorkWidgetAppToggle = onWorkWidgetAppToggle,
-                            onWidgetInteraction = onWidgetInteraction,
-                            showDragShadow = showDragShadow,
-                        )
-                    }
+                    WORK_TAB_INDEX ->
+                        if (hasWorkProfile) {
+                            WorkSection(
+                                browseWidgetsState = browseWidgetsState,
+                                selectedWorkWidgetAppId = selectedWorkWidgetAppId,
+                                widgetAppIconsState = widgetAppIconsState,
+                                workWidgetPreviewsState = workWidgetPreviewsState,
+                                onWorkWidgetAppToggle = onWorkWidgetAppToggle,
+                                onWidgetInteraction = onWidgetInteraction,
+                                showDragShadow = showDragShadow,
+                                bottomContentSpacing = leftPaneContentBottomEdgeSpacing,
+                            )
+                        }
                 }
             }
         }
@@ -340,8 +331,7 @@ private fun LeftPaneContent(
                 pagerState = pagerState,
                 personalUserProfile = browseWidgetsState.personalProfile,
                 workUserProfile = workProfile,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter),
+                modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
     }
@@ -356,7 +346,8 @@ private fun PersonalSection(
     onPersonalWidgetAppToggle: (WidgetAppId) -> Unit,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
     showDragShadow: Boolean,
-    ) {
+    bottomContentSpacing: Dp,
+) {
     Box(modifier = Modifier.fillMaxSize()) {
         WidgetAppsList(
             modifier = Modifier.fillMaxSize(),
@@ -366,11 +357,11 @@ private fun PersonalSection(
             headerDescriptionStyle = AppHeaderDescriptionStyle.WIDGETS_COUNT,
             appIcons = widgetAppIconsState.icons,
             widgetPreviews = personalWidgetPreviewsState.previews,
-            onWidgetAppClick = { widgetApp ->
-                onPersonalWidgetAppToggle(widgetApp.id)
-            },
+            onWidgetAppClick = { widgetApp -> onPersonalWidgetAppToggle(widgetApp.id) },
             onWidgetInteraction = onWidgetInteraction,
             showDragShadow = showDragShadow,
+            widgetInteractionSource = WidgetInteractionSource.BROWSE,
+            bottomContentSpacing = bottomContentSpacing,
         )
     }
 }
@@ -384,7 +375,8 @@ private fun WorkSection(
     onWorkWidgetAppToggle: (WidgetAppId) -> Unit,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
     showDragShadow: Boolean,
-    ) {
+    bottomContentSpacing: Dp,
+) {
     Box(modifier = Modifier.fillMaxSize()) {
         WidgetAppsList(
             modifier = Modifier.fillMaxSize(),
@@ -394,11 +386,15 @@ private fun WorkSection(
             headerDescriptionStyle = AppHeaderDescriptionStyle.WIDGETS_COUNT,
             appIcons = widgetAppIconsState.icons,
             widgetPreviews = workWidgetPreviewsState.previews,
-            onWidgetAppClick = { widgetApp ->
-                onWorkWidgetAppToggle(widgetApp.id)
-            },
+            onWidgetAppClick = { widgetApp -> onWorkWidgetAppToggle(widgetApp.id) },
             onWidgetInteraction = onWidgetInteraction,
             showDragShadow = showDragShadow,
+            bottomContentSpacing = bottomContentSpacing,
+            widgetInteractionSource = WidgetInteractionSource.BROWSE,
+            emptyWidgetsErrorMessage =
+                browseWidgetsState.workProfile?.let { workProfile ->
+                    workProfile.pausedProfileMessage.takeIf { workProfile.paused }
+                },
         )
     }
 }
@@ -422,9 +418,7 @@ private fun PersonalWorkToolbar(
                         leadingIcon = Icons.Filled.Person,
                         selected = currentPage == PERSONAL_TAB_INDEX,
                         onClick = {
-                            scope.launch {
-                                pagerState.animateScrollToPage(PERSONAL_TAB_INDEX)
-                            }
+                            scope.launch { pagerState.animateScrollToPage(PERSONAL_TAB_INDEX) }
                         },
                         modifier = Modifier.widgetPickerTestTag(PERSONAL_WIDGETS_TAB_TEST_TAG),
                     )
@@ -435,9 +429,7 @@ private fun PersonalWorkToolbar(
                         leadingIcon = Icons.Outlined.Work,
                         selected = currentPage == WORK_TAB_INDEX,
                         onClick = {
-                            scope.launch {
-                                pagerState.animateScrollToPage(WORK_TAB_INDEX)
-                            }
+                            scope.launch { pagerState.animateScrollToPage(WORK_TAB_INDEX) }
                         },
                         modifier = Modifier.widgetPickerTestTag(WORK_WIDGETS_TAB_TEST_TAG),
                     )
@@ -445,20 +437,17 @@ private fun PersonalWorkToolbar(
             }
         }
 
-    ScrollableFloatingToolbar(
-        modifier = modifier,
-        selectedTabIndex = currentPage,
-        tabs = tabs
-    )
+    ScrollableFloatingToolbar(modifier = modifier, selectedTabIndex = currentPage, tabs = tabs)
 }
 
 private object LandingScreenTwoPaneDimens {
     val contentShape = RoundedCornerShape(24.dp)
     val pagerItemsSpacing = 8.dp
 
-    fun leftPaneContentBottomPadding(hasFloatingToolbar: Boolean) = if (hasFloatingToolbar) {
-        56.dp
-    } else 0.dp
+    fun leftPaneContentBottomEdgeSpacing(hasFloatingToolbar: Boolean) =
+        if (hasFloatingToolbar) {
+            70.dp
+        } else 0.dp
 
     const val TABS_COUNT_WITH_WORK_PROFILE = 2
     const val TABS_COUNT_WITHOUT_WORK_PROFILE = 1

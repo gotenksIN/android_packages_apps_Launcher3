@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.quickstep.fallback.window
+package com.android.quickstep.window
 
 import android.animation.AnimatorSet
 import android.app.ActivityOptions
@@ -32,7 +32,9 @@ import android.view.RemoteAnimationTarget
 import android.view.SurfaceControl
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.window.RemoteTransition
+import androidx.core.view.isVisible
 import com.android.app.displaylib.PerDisplayInstanceProviderWithTeardown
 import com.android.app.displaylib.PerDisplayRepository
 import com.android.launcher3.AbstractFloatingView
@@ -149,6 +151,7 @@ constructor(
     private var systemUiController: SystemUiController? = null
 
     private var dragLayer: RecentsDragLayer<RecentsWindowManager>? = null
+    private var windowRootView: FrameLayout = FrameLayout(this)
     private var windowView: View? = null
     private var actionsView: OverviewActionsView<*>? = null
     private var scrimView: ScrimView? = null
@@ -200,7 +203,7 @@ constructor(
                 this@RecentsWindowManager,
                 {
                     getStateManager().goToState(BG_LAUNCHER, true)
-                    cleanupRecentsWindow()
+                    hideRecentsWindow()
                 },
                 true, /* skipFirstFrame */
             )
@@ -219,7 +222,7 @@ constructor(
                 if (isShowing() && !isVisible && isInState(DEFAULT)) {
                     // handling state where we end recents animation by swiping livetile away
                     // TODO: animate this switch.
-                    cleanupRecentsWindow()
+                    hideRecentsWindow()
                 }
             }
         }
@@ -237,13 +240,15 @@ constructor(
 
     private val screenChangedListener = ScreenOnListener { isOn ->
         if (!isOn) {
-            cleanupRecentsWindow()
+            hideRecentsWindow()
         }
     }
 
     init {
         fallbackWindowInterface.setRecentsWindowManager(this)
         homeVisibilityState.addListener(homeVisibilityListener)
+        windowManager.addView(windowRootView, windowLayoutParams)
+        windowRootView.visibility = View.GONE
     }
 
     override fun handleConfigurationChanged(configuration: Configuration?) {
@@ -262,7 +267,8 @@ constructor(
         tisBindHelper.onDestroy()
         Executors.MAIN_EXECUTOR.execute {
             onViewDestroyed()
-            cleanupRecentsWindow()
+            hideRecentsWindow()
+            windowManager.removeViewImmediate(windowRootView)
             callbacks?.removeListener(recentsAnimationListener)
             homeVisibilityState.removeListener(homeVisibilityListener)
             recentsWindowTracker.onContextDestroyed(this)
@@ -270,51 +276,53 @@ constructor(
         }
     }
 
-    fun startRecentsWindow(callbacks: RecentsAnimationCallbacks? = null) {
+    fun showRecentsWindow(callbacks: RecentsAnimationCallbacks? = null) {
         RecentsWindowProtoLogProxy.logStartRecentsWindow(isShowing(), windowView == null)
         if (isShowing()) {
             return
         }
         theme.applyStyle(overviewBlurStyleResId, true)
         if (windowView == null) {
-            windowView = layoutInflater.inflate(R.layout.fallback_recents_activity, null)
-        }
+            windowView =
+                layoutInflater.inflate(R.layout.fallback_recents_activity, windowRootView, false)
+            windowView?.let {
+                actionsView = it.findViewById(R.id.overview_actions_view)
+                recentsView =
+                    it.findViewById<FallbackRecentsView<RecentsWindowManager>?>(R.id.overview_panel)
+                        ?.apply {
+                            init(
+                                actionsView,
+                                splitSelectStateController,
+                                DesktopRecentsTransitionController(
+                                    stateManager,
+                                    systemUiProxy,
+                                    iApplicationThread,
+                                    /* depthController= */ null,
+                                ),
+                            )
+                        }
+                actionsView?.apply {
+                    updateDimension(getDeviceProfile(), recentsView?.lastComputedTaskSize)
+                    updateVerticalMargin(
+                        DisplayController.getNavigationMode(this@RecentsWindowManager))
+                }
+                scrimView = it.findViewById(R.id.scrim_view)
+                dragLayer = it.findViewById(R.id.drag_layer)
 
-        windowManager.addView(windowView, windowLayoutParams)
+                it.findOnBackInvokedDispatcher()
+                    ?.registerSystemOnBackInvokedCallback(onBackInvokedCallback)
 
-        windowView?.let {
-            actionsView = it.findViewById(R.id.overview_actions_view)
-            recentsView =
-                it.findViewById<FallbackRecentsView<RecentsWindowManager>?>(R.id.overview_panel)
-                    ?.apply {
-                        init(
-                            actionsView,
-                            splitSelectStateController,
-                            DesktopRecentsTransitionController(
-                                stateManager,
-                                systemUiProxy,
-                                iApplicationThread,
-                                /* depthController= */ null,
-                            ),
-                        )
-                    }
-            actionsView?.apply {
-                updateDimension(getDeviceProfile(), recentsView?.lastComputedTaskSize)
-                updateVerticalMargin(DisplayController.getNavigationMode(this@RecentsWindowManager))
+                it.systemUiVisibility =
+                    (View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
+
+                windowRootView.addView(it)
             }
-            scrimView = it.findViewById(R.id.scrim_view)
-            dragLayer = it.findViewById(R.id.drag_layer)
-
-            it.findOnBackInvokedDispatcher()
-                ?.registerSystemOnBackInvokedCallback(onBackInvokedCallback)
-
-            it.systemUiVisibility =
-                (View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
+            systemUiController = SystemUiController(windowView)
         }
+        windowRootView.visibility = View.VISIBLE
 
-        systemUiController = SystemUiController(windowView)
         recentsWindowTracker.handleCreate(this)
 
         this.callbacks = callbacks
@@ -363,11 +371,11 @@ constructor(
         stateManager.moveToRestState()
     }
 
-    fun cleanupRecentsWindow() {
+    fun hideRecentsWindow() {
         RecentsWindowProtoLogProxy.logCleanup(isShowing())
         if (isShowing()) {
             AbstractFloatingView.closeAllOpenViews(this, /* animate= */ false)
-            windowManager.removeViewImmediate(windowView)
+            windowRootView.visibility = View.GONE
         }
         stateManager.moveToRestState()
         callbacks?.removeListener(recentsAnimationListener)
@@ -376,12 +384,12 @@ constructor(
     }
 
     private fun isShowing(): Boolean {
-        return windowView?.parent != null
+        return windowView?.parent != null && windowRootView.isVisible
     }
 
     private fun recentAnimationStopped() {
         if (isInState(BACKGROUND_APP)) {
-            cleanupRecentsWindow()
+            hideRecentsWindow()
         }
     }
 
@@ -429,7 +437,7 @@ constructor(
         super.onStateSetEnd(state)
         RecentsWindowProtoLogProxy.logOnStateSetEnd(state.toString())
         if (!state.isRecentsViewVisible) {
-            cleanupRecentsWindow()
+            hideRecentsWindow()
         }
         AccessibilityManagerCompat.sendStateEventToTest(baseContext, state.toLauncherStateOrdinal())
     }
@@ -438,7 +446,7 @@ constructor(
         super.onRepeatStateSetAborted(state)
         RecentsWindowProtoLogProxy.logOnRepeatStateSetAborted(state.toString())
         if (!state.isRecentsViewVisible) {
-            cleanupRecentsWindow()
+            hideRecentsWindow()
         }
     }
 

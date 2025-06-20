@@ -102,6 +102,8 @@
     <dimen name="desktop_top_margin_multi_rows">72dp</dimen>
     <dimen name="desktop_bottom_margin_multi_rows">24dp</dimen>
     <dimen name="desktop_left_right_margin_multi_rows">24dp</dimen>
+    <!-- The length of the fading edge (gradient) of the task header title -->
+    <dimen name="task_header_title_fading_edge_length">28dp</dimen>
 
     <!--  How much a task being dragged for dismissal can undershoot the origin when dragged back to its start position.  -->
     <dimen name="task_dismiss_max_undershoot">25dp</dimen>
@@ -305,6 +307,7 @@
     <dimen name="allset_page_padding_horizontal">40dp</dimen>
     <dimen name="allset_page_allset_text_size">36sp</dimen>
     <dimen name="allset_page_swipe_up_text_size">14sp</dimen>
+    <dimen name="allset_page_swipe_up_text_size_expressive">16sp</dimen>
 
     <dimen name="allset_title_margin_top">24dp</dimen>
     <dimen name="allset_title_icon_margin_top">32dp</dimen>
@@ -373,7 +376,7 @@
     <dimen name="taskbar_suw_frame">96dp</dimen>
     <dimen name="taskbar_hotseat_nav_spacing">24dp</dimen>
     <dimen name="taskbar_contextual_buttons_size">35dp</dimen>
-    <dimen name="taskbar_stashed_size">24dp</dimen>
+    <dimen name="taskbar_stashed_size">@*android:dimen/taskbar_stashed_size</dimen>
     <dimen name="taskbar_stashed_handle_width">220dp</dimen>
     <dimen name="taskbar_stashed_small_screen">108dp</dimen>
     <dimen name="taskbar_unstash_input_area">316dp</dimen>

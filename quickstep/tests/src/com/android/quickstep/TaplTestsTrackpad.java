@@ -59,7 +59,8 @@ public class TaplTestsTrackpad extends AbstractQuickStepTest {
     @PortraitLandscape
     @NavigationModeSwitch
     public void goHome() throws Exception {
-        assumeTrue(mLauncher.isTablet());
+        assumeTrue("Ignoring test because device is not a tablet",
+            mLauncher.isTablet());
 
         mLauncher.setTrackpadGestureType(TrackpadGestureType.THREE_FINGER);
         startTestActivity(2);
@@ -73,7 +74,8 @@ public class TaplTestsTrackpad extends AbstractQuickStepTest {
     //  need to figure out a way to emulate that in the test, or bypass the logic altogether.
     @NavigationModeSwitch(mode = ZERO_BUTTON)
     public void pressBack() throws Exception {
-        assumeTrue(mLauncher.isTablet());
+        assumeTrue("Ignoring test because device is not a tablet",
+            mLauncher.isTablet());
         Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
 
         try {
@@ -92,7 +94,8 @@ public class TaplTestsTrackpad extends AbstractQuickStepTest {
     @PortraitLandscape
     @NavigationModeSwitch
     public void switchToOverview() throws Exception {
-        assumeTrue(mLauncher.isTablet());
+        assumeTrue("Ignoring test because device is not a tablet",
+            mLauncher.isTablet());
 
         mLauncher.setTrackpadGestureType(TrackpadGestureType.THREE_FINGER);
         startTestActivity(2);
@@ -103,7 +106,8 @@ public class TaplTestsTrackpad extends AbstractQuickStepTest {
     @PortraitLandscape
     @NavigationModeSwitch
     public void testAllAppsFromHome() throws Exception {
-        assumeTrue(mLauncher.isTablet());
+        assumeTrue("Ignoring test because device is not a tablet",
+            mLauncher.isTablet());
 
         mLauncher.setTrackpadGestureType(TrackpadGestureType.TWO_FINGER);
         assertNotNull("switchToAllApps() returned null",
@@ -114,7 +118,8 @@ public class TaplTestsTrackpad extends AbstractQuickStepTest {
     @PortraitLandscape
     @NavigationModeSwitch
     public void testQuickSwitchFromHome() throws Exception {
-        assumeTrue(mLauncher.isTablet());
+        assumeTrue("Ignoring test because device is not a tablet",
+            mLauncher.isTablet());
 
         startTestActivity(2);
         Workspace workspace = mLauncher.goHome();

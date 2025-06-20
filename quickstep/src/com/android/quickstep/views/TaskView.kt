@@ -48,7 +48,6 @@ import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.Flags.enableCoroutineThreadingImprovements
 import com.android.launcher3.Flags.enableCursorHoverStates
 import com.android.launcher3.Flags.enableDesktopExplodedView
-import com.android.launcher3.Flags.enableLargeDesktopWindowingTile
 import com.android.launcher3.Flags.enableRefactorDigitalWellbeingToast
 import com.android.launcher3.Flags.enableRefactorTaskContentView
 import com.android.launcher3.Flags.enableRefactorTaskThumbnail
@@ -82,7 +81,6 @@ import com.android.quickstep.RemoteAnimationTargets
 import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle
 import com.android.quickstep.TaskOverlayFactory
 import com.android.quickstep.TaskViewUtils
-import com.android.quickstep.fallback.window.RecentsWindowFlags.enableOverviewOnConnectedDisplays
 import com.android.quickstep.orientation.RecentsPagedOrientationHandler
 import com.android.quickstep.recents.di.RecentsDependencies
 import com.android.quickstep.recents.di.get
@@ -107,6 +105,7 @@ import com.android.quickstep.views.IconAppChipView.AppChipStatus
 import com.android.quickstep.views.OverviewActionsView.DISABLED_NO_THUMBNAIL
 import com.android.quickstep.views.OverviewActionsView.DISABLED_ROTATED
 import com.android.quickstep.views.RecentsView.UNBOUND_TASK_VIEW_ID
+import com.android.quickstep.window.RecentsWindowFlags.enableOverviewOnConnectedDisplays
 import com.android.systemui.shared.recents.model.Task
 import com.android.systemui.shared.recents.model.ThumbnailData
 import com.android.systemui.shared.system.ActivityManagerWrapper
@@ -172,7 +171,7 @@ constructor(
     val isLargeTile: Boolean
         get() =
             this == recentsView?.focusedTaskView ||
-                (enableLargeDesktopWindowingTile() && type == TaskViewType.DESKTOP) ||
+                type == TaskViewType.DESKTOP ||
                 (isExternalDisplay && !enableOverviewOnConnectedDisplays())
 
     val recentsView: RecentsView<*, *>?

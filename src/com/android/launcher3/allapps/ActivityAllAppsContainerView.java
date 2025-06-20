@@ -28,7 +28,6 @@ import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCH
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.ScrollableLayoutManager.PREDICTIVE_BACK_MIN_SCALE;
 import static com.android.launcher3.views.RecyclerViewFastScroller.FastScrollerLocation.ALL_APPS_SCROLLER;
-import static com.android.window.flags.Flags.predictiveBackThreeButtonNav;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -435,21 +434,10 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
 
     public boolean shouldContainerScroll(MotionEvent ev) {
         BaseDragLayer dragLayer = mActivityContext.getDragLayer();
-        // If the MotionEvent is inside the search box, and the container keeps on receiving touch
-        // input, container should move down.
-        if (dragLayer.isEventOverView(mSearchContainer, ev)) {
-            // If the touch was on the edit text, container should move down ONLY when edit text is
-            // already at the top.
-            View editText = mSearchUiManager.getEditText();
-            if (editText != null && dragLayer.isEventOverView(editText, ev)) {
-                boolean canScrollUp = editText.canScrollVertically(-1);
-                return !canScrollUp;
-            }
-            return true;
-        }
-        // If the MotionEvent is inside the handle area, and the container keeps on receiving touch
-        // input, container should move down.
-        if (dragLayer.isEventOverView(mBottomSheetHandleArea, ev)) {
+        // IF the MotionEvent is inside the search box or handle area, and the container keeps on
+        // receiving touch input, container should move down.
+        if (dragLayer.isEventOverView(mSearchContainer, ev)
+                || dragLayer.isEventOverView(mBottomSheetHandleArea, ev)) {
             return true;
         }
         AllAppsRecyclerView rv = getActiveRecyclerView();
@@ -1428,7 +1416,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     @Override
     public void setScaleY(float scaleY) {
         super.setScaleY(scaleY);
-        if (predictiveBackThreeButtonNav() && mNavBarScrimHeight > 0) {
+        if (mNavBarScrimHeight > 0) {
             // Call invalidate to prevent navbar scrim from scaling. The navbar scrim is drawn
             // directly onto the canvas. To prevent it from being scaled with the canvas, there's a
             // counter scale applied in dispatchDraw.
@@ -1677,7 +1665,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
             if (mRecyclerView != null) {
                 int bottomOffset = 0;
                 if (isWork() && mWorkManager.getWorkUtilityView() != null) {
-                    bottomOffset = mInsets.bottom + mWorkManager.getWorkUtilityView().getHeight();
+                    bottomOffset =
+                            mInsets.bottom + mWorkManager.getWorkUtilityView().getTotalHeight();
                 } else if (isMain() && mPrivateProfileManager != null) {
                     Optional<AdapterItem> privateSpaceHeaderItem = mAppsList.getAdapterItems()
                             .stream()

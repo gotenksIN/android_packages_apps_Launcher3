@@ -28,7 +28,6 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_WIDGETS_FULL_SHEET
 import static com.android.launcher3.AbstractFloatingView.getTopOpenViewWithType;
 import static com.android.launcher3.Flags.allAppsBlur;
 import static com.android.launcher3.Flags.enableAddAppWidgetViaConfigActivityV2;
-import static com.android.launcher3.Flags.enableWorkspaceInflation;
 import static com.android.launcher3.Flags.enableLongPressRemoveShortcut;
 import static com.android.launcher3.LauncherAnimUtils.HOTSEAT_SCALE_PROPERTY_FACTORY;
 import static com.android.launcher3.LauncherAnimUtils.SCALE_INDEX_WIDGET_TRANSITION;
@@ -240,6 +239,7 @@ import com.android.launcher3.views.FloatingIconView;
 import com.android.launcher3.views.FloatingSurfaceView;
 import com.android.launcher3.views.OptionsPopupView;
 import com.android.launcher3.views.ScrimView;
+import com.android.launcher3.views.UpdateDeferrableView;
 import com.android.launcher3.widget.LauncherAppWidgetHostView;
 import com.android.launcher3.widget.LauncherAppWidgetProviderInfo;
 import com.android.launcher3.widget.LauncherWidgetHolder;
@@ -248,6 +248,7 @@ import com.android.launcher3.widget.PendingAddWidgetInfo;
 import com.android.launcher3.widget.PendingAppWidgetHostView;
 import com.android.launcher3.widget.WidgetAddFlowHandler;
 import com.android.launcher3.widget.WidgetManagerHelper;
+import com.android.launcher3.widget.WidgetVisibilityTracker;
 import com.android.launcher3.widget.custom.CustomWidgetManager;
 import com.android.launcher3.widget.model.WidgetsListBaseEntry;
 import com.android.launcher3.widget.picker.WidgetsFullSheet;
@@ -257,7 +258,6 @@ import com.android.systemui.plugins.LauncherOverlayPlugin;
 import com.android.systemui.plugins.PluginListener;
 import com.android.systemui.plugins.shared.LauncherOverlayManager;
 import com.android.systemui.plugins.shared.LauncherOverlayManager.LauncherOverlayTouchProxy;
-import com.android.window.flags.Flags;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -326,6 +326,7 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     private WidgetManagerHelper mAppWidgetManager;
     private LauncherWidgetHolder mAppWidgetHolder;
+    private WidgetVisibilityTracker mWidgetVisibilityTracker;
     private ItemInflater<Launcher> mItemInflater;
 
     private final int[] mTmpAddItemCellCoordinates = new int[2];
@@ -454,6 +455,8 @@ public class Launcher extends StatefulActivity<LauncherState>
         mAppWidgetHolder.addProviderChangeListener(() -> refreshAndBindWidgetsForPackageUser(null));
         mItemInflater = new ItemInflater<>(this, mAppWidgetHolder, getItemOnClickListener(),
                 mFocusHandler, new CellLayout(mWorkspace.getContext(), mWorkspace));
+        mWidgetVisibilityTracker = new WidgetVisibilityTracker(this, mAppWidgetHolder, mWorkspace,
+            mStateManager);
 
         mPopupDataProvider = new PopupDataProvider(this);
         mWidgetPickerDataProvider = new WidgetPickerDataProvider();
@@ -1175,7 +1178,10 @@ public class Launcher extends StatefulActivity<LauncherState>
             getAllAppsExitEvent().ifPresent(getStatsLogManager().logger()::log);
             mAllAppsSessionLogId = null;
         }
+        setTitle(state);
+    }
 
+    protected void setTitle(@NonNull LauncherState state) {
         // Set screen title for Talkback
         setTitle(state.getTitle());
     }
@@ -1457,6 +1463,9 @@ public class Launcher extends StatefulActivity<LauncherState>
             final LauncherAppWidgetHostView launcherHostView = (LauncherAppWidgetHostView) hostView;
             showWidgetResizeFrame(launcherHostView, launcherInfo, presenterPos);
         }
+        if (mWidgetVisibilityTracker != null) {
+            mWidgetVisibilityTracker.onWidgetAdded();
+        }
     }
 
     /** Show widget resize frame. */
@@ -1698,6 +1707,7 @@ public class Launcher extends StatefulActivity<LauncherState>
 
         mAppWidgetHolder.stopListening();
         mAppWidgetHolder.destroy();
+        mWidgetVisibilityTracker.destroy();
         mWidgetPickerDataProvider.destroy();
 
         TextKeyListener.getInstance().release();
@@ -2154,7 +2164,7 @@ public class Launcher extends StatefulActivity<LauncherState>
             if (view == null) {
                 continue;
             }
-            if (enableWorkspaceInflation() && view instanceof LauncherAppWidgetHostView lv) {
+            if (view instanceof LauncherAppWidgetHostView lv) {
                 view = getAppWidgetHolder().attachViewToHostAndGetAttachedView(lv);
             }
             workspace.addInScreenFromBind(view, item);
@@ -2547,6 +2557,9 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     public void onDragLayerHierarchyChanged() {
         updateDisallowBack();
+        if (mWidgetVisibilityTracker != null) {
+            mWidgetVisibilityTracker.onDragLayerHierarchyChanged();
+        }
     }
 
     protected void addBackAnimationCallback(BackPressHandler callback) {
@@ -2558,13 +2571,6 @@ public class Launcher extends StatefulActivity<LauncherState>
     }
 
     private void updateDisallowBack() {
-        if (BuildCompat.isAtLeastV()
-                && Flags.enableDesktopWindowingMode()
-                && !Flags.enableDesktopWindowingWallpaperActivity()
-                && mDeviceProfile.getDeviceProperties().isTablet()) {
-            // TODO(b/333533253): Clean up after desktop wallpaper activity flag is rolled out
-            return;
-        }
         LauncherRootView rv = getRootView();
         if (rv != null) {
             boolean isSplitSelectionEnabled = isSplitSelectionActive();
@@ -2651,8 +2657,8 @@ public class Launcher extends StatefulActivity<LauncherState>
         getWorkspace().getPageIndicator().pauseAnimations();
 
         getWorkspace().mapOverItems((info, view) -> {
-            if (view instanceof LauncherAppWidgetHostView) {
-                ((LauncherAppWidgetHostView) view).beginDeferringUpdates();
+            if (view instanceof UpdateDeferrableView udv) {
+                udv.setUpdatesDeferred(true);
             }
             return false; // Return false to continue iterating through all the items.
         });
@@ -2663,8 +2669,8 @@ public class Launcher extends StatefulActivity<LauncherState>
         getWorkspace().getPageIndicator().skipAnimationsToEnd();
 
         getWorkspace().mapOverItems((info, view) -> {
-            if (view instanceof LauncherAppWidgetHostView) {
-                ((LauncherAppWidgetHostView) view).endDeferringUpdates();
+            if (view instanceof UpdateDeferrableView udv) {
+                udv.setUpdatesDeferred(false);
             }
             return false; // Return false to continue iterating through all the items.
         });
