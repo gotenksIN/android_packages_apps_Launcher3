@@ -25,8 +25,6 @@ package com.android.launcher3.model
  * might occur when restoring from one of these device to another, but can't be manually switched by
  * a user).
  *
- * This helps address b/419252682.
- *
  * @param columns is the number of columns of the grid.
  * @param rows is the number of rows of the grid.
  */

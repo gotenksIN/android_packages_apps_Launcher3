@@ -343,7 +343,6 @@ public class ModelDbController {
                 .filter(dbName -> mContext.getDatabasePath(dbName).exists())
                 .collect(Collectors.toList());
 
-        mOpenHelper = createDatabaseHelper(true, new DeviceGridState(mIdp).getDbFile());
         try {
             // This is the current grid we have, given by the mContext
             DeviceGridState srcDeviceState = new DeviceGridState(mContext);
@@ -366,6 +365,7 @@ public class ModelDbController {
             if (sourceGridMigrationOption != null && destinationGridMigrationOption != null
                     && sourceGridMigrationOption.canMigrate(destinationGridMigrationOption,
                     isAfterRestore)) {
+                mOpenHelper = createDatabaseHelper(true, new DeviceGridState(mIdp).getDbFile());
                 gridSizeMigrationLogic.migrateGrid(mContext, srcDeviceState, destDeviceState,
                         mOpenHelper, oldHelper.getWritableDatabase(), isDestNewDb, modelDelegate);
             } else {
