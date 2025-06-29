@@ -17,7 +17,6 @@ package com.android.quickstep;
 
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_HOME;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
-import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.Surface.ROTATION_0;
 import static android.view.Surface.ROTATION_270;
 import static android.view.Surface.ROTATION_90;
@@ -163,7 +162,6 @@ import com.android.quickstep.views.TaskContainer;
 import com.android.quickstep.views.TaskView;
 import com.android.quickstep.views.TaskViewType;
 import com.android.quickstep.window.RecentsWindowManager;
-import com.android.systemui.animation.TransitionAnimator;
 import com.android.systemui.contextualeducation.GestureType;
 import com.android.systemui.shared.recents.model.ThumbnailData;
 import com.android.systemui.shared.system.ActivityManagerWrapper;
@@ -1019,36 +1017,21 @@ public abstract class AbsSwipeUpHandler<
         mSwipePipToHomeReleaseCheck = new RemoteAnimationTargets.ReleaseCheck();
         mSwipePipToHomeReleaseCheck.setCanRelease(true);
         mRecentsAnimationTargets.addReleaseCheck(mSwipePipToHomeReleaseCheck);
-        if (TransitionAnimator.Companion.longLivedReturnAnimationsEnabled()) {
-            mHandOffAnimationToHome =
-                    targets.extras.getBoolean(KEY_EXTRA_SHELL_CAN_HAND_OFF_ANIMATION, false);
-        }
+        mHandOffAnimationToHome =
+                targets.extras.getBoolean(KEY_EXTRA_SHELL_CAN_HAND_OFF_ANIMATION, false);
 
         // Only initialize the device profile, if it has not been initialized before, as in some
         // configurations targets.homeContentInsets may not be correct.
         if (mContainer == null) {
-            RemoteAnimationTarget primaryTaskTarget = targets.apps[0];
             // orientation state is independent of which remote target handle we use since both
             // should be pointing to the same one. Just choose index 0 for now since that works for
             // both split and non-split
             RecentsOrientedState orientationState = mRemoteTargetHandles[0].getTaskViewSimulator()
                     .getOrientationState();
             DeviceProfile dp = orientationState.getLauncherDeviceProfile(
-                    mGestureState.getDisplayId());
-            Rect overviewStackBounds = mContainerInterface.getOverviewWindowBounds(
-                    targets.minimizedHomeBounds, primaryTaskTarget);
-            if (overviewStackBounds != null
-                    && !overviewStackBounds.isEmpty()
-                    && primaryTaskTarget != null) {
-                dp = dp.getMultiWindowProfile(mContext,
-                        new WindowBounds(overviewStackBounds, targets.homeContentInsets));
-            } else {
-                // If we are not in multi-window mode, home insets should be same as system insets.
-                dp = dp.copy(mContext);
-            }
+                    mGestureState.getDisplayId()).copy(mContext);
             dp.updateInsets(targets.homeContentInsets);
             initTransitionEndpoints(dp);
-            orientationState.setMultiWindowMode(dp.getDeviceProperties().isMultiWindowMode());
         }
 
         // Notify when the animation starts
@@ -1885,10 +1868,6 @@ public abstract class AbsSwipeUpHandler<
     }
 
     private void handOffAnimation(PointF velocityPxPerMs) {
-        if (!TransitionAnimator.Companion.longLivedReturnAnimationsEnabled()) {
-            return;
-        }
-
         // This function is not guaranteed to be called inside a frame. We try to access the frame
         // time immediately, but if we're not inside a frame we must post a callback to be run at
         // the beginning of the next frame.

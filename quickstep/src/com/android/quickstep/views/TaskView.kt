@@ -21,6 +21,7 @@ import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.annotation.IdRes
 import android.app.ActivityOptions
+import android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.PointF
@@ -565,6 +566,13 @@ constructor(
     private val coroutineJobs = mutableListOf<Job>()
 
     /**
+     * Returns a sequence of [Pair]s, where each pair contains a [TaskViewIcon] and its
+     * corresponding [TransformingTouchDelegate].
+     */
+    open fun getTaskIcons(): Sequence<Pair<TaskViewIcon, TransformingTouchDelegate>> =
+        taskContainers.asSequence().map() { it.iconView to it.iconTouchDelegate }
+
+    /**
      * Returns an animator of [settledProgressDismiss] that transition in with a built-in
      * interpolator.
      */
@@ -655,8 +663,8 @@ constructor(
         super.setLayoutDirection(layoutDirection)
         if (enableOverviewIconMenu()) {
             val deviceLayoutDirection = resources.configuration.layoutDirection
-            taskContainers.forEach {
-                (it.iconView as IconAppChipView).layoutDirection = deviceLayoutDirection
+            getTaskIcons().forEach { (icon, _) ->
+                (icon as IconAppChipView).layoutDirection = deviceLayoutDirection
             }
         }
     }
@@ -717,6 +725,10 @@ constructor(
         taskViewId = UNBOUND_TASK_VIEW_ID
         // TODO(b/390583187): Clean the components UI State when TaskView is recycled.
         taskContainers.forEach { it.destroy() }
+
+        if (enableOverviewIconMenu()) {
+            getTaskIcons().forEach { (icon, _) -> (icon as IconAppChipView).reset() }
+        }
     }
 
     // TODO: Clip-out the icon region from the thumbnail, since they are overlapping.
@@ -1108,7 +1120,9 @@ constructor(
     open fun setOrientationState(orientationState: RecentsOrientedState) =
         traceSection("TaskView.setOrientationState") {
             this.orientedState = orientationState
-            taskContainers.forEach { it.iconView.setIconOrientation(orientationState, isGridTask) }
+            getTaskIcons().forEach { (icon, _) ->
+                icon.setIconOrientation(orientationState, isGridTask)
+            }
             setThumbnailOrientation(orientationState)
         }
 
@@ -1340,16 +1354,9 @@ constructor(
 
     private fun onClick() {
         if (confirmSecondSplitSelectApp()) {
-            Log.d("b/310064698", "${taskIds.contentToString()} - onClick - split select is active")
             return
         }
-        val callbackList =
-            launchWithAnimation()?.apply {
-                add {
-                    Log.d("b/310064698", "${taskIds.contentToString()} - onClick - launchCompleted")
-                }
-            }
-        Log.d("b/310064698", "${taskIds.contentToString()} - onClick - callbackList: $callbackList")
+        launchWithAnimation()
         container.statsLogManager
             .logger()
             .withItemInfo(itemInfo)
@@ -1359,10 +1366,18 @@ constructor(
     /** Launch of the current task (both live and inactive tasks) with an animation. */
     fun launchWithAnimation(): RunnableList? {
         return if (isRunningTask && recentsView?.remoteTargetHandles != null) {
-            launchAsLiveTile(recentsView?.remoteTargetHandles!!)
-        } else {
-            launchAsStaticTile()
-        }
+                launchAsLiveTile(recentsView?.remoteTargetHandles!!)
+            } else {
+                launchAsStaticTile()
+            }
+            ?.also {
+                it.add {
+                    Log.d(
+                        TAG,
+                        "${taskIds.contentToString()} - launchWithAnimation - launchCompleted",
+                    )
+                }
+            }
     }
 
     private fun launchAsLiveTile(remoteTargetHandles: Array<RemoteTargetHandle>): RunnableList? {
@@ -1471,6 +1486,9 @@ constructor(
         val opts =
             container.getActivityLaunchOptions(this, null).apply {
                 options.launchDisplayId = displayId
+                // On external displays the default windowing mode is not fullscreen. To make
+                // sure fullscreen apps remain fullscreen we set the windowing mode explicitly.
+                options.launchWindowingMode = WINDOWING_MODE_FULLSCREEN
             }
         if (
             ActivityManagerWrapper.getInstance()
@@ -1701,10 +1719,10 @@ constructor(
      * might require special handling.
      */
     open fun offerTouchToChildren(event: MotionEvent): Boolean {
-        taskContainers.forEach {
+        getTaskIcons().forEach { (icon, iconTouchDelegate) ->
             if (event.action == MotionEvent.ACTION_DOWN) {
-                computeAndSetIconTouchDelegate(it.iconView, tempCoordinates, it.iconTouchDelegate)
-                if (it.iconTouchDelegate.onTouchEvent(event)) {
+                computeAndSetIconTouchDelegate(icon, tempCoordinates, iconTouchDelegate)
+                if (iconTouchDelegate.onTouchEvent(event)) {
                     return true
                 }
             }
@@ -1776,8 +1794,8 @@ constructor(
      * versa). Icons fade in, and DWB banners slide in with a "shift up" animation.
      */
     private fun onSettledProgressUpdated(settledProgress: Float) {
+        getTaskIcons().forEach { (icon, _) -> icon.setContentAlpha(settledProgress) }
         taskContainers.forEach {
-            it.iconView.setContentAlpha(settledProgress)
             if (enableRefactorDigitalWellbeingToast() && it.taskContentView is TaskContentView) {
                 it.taskContentView.onParentAnimationProgress(settledProgress)
             } else {
@@ -1810,13 +1828,13 @@ constructor(
 
     /** Set a color tint on the snapshot and supporting views. */
     open fun setColorTint(amount: Float, tintColor: Int) {
+        getTaskIcons().forEach { (icon, _) -> icon.setIconColorTint(tintColor, amount) }
         taskContainers.forEach {
             if (enableRefactorTaskThumbnail()) {
                 it.updateTintAmount(amount)
             } else {
                 it.thumbnailViewDeprecated.dimAlpha = amount
             }
-            it.iconView.setIconColorTint(tintColor, amount)
             it.digitalWellBeingToast?.setColorTint(tintColor, amount)
         }
     }
@@ -1890,12 +1908,12 @@ constructor(
     }
 
     protected open fun onFullscreenProgressChanged(fullscreenProgress: Float) {
-        taskContainers.forEach {
-            if (!enableOverviewIconMenu()) {
-                it.iconView.asView().visibility = if (fullscreenProgress < 1) VISIBLE else INVISIBLE
+        if (!enableOverviewIconMenu()) {
+            getTaskIcons().forEach { (icon, _) ->
+                icon.asView().visibility = if (fullscreenProgress < 1) VISIBLE else INVISIBLE
             }
-            it.overlay.setFullscreenProgress(fullscreenProgress)
         }
+        taskContainers.forEach { it.overlay.setFullscreenProgress(fullscreenProgress) }
         updateSettledProgressFullscreen(fullscreenProgress)
         updateFullscreenParams()
     }
@@ -1926,8 +1944,8 @@ constructor(
 
     private fun onModalnessUpdated(modalness: Float) {
         isClickable = modalness == 0f
+        getTaskIcons().forEach { (icon, _) -> icon.setModalAlpha(1f - modalness) }
         taskContainers.forEach {
-            it.iconView.setModalAlpha(1f - modalness)
             if (enableRefactorDigitalWellbeingToast() && it.taskContentView is TaskContentView) {
                 it.taskContentView.onParentAnimationProgress(1f - modalness)
             } else {

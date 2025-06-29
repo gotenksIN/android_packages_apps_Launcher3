@@ -33,6 +33,7 @@ import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 import com.android.launcher3.dagger.LauncherConcurrencyModule
+import com.android.launcher3.dagger.LauncherModelModule
 import com.android.launcher3.dagger.PerDisplayModule
 import com.android.launcher3.dagger.PluginManagerWrapperModule
 import com.android.launcher3.dagger.StaticObjectModule
@@ -53,6 +54,7 @@ import dagger.Component
 import java.io.File
 import java.util.Arrays
 import java.util.UUID
+import java.util.concurrent.Executor
 
 /**
  * Context used just for preview. It also provides a few objects (e.g. UserCache) just for preview
@@ -147,6 +149,7 @@ constructor(
             info: AppWidgetProviderInfo,
             spanX: Int,
             spanY: Int,
+            executor: Executor,
         ) {
             // Ignore
         }
@@ -167,6 +170,7 @@ constructor(
                 LauncherExecutorsModule::class,
                 NoOpWidgetPickerModule::class,
                 DesktopStateModule::class,
+                LauncherModelModule::class,
             ]
     )
     interface PreviewAppComponent : LauncherAppComponent {

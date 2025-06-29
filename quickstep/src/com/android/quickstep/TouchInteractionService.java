@@ -25,6 +25,7 @@ import static android.view.MotionEvent.ACTION_POINTER_UP;
 import static android.view.MotionEvent.ACTION_UP;
 
 import static com.android.launcher3.Flags.enableCursorHoverStates;
+import static com.android.launcher3.Flags.enableTaskbarForDirectBoot;
 import static com.android.launcher3.LauncherPrefs.backedUpItem;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
@@ -669,25 +670,32 @@ public class TouchInteractionService extends Service {
                         // since gestures will clean up the recents window when needed.
                         return;
                     }
-                    RecentsWindowManager recentsWindowManager =
-                            mRecentsWindowManagerRepository.get(DEFAULT_DISPLAY);
-                    TaskAnimationManager taskAnimationManager =
-                            mTaskAnimationManagerRepository.get(DEFAULT_DISPLAY);
-                    if (recentsWindowManager == null || taskAnimationManager == null) {
-                        return;
-                    }
-                    if (taskAnimationManager.isRecentsAnimationRunning()) {
-                        RecentsState recentsState =
-                                recentsWindowManager.getStateManager().getState();
-                        if (!recentsState.isRecentsViewVisible()) {
-                            // If we're in a state where the recents view is visible, we can ignore
-                            // the recents animation running check, otherwise we should wait for
-                            // the recents animation to end.
+                    BaseContainerInterface<?, ?> defaultContainerInterface =
+                            OverviewComponentObserver.INSTANCE.get(
+                                    TouchInteractionService.this).getContainerInterface(
+                                    DEFAULT_DISPLAY);
+                    if (defaultContainerInterface != null
+                            && defaultContainerInterface.getCreatedContainer()
+                            instanceof RecentsWindowManager recentsWindowManager) {
+                        TaskAnimationManager taskAnimationManager =
+                                mTaskAnimationManagerRepository.get(DEFAULT_DISPLAY);
+                        if (taskAnimationManager == null) {
                             return;
                         }
-                    }
-                    if (recentsWindowManager.isStarted()) {
-                        recentsWindowManager.getStateManager().goToState(RecentsState.HOME, true);
+                        if (taskAnimationManager.isRecentsAnimationRunning()) {
+                            RecentsState recentsState =
+                                    recentsWindowManager.getStateManager().getState();
+                            if (!recentsState.isRecentsViewVisible()) {
+                                // If we're in a state where the recents view is visible, we can
+                                // ignore the recents animation running check, otherwise we should
+                                // wait for the recents animation to end.
+                                return;
+                            }
+                        }
+                        if (recentsWindowManager.isStarted()) {
+                            recentsWindowManager.getStateManager().goToState(RecentsState.HOME,
+                                    true);
+                        }
                     }
                 }
             };
@@ -859,7 +867,8 @@ public class TouchInteractionService extends Service {
                 + " instance=" + System.identityHashCode(this));
         mOverviewComponentObserver = OverviewComponentObserver.INSTANCE.get(this);
         mOverviewCommandHelper = LauncherComponentProvider.get(
-                this).getOverviewCommandHelperFactory().create(this, mTaskbarManager);
+                this).getOverviewCommandHelperFactory().create(this, mTaskbarManager,
+                SystemUiProxy.INSTANCE.get(this));
         mActionCornerHandler = LauncherComponentProvider.get(
                 this).getActionCornerHandlerFactory().create(mOverviewCommandHelper);
         mUserUnlocked = true;
@@ -880,6 +889,7 @@ public class TouchInteractionService extends Service {
         onOverviewTargetChanged(mOverviewComponentObserver.isHomeAndOverviewSame());
 
         mTaskbarManager.onUserUnlocked();
+        mAllAppsActionManager.onUserUnlocked();
         mQuickstepKeyGestureEventsHandler.registerOverviewKeyGestureEvent(
                 createOverviewGestureHandler());
     }
@@ -933,8 +943,8 @@ public class TouchInteractionService extends Service {
 
     @UiThread
     private void onSystemUiFlagsChanged(@SystemUiStateFlags long lastSysUIFlags, int displayId) {
+        RecentsAnimationDeviceState deviceState = mDeviceStateRepository.get(displayId);
         if (LockedUserState.get(this).isUserUnlocked()) {
-            RecentsAnimationDeviceState deviceState = mDeviceStateRepository.get(displayId);
             TaskAnimationManager taskAnimationManager = mTaskAnimationManagerRepository.get(
                     displayId);
             if (deviceState != null && taskAnimationManager != null) {
@@ -949,6 +959,8 @@ public class TouchInteractionService extends Service {
                     taskAnimationManager.onSystemUiFlagsChanged(lastSysUIFlags, systemUiStateFlags);
                 }
             }
+        } else if (enableTaskbarForDirectBoot() && deviceState != null) {
+            mTaskbarManager.onSystemUiFlagsChanged(deviceState.getSysuiStateFlags(), displayId);
         }
     }
 

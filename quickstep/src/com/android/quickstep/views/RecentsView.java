@@ -139,7 +139,6 @@ import androidx.dynamicanimation.animation.SpringAnimation;
 
 import com.android.internal.jank.Cuj;
 import com.android.launcher3.AbstractFloatingView;
-import com.android.launcher3.BaseActivity.MultiWindowModeChangedListener;
 import com.android.launcher3.BuildConfig;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Insettable;
@@ -837,21 +836,6 @@ public abstract class RecentsView<
 
     private boolean mIs3PLauncher = false;
 
-    private MultiWindowModeChangedListener mMultiWindowModeChangedListener =
-            new MultiWindowModeChangedListener() {
-                @Override
-                public void onMultiWindowModeChanged(boolean inMultiWindowMode) {
-                    mOrientationState.setMultiWindowMode(inMultiWindowMode);
-                    setLayoutRotation(mOrientationState.getTouchRotation(),
-                            mOrientationState.getDisplayRotation());
-                    mUtils.updateChildTaskOrientations();
-                    if (!inMultiWindowMode && mOverviewStateEnabled) {
-                        // TODO: Re-enable layout transitions for addition of the unpinned task
-                        reloadIfNeeded();
-                    }
-                }
-            };
-
     @Nullable
     private RunnableList mSideTaskLaunchCallback;
     @Nullable
@@ -1268,7 +1252,6 @@ public abstract class RecentsView<
         super.onAttachedToWindow();
         updateTaskStackListenerState();
         mModel.getThumbnailCache().getHighResLoadingState().addCallback(this);
-        mContainer.addMultiWindowModeChangedListener(mMultiWindowModeChangedListener);
         TaskStackChangeListeners.getInstance().registerTaskStackListener(mTaskStackListener);
         mSyncTransactionApplier = new SurfaceTransactionApplier(this);
         runActionOnRemoteHandles(remoteTargetHandle -> remoteTargetHandle.getTransformParams()
@@ -1291,7 +1274,6 @@ public abstract class RecentsView<
 
         updateTaskStackListenerState();
         mModel.getThumbnailCache().getHighResLoadingState().removeCallback(this);
-        mContainer.removeMultiWindowModeChangedListener(mMultiWindowModeChangedListener);
         TaskStackChangeListeners.getInstance().unregisterTaskStackListener(mTaskStackListener);
         mSyncTransactionApplier = null;
         runActionOnRemoteHandles(remoteTargetHandle -> remoteTargetHandle.getTransformParams()
@@ -1582,7 +1564,7 @@ public abstract class RecentsView<
     @Nullable
     public RunnableList launchRunningDesktopTaskView() {
         TaskView taskView = getRunningTaskView();
-        if (taskView instanceof DesktopTaskView) {
+        if (taskView instanceof DesktopTaskView && isTaskViewVisible(taskView)) {
             return taskView.launchWithAnimation();
         }
         return null;
@@ -2764,6 +2746,9 @@ public abstract class RecentsView<
         setFocusedTaskViewId(INVALID_TASK_ID);
         mAnyTaskHasBeenDismissed = false;
         setTaskIconVisible(true);
+        if (mAddDesktopButton != null) {
+            mAddDesktopButton.setGestureAlpha(1f);
+        }
 
         if (enableRefactorTaskThumbnail()) {
             // TODO(b/353917593): RecentsView is never destroyed, so its dependencies need to
@@ -2938,6 +2923,9 @@ public abstract class RecentsView<
         setEnableDrawingLiveTile(false);
         setRunningTaskHidden(true);
         setTaskIconVisible(false);
+        if (mAddDesktopButton != null) {
+            mAddDesktopButton.setGestureAlpha(0f);
+        }
     }
 
     /**
@@ -3021,6 +3009,7 @@ public abstract class RecentsView<
         setRunningTaskHidden(false);
         startIconFadeInOnGestureComplete();
         setTaskIconVisible(true);
+        mUtils.startAddDesktopButtonFadeInOnGestureComplete();
         animateActionsViewIn();
 
         if (mEnableDrawingLiveTile) {
@@ -4441,6 +4430,7 @@ public abstract class RecentsView<
                             ActivityManagerWrapper.getInstance()::removeAllRecentTasks);
                     removeAllTaskViews();
                     startHome();
+                    InteractionJankMonitorWrapper.end(Cuj.CUJ_LAUNCHER_OVERVIEW_CLEAR_ALL);
                 });
             }
             mPendingAnimation = null;
@@ -4548,6 +4538,7 @@ public abstract class RecentsView<
 
     @SuppressWarnings("unused")
     private void dismissAllTasks(View view) {
+        InteractionJankMonitorWrapper.begin(this, Cuj.CUJ_LAUNCHER_OVERVIEW_CLEAR_ALL);
         if (enableExpressiveDismissTaskMotion()) {
             mDismissUtils.dismissAllTasks();
         } else {

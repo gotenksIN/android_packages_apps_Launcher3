@@ -46,6 +46,7 @@ android_test {
         "multivalentScreenshotTests/src/com/android/launcher3/widgetpicker/ui/components/FloatingToolbarScreenshotTest.kt",
         "multivalentScreenshotTests/src/com/android/launcher3/widgetpicker/ui/components/WidgetsGridScreenshotTest.kt",
         "multivalentScreenshotTests/src/com/android/launcher3/widgetpicker/ui/components/WidgetsGridTestSamples.kt",
+        "multivalentScreenshotTests/src/com/android/launcher3/widgetpicker/ui/components/WidgetAppIconTest.kt",
     ],
     platform_apis: true,
     static_libs: [
@@ -95,8 +96,10 @@ filegroup {
         "multivalentTests/src/com/android/launcher3/widgetpicker/repository/FakeWidgetsRepository.kt",
         "multivalentTests/src/com/android/launcher3/widgetpicker/repository/FakeWidgetUsersRepository.kt",
         "multivalentTests/src/com/android/launcher3/widgetpicker/repository/FakeWidgetAppIconsRepository.kt",
+        "multivalentTests/src/com/android/launcher3/widgetpicker/ui/fullcatalog/screens/landing/LandingScreenTest.kt",
         "multivalentTests/src/com/android/launcher3/widgetpicker/ui/fullcatalog/screens/landing/LandingScreenSinglePaneTest.kt",
         "multivalentTests/src/com/android/launcher3/widgetpicker/ui/fullcatalog/screens/landing/LandingScreenTwoPaneTest.kt",
+        "multivalentTests/src/com/android/launcher3/widgetpicker/ui/fullcatalog/screens/search/SearchScreenTest.kt",
         "multivalentTests/src/com/android/launcher3/widgetpicker/ui/components/WidgetInteractionsTest.kt",
         "multivalentTests/src/com/android/launcher3/widgetpicker/ui/components/WidgetsListHeaderTest.kt",
     ],

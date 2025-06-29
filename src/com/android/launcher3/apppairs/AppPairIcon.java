@@ -28,6 +28,7 @@ import android.view.LayoutInflater;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.BubbleTextView;
@@ -41,6 +42,9 @@ import com.android.launcher3.dragndrop.DraggableView;
 import com.android.launcher3.icons.IconCache;
 import com.android.launcher3.model.data.AppPairInfo;
 import com.android.launcher3.model.data.ItemInfo;
+import com.android.launcher3.popup.Poppable;
+import com.android.launcher3.popup.PoppableType;
+import com.android.launcher3.popup.PopupController;
 import com.android.launcher3.util.MultiTranslateDelegate;
 import com.android.launcher3.views.ActivityContext;
 
@@ -53,7 +57,7 @@ import java.util.function.Predicate;
  * The app pair icon is two parallel background rectangles with rounded corners. Icons of the two
  * member apps are set into these rectangles.
  */
-public class AppPairIcon extends FrameLayout implements DraggableView, Reorderable {
+public class AppPairIcon extends FrameLayout implements DraggableView, Reorderable, Poppable {
     private static final String TAG = "AppPairIcon";
 
     // The duration of the scaling animation on hover enter/exit.
@@ -89,6 +93,7 @@ public class AppPairIcon extends FrameLayout implements DraggableView, Reorderab
     // Required for Reorderable -- handles translation and bouncing movements
     private final MultiTranslateDelegate mTranslateDelegate = new MultiTranslateDelegate(this);
     private float mScaleForReorderBounce = 1f;
+    private PopupController mPopupController;
 
     public AppPairIcon(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -134,7 +139,8 @@ public class AppPairIcon extends FrameLayout implements DraggableView, Reorderab
         // a separate element (and not set as a CompoundDrawable on the BubbleTextView), we need to
         // shift the text down manually.
         lp.topMargin = container == DISPLAY_FOLDER
-                ? grid.folderChildIconSizePx + grid.folderChildDrawablePaddingPx
+                ? grid.getFolderProfile().getChildIconSizePx()
+                + grid.getFolderProfile().getChildDrawablePaddingPx()
                 : grid.getWorkspaceIconProfile().getIconSizePx()
                         + grid.getWorkspaceIconProfile().getIconDrawablePaddingPx();
         // For some reason, app icons have setIncludeFontPadding(false) inside folders, so we set it
@@ -265,8 +271,8 @@ public class AppPairIcon extends FrameLayout implements DraggableView, Reorderab
             int height = MeasureSpec.getSize(heightMeasureSpec);
             ActivityContext activity = ActivityContext.lookupContext(getContext());
             Paint.FontMetrics fm = mAppPairName.getPaint().getFontMetrics();
-            int cellHeightPx = activity.getDeviceProfile().folderChildIconSizePx
-                    + activity.getDeviceProfile().folderChildDrawablePaddingPx
+            int cellHeightPx = activity.getDeviceProfile().getFolderProfile().getChildIconSizePx()
+                    + activity.getDeviceProfile().getFolderProfile().getChildDrawablePaddingPx()
                     + (int) Math.ceil(fm.bottom - fm.top);
             setPadding(getPaddingLeft(), (height - cellHeightPx) / 2, getPaddingRight(),
                     getPaddingBottom());
@@ -282,5 +288,22 @@ public class AppPairIcon extends FrameLayout implements DraggableView, Reorderab
                         hovered ? HOVER_SCALE_MAX : HOVER_SCALE_DEFAULT)
                 .setDuration(HOVER_SCALE_DURATION)
                 .start();
+    }
+
+    @Nullable
+    @Override
+    public PopupController getPopupController() {
+        return mPopupController;
+    }
+
+    @Override
+    public void setPopupController(@NonNull PopupController popupController) {
+        mPopupController = popupController;
+    }
+
+    @NonNull
+    @Override
+    public PoppableType getPoppableType() {
+        return PoppableType.APP_PAIR;
     }
 }

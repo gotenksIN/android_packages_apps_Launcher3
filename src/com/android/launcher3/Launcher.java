@@ -202,6 +202,7 @@ import com.android.launcher3.notification.NotificationListener;
 import com.android.launcher3.pm.PinRequestHelper;
 import com.android.launcher3.popup.ArrowPopup;
 import com.android.launcher3.popup.PopupDataProvider;
+import com.android.launcher3.popup.PopupDataRepository;
 import com.android.launcher3.popup.SystemShortcut;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.StateHandler;
@@ -360,6 +361,8 @@ public class Launcher extends StatefulActivity<LauncherState>
     private LauncherAccessibilityDelegate mAccessibilityDelegate;
 
     private PopupDataProvider mPopupDataProvider;
+
+    private PopupDataRepository mPopupDataRepository;
     private WidgetPickerDataProvider mWidgetPickerDataProvider;
 
     // We only want to get the SharedPreferences once since it does an FS stat each time we get
@@ -641,14 +644,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         mRotationHelper.setCurrentTransitionRequest(REQUEST_NONE);
     }
 
-    @Override
-    public void onMultiWindowModeChanged(boolean isInMultiWindowMode, Configuration newConfig) {
-        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig);
-        // Always update device profile when multi window mode changed.
-        initDeviceProfile(mDeviceProfile.inv);
-        dispatchDeviceProfileChanged();
-    }
-
     /**
      * Initializes the drag controller.
      */
@@ -715,10 +710,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         }
 
         mDeviceProfile = deviceProfile;
-        if (isInMultiWindowMode()) {
-            mDeviceProfile = mDeviceProfile.getMultiWindowProfile(
-                    this, getMultiWindowDisplaySize());
-        }
 
         if (FOLDABLE_SINGLE_PAGE.get() && mDeviceProfile.getDeviceProperties().isTwoPanels()) {
             mCellPosMapper = new TwoPanelCellPosMapper(mDeviceProfile.inv.numColumns);
@@ -2112,6 +2103,9 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     @Override
     public void bindCompleteModelAsync(WorkspaceData itemIdMap, boolean isBindingSync) {
+        mPopupDataRepository = PopupDataRepository.PopupDataRepositoryFactory
+                .createRepository(itemIdMap.stream().toArray(ItemInfo[]:: new));
+        mPopupDataRepository.getAllPopupData();
         mModelCallbacks.bindCompleteModelAsync(itemIdMap, isBindingSync);
     }
 
@@ -2770,6 +2764,11 @@ public class Launcher extends StatefulActivity<LauncherState>
     @Override
     public PopupDataProvider getPopupDataProvider() {
         return mPopupDataProvider;
+    }
+
+    @NonNull
+    public PopupDataRepository getPopupDataRepository() {
+        return mPopupDataRepository;
     }
 
     @NonNull
