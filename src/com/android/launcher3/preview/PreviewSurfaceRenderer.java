@@ -44,10 +44,12 @@ import android.view.SurfaceControlViewHost;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.FrameLayout;
+import android.widget.FrameLayout.LayoutParams;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
+import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.graphics.GridCustomizationsProxy;
@@ -66,7 +68,7 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings("NewApi")
 public class PreviewSurfaceRenderer {
 
-    public static final int FADE_IN_ANIMATION_DURATION = 200;
+    public static final long FADE_IN_ANIMATION_DURATION = 200;
     public static final String KEY_HOST_TOKEN = "host_token";
     public static final String KEY_VIEW_WIDTH = "width";
     public static final String KEY_VIEW_HEIGHT = "height";
@@ -95,8 +97,8 @@ public class PreviewSurfaceRenderer {
     @Nullable private Boolean mDarkMode;
     private boolean mDestroyed = false;
     private boolean mHideQsb;
-    @Nullable private FrameLayout mViewRoot = null;
 
+    private final FrameLayout mViewRoot;
     private final IBinder mHostToken;
     private final int mWidth;
     private final int mHeight;
@@ -105,6 +107,9 @@ public class PreviewSurfaceRenderer {
     private final WallpaperColors mWallpaperColors;
     private final RunnableList mLifeCycleTracker;
     private final SurfaceControlViewHost mSurfaceControlViewHost;
+
+    private final InvariantDeviceProfile.OnIDPChangeListener mOnIDPChangeListener =
+            modelPropertiesChanged -> recreatePreviewRenderer();
 
     private LauncherPreviewRenderer mCurrentRenderer;
 
@@ -161,6 +166,8 @@ public class PreviewSurfaceRenderer {
                 gridName,
                 widgetHostId,
                 layoutXml);
+
+        mViewRoot = new FrameLayout(mPreviewContext);
         mAppComponent = (PreviewAppComponent) LauncherComponentProvider.get(mPreviewContext);
         mLifeCycleTracker.add(mPreviewContext::onDestroy);
 
@@ -179,7 +186,10 @@ public class PreviewSurfaceRenderer {
         }
 
         MAIN_EXECUTOR.submit(() -> {
-            mAppComponent.getIDP().addOnChangeListener(c -> recreatePreviewRenderer());
+            mSurfaceControlViewHost.setView(mViewRoot, mWidth, mHeight);
+            if (!skipAnimations) mViewRoot.setAlpha(0);
+
+            mAppComponent.getIDP().addOnChangeListener(mOnIDPChangeListener);
             recreatePreviewRenderer();
         }).get();
     }
@@ -203,15 +213,13 @@ public class PreviewSurfaceRenderer {
             mSurfacePackage = null;
         }
         mSurfaceControlViewHost.release();
-        MAIN_EXECUTOR.execute(this::destroyExistingRenderer);
-    }
-
-    @UiThread
-    private void destroyExistingRenderer() {
-        if (mCurrentRenderer != null) {
-            mCurrentRenderer.onViewDestroyed();
-        }
-        mCurrentRenderer = null;
+        MAIN_EXECUTOR.execute(() -> {
+            mAppComponent.getIDP().removeOnChangeListener(mOnIDPChangeListener);
+            if (mCurrentRenderer != null) {
+                mCurrentRenderer.onViewDestroyed();
+            }
+            mCurrentRenderer = null;
+        });
     }
 
     /**
@@ -240,7 +248,7 @@ public class PreviewSurfaceRenderer {
      * @param bundle Bundle with an int array of color ids and an int array of overriding colors.
      */
     public void previewColor(Bundle bundle) {
-        updateColorOverrides(bundle);
+        if (!updateColorOverrides(bundle)) return;
         MAIN_EXECUTOR.execute(this::recreatePreviewRenderer);
     }
 
@@ -251,7 +259,12 @@ public class PreviewSurfaceRenderer {
         return mAppComponent.getGridCustomizationsProxy();
     }
 
-    private void updateColorOverrides(Bundle bundle) {
+    /**
+     * Updates the color overrides and returns true if something has changed
+     */
+    private boolean updateColorOverrides(Bundle bundle) {
+        Boolean oldDarkMode = mDarkMode;
+        SparseIntArray oldColorsOverride = mPreviewColorOverride;
         mDarkMode =
                 bundle.containsKey(KEY_DARK_MODE) ? bundle.getBoolean(KEY_DARK_MODE) : null;
         int[] ids = bundle.getIntArray(KEY_COLOR_RESOURCE_IDS);
@@ -264,6 +277,9 @@ public class PreviewSurfaceRenderer {
         } else {
             mPreviewColorOverride = null;
         }
+        return  !Objects.equals(oldDarkMode, mDarkMode)
+                || mPreviewColorOverride != null
+                || oldColorsOverride != null;
     }
 
     /***
@@ -272,7 +288,6 @@ public class PreviewSurfaceRenderer {
      */
     @UiThread
     private void recreatePreviewRenderer() {
-        destroyExistingRenderer();
         if (mDestroyed) return;
         ContextThemeWrapper context = new ContextThemeWrapper(
                 mPreviewContext, Themes.getActivityThemeRes(mPreviewContext));
@@ -312,12 +327,19 @@ public class PreviewSurfaceRenderer {
                             .generateColorsOverride(wallpaperColors);
         }
 
+        final LauncherPreviewRenderer oldRenderer = mCurrentRenderer;
         LauncherPreviewRenderer renderer = new LauncherPreviewRenderer(
                 context, mWorkspacePageId,
                 wallpaperColorResources, mAppComponent.getModel(), themeRes);
         renderer.hideBottomRow(mHideQsb);
-        Future<?> unused = renderer.initialRender
+
+        CompletableFuture<Void> renderTask = renderer.initialRender
                 .thenAcceptAsync(this::setContentRoot, MAIN_EXECUTOR);
+        if (oldRenderer != null) {
+            Future<?> unused = CompletableFuture.anyOf(renderTask)
+                    .completeOnTimeout(null, 10, TimeUnit.SECONDS)
+                    .thenRunAsync(oldRenderer::onViewDestroyed, MAIN_EXECUTOR);
+        }
         mCurrentRenderer = renderer;
     }
 
@@ -346,25 +368,14 @@ public class PreviewSurfaceRenderer {
             return;
         }
 
-        if (mViewRoot == null) {
-            mViewRoot = new FrameLayout(mPreviewContext);
-            FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.WRAP_CONTENT, // Width
-                    FrameLayout.LayoutParams.WRAP_CONTENT  // Height
-            );
-            mViewRoot.setLayoutParams(layoutParams);
+        view.setLayoutParams(new LayoutParams(view.getMeasuredWidth(), view.getMeasuredHeight()));
+        if (mViewRoot.getChildCount() == 0) {
             mViewRoot.addView(view);
-            mViewRoot.setAlpha(mSkipAnimations ? 1 : 0);
             mViewRoot.animate().alpha(1)
                     .setInterpolator(new AccelerateDecelerateInterpolator())
                     .setDuration(FADE_IN_ANIMATION_DURATION)
                     .start();
-            mSurfaceControlViewHost.setView(
-                    mViewRoot,
-                    view.getMeasuredWidth(),
-                    view.getMeasuredHeight()
-            );
-        } else  {
+        } else {
             mViewRoot.removeAllViews();
             mViewRoot.addView(view);
         }
