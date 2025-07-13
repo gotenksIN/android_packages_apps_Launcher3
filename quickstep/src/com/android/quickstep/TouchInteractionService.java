@@ -815,10 +815,9 @@ public class TouchInteractionService extends Service {
     private void disposeEventHandlers(String reason) {
         Log.d(TAG, "disposeEventHandlers: Reason: " + reason
                 + " instance=" + System.identityHashCode(this));
-        if (ENABLE_GESTURE_NAV_ON_CONNECTED_DISPLAYS.isTrue()) {
-            if (mInputMonitorDisplayModel == null) return;
+        if (mInputMonitorDisplayModel != null) {
             mInputMonitorDisplayModel.destroy();
-            return;
+            mInputMonitorDisplayModel = null;
         }
         if (mInputEventReceiver != null) {
             mInputEventReceiver.dispose();
@@ -956,8 +955,8 @@ public class TouchInteractionService extends Service {
                     // ever will, they should be taken care of.
                     SystemUiProxy.INSTANCE.get(this).setLastSystemUiStateFlags(systemUiStateFlags);
                     mOverviewComponentObserver.setHomeDisabled(deviceState.isHomeDisabled());
-                    taskAnimationManager.onSystemUiFlagsChanged(lastSysUIFlags, systemUiStateFlags);
                 }
+                taskAnimationManager.onSystemUiFlagsChanged(lastSysUIFlags, systemUiStateFlags);
             }
         } else if (enableTaskbarForDirectBoot() && deviceState != null) {
             mTaskbarManager.onSystemUiFlagsChanged(deviceState.getSysuiStateFlags(), displayId);

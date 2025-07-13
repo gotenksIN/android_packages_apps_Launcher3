@@ -16,15 +16,16 @@
 package com.android.launcher3.icons
 
 import android.content.Context
-import android.graphics.Path
-import android.graphics.Rect
+import android.graphics.Color
 import android.graphics.drawable.AdaptiveIconDrawable
+import android.graphics.drawable.ColorDrawable
 import android.os.UserHandle
 import com.android.launcher3.Flags
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
+import com.android.launcher3.graphics.ShapeDelegate.Companion.pickBestShape
 import com.android.launcher3.graphics.ThemeManager
 import com.android.launcher3.pm.UserCache
 import com.android.launcher3.util.UserIconInfo
@@ -43,7 +44,7 @@ class LauncherIcons
 internal constructor(
     @ApplicationContext context: Context,
     idp: InvariantDeviceProfile,
-    private var themeManager: ThemeManager,
+    themeManager: ThemeManager,
     private var userCache: UserCache,
     @Assisted private val pool: ConcurrentLinkedQueue<LauncherIcons>,
 ) :
@@ -52,12 +53,16 @@ internal constructor(
         idp.fillResIconDpi,
         idp.iconBitmapSize,
         /* drawFullBleedIcons */ Flags.enableLauncherIconShapes(),
+        themeManager.themeController,
+        defaultShapeRenderer =
+            AdaptiveIconDrawable(ColorDrawable(Color.BLACK), null)
+                .apply { setBounds(0, 0, idp.iconBitmapSize, idp.iconBitmapSize) }
+                .run {
+                    pickBestShape(baseShape = iconMask, shapeStr = "")
+                        .getShapeRenderer(idp.iconBitmapSize.toFloat())
+                },
     ),
     AutoCloseable {
-
-    init {
-        mThemeController = themeManager.themeController
-    }
 
     /** Recycles a LauncherIcons that may be in-use. */
     fun recycle() {
@@ -67,11 +72,6 @@ internal constructor(
 
     override fun getUserInfo(user: UserHandle): UserIconInfo {
         return userCache.getUserInfo(user)
-    }
-
-    override fun getShapePath(drawable: AdaptiveIconDrawable, iconBounds: Rect): Path {
-        if (!Flags.enableLauncherIconShapes()) return super.getShapePath(drawable, iconBounds)
-        return themeManager.iconShape.getPath(iconBounds)
     }
 
     override fun close() {

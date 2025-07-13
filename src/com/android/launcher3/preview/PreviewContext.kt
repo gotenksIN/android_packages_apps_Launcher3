@@ -28,7 +28,6 @@ import com.android.launcher3.compose.core.widgetpicker.NoOpWidgetPickerModule
 import com.android.launcher3.concurrent.ExecutorsModule
 import com.android.launcher3.dagger.ApiWrapperModule
 import com.android.launcher3.dagger.AppModule
-import com.android.launcher3.dagger.DesktopStateModule
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
@@ -116,8 +115,7 @@ constructor(
             emptyDbDir()
             mDbDir.mkdirs()
             builder.bindParserFactory(XmlLayoutParserFactory(this, layoutXml)).bindWidgetsFactory {
-                c: Context ->
-                LauncherWidgetHolder(c, widgetHostId).apply { startListening() }
+                NonPrimaryWidgetHolder(it, widgetHostId)
             }
         }
         initDaggerComponent(builder)
@@ -163,6 +161,12 @@ constructor(
         }
     }
 
+    private class NonPrimaryWidgetHolder(context: Context, hostId: Int) :
+        LauncherWidgetHolder(context, hostId) {
+
+        override fun startListeningForSharedUpdate() = startListening()
+    }
+
     @LauncherAppSingleton // Exclude widget module since we bind widget holder separately
     @Component(
         modules =
@@ -177,7 +181,6 @@ constructor(
                 ExecutorsModule::class,
                 LauncherExecutorsModule::class,
                 NoOpWidgetPickerModule::class,
-                DesktopStateModule::class,
                 LauncherModelModule::class,
             ]
     )

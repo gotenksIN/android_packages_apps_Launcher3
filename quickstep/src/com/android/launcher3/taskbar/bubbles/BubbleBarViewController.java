@@ -18,7 +18,9 @@ package com.android.launcher3.taskbar.bubbles;
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
 
+import static com.android.launcher3.Flags.enableTaskbarUiThread;
 import static com.android.launcher3.Utilities.mapRange;
+import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_BUBBLES_EXPANDED;
 import static com.android.launcher3.taskbar.TaskbarPinningController.PINNING_PERSISTENT;
 import static com.android.launcher3.taskbar.TaskbarPinningController.PINNING_TRANSIENT;
 
@@ -33,6 +35,7 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -44,10 +47,12 @@ import com.android.launcher3.R;
 import com.android.launcher3.anim.AnimatedFloat;
 import com.android.launcher3.anim.RoundedRectRevealOutlineProvider;
 import com.android.launcher3.taskbar.TaskbarActivityContext;
+import com.android.launcher3.taskbar.TaskbarAutohideSuspendController;
 import com.android.launcher3.taskbar.TaskbarControllers;
 import com.android.launcher3.taskbar.TaskbarInsetsController;
 import com.android.launcher3.taskbar.TaskbarSharedState;
 import com.android.launcher3.taskbar.TaskbarStashController;
+import com.android.launcher3.taskbar.TaskbarUiState;
 import com.android.launcher3.taskbar.bubbles.animation.BubbleBarViewAnimator;
 import com.android.launcher3.taskbar.bubbles.flyout.BubbleBarFlyoutController;
 import com.android.launcher3.taskbar.bubbles.flyout.BubbleBarFlyoutPositioner;
@@ -92,6 +97,7 @@ public class BubbleBarViewController {
     private BubbleDragController mBubbleDragController;
     private TaskbarStashController mTaskbarStashController;
     private TaskbarInsetsController mTaskbarInsetsController;
+    private TaskbarAutohideSuspendController mTaskbarAutohideSuspendController;
     private TaskbarViewPropertiesProvider mTaskbarViewPropertiesProvider;
     private View.OnClickListener mBubbleClickListener;
     private BubbleView.Controller mBubbleViewController;
@@ -148,10 +154,28 @@ public class BubbleBarViewController {
     @Nullable
     private BubbleBarBoundsChangeListener mBoundsChangeListener;
 
-    public BubbleBarViewController(TaskbarActivityContext activity, BubbleBarView barView,
+    public BubbleBarViewController(TaskbarActivityContext activity, TaskbarUiState taskbarUiState,
+            BubbleBarView barView,
             FrameLayout bubbleBarContainer) {
         mActivity = activity;
         mBarView = barView;
+        if (enableTaskbarUiThread()) {
+            mBarView.setOnHierarchyChangeListener(new ViewGroup.OnHierarchyChangeListener() {
+                @Override
+                public void onChildViewAdded(View view, View view1) {
+                    onChildViewCountChanged();
+                }
+
+                @Override
+                public void onChildViewRemoved(View view, View view1) {
+                    onChildViewCountChanged();
+                }
+
+                private void onChildViewCountChanged() {
+                    taskbarUiState.onNewHasBubble(mBarView.getBubbleChildCount() > 0);
+                }
+            });
+        }
         mBubbleBarContainer = bubbleBarContainer;
         mSystemUiProxy = SystemUiProxy.INSTANCE.get(mActivity);
         mBubbleBarAlpha = new MultiValueAlpha(mBarView, 1 /* num alpha channels */);
@@ -174,6 +198,7 @@ public class BubbleBarViewController {
         mDragToBubbleController = bubbleControllers.dragToBubbleController;
         mTaskbarStashController = controllers.taskbarStashController;
         mTaskbarInsetsController = controllers.taskbarInsetsController;
+        mTaskbarAutohideSuspendController = controllers.taskbarAutohideSuspendController;
         mBubbleBarFlyoutController = new BubbleBarFlyoutController(
                 mBubbleBarContainer, createFlyoutPositioner(), createFlyoutCallbacks());
         mBubbleBarViewAnimator = new BubbleBarViewAnimator(
@@ -244,6 +269,8 @@ public class BubbleBarViewController {
 
             @Override
             public void onBubbleBarExpandedStateChanged(boolean expanded) {
+                mTaskbarAutohideSuspendController.updateFlag(
+                        FLAG_AUTOHIDE_SUSPEND_BUBBLES_EXPANDED, expanded);
                 if (expanded && !mTaskbarStashController.isStashed()) {
                     mTaskbarStashController.updateAndAnimateTransientTaskbar(true /* stash */,
                             false /* shouldBubblesFollow */);

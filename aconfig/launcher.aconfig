@@ -300,13 +300,6 @@ flag {
 }
 
 flag {
-    name: "enable_dismiss_prediction_undo"
-    namespace: "launcher"
-    description: "Show an 'Undo' snackbar when users dismiss a predicted hotseat item"
-    bug: "270394476"
-}
-
-flag {
     name: "enable_all_apps_button_in_hotseat"
     namespace: "launcher"
     description: "Enables displaying the all apps button in the hotseat."
@@ -651,4 +644,11 @@ flag {
     namespace: "launcher"
     description: "Enable making the first page pinned widget movable"
     bug: "427478072"
+}
+
+flag {
+    name: "show_files_on_home_screen"
+    namespace: "launcher"
+    description: "Enables file and folder items on the home screen"
+    bug: "375644352"
 }

@@ -80,11 +80,11 @@ import com.android.quickstep.fallback.FallbackRecentsStateController
 import com.android.quickstep.fallback.FallbackRecentsView
 import com.android.quickstep.fallback.RecentsDragLayer
 import com.android.quickstep.fallback.RecentsState
-import com.android.quickstep.fallback.RecentsState.BACKGROUND_APP
-import com.android.quickstep.fallback.RecentsState.BG_LAUNCHER
-import com.android.quickstep.fallback.RecentsState.DEFAULT
-import com.android.quickstep.fallback.RecentsState.MODAL_TASK
-import com.android.quickstep.fallback.RecentsState.OVERVIEW_SPLIT_SELECT
+import com.android.quickstep.fallback.RecentsState.Companion.BACKGROUND_APP
+import com.android.quickstep.fallback.RecentsState.Companion.BG_LAUNCHER
+import com.android.quickstep.fallback.RecentsState.Companion.DEFAULT
+import com.android.quickstep.fallback.RecentsState.Companion.MODAL_TASK
+import com.android.quickstep.fallback.RecentsState.Companion.OVERVIEW_SPLIT_SELECT
 import com.android.quickstep.fallback.toLauncherStateOrdinal
 import com.android.quickstep.util.RecentsAtomicAnimationFactory
 import com.android.quickstep.util.RecentsWindowProtoLogProxy
@@ -161,6 +161,7 @@ constructor(
     private var callbacks: RecentsAnimationCallbacks? = null
 
     private var taskbarUIController: TaskbarUIController? = null
+
     private val tisBindHelper: TISBindHelper = TISBindHelper(this) {}
     private val splitSelectStateController: SplitSelectStateController =
         SplitSelectStateController(
@@ -220,22 +221,19 @@ constructor(
     private val onBackAnimationCallback =
         object : FlingOnBackAnimationCallback() {
             override fun onBackInvokedCompat() {
-                // If we are in live tile mode, launch the live task, otherwise return home
-                recentsView?.runningTaskView?.launchWithAnimation() ?: startHome()
+                stateManager.state.onBackInvoked(this@RecentsWindowManager)
                 TestLogging.recordEvent(SEQUENCE_MAIN, "onBackInvokedCompat")
             }
 
             override fun onBackStartedCompat(backEvent: BackEvent) {
-                // TODO(b/427401688): Implement predictive back callbacks in follow-up CLs
+                stateManager.state.onBackStarted(this@RecentsWindowManager)
             }
 
             override fun onBackProgressedCompat(backEvent: BackEvent) {
-                // TODO(b/427401688): Implement predictive back callbacks in follow-up CLs
+                stateManager.state.onBackProgressed(this@RecentsWindowManager, backEvent.progress)
             }
 
-            override fun onBackCancelledCompat() {
-                // TODO(b/427401688): Implement predictive back callbacks in follow-up CLs
-            }
+            override fun onBackCancelledCompat() {}
         }
 
     private val homeVisibilityState = SystemUiProxy.INSTANCE.get(this).homeVisibilityState
@@ -382,7 +380,11 @@ constructor(
 
         // Don't go to home on connected displays
         if (displayId != DEFAULT_DISPLAY) {
-            recentsView.runningTaskView?.launchWithAnimation()
+            val taskView =
+                recentsView.runningTaskView
+                    ?: recentsView.currentPageTaskView
+                    ?: recentsView.firstTaskView
+            taskView?.launchWithAnimation()
             return
         }
 
@@ -478,7 +480,7 @@ constructor(
     override fun onStateSetEnd(state: RecentsState) {
         super.onStateSetEnd(state)
         RecentsWindowProtoLogProxy.logOnStateSetEnd(state.toString())
-        if (!state.isRecentsViewVisible) {
+        if (!state.isRecentsViewVisible()) {
             hideRecentsWindow()
         }
         AccessibilityManagerCompat.sendStateEventToTest(baseContext, state.toLauncherStateOrdinal())
@@ -487,7 +489,7 @@ constructor(
     override fun onRepeatStateSetAborted(state: RecentsState) {
         super.onRepeatStateSetAborted(state)
         RecentsWindowProtoLogProxy.logOnRepeatStateSetAborted(state.toString())
-        if (!state.isRecentsViewVisible) {
+        if (!state.isRecentsViewVisible()) {
             hideRecentsWindow()
         }
     }
@@ -561,7 +563,7 @@ constructor(
     }
 
     override fun isStarted(): Boolean {
-        return isShowing() && stateManager.state.isRecentsViewVisible
+        return isShowing() && stateManager.state.isRecentsViewVisible()
     }
 
     /** Adds a callback for the provided activity event */
@@ -583,7 +585,7 @@ constructor(
     }
 
     override fun isRecentsViewVisible(): Boolean {
-        return isShowing() || getStateManager().state!!.isRecentsViewVisible
+        return isShowing() || getStateManager().state!!.isRecentsViewVisible()
     }
 
     override fun createAtomicAnimationFactory(): AtomicAnimationFactory<RecentsState?>? {

@@ -982,7 +982,7 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
     private AnimatorPlaybackController createIconAlignmentController(DeviceProfile launcherDp) {
         PendingAnimation setter = new PendingAnimation(100);
         // icon alignment not needed for pinned taskbar.
-        if (TaskbarFeatureEvaluator.getInstance(mActivity).isPersistent()) {
+        if (mActivity.getTaskbarFeatureEvaluator().isPersistent()) {
             return setter.createPlaybackController();
         }
         mOnControllerPreCreateCallback.run();

@@ -35,7 +35,6 @@ import android.content.Intent;
 import android.os.SystemProperties;
 import android.util.Log;
 import android.view.RemoteAnimationTarget;
-import android.window.DesktopExperienceFlags;
 import android.window.TransitionInfo;
 
 import androidx.annotation.NonNull;
@@ -78,6 +77,7 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
     public static final boolean SHELL_TRANSITIONS_ROTATION =
             SystemProperties.getBoolean("persist.wm.debug.shell_transit_rotate", false);
     private final Context mCtx;
+    private final DisplayController mDisplayController;
     private RecentsAnimationController mController;
     private RecentsAnimationCallbacks mCallbacks;
     private RecentsAnimationTargets mTargets;
@@ -124,9 +124,11 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
     @AssistedInject
     public TaskAnimationManager(
             @ApplicationContext Context ctx,
-            @Assisted int displayId) {
+            @Assisted int displayId,
+            DisplayController displayController) {
         mCtx = ctx;
         mDisplayId = displayId;
+        mDisplayController = displayController;
     }
 
     SystemUiProxy getSystemUiProxy() {
@@ -277,7 +279,7 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
                 // (e.g. in Y's onResume). The case will be: lastStartedTask=Y and appearedTask=X.
                 return mLastGestureState.getEndTarget() == GestureState.GestureEndTarget.NEW_TASK
                         && ArrayUtils.find(appearedTaskTargets,
-                                mLastGestureState.mLastStartedTaskIdPredicate) == null;
+                                mLastGestureState.getLastStartedTaskIdPredicate()) == null;
             }
 
             @Override
@@ -286,11 +288,13 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
                 RemoteAnimationTarget appearedTaskTarget = appearedTaskTargets[0];
                 BaseContainerInterface containerInterface =
                         mLastGestureState.getContainerInterface();
+                DisplayController.Info displayInfo = mDisplayController.getInfoForDisplay(
+                        mDisplayId);
                 for (RemoteAnimationTarget compat : appearedTaskTargets) {
                     if (compat.windowConfiguration.getActivityType() == ACTIVITY_TYPE_HOME
                             && containerInterface.getCreatedContainer() instanceof RecentsActivity
-                            && DisplayController.INSTANCE.get(mCtx).getInfoForDisplay(
-                            mDisplayId).getNavigationMode() != NO_BUTTON) {
+                            && displayInfo != null
+                            && displayInfo.getNavigationMode() != NO_BUTTON) {
                         // The only time we get onTasksAppeared() in button navigation with a
                         // 3p launcher is if the user goes to overview first, and in this case we
                         // can immediately finish the transition
@@ -385,27 +389,6 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
     }
 
     /**
-     * Executes the provided {@code homeAction} lambda if this TaskAnimationManager is associated
-     * with the default display. This prevents navigating to a home activity that is pinned to a
-     * different display.
-     *
-     * @param homeAction The lambda to execute for the standard home action on the default display.
-     */
-    public void maybeStartHomeAction(Runnable homeAction) {
-        if (!DesktopExperienceFlags.ENABLE_REJECT_HOME_TRANSITION.isTrue()) {
-          homeAction.run();
-          return;
-        }
-
-        if (mDisplayId == DEFAULT_DISPLAY) {
-            homeAction.run();
-        } else {
-            // TODO: b/378443899 - Implement the reject home transition.
-            // For now, simply suppress the transition.
-        }
-    }
-
-    /**
      * Continues the existing running recents animation for a new gesture.
      */
     public RecentsAnimationCallbacks continueRecentsAnimation(GestureState gestureState) {
@@ -437,8 +420,9 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
         boolean isLocked = SystemUiFlagUtils.isLocked(newSysUIFlags);
         if (wasLocked != isLocked && isLocked) {
             // Finish the running recents animation when locking the device.
-            finishRunningRecentsAnimation(
-                    mController != null && mController.getFinishTargetIsLauncher());
+            finishRunningRecentsAnimation(/* toHome */
+                    (mController != null && mController.getFinishTargetIsLauncher())
+                            || mDisplayId != DEFAULT_DISPLAY);
         }
     }
 
