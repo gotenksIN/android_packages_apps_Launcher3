@@ -157,11 +157,12 @@ public class TaskbarControllers {
      * TaskbarControllers instance, but should be careful to only access things that were created
      * in constructors for now, as some controllers may still be waiting for init().
      */
-    public void init(@NonNull TaskbarSharedState sharedState, AnimatorSet startAnimation) {
+    public void init(@NonNull TaskbarSharedState sharedState, AnimatorSet startAnimation,
+            TaskbarUiState taskbarUiState) {
         mAreAllControllersInitialized = false;
         mSharedState = sharedState;
 
-        taskbarDragController.init(this);
+        taskbarDragController.init(this, taskbarUiState);
         navbarButtonsViewController.init(this);
         rotationButtonController.init();
         taskbarDragLayerController.init(this, startAnimation);
@@ -183,7 +184,7 @@ public class TaskbarControllers {
         voiceInteractionWindowController.init(this);
         taskbarRecentAppsController.init(this, sharedState.recentTasksBeforeTaskbarRecreate);
         taskbarTranslationController.init(this);
-        taskbarEduTooltipController.init(this);
+        taskbarEduTooltipController.init(this, taskbarUiState);
         keyboardQuickSwitchController.init(this);
         taskbarPinningController.init(this, mSharedState);
         taskbarDesktopModeController.init(this, mSharedState);

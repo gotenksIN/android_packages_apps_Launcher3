@@ -142,7 +142,6 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
     private var viewModel =
         DesktopTaskViewModel(
             organizeDesktopTasksUseCase = RecentsDependencies.get(context),
-            removeTaskAndRebalanceLayoutUseCase = RecentsDependencies.get(context),
             desktopTileBackgroundRepository = RecentsDependencies.get(context),
             dispatcherProvider = dispatcherProvider,
         )
@@ -271,10 +270,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                     is HiddenDesktopTaskBoundsData -> {
                         shouldBeDisplayedInOverview = false
                         overviewTaskBounds =
-                            DesktopLayoutUtils.createPlaceholderBounds(
-                                getScreenRect(),
-                                getDesktopLayoutConfig(),
-                            )
+                            DesktopLayoutUtils.createPlaceholderBounds(getDesktopLayoutConfig())
                     }
                     null -> {
                         shouldBeDisplayedInOverview = false
@@ -741,11 +737,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
 
         if (enableDesktopExplodedView()) {
             val layoutConfig = getDesktopLayoutConfig()
-            if (dismissedTaskId != null) {
-                viewModel?.removeTaskAndRebalanceLayout(dismissedTaskId, layoutConfig)
-            } else {
-                viewModel.organizeDesktopTasks(desktopSize, fullscreenTaskPositions, layoutConfig)
-            }
+            viewModel.organizeDesktopTasks(fullscreenTaskPositions, layoutConfig, dismissedTaskId)
         }
         positionTaskWindows(updateLayout = true)
     }
@@ -754,6 +746,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         val (widthScale, heightScale) = getScreenScaleFactors()
         val res = context.resources
         return DesktopLayoutConfig(
+            desktopBounds = getScreenRect(),
             topBottomMarginOneRow =
                 (res.getDimensionPixelSize(R.dimen.desktop_top_bottom_margin_one_row) / heightScale)
                     .toInt(),

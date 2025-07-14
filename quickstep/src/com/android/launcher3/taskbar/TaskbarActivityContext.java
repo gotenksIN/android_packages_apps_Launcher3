@@ -338,7 +338,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                             this, mTaskbarUiState, bubbleBarView, bubbleBarContainer),
                     bubbleStashController,
                     bubbleHandleController,
-                    new BubbleDragController(this, mDragLayer),
+                    new BubbleDragController(this, mDragLayer, mTaskbarUiState),
                     new BubbleDismissController(this, mDragLayer),
                     new BubbleBarPinController(this, bubbleBarContainer, this::getScreenSize),
                     new BubblePinController(this, bubbleBarContainer, this::getScreenSize),
@@ -418,6 +418,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         return mPrimaryDisplayId;
     }
 
+    public TaskbarUiState getTaskbarUiState() {
+        return mTaskbarUiState;
+    }
+
     @Override
     public boolean isTransientTaskbar() {
         return DisplayController.isTransientTaskbar(this) && isPrimaryDisplay() && !isPhoneMode();
@@ -477,14 +481,17 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      * the icon size
      */
     private void applyDeviceProfile(DeviceProfile originDeviceProfile) {
+        //TODO(b/430382569) Keep DeviceProfile immutable.
         Consumer<DeviceProfile> overrideProvider = deviceProfile -> {
             // Taskbar should match the number of icons of hotseat
             deviceProfile.numShownHotseatIcons = originDeviceProfile.numShownHotseatIcons;
             // Same QSB width to have a smooth animation
             deviceProfile.hotseatQsbWidth = originDeviceProfile.hotseatQsbWidth;
 
-            deviceProfile.updateWorkspaceIconProfile(
-                    deviceProfile.getTaskbarProfile().getIconSize(), this);
+            deviceProfile.mWorkspaceIconProfile = deviceProfile
+                    .mWorkspaceIconProfile
+                    .changeIconSize(deviceProfile.getTaskbarProfile().getIconSize());
+
             // Update icon size
             deviceProfile.updateIconSize(1f, this);
         };
@@ -514,6 +521,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mIsNavBarKidsMode = settingsCache.getValue(
                 Settings.Secure.getUriFor(Settings.Secure.NAV_BAR_KIDS_MODE), 0);
         mIsNavBarForceVisible = mIsNavBarKidsMode;
+        if (mControllers != null) {
+            mControllers.taskbarEduTooltipController.onShouldShowEduOnAppLaunchChanged();
+        }
     }
 
     /** Called when the visibility of the bubble bar changed. */
@@ -540,7 +550,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         }
 
         // Initialize controllers after all are constructed.
-        mControllers.init(sharedState, recreateAnim);
+        mControllers.init(sharedState, recreateAnim, mTaskbarUiState);
         // This may not be necessary and can be reverted once we move towards recreating all
         // controllers without re-creating the window
         mControllers.rotationButtonController.onNavigationModeChanged(mNavMode.resValue);
@@ -1310,7 +1320,14 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 && !AbstractFloatingView.hasOpenView(
                 this, TYPE_ALL & ~TYPE_TASKBAR_OVERLAY_PROXY)) {
             // Reverts Taskbar window to its original size
-            Runnable resetTaskbarFullscreen = () -> setTaskbarWindowFullscreen(false);
+            Runnable resetTaskbarFullscreen = () -> {
+                // If the app layout transition is running, the window reset will be handled
+                // after the transition is complete. See {@link TaskbarViewController
+                // .TransitionEndBoundsChangedNotifier}.
+                if (!mControllers.taskbarViewController.isTaskbarAppTransitionRunning()) {
+                    setTaskbarWindowFullscreen(false);
+                }
+            };
             mControllers.bubbleControllers.ifPresentOrElse(
                     bc -> bc.dragToBubbleController.runAfterDropTargetsHidden(
                             resetTaskbarFullscreen), resetTaskbarFullscreen);

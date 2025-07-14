@@ -93,13 +93,6 @@ flag {
 }
 
 flag {
-    name: "enable_private_space_install_shortcut"
-    namespace: "launcher"
-    description: "Enables long-press shortcut to install a copy of an app to Private space"
-    bug: "316118005"
-}
-
-flag {
     name: "enable_launcher_br_metrics_fixed"
     namespace: "launcher"
     description: "Enables logging of Launcher restore metrics to the Backup & Restore team"
@@ -390,17 +383,6 @@ flag {
   name: "external_data_access"
   namespace: "launcher"
   description: "For LauncherProvider bug fixes and new static permissions as part of the cross oem backup / restore effort."
-  bug: "395145453"
-  is_fixed_read_only: true
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
-  name: "gsf_res"
-  namespace: "launcher"
-  description: "Adds refresh for font family. Needs to be fixed to be used in resources."
   bug: "395145453"
   is_fixed_read_only: true
   metadata {

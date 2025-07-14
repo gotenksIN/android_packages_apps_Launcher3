@@ -1056,7 +1056,9 @@ public abstract class AbsSwipeUpHandler<
         if (mRecentsView != null) {
             mRecentsView.setRecentsAnimationTargets(null, null);
         }
-        maybeHandleUnfinishedTaskLaunch("onRecentsAnimationCanceled");
+        if (!mGestureState.useSyntheticRecentsTransition()) {
+            maybeHandleUnfinishedTaskLaunch("onRecentsAnimationCanceled");
+        }
     }
 
     @UiThread
@@ -1662,7 +1664,8 @@ public abstract class AbsSwipeUpHandler<
                         if (DisplayController.isInDesktopMode(mContext)
                                 && mGestureState.getEndTarget() == HOME) {
                             DesktopVisibilityController.INSTANCE.get(
-                                    mContext).onLauncherAnimationFromDesktopEnd();
+                                    mContext).onLauncherAnimationFromDesktopEnd(
+                                    mGestureState.getDisplayId());
                         }
                     }
                 });

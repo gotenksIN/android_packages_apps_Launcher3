@@ -1224,7 +1224,7 @@ public class TouchInteractionService extends Service {
         }
 
         boolean cancelGesture = mGestureState.getContainerInterface() != null
-                && mGestureState.getContainerInterface().shouldCancelCurrentGesture();
+                && mGestureState.getContainerInterface().shouldCancelCurrentGesture(displayId);
         boolean cleanUpConsumer = (action == ACTION_UP || action == ACTION_CANCEL || cancelGesture)
                 && mConsumer != null
                 && !mConsumer.getActiveConsumerInHierarchy().isConsumerDetachedFromGesture();
@@ -1438,6 +1438,7 @@ public class TouchInteractionService extends Service {
         SystemUiProxy.INSTANCE.get(this).dump(pw);
         DeviceConfigWrapper.get().dump("   ", pw);
         TopTaskTracker.INSTANCE.get(this).dump(pw);
+        mAllAppsActionManager.dump(pw);
     }
 
     private @Nullable AbsSwipeUpHandler<?, ?, ?> createLauncherSwipeHandler(

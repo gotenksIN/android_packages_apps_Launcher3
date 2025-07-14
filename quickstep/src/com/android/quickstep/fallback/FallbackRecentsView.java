@@ -276,7 +276,8 @@ public class FallbackRecentsView<CONTAINER_TYPE extends Context & RecentsViewCon
 
     @Override
     public void onStateTransitionComplete(RecentsState finalState) {
-        DesktopVisibilityController.INSTANCE.get(mContainer).onLauncherStateChanged(finalState);
+        DesktopVisibilityController.INSTANCE.get(mContainer).onLauncherStateChanged(
+                mContainer.getDisplayId(), finalState);
         if (enableGridOnlyOverview()) {
             if (!finalState.displayOverviewTasksAsGrid(mContainer.getDeviceProfile())) {
                 setOverviewGridEnabled(false);
@@ -313,7 +314,6 @@ public class FallbackRecentsView<CONTAINER_TYPE extends Context & RecentsViewCon
         if (enabled) {
             RecentsState state = mContainer.getStateManager().getState();
             setDisallowScrollToClearAll(!state.hasClearAllButton());
-            setDisallowScrollToAddDesk(!state.hasAddDeskButton());
         }
     }
 
