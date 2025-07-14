@@ -1494,7 +1494,11 @@ public abstract class RecentsView<
             anim.addListener(new AnimatorListenerAdapter() {
                 @Override
                 public void onAnimationEnd(Animator animation) {
-                    finishRecentsAnimation(false /* toRecents */, true /*shouldPip*/, null);
+                    finishRecentsAnimation(false /* toRecents */, true /*shouldPip*/, () -> {
+                        if (mContainer instanceof RecentsWindowManager recentsWindowManager) {
+                            recentsWindowManager.hideRecentsWindow();
+                        }
+                    });
                 }
             });
         } else {
@@ -6943,8 +6947,12 @@ public abstract class RecentsView<
             return;
         }
 
-        mDesktopRecentsTransitionController.moveToDesktop(taskContainer, transitionSource,
-                successCallback);
+        mDesktopRecentsTransitionController.moveToDesktop(taskContainer, transitionSource, () -> {
+            successCallback.run();
+            if (mContainer instanceof RecentsWindowManager recentsWindowManager) {
+                post(recentsWindowManager::hideRecentsWindow);
+            }
+        });
     }
 
     /**
