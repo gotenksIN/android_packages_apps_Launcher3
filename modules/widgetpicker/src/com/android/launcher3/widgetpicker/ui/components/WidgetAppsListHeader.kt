@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -46,6 +47,7 @@ import androidx.compose.ui.semantics.collapse
 import androidx.compose.ui.semantics.expand
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.android.launcher3.widgetpicker.R
@@ -86,8 +88,7 @@ fun ExpandableListHeader(
     Column(modifier = finalModifier) {
         WidgetAppHeader(
             modifier =
-                Modifier
-                    .clickable {
+                Modifier.clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
                         onClick()
                     }
@@ -107,7 +108,7 @@ fun ExpandableListHeader(
             leadingIcon = { leadingAppIcon() },
             title = title,
             subTitle = subTitle,
-            selected = expanded,
+            headerTextStyle = ExpandedListHeaderDefaults.headerTextStyle,
             trailingButton = { ExpandCollapseIndicator(expanded) },
         )
         AnimatedVisibility(
@@ -169,7 +170,12 @@ fun SelectableListHeader(
         leadingIcon = { leadingAppIcon() },
         title = title,
         subTitle = subTitle,
-        selected = selected,
+        headerTextStyle =
+            if (selected) {
+                SelectableListHeaderDefaults.selectedHeaderTextStyle
+            } else {
+                SelectableListHeaderDefaults.unSelectedHeaderTextStyle
+            },
     )
 }
 
@@ -202,11 +208,8 @@ fun SelectableSuggestionsHeader(
                 contentDescription = null,
                 tint = WidgetPickerTheme.colors.featuredHeaderLeadingIcon,
                 modifier =
-                    Modifier
-                        .clip(shape)
-                        .background(
-                            WidgetPickerTheme.colors.featuredHeaderLeadingIconBackground
-                        )
+                    Modifier.clip(shape)
+                        .background(WidgetPickerTheme.colors.featuredHeaderLeadingIconBackground)
                         .minimumInteractiveComponentSize(),
             )
         },
@@ -224,7 +227,7 @@ private fun WidgetAppHeader(
     leadingIcon: @Composable () -> Unit,
     title: String,
     subTitle: String,
-    selected: Boolean,
+    headerTextStyle: HeaderTextStyle,
     trailingButton: (@Composable () -> Unit)? = null,
 ) {
     Row(
@@ -235,45 +238,39 @@ private fun WidgetAppHeader(
                 .padding(horizontal = ListHeaderDimensions.headerHorizontalPadding),
     ) {
         leadingIcon()
-        CenterText(
+        HeaderText(
             modifier =
-                Modifier
-                    .weight(1f)
+                Modifier.weight(1f)
                     .padding(horizontal = ListHeaderDimensions.centerTextHorizontalPadding),
             title = title,
             subTitle = subTitle,
-            selected = selected,
+            textStyle = headerTextStyle,
         )
         trailingButton?.let { it() }
     }
 }
 
 @Composable
-private fun CenterText(title: String, subTitle: String, selected: Boolean, modifier: Modifier) {
+private fun HeaderText(
+    title: String,
+    subTitle: String,
+    textStyle: HeaderTextStyle,
+    modifier: Modifier,
+) {
     Column(modifier = modifier) {
         Text(
             text = title,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            color = WidgetPickerTheme.colors.listHeaderTitle,
-            style =
-                if (selected) {
-                    WidgetPickerTheme.typography.selectedListHeaderTitle
-                } else {
-                    WidgetPickerTheme.typography.unSelectedListHeaderTitle
-                },
+            color = textStyle.titleColor,
+            style = textStyle.titleTextStyle,
         )
         Text(
             text = subTitle,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            color = WidgetPickerTheme.colors.listHeaderSubTitle,
-            style =
-                if (selected) {
-                    WidgetPickerTheme.typography.selectedListHeaderSubTitle
-                } else {
-                    WidgetPickerTheme.typography.unSelectedListHeaderSubTitle
-                },
+            color = textStyle.subTitleColor,
+            style = textStyle.subTitleTextStyle,
         )
     }
 }
@@ -286,5 +283,48 @@ private object ListHeaderDimensions {
 
 private object ExpandedListHeaderDefaults {
     val contentExpandAnimationSpec = fadeIn(tween(durationMillis = 500)) + expandVertically()
-    val contentCollapseAnimationSpec = fadeOut(tween(durationMillis = 500)) + shrinkVertically()
+
+    // Fade out content faster than shrink timing for smoother visual of closing.
+    val contentCollapseAnimationSpec =
+        fadeOut(tween(durationMillis = 250)) +
+            shrinkVertically(animationSpec = tween(500), targetHeight = { 0 })
+
+    val headerTextStyle
+        @Composable
+        get() =
+            HeaderTextStyle(
+                titleColor = WidgetPickerTheme.colors.expandableListHeaderTitle,
+                subTitleColor = WidgetPickerTheme.colors.expandableListHeaderSubTitle,
+                titleTextStyle = WidgetPickerTheme.typography.unSelectedListHeaderSubTitle,
+                subTitleTextStyle = WidgetPickerTheme.typography.expandableListHeaderSubTitle,
+            )
 }
+
+private object SelectableListHeaderDefaults {
+    val unSelectedHeaderTextStyle
+        @Composable
+        get() =
+            HeaderTextStyle(
+                titleColor = WidgetPickerTheme.colors.unSelectedListHeaderTitle,
+                subTitleColor = WidgetPickerTheme.colors.unSelectedListHeaderSubTitle,
+                titleTextStyle = WidgetPickerTheme.typography.unSelectedListHeaderTitle,
+                subTitleTextStyle = WidgetPickerTheme.typography.unSelectedListHeaderSubTitle,
+            )
+
+    val selectedHeaderTextStyle
+        @Composable
+        get() =
+            HeaderTextStyle(
+                titleColor = WidgetPickerTheme.colors.selectedListHeaderTitle,
+                subTitleColor = WidgetPickerTheme.colors.selectedListHeaderSubTitle,
+                titleTextStyle = WidgetPickerTheme.typography.selectedListHeaderTitle,
+                subTitleTextStyle = WidgetPickerTheme.typography.selectedListHeaderSubTitle,
+            )
+}
+
+internal data class HeaderTextStyle(
+    val titleColor: Color,
+    val titleTextStyle: TextStyle,
+    val subTitleColor: Color,
+    val subTitleTextStyle: TextStyle,
+)

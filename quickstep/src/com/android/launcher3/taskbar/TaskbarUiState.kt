@@ -18,17 +18,50 @@ package com.android.launcher3.taskbar
 
 import com.android.launcher3.util.MutableListenableRef
 
-/** Data class represents taskbar states. */
-data class TaskbarUiState(
+/**
+ * Data class that represents taskbar's UI states. This state is shared to launcher and recents.
+ * Taskbar's UI thread is responsible to update below fields whenever any field is changed.
+ *
+ * Timings when each field is changed:
+ * - [_hasBubblesRef]: when BubbleBarView's child bubble view count is changed between 0 vs non-zero
+ * - [_shouldShowEduOnAppLaunchRef]: when DeviceProfile or tooltip steps is changed
+ * - [_isDraggingItemRef]: when ether bubble or taskbar is dragging item.
+ */
+class TaskbarUiState {
+
     private val _hasBubblesRef: MutableListenableRef<Boolean> = MutableListenableRef(false)
-) {
+    private val _shouldShowEduOnAppLaunchRef: MutableListenableRef<Boolean> =
+        MutableListenableRef(false)
+    private val _isDraggingItemRef: MutableListenableRef<Boolean> = MutableListenableRef(false)
+
+    private fun <T> MutableListenableRef<T>.diffAndDispatch(newValue: T) {
+        if (value != newValue) {
+            dispatchValue(newValue)
+        }
+    }
 
     val hasBubblesRef = _hasBubblesRef.asListenable()
+    val shouldShowEduOnAppLaunchRef = _shouldShowEduOnAppLaunchRef.asListenable()
+    val isDraggingItemRef = _isDraggingItemRef.asListenable()
+
+    private var _isBubbleDragging = false
+    private var _isTaskbarDragging = false
 
     fun onNewHasBubble(hasBubbles: Boolean) {
-        if (_hasBubblesRef.value == hasBubbles) {
-            return
-        }
-        _hasBubblesRef.dispatchValue(hasBubbles)
+        _hasBubblesRef.diffAndDispatch(hasBubbles)
+    }
+
+    fun onNewShouldShowEduOnAppLaunch(shouldShowEduOnAppLaunch: Boolean) {
+        _shouldShowEduOnAppLaunchRef.diffAndDispatch(shouldShowEduOnAppLaunch)
+    }
+
+    fun setIsBubbleDragging(isBubbleDragging: Boolean) {
+        _isBubbleDragging = isBubbleDragging
+        _isDraggingItemRef.diffAndDispatch(_isBubbleDragging or _isTaskbarDragging)
+    }
+
+    fun setIsTaskbarDragging(isTaskbarDragging: Boolean) {
+        _isTaskbarDragging = isTaskbarDragging
+        _isDraggingItemRef.diffAndDispatch(_isBubbleDragging or _isTaskbarDragging)
     }
 }

@@ -75,6 +75,7 @@ import static com.android.quickstep.views.OverviewActionsView.HIDDEN_NO_TASKS;
 import static com.android.quickstep.views.OverviewActionsView.HIDDEN_SPLIT_SELECT_ACTIVE;
 import static com.android.quickstep.views.RecentsViewUtils.DESK_EXPLODE_PROGRESS;
 import static com.android.quickstep.views.TaskView.SPLIT_ALPHA;
+import static com.android.quickstep.window.RecentsWindowFlags.enableOverviewOnConnectedDisplays;
 import static com.android.wm.shell.Flags.enableCreateAnyBubble;
 
 import android.animation.Animator;
@@ -587,8 +588,6 @@ public abstract class RecentsView<
     protected final TaskOverlayFactory mTaskOverlayFactory;
 
     protected boolean mDisallowScrollToClearAll;
-    // True if it is not allowed to scroll to [AddDesktopButton].
-    protected boolean mDisallowScrollToAddDesk;
     private boolean mOverlayEnabled;
     protected boolean mFreezeViewVisibility;
     private boolean mOverviewGridEnabled;
@@ -2031,7 +2030,9 @@ public abstract class RecentsView<
 
         // Move Desktop Tasks to the end of the list
         taskGroups = mUtils.sortDesktopTasksToFront(taskGroups);
-        taskGroups = mUtils.sortExternalDisplayTasksToFront(taskGroups);
+        if (!enableOverviewOnConnectedDisplays()) {
+            taskGroups = mUtils.sortExternalDisplayTasksToFront(taskGroups);
+        }
 
         if (mAddDesktopButton != null) {
             // Add `mAddDesktopButton` as the first child.
@@ -4529,7 +4530,7 @@ public abstract class RecentsView<
             if (removeTask) {
                 ActivityManagerWrapper.getInstance().removeTask(taskId);
             }
-        } else {
+        } else if (!taskView.isBeingDismissed()) {
             dismissTaskView(taskView, animate, removeTask);
         }
     }
@@ -4775,7 +4776,7 @@ public abstract class RecentsView<
     @Override
     public int getNextPage() {
         int nextPage = super.getNextPage();
-        if (mDisallowScrollToAddDesk && getPageAt(nextPage) instanceof AddDesktopButton) {
+        if (getPageAt(nextPage) instanceof AddDesktopButton) {
             nextPage = mUtils.getAlternatePageWithSameScroll(nextPage);
         }
         return nextPage;
@@ -6088,17 +6089,6 @@ public abstract class RecentsView<
             updateMinAndMaxScrollX();
         }
     }
-    /**
-     * Update the value of [mDisallowScrollToAddDesk]
-     */
-    public void setDisallowScrollToAddDesk(boolean disallowScrollToAddDesk) {
-        if (mDisallowScrollToAddDesk != disallowScrollToAddDesk) {
-            mDisallowScrollToAddDesk = disallowScrollToAddDesk;
-            updateMinAndMaxScrollX();
-        }
-    }
-
-
 
     /**
      * Updates page scroll synchronously after measure and layout child views.
