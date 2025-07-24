@@ -2218,6 +2218,11 @@ public abstract class RecentsView<
         return mUtils.getNonDesktopTaskViewCount();
     }
 
+    /** Counts {@link TaskView}s that are {@link DesktopTaskView} instances. */
+    public int getDesktopTaskViewCount() {
+        return mUtils.getDesktopTaskViewCount();
+    }
+
     /**
      * Returns the number of tasks in the top row of the overview grid.
      */
@@ -2763,6 +2768,7 @@ public abstract class RecentsView<
         if (mAddDesktopButton != null) {
             mAddDesktopButton.setGestureAlpha(1f);
         }
+        setKeyboardFocusTask(KeyboardFocusTask.Unfocused.INSTANCE);
 
         if (enableRefactorTaskThumbnail()) {
             // TODO(b/353917593): RecentsView is never destroyed, so its dependencies need to
@@ -2772,17 +2778,15 @@ public abstract class RecentsView<
 
         Log.d(TAG, "reset - mEnableDrawingLiveTile: " + mEnableDrawingLiveTile
                 + ", mRecentsAnimationController: " + mRecentsAnimationController);
-        if (mEnableDrawingLiveTile) {
-            if (mRecentsAnimationController != null) {
-                // We owns mRecentsAnimationController, finish it now to clean up.
-                finishRecentsAnimation(true /* toHome */, null);
-            } else {
-                // Only clean up target set if we no longer owns mRecentsAnimationController.
-                runActionOnRemoteHandles(remoteTargetHandle ->
-                        remoteTargetHandle.getTransformParams().setTargetSet(null));
-            }
-            setEnableDrawingLiveTile(false);
+        if (mEnableDrawingLiveTile && mRecentsAnimationController != null) {
+            // We own mRecentsAnimationController, finish it now to clean up.
+            finishRecentsAnimation(true /* toHome */, null);
+        } else {
+            // We don't own mRecentsAnimationController, just clear the reference.
+            mRecentsAnimationController = null;
+            cleanupRemoteTargets();
         }
+        setEnableDrawingLiveTile(false);
         mBlurUtils.setDrawLiveTileBelowRecents(false);
 
         if (enableRefactorTaskThumbnail()) {
@@ -3045,6 +3049,8 @@ public abstract class RecentsView<
                             runningTaskView.getGridTranslationY();
                 });
             }
+        } else {
+            setCurrentTask(-1);
         }
 
         mCurrentGestureEndTarget = null;
@@ -4583,7 +4589,8 @@ public abstract class RecentsView<
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (isHandlingTouch() || event.getAction() != KeyEvent.ACTION_DOWN) {
+        if (isHandlingTouch() || event.getAction() != KeyEvent.ACTION_DOWN
+                || getStateManager().isInTransition()) {
             return super.dispatchKeyEvent(event);
         }
 
@@ -4593,6 +4600,14 @@ public abstract class RecentsView<
 
         switch (event.getKeyCode()) {
             case KeyEvent.KEYCODE_TAB: {
+                // When alt + tabbing on phones (KQS will handle on large screens) go to the next
+                // task.
+                if (event.isAltPressed()) {
+                    return snapToPageRelative(event.isShiftPressed() ? -1 : 1, true /* cycle */,
+                            TaskGridNavHelper.TaskNavDirection.TAB);
+                }
+                // If not alt + tabbing, tab cycles through the available views in a single task
+                // e.g. chip menu.
                 View currentFocus = findFocus();
                 if (currentFocus == null) return super.dispatchKeyEvent(event);
 

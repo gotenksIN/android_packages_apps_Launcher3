@@ -17,6 +17,7 @@ package com.android.quickstep.fallback
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Rect
 import androidx.annotation.FloatRange
 import com.android.app.animation.Interpolators
 import com.android.launcher3.DeviceProfile
@@ -28,13 +29,13 @@ import com.android.launcher3.anim.AnimatorPlaybackController
 import com.android.launcher3.anim.PendingAnimation
 import com.android.launcher3.statemanager.BaseState
 import com.android.launcher3.statemanager.BaseState.FLAG_DISABLE_RESTORE
-import com.android.launcher3.uioverrides.states.OverviewModalTaskState
 import com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOverview
 import com.android.launcher3.util.Themes
 import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.views.ScrimColors
 import com.android.quickstep.views.RecentsView
 import com.android.quickstep.views.RecentsViewContainer
+import kotlin.math.min
 
 /** State definition for Fallback recents */
 open class RecentsState(@JvmField val ordinal: Int, private val mFlags: Int) :
@@ -110,14 +111,18 @@ open class RecentsState(@JvmField val ordinal: Int, private val mFlags: Int) :
      * Handles the back invocation. If a live task is present and visible, launch it; if present but
      * not fully visible, snap scroll to it; otherwise, return home.
      *
+     * <p>Ignore the invocation if a state transition is still in progress.
+     *
      * @param container The RecentsViewContainer.
      */
     open fun onBackInvoked(container: RecentsViewContainer) {
         val recentsView = container.getOverviewPanel<RecentsView<*, *>>()
         val runningTaskView = recentsView.runningTaskView
         when {
-            runningTaskView == null -> container.startHome()
-            recentsView.isTaskViewVisible(runningTaskView) -> runningTaskView.launchWithAnimation()
+            recentsView.stateManager.isInTransition -> {} // NO-OP.
+            runningTaskView == null || runningTaskView.isBeingDismissed -> recentsView.startHome()
+            recentsView.isTaskViewFullyVisible(runningTaskView) ->
+                runningTaskView.launchWithAnimation()
             else -> {
                 backAnimationController?.reverse()
                 recentsView.snapToPage(recentsView.indexOfChild(runningTaskView))
@@ -179,14 +184,23 @@ open class RecentsState(@JvmField val ordinal: Int, private val mFlags: Int) :
         override fun getOverviewScaleAndOffset(container: RecentsViewContainer): FloatArray =
             if (enableGridOnlyOverview()) {
                 super.getOverviewScaleAndOffset(container)
-            } else
-                OverviewModalTaskState.getOverviewScaleAndOffsetForModalState(
-                    container.getOverviewPanel()
+            } else getOverviewScaleAndOffsetForModalState(container.getOverviewPanel())
+
+        private fun getOverviewScaleAndOffsetForModalState(
+            recentsView: RecentsView<*, *>
+        ): FloatArray {
+            val taskSize = recentsView.selectedTaskBounds
+            val modalTaskSize = Rect().apply { recentsView.getModalTaskSize(this) }
+            val scale =
+                min(
+                    modalTaskSize.height().toFloat() / taskSize.height(),
+                    modalTaskSize.width().toFloat() / taskSize.width(),
                 )
+            return floatArrayOf(scale, LauncherState.NO_OFFSET)
+        }
 
         override fun onBackInvoked(container: RecentsViewContainer) {
-            val recentsView = container.getOverviewPanel<RecentsView<*, RecentsState>>()
-            recentsView.stateManager.goToState(DEFAULT, true)
+            container.goToRecentsState(DEFAULT, true)
         }
 
         override fun onBackStarted(container: RecentsViewContainer) {
@@ -207,9 +221,11 @@ open class RecentsState(@JvmField val ordinal: Int, private val mFlags: Int) :
     }
 
     private class BackgroundAppState(id: Int, flags: Int) : RecentsState(id, flags) {
-        override fun getOverviewScaleAndOffset(container: RecentsViewContainer): FloatArray =
-            com.android.launcher3.uioverrides.states.BackgroundAppState
-                .getOverviewScaleAndOffsetForBackgroundState(container.getOverviewPanel())
+        override fun getOverviewScaleAndOffset(container: RecentsViewContainer) =
+            floatArrayOf(
+                container.getOverviewPanel<RecentsView<*, *>>().maxScaleForFullScreen,
+                LauncherState.NO_OFFSET,
+            )
     }
 
     private class BgLauncherState(id: Int, flags: Int) : RecentsState(id, flags) {
