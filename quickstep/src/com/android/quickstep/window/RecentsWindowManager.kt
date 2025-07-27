@@ -213,8 +213,7 @@ constructor(
         }
 
     private val onBackInvokedCallback = OnBackInvokedCallback {
-        // If we are in live tile mode, launch the live task, otherwise return home
-        recentsView?.runningTaskView?.launchWithAnimation() ?: startHome()
+        stateManager.state.onBackInvoked(this@RecentsWindowManager)
         TestLogging.recordEvent(SEQUENCE_MAIN, "onBackInvoked")
     }
 
@@ -508,6 +507,10 @@ constructor(
 
     override fun getSplitSelectStateController(): SplitSelectStateController {
         return splitSelectStateController
+    }
+
+    override fun goToRecentsState(recentsState: RecentsState, animated: Boolean) {
+        stateManager.goToState(recentsState, animated)
     }
 
     override fun getRootView(): View {
