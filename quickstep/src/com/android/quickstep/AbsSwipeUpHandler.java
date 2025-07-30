@@ -849,18 +849,25 @@ public abstract class AbsSwipeUpHandler<
      * Determines whether to show or hide RecentsView. The window is always
      * synchronized with its corresponding TaskView in RecentsView, so if
      * RecentsView is shown, it will appear to be attached to the window.
+     * For 3 button mode navigation, update alpha of the running task to show desktop task
+     * background.
      *
-     * Note this method has no effect unless the navigation mode is NO_BUTTON.
-     * @param animate whether to animate when attaching RecentsView
-     * @param moveRunningTask whether to move running task to front when attaching
+     * @param animate                whether to animate when attaching RecentsView
+     * @param moveRunningTask        whether to move running task to front when attaching
      * @param updateRunningTaskAlpha Whether to update the running task's attached alpha
      */
     private void maybeUpdateRecentsAttachedState(
             boolean animate, boolean moveRunningTask, boolean updateRunningTaskAlpha) {
-        if ((!mDeviceState.isFullyGesturalNavMode() && !mGestureState.isTrackpadGesture())
-                || mRecentsView == null) {
+        if (mRecentsView == null) {
             return;
         }
+
+        boolean isGestureMode =
+                mDeviceState.isFullyGesturalNavMode() || mGestureState.isTrackpadGesture();
+        if (!isGestureMode && !updateRunningTaskAlpha) {
+            return;
+        }
+
         // looking at single target is fine here since either app of a split pair would
         // have their "isInRecents" field set? (that's what this is used for below)
         RemoteAnimationTarget runningTaskTarget = mRecentsAnimationTargets != null
@@ -879,12 +886,22 @@ public abstract class AbsSwipeUpHandler<
         } else {
             recentsAttachedToAppWindow = mHasMotionEverBeenPaused || mIsLikelyToStartNewTask;
         }
+
+        if (!isGestureMode) {
+            mAnimationFactory.setRecentsAttachedToAppWindow(
+                    /* attached= */ recentsAttachedToAppWindow,
+                    /* animate= */ false,
+                    /*updateRunningTaskAlpha= */ true);
+            return;
+        }
+
         if (moveRunningTask && !mAnimationFactory.hasRecentsEverAttachedToAppWindow()
                 && recentsAttachedToAppWindow) {
             // Only move running task if RecentsView has never been attached before, to avoid
             // TaskView jumping to new position as we move the tasks.
             mRecentsView.moveRunningTaskToExpectedPosition();
         }
+
         mAnimationFactory.setRecentsAttachedToAppWindow(
                 recentsAttachedToAppWindow, animate, updateRunningTaskAlpha);
 
@@ -2169,8 +2186,9 @@ public abstract class AbsSwipeUpHandler<
                 final View taskView = runningTaskView;
                 runningTaskView = null;
                 if (mRecentsView != null) {
-                    mRecentsView.post(() -> {
-                        mRecentsView.resetTaskVisuals();
+                    final RECENTS_VIEW rv = mRecentsView;
+                    rv.post(() -> {
+                        rv.resetTaskVisuals();
                         if (taskView != null) {
                             taskView.setClickable(true);
                         }
@@ -2876,6 +2894,11 @@ public abstract class AbsSwipeUpHandler<
             TransformParams transformParams,
             TaskViewSimulator taskViewSimulator,
             float progress) {
+        // Do not fade out if the focus isn't changing to a different task.
+        if (mRecentsView != null && mRecentsView.getKeyboardFocusTaskView()
+                == mRecentsView.getCurrentPageTaskView()) {
+            return false;
+        }
         RemoteAnimationTargets targets = transformParams.getTargetSet();
         boolean fadeAppTargets = isKeyboardTaskFocusPending()
                 && targets != null
@@ -3031,9 +3054,8 @@ public abstract class AbsSwipeUpHandler<
                 .getTaskbarUiState(displayId);
 
         // Mimic TaskbarActivityContext.isTransientTaskbar
-        final DeviceProfile deviceProfile = mContainer.getDeviceProfile();
         final boolean isInPhoneMode = ENABLE_TASKBAR_NAVBAR_UNIFICATION
-                && deviceProfile.getDeviceProperties().isPhone() && !deviceProfile.isTaskbarPresent;
+                && mDp.getDeviceProperties().isPhone() && !mDp.isTaskbarPresent;
         if (DisplayController.isTransientTaskbar(mContext)
                 && taskbarUiState.isPrimaryDisplayRef().getValue() && !isInPhoneMode) {
             return true;
