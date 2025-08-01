@@ -47,7 +47,6 @@ import com.android.launcher3.model.data.ItemInfoWithIcon
 import com.android.launcher3.shortcuts.DeepShortcutTextView
 import com.android.launcher3.shortcuts.DeepShortcutView
 import com.android.launcher3.util.Executors
-import com.android.launcher3.util.PackageUserKey
 import com.android.launcher3.util.ShortcutUtil
 import com.android.launcher3.views.ActivityContext
 import java.util.Optional
@@ -62,9 +61,10 @@ import kotlin.math.max
 class PopupContainerWithArrow<T>
 @JvmOverloads
 constructor(context: Context?, attrs: AttributeSet? = null, defStyleAttr: Int = 0) :
-    ArrowPopup<T>(context, attrs, defStyleAttr), DragSource, DragController.DragListener where
-T : Context?,
-T : ActivityContext? {
+    ArrowPopup<T>(context, attrs, defStyleAttr),
+    DragSource,
+    DragController.DragListener,
+    Popup where T : Context?, T : ActivityContext? {
     private val deepShortcuts: MutableList<DeepShortcutView> = ArrayList()
     private val interceptTouchDown = PointF()
     private val startDragThreshold =
@@ -82,9 +82,12 @@ T : ActivityContext? {
     private var accessibilityDelegate: LauncherAccessibilityDelegate? = null
     private var currentHeight = 0f
 
+    var updateIconUi = true
+
     var originalIcon: BubbleTextView? = null
         private set
 
+    var originalView: View? = null
     var systemShortcutContainer: ViewGroup? = null
         private set
 
@@ -133,7 +136,7 @@ T : ActivityContext? {
         return false
     }
 
-    private fun configureForLauncher(launcher: Launcher, itemInfo: ItemInfo) {
+    fun configureForLauncher(launcher: Launcher, itemInfo: ItemInfo) {
         addOnAttachStateChangeListener(
             LauncherPopupLiveUpdateHandler(launcher, this as PopupContainerWithArrow<Launcher?>)
         )
@@ -185,6 +188,7 @@ T : ActivityContext? {
         systemShortcuts: List<SystemShortcut<*>>,
     ) {
         this.originalIcon = originalIcon
+        originalView = originalIcon
         containerWidth = resources.getDimensionPixelSize(R.dimen.bg_popup_item_width)
 
         if (deepShortcutCount > 0) {
@@ -398,12 +402,12 @@ T : ActivityContext? {
     }
 
     override fun getTargetObjectLocation(outPos: Rect) {
-        popupContainer.getDescendantRectRelativeToSelf(originalIcon, outPos)
-        outPos.top += originalIcon?.paddingTop ?: 0
-        outPos.left += originalIcon?.paddingLeft ?: 0
-        outPos.right -= originalIcon?.paddingRight ?: 0
+        popupContainer.getDescendantRectRelativeToSelf(originalView, outPos)
+        outPos.top += originalView?.paddingTop ?: 0
+        outPos.left += originalView?.paddingLeft ?: 0
+        outPos.right -= originalView?.paddingRight ?: 0
         outPos.bottom =
-            outPos.top + (originalIcon?.icon?.bounds?.height() ?: originalIcon?.height ?: 0)
+            outPos.top + (originalIcon?.icon?.bounds?.height() ?: originalView?.height ?: 0)
     }
 
     private fun updateHiddenShortcuts() {
@@ -464,7 +468,7 @@ T : ActivityContext? {
      * Current behavior:
      * - Start the drag if the touch passes a certain distance from the original touch down.
      */
-    fun createPreDragCondition(updateIconUi: Boolean): PreDragCondition {
+    override fun createPreDragCondition(): PreDragCondition {
         return object : PreDragCondition {
             override fun shouldStartDrag(distanceDragged: Double): Boolean {
                 return distanceDragged > startDragThreshold
@@ -552,46 +556,6 @@ T : ActivityContext? {
         @Deprecated("Left here since some dependent projects are using this method")
         fun canShow(icon: View?, item: ItemInfo?): Boolean {
             return icon is BubbleTextView && ShortcutUtil.supportsShortcuts(item)
-        }
-
-        /**
-         * Shows a popup with shortcuts associated with a Launcher icon
-         *
-         * @param icon the app icon to show the popup for
-         * @return the container if shown or null.
-         */
-        @JvmStatic
-        fun showForIcon(icon: BubbleTextView): PopupContainerWithArrow<Launcher>? {
-            val launcher = Launcher.getLauncher(icon.context)
-            if (getOpen(launcher) != null) {
-                // There is already an items container open, so don't open this one.
-                icon.clearFocus()
-                return null
-            }
-            val item = icon.tag as ItemInfo
-            if (!ShortcutUtil.supportsShortcuts(item)) {
-                return null
-            }
-            val popupDataProvider = launcher.popupDataProvider
-            val deepShortcutCount = popupDataProvider.getShortcutCountForItem(item)
-            val systemShortcuts =
-                launcher
-                    .getSupportedShortcuts(item.container)
-                    .map<SystemShortcut<Launcher>> { s ->
-                        s.getShortcut(launcher, item, icon) as SystemShortcut<Launcher>?
-                    }
-                    .filter { it != null }
-                    .collect(Collectors.toList())
-
-            val container: PopupContainerWithArrow<Launcher> =
-                launcher.layoutInflater.inflate(R.layout.popup_container, launcher.dragLayer, false)
-                    as PopupContainerWithArrow<Launcher>
-
-            container.configureForLauncher(launcher, item)
-            container.populateAndShowRows(icon, deepShortcutCount, systemShortcuts)
-            launcher.refreshAndBindWidgetsForPackageUser(PackageUserKey.fromItemInfo(item))
-            container.requestFocus()
-            return container
         }
 
         /**
