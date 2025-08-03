@@ -14,24 +14,12 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.popup
+package com.android.quickstep.task
 
-import android.content.Context
 import android.view.View
-import com.android.launcher3.dragndrop.LauncherDragController
-import com.android.launcher3.model.data.ItemInfo
-import com.android.launcher3.views.ActivityContext
 
-class PopupControllerImpl<T>(
-    private val itemInfo: ItemInfo,
-    private val popupDataRepository: PopupDataRepository,
-    private val dragController: LauncherDragController,
-) : PopupController<T> where T : Context, T : ActivityContext {
-    override fun show(view: View): Popup {
-        TODO("Not yet implemented")
-    }
+sealed class TaskDismissButtonState {
+    data class Enabled(val clickCloseListener: View.OnClickListener) : TaskDismissButtonState()
 
-    override fun dismiss() {
-        TODO("Not yet implemented")
-    }
+    data object Disabled : TaskDismissButtonState()
 }

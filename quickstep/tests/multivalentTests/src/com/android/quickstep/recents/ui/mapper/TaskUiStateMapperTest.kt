@@ -30,6 +30,7 @@ import com.android.launcher3.R
 import com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_BOTTOM_OR_RIGHT
 import com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_TOP_OR_LEFT
 import com.android.quickstep.recents.ui.viewmodel.TaskData
+import com.android.quickstep.task.TaskDismissButtonState
 import com.android.quickstep.task.apptimer.TaskAppTimerUiState
 import com.android.quickstep.task.thumbnail.TaskHeaderUiState
 import com.android.quickstep.task.thumbnail.TaskThumbnailUiState
@@ -197,10 +198,22 @@ class TaskUiStateMapperTest {
     }
 
     @Test
-    fun taskData_thumbnailIsNull_returns_BackgroundOnly() {
+    fun taskData_thumbnailDataIsNull_returns_BackgroundOnly() {
         val result =
             TaskUiStateMapper.toTaskThumbnailUiState(
                 taskData = TASK_DATA.copy(thumbnailData = null)
+            )
+
+        val expected = TaskThumbnailUiState.BackgroundOnly(TASK_BACKGROUND_COLOR)
+        assertThat(result).isEqualTo(expected)
+    }
+
+    @Test
+    fun taskData_thumbnailIsNull_returns_BackgroundOnly() {
+        val result =
+            TaskUiStateMapper.toTaskThumbnailUiState(
+                taskData =
+                    TASK_DATA.copy(thumbnailData = TASK_THUMBNAIL_DATA.copy(thumbnail = null))
             )
 
         val expected = TaskThumbnailUiState.BackgroundOnly(TASK_BACKGROUND_COLOR)
@@ -306,6 +319,56 @@ class TaskUiStateMapperTest {
         assertThat(result).isEqualTo(expected)
     }
 
+    @DisableFlags(Flags.FLAG_SHOW_CLOSE_BUTTON_ON_TASKVIEW_HOVER)
+    @Test
+    fun toTaskDismissButtonState_flagDisabled_hideDismissButton() {
+        val result =
+            TaskUiStateMapper.toTaskDismissButtonState(
+                isDesktopTaskView = false,
+                isGroupedTaskView = false,
+                clickCloseListener = CLOSE_TALKBACK,
+            )
+
+        assertThat(result).isEqualTo(TaskDismissButtonState.Disabled)
+    }
+
+    @EnableFlags(Flags.FLAG_SHOW_CLOSE_BUTTON_ON_TASKVIEW_HOVER)
+    @Test
+    fun toTaskDismissButtonState_showDismissButton() {
+        val result =
+            TaskUiStateMapper.toTaskDismissButtonState(
+                isDesktopTaskView = false,
+                isGroupedTaskView = false,
+                clickCloseListener = CLOSE_TALKBACK,
+            )
+
+        assertThat(result).isEqualTo(TaskDismissButtonState.Enabled(CLOSE_TALKBACK))
+    }
+
+    @EnableFlags(Flags.FLAG_SHOW_CLOSE_BUTTON_ON_TASKVIEW_HOVER)
+    @Test
+    fun toTaskDismissButtonState_isDesktopTaskView_hideDismissButton() {
+        val result =
+            TaskUiStateMapper.toTaskDismissButtonState(
+                isDesktopTaskView = true,
+                isGroupedTaskView = false,
+                clickCloseListener = CLOSE_TALKBACK,
+            )
+        assertThat(result).isEqualTo(TaskDismissButtonState.Disabled)
+    }
+
+    @EnableFlags(Flags.FLAG_SHOW_CLOSE_BUTTON_ON_TASKVIEW_HOVER)
+    @Test
+    fun toTaskDismissButtonState_isGroupedTaskView_hideDismissButton() {
+        val result =
+            TaskUiStateMapper.toTaskDismissButtonState(
+                isDesktopTaskView = false,
+                isGroupedTaskView = true,
+                clickCloseListener = CLOSE_TALKBACK,
+            )
+        assertThat(result).isEqualTo(TaskDismissButtonState.Disabled)
+    }
+
     private companion object {
         const val TASK_TITLE_DESCRIPTION = "Title Description 1"
         var TASK_ID = 1
@@ -330,5 +393,6 @@ class TaskUiStateMapperTest {
                 isLiveTile = false,
                 remainingAppTimerDuration = TASK_APP_TIMER_DURATION,
             )
+        val CLOSE_TALKBACK = View.OnClickListener {}
     }
 }
