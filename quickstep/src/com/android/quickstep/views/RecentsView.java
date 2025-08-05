@@ -130,6 +130,7 @@ import android.view.animation.Interpolator;
 import android.widget.ListView;
 import android.widget.OverScroller;
 import android.widget.Toast;
+import android.window.DesktopExperienceFlags;
 import android.window.DesktopModeFlags;
 import android.window.PictureInPictureSurfaceTransaction;
 import android.window.TransitionInfo;
@@ -692,9 +693,20 @@ public abstract class RecentsView<
         }
 
         @Override
+        public void onTaskDisplayChanged(int taskId, int newDisplayId) {
+            Log.d(TAG, "onTaskDisplayChanged: " + taskId + ", new displayId = " + newDisplayId);
+            if (!mHandleTaskStackChanges) {
+                return;
+            }
+            if (newDisplayId != mContainer.getDisplayId()) {
+                dismissTask(taskId, /*animate=*/ true, /*removeTask=*/ false);
+            }
+        }
+
+        @Override
         public void onActivityRestartAttempt(ActivityManager.RunningTaskInfo task,
                 boolean homeTaskVisible, boolean clearedTask, boolean wasVisible) {
-            if (enableCreateAnyBubble() && task.isAppBubble) {
+            if (enableCreateAnyBubble() && task.isAppBubble && mHandleTaskStackChanges) {
                 // Remove task from recents if it moved to a bubble, but keep it running
                 dismissTask(task.taskId, /* animate= */ true, /* removeTask= */ false);
             }
@@ -5082,7 +5094,7 @@ public abstract class RecentsView<
         // Whether the task should be shifted to start direction (i.e. left edge for portrait, top
         // edge for landscape/seascape).
         boolean isStartShift;
-        if (midpointIndex > -1) {
+        if (midpointIndex > -1 && midpointIndex < getChildCount()) {
             // When there is a midpoint reference task, adjacent tasks have less distance to travel
             // to reach offscreen. Offset the task position to the task's starting point, and offset
             // by current page's scroll diff.
@@ -5458,6 +5470,14 @@ public abstract class RecentsView<
                 .addScrimBehindAnim(pendingAnimation, mContainer, getContext());
         FloatingTaskView firstFloatingTaskView =
                 mSplitSelectStateController.getFirstFloatingTaskView();
+
+        if (DesktopExperienceFlags.ENABLE_NON_DEFAULT_DISPLAY_SPLIT_BUGFIX.isTrue()
+                && firstFloatingTaskView == null) {
+            Log.d(TAG, "confirmSplitSelect: First floating task view was null, aborting split.");
+            mSplitSelectStateController.resetState();
+            return false;
+        }
+
         firstFloatingTaskView.getBoundsOnScreen(firstTaskStartingBounds);
         firstFloatingTaskView.addConfirmAnimation(pendingAnimation,
                 new RectF(firstTaskStartingBounds), firstTaskEndingBounds,
