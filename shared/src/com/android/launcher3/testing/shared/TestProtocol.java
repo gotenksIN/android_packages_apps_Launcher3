@@ -178,6 +178,9 @@ public final class TestProtocol {
 
     public static final String PERMANENT_DIAG_TAG = "TaplTarget";
     public static final String REQUEST_FLAG_ENABLE_GRID_ONLY_OVERVIEW = "enable-grid-only-overview";
+
+    public static final String REQUEST_FLAG_ENABLE_MULTIPLE_DESKTOPS = "enable-multiple-desks";
+
     public static final String REQUEST_IS_RECENTS_WINDOW_ENABLED = "recents-window-enabled";
 
     public static final String REQUEST_UNSTASH_BUBBLE_BAR_IF_STASHED =
@@ -194,6 +197,9 @@ public final class TestProtocol {
 
     public static final String REQUEST_TASKBAR_UNSTASHED_INPUT_AREA =
             "taskbar-unstashed-input-area";
+
+    public static final String REQUEST_IS_IN_DESKTOP_FIRST_MODE =
+            "display_is_in_desktop_first_mode";
 
     /** Logs {@link Log#d(String, String)} if {@link #sDebugTracing} is true. */
     public static void testLogD(String tag, String message) {

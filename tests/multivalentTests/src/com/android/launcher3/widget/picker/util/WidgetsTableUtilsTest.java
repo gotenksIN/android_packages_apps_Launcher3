@@ -70,7 +70,6 @@ public final class WidgetsTableUtilsTest {
     private static final int NUM_OF_ROWS = 5;
 
     @Rule public SandboxApplication app = new SandboxApplication();
-
     @Mock
     private IconCache mIconCache;
 
@@ -244,7 +243,7 @@ public final class WidgetsTableUtilsTest {
 
     private void initDP() {
         DeviceProfile dp = LauncherAppState.getIDP(mContext)
-                .getDeviceProfile(mContext).copy(mContext);
+                .getDeviceProfile(mContext).copy();
         mTestDeviceProfile = Mockito.spy(dp);
         AllAppsProfile testAllAppsProfile = Mockito.spy(mTestDeviceProfile.getAllAppsProfile());
         Mockito.doReturn(0).when(testAllAppsProfile).getIconSizePx();

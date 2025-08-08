@@ -174,27 +174,31 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
     // TODO(141886704): Find a way to remove this
     @SystemUiStateFlags var lastSystemUiStateFlags: Long = 0
 
+    private val pendingIntentCache = mutableMapOf<Int, PendingIntent>()
+
     /**
      * This returns a pending intent that is used to start recents via Shell (which is a different
      * process). It is bare-bones, so it's expected that the component and options will be provided
      * via fill-in intent.
      */
     private fun getRecentsPendingIntent(displayId: Int) =
-        PendingIntent.getActivity(
-            context,
-            0,
-            Intent().setPackage(context.packageName),
-            PendingIntent.FLAG_MUTABLE or
-                PendingIntent.FLAG_ALLOW_UNSAFE_IMPLICIT_INTENT or
-                Intent.FILL_IN_COMPONENT or
-                PendingIntent.FLAG_UPDATE_CURRENT,
-            ActivityOptions.makeBasic()
-                .setPendingIntentCreatorBackgroundActivityStartMode(
-                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
-                )
-                .setLaunchDisplayId(displayId)
-                .toBundle(),
-        )
+        pendingIntentCache.computeIfAbsent(displayId) {
+            PendingIntent.getActivity(
+                context,
+                0,
+                Intent().setPackage(context.packageName),
+                PendingIntent.FLAG_MUTABLE or
+                    PendingIntent.FLAG_ALLOW_UNSAFE_IMPLICIT_INTENT or
+                    Intent.FILL_IN_COMPONENT or
+                    PendingIntent.FLAG_CANCEL_CURRENT,
+                ActivityOptions.makeBasic()
+                    .setPendingIntentCreatorBackgroundActivityStartMode(
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                    )
+                    .setLaunchDisplayId(displayId)
+                    .toBundle(),
+            )
+        }
 
     val unfoldTransitionProvider: ProxyUnfoldTransitionProvider? =
         if ((Flags.enableUnfoldStateAnimation() && ResourceUnfoldTransitionConfig().isEnabled))
@@ -926,7 +930,18 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
      */
     fun getHomeTaskOverlayContainer(): SurfaceControl? {
         executeWithErrorLog({ "Failed call getHomeTaskOverlayContainer" }) {
-            return shellTransitions?.homeTaskOverlayContainer
+            return shellTransitions?.getHomeTaskOverlayContainer()
+        }
+        return null
+    }
+
+    /**
+     * Returns a surface which can be used to attach overlays to home task or null if the task
+     * doesn't exist or sysui is not connected
+     */
+    fun getOverviewOverlayContainer(displayId: Int): SurfaceControl? {
+        executeWithErrorLog({ "Failed call getOverviewOverlayContainer" }) {
+            return shellTransitions?.getOverviewOverlayContainer(displayId)
         }
         return null
     }

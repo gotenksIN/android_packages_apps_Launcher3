@@ -31,7 +31,6 @@ import static com.android.launcher3.BaseActivity.EVENT_DESTROYED;
 import static com.android.launcher3.BaseActivity.EVENT_STARTED;
 import static com.android.launcher3.BaseActivity.INVISIBLE_BY_STATE_HANDLER;
 import static com.android.launcher3.BaseActivity.STATE_HANDLER_INVISIBILITY_FLAGS;
-import static com.android.launcher3.Flags.enableScalingRevealHomeAnimation;
 import static com.android.launcher3.Flags.msdlFeedback;
 import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.PagedView.INVALID_PAGE;
@@ -1100,7 +1099,7 @@ public abstract class AbsSwipeUpHandler<
             RecentsOrientedState orientationState = mRemoteTargetHandles[0].getTaskViewSimulator()
                     .getOrientationState();
             DeviceProfile dp = orientationState.getLauncherDeviceProfile(
-                    mGestureState.getDisplayId()).copy(mContext);
+                    mGestureState.getDisplayId()).copy();
             dp.updateInsets(targets.homeContentInsets);
             initTransitionEndpoints(dp);
         }
@@ -1477,9 +1476,7 @@ public abstract class AbsSwipeUpHandler<
         mGestureState.setEndTarget(endTarget, false /* isAtomic */);
         mAnimationFactory.setEndTarget(endTarget);
 
-        if (enableScalingRevealHomeAnimation()
-                && mIsTransientTaskbar
-                && mContainerInterface.getTaskbarController() != null) {
+        if (mIsTransientTaskbar && mContainerInterface.getTaskbarController() != null) {
             mContainerInterface.getTaskbarController()
                     .setUserIsNotGoingHome(endTarget != HOME);
         }
@@ -1523,7 +1520,8 @@ public abstract class AbsSwipeUpHandler<
             boolean isPinnedTaskbar = !mIsTransientTaskbar;
             boolean isThreeButton = DisplayController.getNavigationMode(mContext)
                     == NavigationMode.THREE_BUTTONS;
-            boolean isNotInDesktop =  !DisplayController.isInDesktopMode(mContext);
+            boolean isNotInDesktop = !DesktopVisibilityController.INSTANCE.get(
+                    mContext).isInDesktopMode(mContext.getDisplayId());
             duration = mContainer != null && mContainer.getDeviceProfile().isTaskbarPresent
                     ? QuickstepTransitionManager.getTaskbarToHomeDuration(
                     (isThreeButton || isPinnedTaskbar) && isNotInDesktop)
@@ -1712,14 +1710,16 @@ public abstract class AbsSwipeUpHandler<
                     mTaskAnimationManager.getCurrentCallbacks());
             if (mParallelRunningAnim != null) {
                 mParallelRunningAnim.addListener(new AnimatorListenerAdapter() {
+                    final DesktopVisibilityController desktopVisibilityController =
+                            DesktopVisibilityController.INSTANCE.get(mContext);
+                    final boolean isInDesktopMode =
+                            desktopVisibilityController.isInDesktopMode(mContext.getDisplayId());
                     @Override
                     public void onAnimationStart(Animator animation) {
-                        if (DisplayController.isInDesktopMode(mContext)
-                                && mGestureState.getEndTarget() == HOME) {
+                        if (isInDesktopMode && mGestureState.getEndTarget() == HOME) {
                             // Set launcher animation started, so we don't notify from
                             // desktop visibility controller
-                            DesktopVisibilityController.INSTANCE.get(
-                                    mContext).setLauncherAnimationRunning(true);
+                            desktopVisibilityController.setLauncherAnimationRunning(true);
                         }
                     }
 
@@ -1729,10 +1729,8 @@ public abstract class AbsSwipeUpHandler<
                         mStateCallback.setStateOnUiThread(STATE_PARALLEL_ANIM_FINISHED);
                         // Swipe to home animation finished, notify DesktopVisibilityController
                         // to recreate Taskbar
-                        if (DisplayController.isInDesktopMode(mContext)
-                                && mGestureState.getEndTarget() == HOME) {
-                            DesktopVisibilityController.INSTANCE.get(
-                                    mContext).onLauncherAnimationFromDesktopEnd(
+                        if (isInDesktopMode && mGestureState.getEndTarget() == HOME) {
+                            desktopVisibilityController.onLauncherAnimationFromDesktopEnd(
                                     mGestureState.getDisplayId());
                         }
                     }

@@ -18,7 +18,6 @@ package com.android.launcher3.taskbar;
 import static com.android.app.animation.Interpolators.EMPHASIZED;
 import static com.android.app.animation.Interpolators.FINAL_FRAME;
 import static com.android.app.animation.Interpolators.INSTANT;
-import static com.android.launcher3.Flags.enableScalingRevealHomeAnimation;
 import static com.android.launcher3.Hotseat.ALPHA_CHANNEL_TASKBAR_ALIGNMENT;
 import static com.android.launcher3.Hotseat.ALPHA_CHANNEL_TASKBAR_STASH;
 import static com.android.launcher3.LauncherState.HOTSEAT_ICONS;
@@ -617,10 +616,10 @@ public class TaskbarLauncherStateController {
                 animatorSet.addListener(new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationEnd(Animator animation) {
-                        // If the taskbar is no longer hidden when the animation ends (e.g. quick
-                        // power button double tap), then we should no longer stash the taskbar.
+                        // If we're awake when the animation ends (e.g. quick power button double
+                        // tap), then we should no longer stash the taskbar.
                         if (BubbleAnythingFlagHelper.enableCreateAnyBubble()
-                                && !hasAnyFlag(FLAG_TASKBAR_HIDDEN)) {
+                                && hasAnyFlag(FLAG_AWAKE)) {
                             if (DEBUG) {
                                 Log.d(TAG, "Skip stashing taskbar, it's visible again.");
                             }
@@ -781,8 +780,7 @@ public class TaskbarLauncherStateController {
         }
 
         Interpolator interpolator =
-                enableScalingRevealHomeAnimation() && isTransient
-                        ? ScalingWorkspaceRevealAnim.SCALE_INTERPOLATOR : EMPHASIZED;
+                isTransient ? ScalingWorkspaceRevealAnim.SCALE_INTERPOLATOR : EMPHASIZED;
 
         animatorSet.setInterpolator(interpolator);
 
@@ -1075,9 +1073,16 @@ public class TaskbarLauncherStateController {
         /*
          * Hide Launcher Hotseat icons when Taskbar icons have opacity. Both icon sets
          * should not be visible at the same time.
+         *
+         * Checking if isLauncherAnimationRunning running is crucial as user can now swipe to home
+         * from desktop mode.
+         *
+         * Taskbar recreation can be anytime now so we don't want to start transient taskbar
+         * animation while user was swiping home from pinned taskbar of desktop mode.
          */
         float targetAlpha = hotseatVisible ? 1 : 0;
-        if (mControllers.taskbarActivityContext.isTransientTaskbar()
+        if ((mControllers.taskbarActivityContext.isTransientTaskbar()
+                && !mControllers.taskbarDesktopModeController.isLauncherAnimationRunning())
                 || mControllers.taskbarActivityContext.showLockedTaskbarOnHome()
                 || mControllers.taskbarActivityContext.showDesktopTaskbarForFreeformDisplay()) {
             mLauncher.getHotseat().setIconsAlpha(targetAlpha, alphaChannel);
