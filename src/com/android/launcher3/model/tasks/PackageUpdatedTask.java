@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.model;
+package com.android.launcher3.model.tasks;
 
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT;
 import static com.android.launcher3.model.data.AppsListData.FLAG_PRIVATE_PROFILE_QUIET_MODE_ENABLED;
@@ -39,9 +39,13 @@ import androidx.annotation.NonNull;
 import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherModel.ModelUpdateTask;
 import com.android.launcher3.LauncherSettings.Favorites;
-import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.icons.IconCache;
 import com.android.launcher3.logging.FileLog;
+import com.android.launcher3.model.AllAppsList;
+import com.android.launcher3.model.BgDataModel;
+import com.android.launcher3.model.ItemInstallQueue;
+import com.android.launcher3.model.ModelTaskController;
+import com.android.launcher3.model.UserManagerState;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
@@ -122,17 +126,10 @@ public class PackageUpdatedTask implements ModelUpdateTask {
         }
         switch (mOp) {
             case OP_ADD: {
-                for (int i = 0; i < packageCount; i++) {
-                    iconCache.updateIconsForPkg(packages[i], mUser);
-                    if (FeatureFlags.PROMISE_APPS_IN_ALL_APPS.get()) {
-                        if (DEBUG) {
-                            Log.i(TAG, "OP_ADD: PROMISE_APPS_IN_ALL_APPS enabled:"
-                                    + " removing promise icon apps from package=" + packages[i]);
-                        }
-                        appsList.removePackage(packages[i], mUser);
-                    }
-                    activitiesLists.put(packages[i],
-                            appsList.addPackage(context, packages[i], mUser));
+                for (String packageName : packages) {
+                    iconCache.updateIconsForPkg(packageName, mUser);
+                    activitiesLists.put(
+                            packageName, appsList.addPackage(context, packageName, mUser));
                 }
                 flagOp = FlagOp.NO_OP.removeFlag(WorkspaceItemInfo.FLAG_DISABLED_NOT_AVAILABLE);
                 break;
@@ -158,8 +155,8 @@ public class PackageUpdatedTask implements ModelUpdateTask {
                 for (int i = 0; i < packageCount; i++) {
                     iconCache.removeIconsForPkg(packages[i], mUser);
                 }
-                // Fall through
             }
+            // Fall through
             case OP_UNAVAILABLE:
                 for (int i = 0; i < packageCount; i++) {
                     if (DEBUG) {

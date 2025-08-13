@@ -22,14 +22,19 @@ import android.content.pm.ShortcutInfo
 import android.os.UserHandle
 import android.text.TextUtils
 import com.android.launcher3.LauncherModel.ModelUpdateTask
-import com.android.launcher3.config.FeatureFlags
 import com.android.launcher3.logging.FileLog
-import com.android.launcher3.model.PackageUpdatedTask.OP_ADD
-import com.android.launcher3.model.PackageUpdatedTask.OP_REMOVE
-import com.android.launcher3.model.PackageUpdatedTask.OP_SUSPEND
-import com.android.launcher3.model.PackageUpdatedTask.OP_UNAVAILABLE
-import com.android.launcher3.model.PackageUpdatedTask.OP_UNSUSPEND
-import com.android.launcher3.model.PackageUpdatedTask.OP_UPDATE
+import com.android.launcher3.model.tasks.CacheDataUpdatedTask
+import com.android.launcher3.model.tasks.PackageIncrementalDownloadUpdatedTask
+import com.android.launcher3.model.tasks.PackageInstallStateChangedTask
+import com.android.launcher3.model.tasks.PackageUpdatedTask
+import com.android.launcher3.model.tasks.PackageUpdatedTask.OP_ADD
+import com.android.launcher3.model.tasks.PackageUpdatedTask.OP_REMOVE
+import com.android.launcher3.model.tasks.PackageUpdatedTask.OP_SUSPEND
+import com.android.launcher3.model.tasks.PackageUpdatedTask.OP_UNAVAILABLE
+import com.android.launcher3.model.tasks.PackageUpdatedTask.OP_UNSUSPEND
+import com.android.launcher3.model.tasks.PackageUpdatedTask.OP_UPDATE
+import com.android.launcher3.model.tasks.SessionFailureTask
+import com.android.launcher3.model.tasks.ShortcutsChangedTask
 import com.android.launcher3.pm.InstallSessionTracker
 import com.android.launcher3.pm.PackageInstallInfo
 import com.android.launcher3.util.PackageUserKey
@@ -125,14 +130,7 @@ class ModelLauncherCallbacks(private var taskExecutor: Consumer<ModelUpdateTask>
         )
     }
 
-    override fun onInstallSessionCreated(sessionInfo: PackageInstallInfo) {
-        if (FeatureFlags.PROMISE_APPS_IN_ALL_APPS.get()) {
-            taskExecutor.accept { taskController, _, apps ->
-                apps.addPromiseApp(taskController.context, sessionInfo)
-                taskController.bindApplicationsIfNeeded()
-            }
-        }
-    }
+    override fun onInstallSessionCreated(sessionInfo: PackageInstallInfo) {}
 
     companion object {
         private const val TAG = "LauncherAppsCallbackImpl"

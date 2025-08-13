@@ -79,6 +79,7 @@ import android.view.Surface;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.view.animation.AnimationUtils;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 import android.window.DesktopExperienceFlags;
@@ -128,7 +129,6 @@ import com.android.launcher3.taskbar.TaskbarAutohideSuspendController.AutohideSu
 import com.android.launcher3.taskbar.TaskbarTranslationController.TransitionCallback;
 import com.android.launcher3.taskbar.allapps.TaskbarAllAppsController;
 import com.android.launcher3.taskbar.bubbles.BubbleBarController;
-import com.android.launcher3.taskbar.bubbles.BubbleBarPinController;
 import com.android.launcher3.taskbar.bubbles.BubbleBarSwipeController;
 import com.android.launcher3.taskbar.bubbles.BubbleBarView;
 import com.android.launcher3.taskbar.bubbles.BubbleBarViewController;
@@ -136,7 +136,6 @@ import com.android.launcher3.taskbar.bubbles.BubbleControllers;
 import com.android.launcher3.taskbar.bubbles.BubbleCreator;
 import com.android.launcher3.taskbar.bubbles.BubbleDismissController;
 import com.android.launcher3.taskbar.bubbles.BubbleDragController;
-import com.android.launcher3.taskbar.bubbles.BubblePinController;
 import com.android.launcher3.taskbar.bubbles.BubbleStashedHandleViewController;
 import com.android.launcher3.taskbar.bubbles.DragToBubbleController;
 import com.android.launcher3.taskbar.bubbles.stashing.BubbleStashController;
@@ -176,6 +175,7 @@ import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.util.DesktopTask;
 import com.android.quickstep.util.GroupTask;
 import com.android.quickstep.util.SingleTask;
+import com.android.quickstep.util.SlideInRemoteTransition;
 import com.android.quickstep.util.SplitTask;
 import com.android.quickstep.views.DesktopTaskView;
 import com.android.quickstep.views.RecentsView;
@@ -185,6 +185,7 @@ import com.android.systemui.shared.recents.model.Task;
 import com.android.systemui.shared.rotation.RotationButtonController;
 import com.android.systemui.shared.statusbar.phone.BarTransitions;
 import com.android.systemui.shared.system.ActivityManagerWrapper;
+import com.android.systemui.shared.system.QuickStepContract;
 import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags;
 import com.android.systemui.unfold.updates.RotationChangeProvider;
 import com.android.systemui.unfold.util.ScopedUnfoldTransitionProgressProvider;
@@ -352,8 +353,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                     bubbleHandleController,
                     new BubbleDragController(this, mWindowContext, mDragLayer, mTaskbarUiState),
                     new BubbleDismissController(this, mDragLayer),
-                    new BubbleBarPinController(this, bubbleBarContainer, this::getScreenSize),
-                    new BubblePinController(this, bubbleBarContainer, this::getScreenSize),
                     bubbleBarSwipeController,
                     new DragToBubbleController(mWindowContext, bubbleBarContainer),
                     new BubbleCreator(this)
@@ -1528,12 +1527,19 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         notifyUpdateLayoutParams();
     }
 
-    /** Applies forcibly show flag to taskbar window iff transient taskbar is unstashed. */
+    /**
+     * Applies forcibly show flag to taskbar window iff transient taskbar is unstashed.
+     */
     public void applyForciblyShownFlagWhileTransientTaskbarUnstashed(boolean shouldForceShow) {
         if (!isTransientTaskbar() || isPhoneMode()) {
             return;
         }
-        applyForciblyShownFlag(shouldForceShow);
+        if (shouldForceShow) {
+            mWindowLayoutParams.forciblyShownTypes |= WindowInsets.Type.navigationBars();
+        } else {
+            mWindowLayoutParams.forciblyShownTypes &= ~WindowInsets.Type.navigationBars();
+        }
+        notifyUpdateLayoutParams();
     }
 
     /**
@@ -1549,23 +1555,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      */
     public void applyForciblyShownFlagForBubblesInPersistentTaskbar(boolean shouldForceShow) {
         if (isTransientTaskbar()) {
-            return;
-        }
-        applyForciblyShownFlag(shouldForceShow);
-    }
-
-    /**
-     * Applies the forcibly shown flag to the task bar window.
-     *
-     * <p>Note that this may result in a binder call and a layout pass. If we are not in immersive
-     * mode, then the taskbar window is already visible, so requests to force show it are ignored to
-     * avoid unnecessary binder calls.
-     */
-    private void applyForciblyShownFlag(boolean shouldForceShow) {
-        final boolean isImmersiveMode =
-                mControllers.taskbarForceVisibleImmersiveController.isImmersiveMode();
-        if (shouldForceShow && !isImmersiveMode) {
-            // no need to force show the taskbar window if we're not in immersive mode
             return;
         }
         if (shouldForceShow) {
@@ -1643,7 +1632,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
         mControllers.keyboardQuickSwitchController.closeQuickSwitchView(false);
 
-        // TODO: b/316004172, b/343289567: Handle `DesktopTask` and `SplitTask`.
         if (tag instanceof SingleTask singleTask) {
             RemoteTransition remoteTransition =
                     (isTaskbarShowingDesktopTasks() && canUnminimizeDesktopTask(
@@ -1658,6 +1646,20 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 launchTask.run();
             }
 
+            mControllers.taskbarStashController.updateAndAnimateTransientTaskbar(true);
+        } else if (tag instanceof SplitTask st) {
+            // Tapping an icon for a split task on Taskbar
+            final RemoteTransition slideInTransition = new RemoteTransition(
+                    new SlideInRemoteTransition(
+                            !Utilities.isRtl(getResources()),
+                            getDeviceProfile().getOverviewProfile().getPageSpacing(),
+                            QuickStepContract.getWindowCornerRadius(this),
+                            AnimationUtils.loadInterpolator(
+                                    this, android.R.interpolator.fast_out_extra_slow_in)),
+                    "SlideInTransition");
+            // SplitTask is only relevant outside of desktop.
+            handleGroupTaskLaunch(st, slideInTransition, isTaskbarShowingDesktopTasks(),
+                    DesktopTaskToFrontReason.UNKNOWN, view, DesktopModeTransitionSource.TASKBAR);
             mControllers.taskbarStashController.updateAndAnimateTransientTaskbar(true);
         } else if (tag instanceof FolderInfo) {
             // Tapping an expandable folder icon on Taskbar

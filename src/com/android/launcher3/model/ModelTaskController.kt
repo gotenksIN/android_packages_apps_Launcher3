@@ -62,7 +62,6 @@ constructor(
         if (workspaceUpdates.isNotEmpty()) {
             scheduleCallbackTask { it.bindItemsUpdated(workspaceUpdates) }
         }
-        dataModel.updateItems(allUpdates.toList(), null)
     }
 
     fun bindExtraContainerItems(item: FixedContainerItems) {
@@ -78,6 +77,7 @@ constructor(
         val allWidgets =
             WidgetsListBaseEntriesBuilder(context)
                 .build(dataModel.widgetsModel.widgetsByPackageItemForPicker)
+        dataModel.notifyWidgetsUpdate(allWidgets)
         scheduleCallbackTask { it.bindAllWidgets(allWidgets) }
     }
 
