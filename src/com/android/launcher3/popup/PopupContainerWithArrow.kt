@@ -573,7 +573,8 @@ constructor(context: Context?, attrs: AttributeSet? = null, defStyleAttr: Int = 
                 return
             }
             val item = icon.tag as ItemInfo
-            val deepShortcutCount = activityContext.popupDataProvider.getShortcutCountForItem(item)
+            val deepShortcutCount =
+                activityContext.activityComponent.popupDataProvider.getShortcutCountForItem(item)
             val container: PopupContainerWithArrow<Launcher> =
                 activityContext.layoutInflater.inflate(
                     R.layout.popup_container,
@@ -642,10 +643,12 @@ constructor(context: Context?, attrs: AttributeSet? = null, defStyleAttr: Int = 
         @JvmStatic
         fun <T> dismissInvalidPopup(activity: T) where T : Context?, T : ActivityContext? {
             val popup = getOpen(activity)
+            val originalIcon = popup?.originalIcon
+            val originalIconTag = originalIcon?.tag as? ItemInfo
             if (
-                popup != null &&
-                    (popup.originalIcon?.isAttachedToWindow == false ||
-                        !ShortcutUtil.supportsShortcuts(popup.originalIcon?.tag as ItemInfo))
+                originalIcon != null &&
+                    (!originalIcon.isAttachedToWindow ||
+                        !ShortcutUtil.supportsShortcuts(originalIconTag))
             ) {
                 popup.animateClose()
             }

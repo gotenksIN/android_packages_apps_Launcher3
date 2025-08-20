@@ -16,18 +16,28 @@
 
 package com.android.launcher3.dagger
 
+import com.android.launcher3.allapps.AllAppsStore
+import com.android.launcher3.dagger.LauncherBaseAppComponent.Builder
+import com.android.launcher3.popup.PopupDataProvider
 import com.android.launcher3.secondarydisplay.SecondaryDisplayDelegate
 import com.android.launcher3.views.ActivityContext
 import dagger.BindsInstance
+import javax.inject.Named
 
 /** Base component for ActivityContext Dagger injection. */
 interface BaseActivityContextComponent {
 
     fun getSecondaryDisplayDelegate(): SecondaryDisplayDelegate
 
+    val appsStore: AllAppsStore
+    val popupDataProvider: PopupDataProvider
+
     /** Builder for BaseActivityContextComponent. */
     interface Builder {
         @BindsInstance fun activityContext(activityContext: ActivityContext): Builder
+
+        @BindsInstance
+        fun setAllAppsPreloaded(@Named("PRELOAD_ALL_APPS") preloadAllApps: Boolean): Builder
 
         fun build(): BaseActivityContextComponent
     }

@@ -23,6 +23,7 @@ import static com.android.launcher3.LauncherAnimUtils.SCRIM_COLORS;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
 import static com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOverview;
 import static com.android.quickstep.AbsSwipeUpHandler.RECENTS_ATTACH_DURATION;
+import static com.android.quickstep.GestureState.GestureEndTarget.HOME;
 import static com.android.quickstep.GestureState.GestureEndTarget.LAST_TASK;
 import static com.android.quickstep.GestureState.GestureEndTarget.RECENTS;
 import static com.android.quickstep.util.RecentsAtomicAnimationFactory.INDEX_RECENTS_ATTACHED_ALPHA_ANIM;
@@ -69,6 +70,7 @@ import com.android.quickstep.util.ContextInitListener;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.RecentsViewContainer;
 import com.android.systemui.shared.recents.model.ThumbnailData;
+import com.android.wm.shell.shared.desktopmode.DesktopState;
 
 import java.util.HashMap;
 import java.util.List;
@@ -352,6 +354,13 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
             endTarget = LAST_TASK;
         }
         if (endTarget != null) {
+            // In the case where home is always shown behind desktop, ensure that we reset to
+            // Normal home state, and set `activityVisible` to false so we don't animate home
+            // because home is already showing.
+            if (DesktopState.fromContext(context).getShouldShowHomeBehindDesktop()) {
+                endTarget = HOME;
+                activityVisible = false;
+            }
             // We were on our way to this state when we got canceled, end there instead.
             startState = stateFromGestureEndTarget(endTarget);
         }
@@ -510,11 +519,6 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
             RecentsPagedOrientationHandler orientationHandler) {
         calculateTaskSize(context, dp, outRect, orientationHandler);
         boolean isGridOnlyOverview = dp.getDeviceProperties().isTablet() && enableGridOnlyOverview();
-        int claimedSpaceBelow = isGridOnlyOverview
-                ? dp.getOverviewProfile().getActionsTopMarginPx()
-                + dp.getOverviewProfile().getActionsHeight()
-                    + dp.getTaskbarProfile().getStashedTaskbarHeight()
-                : (dp.getDeviceProperties().getHeightPx() - outRect.bottom - dp.getInsets().bottom);
         int minimumHorizontalPadding = 0;
         if (!isGridOnlyOverview) {
             float maxScale = context.getResources().getFloat(R.dimen.overview_modal_max_scale);
@@ -525,12 +529,27 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
                 context,
                 dp,
                 dp.getOverviewProfile().getTaskMarginPx(),
-                claimedSpaceBelow,
+                getModalClaimedSpaceBelow(dp, outRect, isGridOnlyOverview),
                 minimumHorizontalPadding,
                 1f /*maxScale*/,
                 Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM,
                 outRect,
                 orientationHandler);
+    }
+
+    private static int getModalClaimedSpaceBelow(DeviceProfile dp, Rect outRect,
+            boolean isGridOnlyOverview) {
+        if (isGridOnlyOverview) {
+            int modalTaskbarHeight = dp.getTaskbarProfile().isTransientTaskbar()
+                    ? dp.getTaskbarProfile().getStashedTaskbarHeight()
+                    : dp.getTaskbarProfile().getHeight();
+            return dp.getOverviewProfile().getActionsTopMarginPx()
+                    + dp.getOverviewProfile().getActionsHeight()
+                    + modalTaskbarHeight
+                    + dp.getOverviewProfile().getActionsTopMarginPx();
+        } else {
+            return dp.getDeviceProperties().getHeightPx() - outRect.bottom - dp.getInsets().bottom;
+        }
     }
 
     protected void onInitBackgroundStateUI() {

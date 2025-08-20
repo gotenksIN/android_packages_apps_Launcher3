@@ -35,7 +35,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import android.content.ComponentName;
-import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -59,7 +58,7 @@ import com.android.launcher3.R;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.pm.UserCache;
-import com.android.launcher3.util.ActivityContextWrapper;
+import com.android.launcher3.util.TestActivityContext;
 import com.android.launcher3.util.UserIconInfo;
 
 import org.junit.Before;
@@ -102,17 +101,19 @@ public class PrivateSpaceHeaderViewTest {
     private static final int SCROLL_NO_WHERE = -1;
     private static final float HEADER_PROTECTION_HEIGHT = 1F;
 
-    private Context mContext;
     private RelativeLayout mPsHeaderLayout;
-    private AlphabeticalAppsList<?> mAlphabeticalAppsList;
+    private AlphabeticalAppsList mAlphabeticalAppsList;
     private PrivateProfileManager mPrivateProfileManager;
 
-    @Rule
-    public MockitoRule mockitoRule = MockitoJUnit.rule();
+    @Rule public MockitoRule mockitoRule = MockitoJUnit.rule();
+    @Rule public TestActivityContext mContext = new TestActivityContext(
+            getApplicationContext(),
+            R.style.DynamicColorsBaseLauncherTheme);
+
     @Mock
     private ActivityAllAppsContainerView mAllApps;
     @Mock
-    private AllAppsStore<?> mAllAppsStore;
+    private AllAppsStore mAllAppsStore;
     @Mock
     private UserCache mUserCache;
     @Mock
@@ -122,8 +123,6 @@ public class PrivateSpaceHeaderViewTest {
 
     @Before
     public void setUp() {
-        mContext = new ActivityContextWrapper(getApplicationContext(),
-                R.style.DynamicColorsBaseLauncherTheme);
         when(mAllApps.getContext()).thenReturn(mContext);
         when(mUserCache.getUserInfo(PRIVATE_HANDLE)).thenReturn(PRIVATE_ICON_INFO);
         when(mUserCache.getUserProfiles())
@@ -297,7 +296,7 @@ public class PrivateSpaceHeaderViewTest {
         when(mAllApps.getHeight()).thenReturn(ALL_APPS_HEIGHT);
         when(mAllApps.getHeaderProtectionHeight()).thenReturn(HEADER_PROTECTION_HEIGHT);
         when(mAllApps.isUsingTabs()).thenReturn(true);
-        mAlphabeticalAppsList = new AlphabeticalAppsList<>(mContext, mAllAppsStore,
+        mAlphabeticalAppsList = new AlphabeticalAppsList(mContext, mAllAppsStore,
                 null, privateProfileManager);
         mAlphabeticalAppsList.setNumAppsPerRowAllApps(NUM_APP_COLS);
         mAlphabeticalAppsList.updateItemFilter(info -> info != null
@@ -332,7 +331,7 @@ public class PrivateSpaceHeaderViewTest {
         when(mAllApps.getHeight()).thenReturn(ALL_APPS_HEIGHT);
         when(mAllApps.getHeaderProtectionHeight()).thenReturn(HEADER_PROTECTION_HEIGHT);
         when(mAllApps.isUsingTabs()).thenReturn(false);
-        mAlphabeticalAppsList = new AlphabeticalAppsList<>(mContext, mAllAppsStore,
+        mAlphabeticalAppsList = new AlphabeticalAppsList(mContext, mAllAppsStore,
                 null, privateProfileManager);
         mAlphabeticalAppsList.setNumAppsPerRowAllApps(NUM_APP_COLS);
         mAlphabeticalAppsList.updateItemFilter(info -> info != null
@@ -367,7 +366,7 @@ public class PrivateSpaceHeaderViewTest {
         when(mAllApps.getHeight()).thenReturn(ALL_APPS_HEIGHT);
         when(mAllApps.isUsingTabs()).thenReturn(true);
         when(mAllApps.getHeaderProtectionHeight()).thenReturn(HEADER_PROTECTION_HEIGHT);
-        mAlphabeticalAppsList = new AlphabeticalAppsList<>(mContext, mAllAppsStore,
+        mAlphabeticalAppsList = new AlphabeticalAppsList(mContext, mAllAppsStore,
                 null, privateProfileManager);
         mAlphabeticalAppsList.setNumAppsPerRowAllApps(NUM_APP_COLS);
         mAlphabeticalAppsList.updateItemFilter(info -> info != null
@@ -399,7 +398,7 @@ public class PrivateSpaceHeaderViewTest {
         doReturn(0).when(privateProfileManager).addSystemAppsDivider(any());
         when(mAllApps.getHeight()).thenReturn(ALL_APPS_HEIGHT);
         when(mAllApps.getHeaderProtectionHeight()).thenReturn(HEADER_PROTECTION_HEIGHT);
-        mAlphabeticalAppsList = new AlphabeticalAppsList<>(mContext, mAllAppsStore,
+        mAlphabeticalAppsList = new AlphabeticalAppsList(mContext, mAllAppsStore,
                 null, privateProfileManager);
         mAlphabeticalAppsList.setNumAppsPerRowAllApps(NUM_APP_COLS);
         mAlphabeticalAppsList.updateItemFilter(info -> info != null

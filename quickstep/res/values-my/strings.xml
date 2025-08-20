@@ -23,7 +23,7 @@
     <string name="recent_task_option_freeform" msgid="48863056265284071">"အလွတ်ပုံစံ"</string>
     <string name="recent_task_option_desktop" msgid="8280879717125435668">"ဒက်စ်တော့"</string>
     <string name="recent_task_option_external_display" msgid="4533840664313389484">"ပြင်ပဖန်သားပြင်သို့ ရွှေ့ရန်"</string>
-    <string name="recent_task_option_remove_task" msgid="803559928027541555">"ရှင်းထုတ်ရန်"</string>
+    <string name="recent_task_option_remove_task" msgid="803559928027541555">"ရှင်းရန်"</string>
     <string name="recent_task_desktop" msgid="8081113562549637334">"ဒက်စ်တော့"</string>
     <string name="recents_empty_message" msgid="7040467240571714191">"မကြာမီကဖွင့်ထားသည်များ မရှိပါ"</string>
     <string name="accessibility_app_usage_settings" msgid="6312864233673544149">"အက်ပ်အသုံးပြုမှု ဆက်တင်များ"</string>
@@ -150,6 +150,10 @@
     <string name="change_navigation_mode" msgid="9088393078736808968">"ရွှေ့ကြည့်သည့်မုဒ် ပြောင်းရန်"</string>
     <string name="taskbar_divider_a11y_title" msgid="6608690309720242080">"လုပ်ဆောင်စရာဘား ပိုင်းခြားစနစ်"</string>
     <string name="taskbar_overflow_a11y_title" msgid="8114045167370723746">"လတ်တလော အခြားအက်ပ်များ"</string>
+    <!-- no translation found for app_added_to_taskbar (1160433791917609063) -->
+    <skip />
+    <!-- no translation found for app_removed_from_taskbar (7887298201562912487) -->
+    <skip />
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"အပေါ်/ဘယ်ဘက်သို့ ရွှေ့ရန်"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"အောက်ခြေ/ညာဘက်သို့ ရွှေ့ရန်"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"အက်ပ်ကို ပူဖောင်းကွက်အဖြစ် ဖွင့်ရန်"</string>
