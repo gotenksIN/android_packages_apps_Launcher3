@@ -14,18 +14,23 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.homescreenfiles
+package com.android.quickstep.task.apptimer
 
-import com.android.launcher3.dagger.LauncherAppSingleton
-import dagger.Module
-import dagger.Provides
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
-/** A dagger module responsible for managing files on the home screen. */
-@Module
-object HomeScreenFilesNoOpModule {
-    @Provides
-    @LauncherAppSingleton
-    fun provideHomeScreenFilesProvider(): HomeScreenFilesProvider {
-        return HomeScreenFilesNoOpProvider()
+interface ViewModel<T> {
+    val uiState: StateFlow<T>
+}
+
+class TaskAppTimerViewModel : ViewModel<TaskAppTimerUiState> {
+    private val _appTimerUiState =
+        MutableStateFlow<TaskAppTimerUiState>(TaskAppTimerUiState.Uninitialized)
+
+    override val uiState = _appTimerUiState.asStateFlow()
+
+    fun setState(uiState: TaskAppTimerUiState) {
+        _appTimerUiState.value = uiState
     }
 }

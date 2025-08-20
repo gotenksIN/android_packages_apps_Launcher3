@@ -62,6 +62,7 @@ import androidx.savedstate.SavedStateRegistryOwner;
 
 import com.android.launcher3.BaseActivity;
 import com.android.launcher3.BubbleTextView;
+import com.android.launcher3.CellLayout;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.DeviceProfile.OnDeviceProfileChangeListener;
 import com.android.launcher3.DropTargetHandler;
@@ -84,7 +85,6 @@ import com.android.launcher3.model.ModelWriter;
 import com.android.launcher3.model.StringCache;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
-import com.android.launcher3.popup.PopupDataProvider;
 import com.android.launcher3.util.ActivityOptionsWrapper;
 import com.android.launcher3.util.ApplicationInfoWrapper;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
@@ -277,6 +277,13 @@ public interface ActivityContext extends SavedStateRegistryOwner {
         return null;
     }
 
+    /**
+     * Gets the CellLayout of the specified container at the specified screen
+     */
+    default CellLayout getCellLayout(int container, int screenId) {
+        return null;
+    }
+
     @Nullable
     default SystemUiController getSystemUiController() {
         return null;
@@ -323,13 +330,8 @@ public interface ActivityContext extends SavedStateRegistryOwner {
         return v -> false;
     }
 
-    @NonNull
-    default PopupDataProvider getPopupDataProvider() {
-        return new PopupDataProvider(this);
-    }
-
     default DotInfo getDotInfoForItem(ItemInfo info) {
-        return getPopupDataProvider().getDotInfoForItem(info);
+        return getActivityComponent().getPopupDataProvider().getDotInfoForItem(info);
     }
 
     /**

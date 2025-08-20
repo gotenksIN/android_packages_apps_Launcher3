@@ -8,6 +8,7 @@ import android.util.Pair
 import androidx.annotation.AnyThread
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
+import com.android.launcher3.LauncherConstants.TraceEvents
 import com.android.launcher3.LauncherConstants.TraceEvents.DISPLAY_WORKSPACE_TRACE_METHOD_NAME
 import com.android.launcher3.LauncherConstants.TraceEvents.SINGLE_TRACE_COOKIE
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
@@ -25,7 +26,6 @@ import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.PredictedContainerInfo
 import com.android.launcher3.model.data.WorkspaceData
 import com.android.launcher3.popup.PopupContainerWithArrow
-import com.android.launcher3.util.ComponentKey
 import com.android.launcher3.util.Executors
 import com.android.launcher3.util.Executors.MAIN_EXECUTOR
 import com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR
@@ -162,7 +162,7 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
         pendingExecutor = null
 
         // We might have set this flag previously and forgot to clear it.
-        launcher.appsView.appsStore.disableDeferUpdatesSilently(
+        launcher.activityComponent.appsStore.disableDeferUpdatesSilently(
             AllAppsStore.DEFER_UPDATES_NEXT_DRAW
         )
     }
@@ -175,7 +175,7 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
     ) {
         Preconditions.assertUIThread()
         val hadWorkApps = launcher.appsView.shouldShowTabs()
-        launcher.appsView.appsStore.setApps(apps, flags, packageUserKeytoUidMap)
+        launcher.activityComponent.appsStore.setApps(apps, flags, packageUserKeytoUidMap)
         PopupContainerWithArrow.dismissInvalidPopup(launcher)
         if (
             hadWorkApps != launcher.appsView.shouldShowTabs() &&
@@ -183,18 +183,11 @@ class ModelCallbacks(private var launcher: Launcher) : BgDataModel.Callbacks {
         ) {
             launcher.stateManager.goToState(LauncherState.NORMAL)
         }
-    }
-
-    /**
-     * Copies LauncherModel's map of activities to shortcut counts to Launcher's. This is necessary
-     * because LauncherModel's map is updated in the background, while Launcher runs on the UI.
-     */
-    override fun bindDeepShortcutMap(deepShortcutMap: HashMap<ComponentKey, Int>) {
-        launcher.popupDataProvider.setDeepShortcutMap(deepShortcutMap)
+        Trace.endAsyncSection(TraceEvents.DISPLAY_ALL_APPS_TRACE_METHOD_NAME, SINGLE_TRACE_COOKIE)
     }
 
     override fun bindIncrementalDownloadProgressUpdated(app: AppInfo) {
-        launcher.appsView.appsStore.updateProgressBar(app)
+        launcher.activityComponent.appsStore.updateProgressBar(app)
     }
 
     /**

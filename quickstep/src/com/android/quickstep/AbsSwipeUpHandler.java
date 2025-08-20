@@ -118,12 +118,14 @@ import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.BuildConfig;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.LauncherPrefs;
+import com.android.launcher3.LifecycleTracker;
 import com.android.launcher3.QuickstepTransitionManager;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimationSuccessListener;
 import com.android.launcher3.anim.AnimatorPlaybackController;
 import com.android.launcher3.compat.AccessibilityManagerCompat;
+import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.dragndrop.DragView;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.logging.StatsLogManager.StatsLogger;
@@ -399,13 +401,13 @@ public abstract class AbsSwipeUpHandler<
                 mContainerInterface.createActivityInitListener(this::onActivityInit);
         mLauncherOnDestroyCallback = () -> {
             ActiveGestureProtoLogProxy.logLauncherDestroyed();
-            mContextInitListener.unregister("AbsSwipeUpHandler.mLauncherOnDestroyCallback");
             if (mRecentsView != null) {
                 mRecentsView.removeOnScrollChangedListener(mOnRecentsScrollListener);
                 mRecentsView = null;
             }
             mContainer = null;
             mStateCallback.clearState(STATE_LAUNCHER_PRESENT);
+            mStateCallback.setStateOnUiThread(STATE_HANDLER_INVALIDATED);
             mRecentsAnimationStartCallbacks.clear();
             mTaskAnimationManager.onLauncherDestroyed();
         };
@@ -2324,6 +2326,11 @@ public abstract class AbsSwipeUpHandler<
         TaskStackChangeListeners.getInstance().unregisterTaskStackListener(
                 mActivityRestartListener);
         mTaskSnapshotCache.clear();
+
+        for (LifecycleTracker tracker:
+                LauncherComponentProvider.get(mContext).getLifecycleTrackers()) {
+            tracker.trackLifecycleOnDestroy(this, 1000L);
+        }
     }
 
     private void invalidateHandlerWithLauncher() {

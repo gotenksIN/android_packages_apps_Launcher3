@@ -111,6 +111,7 @@ import com.android.launcher3.desktop.DesktopAppLaunchTransition.AppLaunchType;
 import com.android.launcher3.deviceprofile.TaskbarProfile;
 import com.android.launcher3.folder.Folder;
 import com.android.launcher3.folder.FolderIcon;
+import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.icons.BitmapRenderer;
 import com.android.launcher3.icons.FastBitmapDrawable;
 import com.android.launcher3.logger.LauncherAtom;
@@ -123,7 +124,6 @@ import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.TaskItemInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.PopupContainerWithArrow;
-import com.android.launcher3.popup.PopupDataProvider;
 import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.taskbar.TaskbarAutohideSuspendController.AutohideSuspendFlag;
 import com.android.launcher3.taskbar.TaskbarTranslationController.TransitionCallback;
@@ -280,6 +280,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     private @Nullable UIControllerChangeListener mUIControllerChangeListener;
 
+    private final boolean mIsTransient;
+    private final boolean mIsPinned;
+
     public TaskbarActivityContext(int displayId, Context windowContext,
             @Nullable Context navigationBarPanelContext, DeviceProfile launcherDp,
             TaskbarNavButtonController buttonController,
@@ -287,6 +290,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             boolean isPrimaryDisplay, int primaryDisplayId, SystemUiProxy sysUiProxy) {
         super(windowContext, displayId, isPrimaryDisplay);
         mTaskbarFeatureEvaluator = TaskbarFeatureEvaluator.INSTANCE.get(this);
+        mIsTransient = mTaskbarFeatureEvaluator.isTransient();
+        mIsPinned = mTaskbarFeatureEvaluator.isPinned();
         mTaskbarUiState = TaskbarUiStateMonitor.INSTANCE.get(this).getTaskbarUiState(displayId);
         mTaskbarUiState.setIsPrimaryDisplay(isPrimaryDisplay);
         mNavigationBarPanelContext = navigationBarPanelContext;
@@ -395,7 +400,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 new VoiceInteractionWindowController(this),
                 new TaskbarTranslationController(this),
                 new TaskbarSpringOnStashController(this),
-                new TaskbarRecentAppsController(this, RecentsModel.INSTANCE.get(this)),
+                new TaskbarRecentAppsController(this, RecentsModel.INSTANCE.get(this),
+                        ThemeManager.INSTANCE.get(this)),
                 TaskbarEduTooltipController.newInstance(this),
                 new KeyboardQuickSwitchController(),
                 new TaskbarPinningController(this),
@@ -435,12 +441,12 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     @Override
     public boolean isTransientTaskbar() {
-        return mTaskbarFeatureEvaluator.isTransient() && isPrimaryDisplay() && !isPhoneMode();
+        return mIsTransient && isPrimaryDisplay() && !isPhoneMode();
     }
 
     @Override
     public boolean isPinnedTaskbar() {
-        return mTaskbarFeatureEvaluator.isPinned();
+        return mIsPinned;
     }
 
     @Override
@@ -990,12 +996,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                     .setPredictionContainer(oldContainer.getPredictionContainer().toBuilder()
                             .setTaskbarContainer(taskbarBuilder)));
         }
-    }
-
-    @NonNull
-    @Override
-    public PopupDataProvider getPopupDataProvider() {
-        return mControllers.taskbarPopupController.getPopupDataProvider();
     }
 
     @NonNull

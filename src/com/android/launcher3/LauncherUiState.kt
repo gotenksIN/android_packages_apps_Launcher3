@@ -16,26 +16,34 @@
 
 package com.android.launcher3
 
+import com.android.launcher3.DeviceProfile.DEFAULT_DEVICE_PROFILE
 import com.android.launcher3.util.MutableListenableRef
 
 /** Expose Launcher Ui State to Taskbar. */
 class LauncherUiState {
 
-    private val _deviceProfileRef = MutableListenableRef<DeviceProfile?>(null)
+    private val _launcherStateRef = MutableListenableRef(LauncherState.NORMAL)
+    private val _deviceProfileRef = MutableListenableRef<DeviceProfile>(DEFAULT_DEVICE_PROFILE)
     private val _activityFlagsRef = MutableListenableRef(0)
     private val _isSplitSelectActiveRef = MutableListenableRef(false)
     private val _isOverlayShown = MutableListenableRef(false)
 
     val deviceProfileRef = _deviceProfileRef.asListenable()
     val isSplitSelectActiveRef = _isSplitSelectActiveRef.asListenable()
+    val launcherStateRef = _launcherStateRef.asListenable()
 
     val isResumed: Boolean
         get() = (_activityFlagsRef.value and BaseActivity.ACTIVITY_STATE_RESUMED) != 0
+
     val isOverlayShownRef = _isOverlayShown.asListenable()
 
     // Split select state
     private var _initialTask = SplitSelectTask()
     private var _secondTask = SplitSelectTask()
+
+    fun setLauncherState(launcherState: LauncherState) {
+        _launcherStateRef.diffAndDispatch(launcherState)
+    }
 
     fun setDeviceProfile(deviceProfile: DeviceProfile) {
         _deviceProfileRef.diffAndDispatch(deviceProfile)
