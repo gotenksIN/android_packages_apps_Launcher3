@@ -146,6 +146,7 @@ import com.android.launcher3.taskbar.bubbles.stashing.TransientBubbleStashContro
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator;
 import com.android.launcher3.taskbar.customization.TaskbarSpecsEvaluator;
 import com.android.launcher3.taskbar.growth.NudgeController;
+import com.android.launcher3.taskbar.handoff.TaskbarHandoffController;
 import com.android.launcher3.taskbar.navbutton.NearestTouchFrame;
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayContext;
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayController;
@@ -181,6 +182,7 @@ import com.android.quickstep.views.DesktopTaskView;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.TaskView;
 import com.android.systemui.animation.ViewRootSync;
+import com.android.systemui.rotation.impl.RotationPolicyWrapperImpl;
 import com.android.systemui.shared.recents.model.Task;
 import com.android.systemui.shared.rotation.RotationButtonController;
 import com.android.systemui.shared.statusbar.phone.BarTransitions;
@@ -365,7 +367,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         }
 
         // Construct controllers.
-        RotationButtonController rotationButtonController = new RotationButtonController(this,
+        RotationButtonController rotationButtonController = new RotationButtonController(
+                new RotationPolicyWrapperImpl(c),
+                this,
                 c.getColor(R.color.floating_rotation_button_light_color),
                 c.getColor(R.color.floating_rotation_button_dark_color),
                 R.drawable.ic_sysbar_rotate_button_ccw_start_0,
@@ -409,7 +413,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 new TaskbarDesktopModeController(this,
                         DesktopVisibilityController.INSTANCE.get(this)),
                 new NudgeController(this),
-                new NudgeViewController(this, nudgeView));
+                new NudgeViewController(this, nudgeView),
+                new TaskbarHandoffController(this));
 
         mLauncherPrefs = LauncherPrefs.get(this);
         onViewCreated();
