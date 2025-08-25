@@ -29,7 +29,6 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.util.FloatProperty
 import android.util.Log
-import android.util.Size
 import android.view.Display.INVALID_DISPLAY
 import android.view.Gravity
 import android.view.View
@@ -77,6 +76,7 @@ import com.android.quickstep.task.thumbnail.TaskContentView
 import com.android.quickstep.task.thumbnail.TaskThumbnailView
 import com.android.quickstep.util.DesktopTask
 import com.android.quickstep.util.RecentsOrientedState
+import com.android.quickstep.util.getRemoteTargetHandle
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus.enableMultipleDesktops
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
@@ -150,12 +150,6 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
     private val wallpaperBackgroundFetchCoroutineJobs = mutableListOf<Job>()
 
     /**
-     * Holds the default (user placed) positions of task windows. This can be moved into the
-     * viewModel once RefactorTaskThumbnail has been launched.
-     */
-    private var fullscreenTaskPositions: List<DesktopTaskViewModel.TaskPosition> = emptyList()
-
-    /**
      * Map from task IDs to previous organized task positions. This is used to animate between two
      * sets of organized task positions when a task is being dismissed.
      */
@@ -205,11 +199,6 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                 super.displayId
             }
 
-    private fun getRemoteTargetHandle(taskId: Int): RemoteTargetHandle? =
-        remoteTargetHandles?.firstOrNull {
-            it.transformParams.targetSet.firstAppTargetTaskId == taskId
-        }
-
     override fun onFinishInflate() {
         super.onFinishInflate()
         contentView =
@@ -248,7 +237,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         taskContainers.forEach { taskContainer ->
             val taskId = taskContainer.task.key.id
             val fullscreenTaskBounds =
-                fullscreenTaskPositions.firstOrNull { it.taskId == taskId }?.bounds
+                viewModel.fullscreenTaskPositions.firstOrNull { it.taskId == taskId }?.bounds
                     ?: return@forEach
 
             val organizedTaskVisibilityData: DesktopTaskVisibilityData? =
@@ -318,7 +307,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                 }
 
             if (enableDesktopExplodedView()) {
-                getRemoteTargetHandle(taskId)?.let { remoteTargetHandle ->
+                remoteTargetHandles?.getRemoteTargetHandle(taskId)?.let { remoteTargetHandle ->
                     val fromRect =
                         TEMP_FROM_RECTF.apply {
                             set(fullscreenTaskBounds)
@@ -466,6 +455,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         orientedState: RecentsOrientedState,
         taskOverlayFactory: TaskOverlayFactory,
     ) {
+        viewModel.bind(desktopTask)
         this.groupTask = desktopTask
         // Minimized tasks are shown in Overview when exploded view is enabled.
         val tasks =
@@ -558,6 +548,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         taskContainers.forEach { removeAndRecycleThumbnailView(it) }
         remoteTargetHandles = null
         taskIdReorderToFront = null
+        viewModel.bind(null)
     }
 
     @SuppressLint("RtlHardcoded")
@@ -618,13 +609,6 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         checkNotNull(desktopController) { "recentsController is null" }
 
         if (taskIdToReorderToFront != null) {
-            // The to-be-activated window should animate on top of other apps during shell
-            // transition.
-            val remoteTargetHandle = getRemoteTargetHandle(taskIdToReorderToFront)
-            // The layer swapping is only applied after [createRecentsWindowAnimator] starts, which
-            // will bring the [remoteTargetHandles] above Recents, therefore this call won't affect
-            // the base surface in [DepthController].
-            remoteTargetHandle?.taskViewSimulator?.setDrawsAboveOtherApps(true)
             taskIdReorderToFront = taskIdToReorderToFront
         }
         val launchDesktopFromRecents = {
@@ -713,7 +697,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         } else {
             // If this task has a live window, then hide it.
             // TODO(b/413120214) The dismissed view should fade out.
-            getRemoteTargetHandle(taskId)?.let {
+            remoteTargetHandles?.getRemoteTargetHandle(taskId)?.let {
                 it.taskViewSimulator.setTaskRectTransform(Matrix().apply { postScale(0.0f, 0.0f) })
                 it.taskViewSimulator.apply(it.transformParams)
             }
@@ -755,22 +739,9 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
     }
 
     private fun updateTaskPositions(dismissedTaskId: Int? = null) {
-        BaseContainerInterface.getTaskDimension(mContext, container.deviceProfile, tempPointF)
-        val desktopSize = Size(tempPointF.x.toInt(), tempPointF.y.toInt())
-        DEFAULT_BOUNDS.set(0, 0, desktopSize.width / 4, desktopSize.height / 4)
-
-        fullscreenTaskPositions =
-            taskContainers.map {
-                DesktopTaskViewModel.TaskPosition(
-                    taskId = it.task.key.id,
-                    isMinimized = it.task.isMinimized,
-                    bounds = it.task.appBounds ?: DEFAULT_BOUNDS,
-                )
-            }
-
         if (enableDesktopExplodedView()) {
             val layoutConfig = getDesktopLayoutConfig()
-            viewModel.organizeDesktopTasks(fullscreenTaskPositions, layoutConfig, dismissedTaskId)
+            viewModel.organizeDesktopTasks(layoutConfig, dismissedTaskId)
         }
         positionTaskWindows(updateLayout = true)
     }
@@ -891,7 +862,6 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
 
         // As DesktopTaskView is inflated in background, use initialSize=0 to avoid initPool.
         private const val VIEW_POOL_INITIAL_SIZE = 0
-        private val DEFAULT_BOUNDS = Rect()
 
         // Temporaries used for various purposes to avoid allocations.
         private val TEMP_OVERVIEW_TASK_POSITION = Rect()
