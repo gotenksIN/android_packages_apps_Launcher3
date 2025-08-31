@@ -16,24 +16,25 @@
 
 package com.android.launcher3.qsb
 
-import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.content.Intent
-import android.graphics.Outline
-import android.graphics.Rect
+import android.graphics.RectF
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
-import android.view.ViewOutlineProvider
 import android.widget.RemoteViews
 import androidx.annotation.VisibleForTesting
 import com.android.launcher3.R
+import com.android.launcher3.Utilities
 import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 import com.android.launcher3.util.Executors.MAIN_EXECUTOR
 import com.android.launcher3.util.RunnableList
-import com.android.launcher3.widget.RoundedCornerEnforcement
+import com.android.launcher3.views.ActivityContext
+import com.android.launcher3.views.OptionsPopupView
+import com.android.launcher3.views.OptionsPopupView.OptionItem
+import com.android.launcher3.widget.LauncherAppWidgetHostView
 
 /**
  * Renders the On-device search engine's widget [RemoteViews] based on [AppWidgetProviderInfo] by
@@ -42,28 +43,11 @@ import com.android.launcher3.widget.RoundedCornerEnforcement
 class OseWidgetView
 @JvmOverloads
 constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0) :
-    AppWidgetHostView(context) {
+    LauncherAppWidgetHostView(context) {
 
     private val oseWidgetManager = context.appComponent.oseWidgetManager
-    private val enforcedCornerRadius: Float
-    private val enforcedRectangle = Rect()
     @VisibleForTesting val closeActions = RunnableList()
-
-    init {
-        enforcedCornerRadius = RoundedCornerEnforcement.computeEnforcedRadius(context)
-        clipToOutline = true
-    }
-
-    private val cornerRadiusEnforcementOutline =
-        object : ViewOutlineProvider() {
-            override fun getOutline(view: View?, outline: Outline?) {
-                if (enforcedRectangle.isEmpty() || enforcedCornerRadius <= 0) {
-                    outline?.setEmpty()
-                } else {
-                    outline?.setRoundRect(enforcedRectangle, enforcedCornerRadius)
-                }
-            }
-        }
+    private val activityContext: ActivityContext = ActivityContext.lookupContext(context)
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
@@ -75,6 +59,13 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
         closeActions.executeAllAndClear()
         // We use INVALID_APPWIDGET_ID because appWidgetId is not tracked in OseWidgetView. Instead
         // it is managed by OseWidgetManager and QsbAppWidgetHost.
+        Log.i(
+            TAG,
+            "providerInfo= " +
+                oseWidgetManager.providerInfo.value +
+                " view = " +
+                oseWidgetManager.views.value,
+        )
         closeActions.add(
             oseWidgetManager.providerInfo.forEach(MAIN_EXECUTOR) {
                 setAppWidget(INVALID_APPWIDGET_ID, it)
@@ -101,35 +92,6 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
         closeActions.executeAllAndClear()
     }
 
-    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-        super.onLayout(changed, left, top, right, bottom)
-        enforceRoundedCorners()
-    }
-
-    private fun enforceRoundedCorners() {
-        if (enforcedCornerRadius <= 0) {
-            if (DEBUG) {
-                Log.i(TAG, " enforcedCornerRadius is <=0 " + enforcedCornerRadius)
-            }
-            outlineProvider = VIEW_OUTLINE_PROVIDER
-            return
-        }
-        val background = RoundedCornerEnforcement.findBackground(this)
-        if (background == null || RoundedCornerEnforcement.hasAppWidgetOptedOut(background)) {
-            if (DEBUG) {
-                Log.i(TAG, " background " + background)
-            }
-            outlineProvider = VIEW_OUTLINE_PROVIDER
-            return
-        }
-        RoundedCornerEnforcement.computeRoundedRectangle(this, background, enforcedRectangle)
-        if (DEBUG) {
-            Log.i(TAG, " enforcedRectangle " + enforcedRectangle)
-        }
-        outlineProvider = cornerRadiusEnforcementOutline
-        invalidateOutline()
-    }
-
     override fun shouldDelayChildPressedState(): Boolean {
         // Delay the ripple effect on the widget view when swiping up from home screen
         // to go to all apps.
@@ -149,18 +111,28 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
             }
         }
 
+    override fun onLongClick(view: View?): Boolean {
+        val oseWidgetOptionsProvider =
+            activityContext.activityComponent.getOseWidgetOptionsProvider()
+        val optionItems = oseWidgetOptionsProvider.getOptionItems()
+        if (optionItems.isEmpty()) return false
+
+        val bounds =
+            RectF(Utilities.getViewBounds(this)).apply {
+                left = centerX()
+                right = centerX()
+            }
+        showOptionsPopup(bounds, optionItems)
+        return true
+    }
+
+    @VisibleForTesting
+    fun showOptionsPopup(bounds: RectF, optionItems: List<OptionItem>) {
+        OptionsPopupView.showNoReturn(activityContext, bounds, optionItems, true)
+    }
+
     companion object {
         private const val TAG = "OseWidgetView"
         private const val DEBUG = false
-        private val VIEW_OUTLINE_PROVIDER: ViewOutlineProvider =
-            object : ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: Outline) {
-                    // We should restrict the outline to be the view bounds, otherwise widgets might
-                    // draw themselves outside of the launcher view.
-                    // Setting alpha to 0 to match the previous behavior.
-                    outline.setRect(0, 0, view.width, view.height)
-                    outline.alpha = .0f
-                }
-            }
     }
 }

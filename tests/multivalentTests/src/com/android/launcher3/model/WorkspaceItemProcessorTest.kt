@@ -51,6 +51,7 @@ import com.android.launcher3.model.data.IconRequestInfo
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.LauncherAppWidgetInfo
 import com.android.launcher3.model.data.LauncherAppWidgetInfo.FLAG_UI_NOT_READY
+import com.android.launcher3.model.data.WorkspaceItemCoordinates
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo.FLAG_RESTORED_ICON
 import com.android.launcher3.model.data.WorkspaceItemInfo.FLAG_RESTORE_STARTED
@@ -90,7 +91,7 @@ class WorkspaceItemProcessorTest {
 
     @get:Rule val mockitoRule = MockitoJUnit.rule()
     @get:Rule val setFlagsRule: SetFlagsRule = SetFlagsRule()
-    @get:Rule val mContext = SandboxApplication()
+    @get:Rule val mContext = SandboxApplication().withModelDependency()
 
     @Mock private lateinit var mockIconRequestInfo: IconRequestInfo<WorkspaceItemInfo>
     @Mock private lateinit var mockWorkspaceInfo: WorkspaceItemInfo
@@ -338,10 +339,7 @@ class WorkspaceItemProcessorTest {
             .isEqualTo(1)
         verify(mockCursor)
             .markDeleted(
-                "No Activities found for id=1," +
-                    " targetPkg=package," +
-                    " component=ComponentInfo{package/class}." +
-                    " Unable to create launch Intent.",
+                "No Activities found for id=1, targetPkg=package, component=ComponentInfo{package/class}. Unable to create launch Intent.",
                 RestoreError.APP_NO_LAUNCH_INTENT,
             )
         verify(mockCursor, times(0)).checkAndAddItem(any(), any(), anyOrNull())
@@ -844,9 +842,9 @@ class WorkspaceItemProcessorTest {
             )
         mockIconCache.apply { whenever(getDefaultIcon(any())).thenReturn(BitmapInfo.LOW_RES_INFO) }
         mockWorkspaceItemSpaceFinder.apply {
-            whenever(findSpaceForItem(any(), any(), any(), any(), any()))
-                .thenAnswer { intArrayOf(0, 0, 0) }
-                .thenAnswer { intArrayOf(0, 1, 1) }
+            whenever(findSpaceForItem(any(), any(), any(), any()))
+                .thenAnswer { WorkspaceItemCoordinates(0, 0, 0) }
+                .thenAnswer { WorkspaceItemCoordinates(0, 1, 1) }
         }
         val mockModelDelegate = mock<ModelDelegate>()
         val mockModelDbController =
