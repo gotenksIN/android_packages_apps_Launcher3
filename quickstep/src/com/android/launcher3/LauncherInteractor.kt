@@ -22,12 +22,12 @@ import android.window.RemoteTransition
 import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
 import com.android.app.animation.Interpolators
+import com.android.launcher3.Hotseat.ALPHA_CHANNEL_TASKBAR_ALIGNMENT
 import com.android.launcher3.logging.InstanceId
 import com.android.launcher3.logging.StatsLogManager
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.statemanager.StateManager.StateListener
-import com.android.launcher3.taskbar.LauncherTaskbarUIController
-import com.android.launcher3.taskbar.TaskbarUIController
+import com.android.launcher3.taskbar.TaskbarInteractor
 import com.android.launcher3.taskbar.bubbles.BubbleBarView
 import com.android.launcher3.uioverrides.QuickstepLauncher
 import com.android.launcher3.util.SafeCloseable
@@ -108,13 +108,14 @@ class LauncherInteractor(private val launcher: QuickstepLauncher, val executor: 
         executor.execute { synchronizeNextDraw(launcher.hotseat, view, Runnable {}) }
     }
 
-    // TODO(b/404636836) Add hotseat icons alpha to LauncherUiState and avoid this call.
-    @MainThread
-    fun getHotseatIconsAlpha(channelId: Int) = launcher.hotseat.getIconsAlpha(channelId).value
-
     @AnyThread
     fun setHotseatIconsAlpha(alpha: Float, @Hotseat.HotseatQsbAlphaId channelId: Int) {
-        executor.execute { launcher.hotseat.setIconsAlpha(alpha, channelId) }
+        executor.execute {
+            if (channelId == ALPHA_CHANNEL_TASKBAR_ALIGNMENT) {
+                launcher.getLauncherUiState().setTaskbarAlignmentChannelAlpha(alpha)
+            }
+            launcher.hotseat.setIconsAlpha(alpha, channelId)
+        }
     }
 
     @AnyThread
@@ -143,8 +144,8 @@ class LauncherInteractor(private val launcher: QuickstepLauncher, val executor: 
     }
 
     @AnyThread
-    fun setTaskbarUiController(controller: TaskbarUIController?) {
-        launcher.taskbarUIController = controller as LauncherTaskbarUIController?
+    fun setTaskbarInteractor(taskbarInteractor: TaskbarInteractor?) {
+        launcher.taskbarInteractor = taskbarInteractor
     }
 
     @AnyThread
@@ -211,6 +212,13 @@ class LauncherInteractor(private val launcher: QuickstepLauncher, val executor: 
 
     @Deprecated(
         "Should be removed once we turned on [refactorTaskbarUiState()] flag",
+        ReplaceWith("LauncherUiState.isTopResumedActivityRef.value()"),
+    )
+    @MainThread
+    fun isTopResumedActivity() = launcher.isTopResumedActivity
+
+    @Deprecated(
+        "Should be removed once we turned on [refactorTaskbarUiState()] flag",
         ReplaceWith("LauncherUiState.deviceProfileRef.value()"),
     )
     @MainThread
@@ -236,4 +244,11 @@ class LauncherInteractor(private val launcher: QuickstepLauncher, val executor: 
     )
     @MainThread
     fun getState(): LauncherState = launcher.stateManager.state
+
+    @Deprecated(
+        "Should be removed once we turned on [refactorTaskbarUiState()] flag",
+        ReplaceWith("LauncherUiState.taskbarAlignmentChannelAlphaRef.value()"),
+    )
+    fun getTaskbarAlignmentChannelAlpha() =
+        launcher.hotseat.getIconsAlpha(ALPHA_CHANNEL_TASKBAR_ALIGNMENT).value
 }

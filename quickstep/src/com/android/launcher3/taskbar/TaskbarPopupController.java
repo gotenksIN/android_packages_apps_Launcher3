@@ -46,6 +46,7 @@ import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.Popup;
+import com.android.launcher3.popup.PopupContainer;
 import com.android.launcher3.popup.PopupContainerWithArrow;
 import com.android.launcher3.popup.PopupController;
 import com.android.launcher3.popup.PopupItemDragHandler;
@@ -197,7 +198,7 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
     public Popup show(@NonNull View view) {
         BubbleTextView icon = (BubbleTextView) view;
         BaseTaskbarContext context = ActivityContext.lookupContext(icon.getContext());
-        if (PopupContainerWithArrow.getOpen(context) != null) {
+        if (PopupContainer.getOpen(context) != null) {
             // There is already an items container open, so don't open this one.
             icon.clearFocus();
             return null;
@@ -241,9 +242,9 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
         }
 
         container = PopupContainerWithArrow.create(context, /* originalView */ icon,
+                /*itemInfo */ itemInfo,
                 /* updateIconUi */ false);
         // TODO (b/198438631): configure for taskbar/context
-        icon.setTag(itemInfo);
         container.populateAndShowRows(deepShortcutCount, systemShortcuts);
         container.setPopupItemDragHandler(new TaskbarPopupItemDragHandler());
         context.getDragController().addDragListener(container);

@@ -146,17 +146,14 @@ class TaskbarRecentAppsController(
         }
     }
 
-    /**
-     * Returns `true` if recents has the single task (i.e., fullscreen) represented by the given
-     * [itemInfo].
-     */
-    fun hasSingleTask(itemInfo: ItemInfo?): Boolean {
-        val packageName = itemInfo?.targetPackage ?: return false
-        return allRecentTasks.any { task ->
+    /** Returns the single task (i.e., fullscreen) represented by the given [itemInfo]. */
+    fun getSingleTask(itemInfo: ItemInfo?): SingleTask? {
+        val packageName = itemInfo?.targetPackage ?: return null
+        return allRecentTasks.find { task ->
             task is SingleTask &&
                 packageName == task.task.key.packageName &&
                 task.task.key.userId == itemInfo.user.identifier
-        }
+        } as? SingleTask
     }
 
     @VisibleForTesting
@@ -230,14 +227,22 @@ class TaskbarRecentAppsController(
         }
         orderedRunningTaskIds =
             controllers.sharedState?.recentOrderedRunningTaskIds?.filterNotNull() ?: emptyList()
-        if (canShowRunningApps || canShowRecentApps) {
-            recentsModel.registerRecentTasksChangedListener(recentTasksChangedListener)
-            controllers.runAfterInit { reloadRecentTasksIfNeeded() }
-            if (enableTaskbarRecentsThemedIcons()) {
-                iconShapeDataCloseable =
-                    themeManager.iconShapeData.forEach(MAIN_EXECUTOR) { fetchIcons() }
-                themeChangeListener =
-                    ThemeChangeListener { fetchIcons() }.also { themeManager.addChangeListener(it) }
+        controllers.runAfterInit {
+            val showDesktopTasks =
+                controllers.taskbarDesktopModeController.shouldShowDesktopTasksInTaskbar()
+            val isTaskbarPresent = controllers.taskbarActivityContext.deviceProfile.isTaskbarPresent
+            if (
+                (canShowRunningApps && showDesktopTasks) || (canShowRecentApps && isTaskbarPresent)
+            ) {
+                recentsModel.registerRecentTasksChangedListener(recentTasksChangedListener)
+                reloadRecentTasksIfNeeded()
+                if (enableTaskbarRecentsThemedIcons()) {
+                    iconShapeDataCloseable =
+                        themeManager.iconShapeData.forEach(MAIN_EXECUTOR) { fetchIcons() }
+                    themeChangeListener =
+                        ThemeChangeListener { fetchIcons() }
+                            .also { themeManager.addChangeListener(it) }
+                }
             }
         }
     }
@@ -252,10 +257,14 @@ class TaskbarRecentAppsController(
             controllers.sharedState?.recentOrderedRunningTaskIds?.addAll(orderedRunningTaskIds)
         }
         recentsModel.unregisterRecentTasksChangedListener(recentTasksChangedListener)
-        iconLoadRequests.forEach { it.cancel() }
-        iconLoadRequests.clear()
+        cancelIconLoadRequests()
         iconShapeDataCloseable?.close()
         themeChangeListener?.let { themeManager.removeChangeListener(it) }
+    }
+
+    private fun cancelIconLoadRequests() {
+        for (it in iconLoadRequests) it.cancel()
+        iconLoadRequests.clear()
     }
 
     /** Called to update hotseatItems, in order to de-dupe them from Recent/Running tasks later. */
@@ -361,6 +370,7 @@ class TaskbarRecentAppsController(
     }
 
     private fun fetchIcons() {
+        cancelIconLoadRequests() // Cancel any previous requests.
         for (groupTask in shownTasks) {
             for ((i, task) in groupTask.tasks.withIndex()) {
                 val cancellableTask =

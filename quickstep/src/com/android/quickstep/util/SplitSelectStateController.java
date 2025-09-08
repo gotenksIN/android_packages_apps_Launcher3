@@ -19,6 +19,7 @@ package com.android.quickstep.util;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_HOME;
 import static android.view.Display.DEFAULT_DISPLAY;
 
+import static com.android.internal.jank.Cuj.CUJ_DESKTOP_MODE_MOVE_TO_SPLIT_SCREEN;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_DESKTOP_MODE_SPLIT_LEFT_TOP;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_DESKTOP_MODE_SPLIT_RIGHT_BOTTOM;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_SPLIT_SELECTED_SECOND_APP;
@@ -28,7 +29,6 @@ import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCH
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_BOTTOM_OR_RIGHT;
-import static com.android.internal.jank.Cuj.CUJ_DESKTOP_MODE_MOVE_TO_SPLIT_SCREEN;
 import static com.android.quickstep.util.SplitSelectDataHolder.SPLIT_PENDINGINTENT_PENDINGINTENT;
 import static com.android.quickstep.util.SplitSelectDataHolder.SPLIT_PENDINGINTENT_TASK;
 import static com.android.quickstep.util.SplitSelectDataHolder.SPLIT_SHORTCUT_TASK;
@@ -87,8 +87,7 @@ import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.statehandlers.DepthController;
 import com.android.launcher3.statemanager.StateManager;
-import com.android.launcher3.taskbar.LauncherTaskbarUIController;
-import com.android.launcher3.taskbar.TaskbarUIController;
+import com.android.launcher3.taskbar.TaskbarInteractor;
 import com.android.launcher3.testing.TestLogging;
 import com.android.launcher3.testing.shared.TestProtocol;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
@@ -923,6 +922,17 @@ public class SplitSelectStateController {
         }
 
         /**
+         * Return whether this instance of {@link SplitSelectStateController} is capable of running
+         * the animation for this {@link android.app.ActivityManager.RunningTaskInfo}. Certain
+         * controllers can only run animations for tasks on selected displays.
+         */
+        public boolean ableToStartSplitSelectAnimation(ActivityManager.RunningTaskInfo taskInfo) {
+            int displayId = ExternalDisplaysKt.getSafeDisplayId(taskInfo);
+            return (displayId == DEFAULT_DISPLAY && mLauncher != null)
+                    || (displayId != DEFAULT_DISPLAY && mRecentsWindowManager != null);
+        }
+
+        /**
          * Enter split select from desktop mode.
          * @param taskInfo the desktop task to move to split stage
          * @param splitPosition the stage position used for this transition
@@ -951,12 +961,11 @@ public class SplitSelectStateController {
 
             final DesktopSplitRecentsAnimation animation = new DesktopSplitRecentsAnimation(
                     splitPosition, taskBounds);
-            final TaskbarUIController taskbarUIController = mContainer.getTaskbarUIController();
+            final TaskbarInteractor taskbarInteractor = mContainer.getTaskbarInteractor();
 
             final Runnable updateTaskbarRunnable = () -> {
-                if (taskbarUIController instanceof LauncherTaskbarUIController) {
-                    ((LauncherTaskbarUIController) taskbarUIController)
-                            .updateTaskbarLauncherStateGoingHome();
+                if (taskbarInteractor != null) {
+                    taskbarInteractor.updateTaskbarLauncherStateGoingHome();
                 }
             };
             if (startRecents) {
@@ -1205,6 +1214,12 @@ public class SplitSelectStateController {
         public boolean onRequestSplitSelect(ActivityManager.RunningTaskInfo taskInfo,
                 int splitPosition, Rect taskBounds, boolean startRecents,
                 @Nullable WindowContainerTransaction withRecentsWct) {
+
+            if (mController == null || !mController.ableToStartSplitSelectAnimation(taskInfo)) {
+                Log.v(TAG, "onRequestSplitSelect, controller not able to start "
+                        + "animation for taskId: " + taskInfo.taskId);
+                return false;
+            }
             MAIN_EXECUTOR.execute(() -> {
                 if (mController != null) {
                     mController.enterSplitSelect(taskInfo, splitPosition, taskBounds,

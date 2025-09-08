@@ -385,11 +385,21 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         mAllAppsButtonContainer.setUpCallbacks(callbacks);
         if (mTaskbarRecentsOverflowView != null) {
             mTaskbarRecentsOverflowView.setOnClickListener(
-                    mControllerCallbacks.getOverflowOnClickListener());
+                    mControllerCallbacks.getRecentsOverflowOnClickListener());
             mTaskbarRecentsOverflowView.setOnLongClickListener(
-                    mControllerCallbacks.getOverflowOnLongClickListener());
+                    mControllerCallbacks.getRecentsOverflowOnLongClickListener());
             if (enableCursorHoverStates()) {
                 setHoverListenerForIcon(mTaskbarRecentsOverflowView);
+            }
+        }
+
+        if (mTaskbarPinnedOverflowView != null) {
+            mTaskbarPinnedOverflowView.setOnClickListener(
+                    mControllerCallbacks.getPinnedOverflowOnClickListener());
+            mTaskbarPinnedOverflowView.setOnLongClickListener(
+                    mControllerCallbacks.getPinnedOverflowOnLongClickListener());
+            if (enableCursorHoverStates()) {
+                setHoverListenerForIcon(mTaskbarPinnedOverflowView);
             }
         }
 
@@ -634,6 +644,12 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             mTaskbarPinnedOverflowView.clearItems();
         }
 
+        // if there are ignore icons and make sure we are not removing more icons than we have.
+        // mainly problem for tests.
+        if (onTaskbarEndIdx - mIgnoreTaskbarIconCount >= 0) {
+            onTaskbarEndIdx -= mIgnoreTaskbarIconCount;
+        }
+
         for (ItemInfo hotseatItemInfo : Arrays.asList(hotseatItemInfos).subList(onTaskbarStartIdx,
                 onTaskbarEndIdx)) {
             // Replace any Hotseat views with the appropriate type if it's not already that type.
@@ -755,7 +771,11 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
     }
 
     private boolean isOverflowViewShowing() {
-        return mTaskbarPinnedOverflowView != null && indexOfChild(mTaskbarPinnedOverflowView) != -1;
+        if (mTaskbarPinnedOverflowView == null) return false;
+        if (mHotseatIconsContainer != null) {
+            return mHotseatIconsContainer.indexOfChild(mTaskbarPinnedOverflowView) != -1;
+        }
+        return indexOfChild(mTaskbarPinnedOverflowView) != -1;
     }
 
     private void maybeAddPinOverflowView() {
@@ -1015,14 +1035,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         }
         Rect iconsBounds = getTransientTaskbarIconLayoutBoundsInParent();
 
-        int translateXFromIgnoredIcons =
-                mIgnoreTaskbarIconCount * (mIconTouchSize + mItemMarginLeftRight);
-        // If bubble bar or right translate in opposite direction.
-        if (!location.isOnLeft(isLayoutRtl())) {
-            translateXFromIgnoredIcons *= -1;
-        }
-        return getTaskBarIconsEndForBubbleBarLocation(location) - iconsBounds.right
-                + translateXFromIgnoredIcons;
+        return getTaskBarIconsEndForBubbleBarLocation(location) - iconsBounds.right;
     }
 
     @Override
@@ -1095,16 +1108,6 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         // translation.
         if (layoutRtl) {
             iconEnd += mAllAppsButtonTranslationOffset;
-        }
-
-        if (mActivityContext.isThreeButtonNav()) {
-            boolean navbarOnLeft = mBubbleBarLocation != null && !mBubbleBarLocation.isOnLeft(
-                    layoutRtl);
-            if (navbarOnLeft && layoutRtl) {
-                iconEnd -= (mIconTouchSize + mItemMarginLeftRight) * mIgnoreTaskbarIconCount;
-            } else if (!navbarOnLeft && !layoutRtl) {
-                iconEnd += (mIconTouchSize + mItemMarginLeftRight) * mIgnoreTaskbarIconCount;
-            }
         }
 
         mControllerCallbacks.onPreLayoutChildren();
@@ -1323,7 +1326,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
     }
 
     /**
-     * Returns the taskbar overflow view in the taskbar.
+     * Returns the taskbar recent tasks overflow view in the taskbar.
      */
     @Nullable
     public TaskbarOverflowView getTaskbarRecentsOverflowView() {
