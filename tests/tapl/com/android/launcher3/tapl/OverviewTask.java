@@ -276,7 +276,11 @@ public final class OverviewTask {
             } else {
                 final Pattern event;
                 if (mOverview.isLiveTile(mTask)) {
-                    event = TASK_START_EVENT_LIVE_TILE;
+                    if (isDesktopTask && hasDesktopTasks) {
+                        event = TASK_START_EVENT_DESKTOP;
+                    } else {
+                        event = TASK_START_EVENT_LIVE_TILE;
+                    }
                 } else if (isDesktopTask) {
                     event = TASK_START_EVENT_DESKTOP;
                 } else {
@@ -518,7 +522,7 @@ public final class OverviewTask {
     /**
      * Returns the desk id of the desktop task.
      */
-    private int getDeskId() {
+    public int getDeskId() {
         mLauncher.assertTrue("Current task is not a desktop task.", isDesktop());
         Bundle extras = new Bundle();
         extras.putParcelable(TestProtocol.TEST_INFO_RESPONSE_FIELD, mTask.getVisibleBounds());

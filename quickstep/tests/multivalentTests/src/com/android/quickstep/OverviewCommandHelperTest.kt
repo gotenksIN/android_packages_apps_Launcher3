@@ -28,6 +28,7 @@ import com.android.launcher3.Flags
 import com.android.launcher3.LauncherState
 import com.android.launcher3.statemanager.StateManager
 import com.android.launcher3.statemanager.StatefulActivity
+import com.android.launcher3.taskbar.TaskbarInteractor
 import com.android.launcher3.taskbar.TaskbarManager
 import com.android.launcher3.taskbar.TaskbarUIController
 import com.android.launcher3.uioverrides.QuickstepLauncher
@@ -91,6 +92,7 @@ class OverviewCommandHelperTest {
     private val touchInteractionService: TouchInteractionService = mock()
     private val taskbarManager: TaskbarManager = mock()
     private val taskbarUIController: TaskbarUIController = mock()
+    private val taskbarInteractor: TaskbarInteractor = TaskbarInteractor(taskbarUIController)
     private val launcher: QuickstepLauncher = mock()
     private var elapsedRealtime = 100L
     private val systemUiProxy: SystemUiProxy = mock()
@@ -117,8 +119,8 @@ class OverviewCommandHelperTest {
         whenever(containerInterface.switchToRecentsIfVisible(any())).thenReturn(true)
         whenever(launcher.getOverviewPanel<RecentsView<*, *>>()).thenReturn(recentView)
         whenever(containerInterface.createdContainer).thenReturn(launcher)
-        whenever(containerInterface.taskbarController).thenReturn(taskbarUIController)
-        whenever(taskbarUIController.launchFocusedTask())
+        whenever(containerInterface.taskbarInteractor).thenReturn(taskbarInteractor)
+        whenever(taskbarInteractor.launchFocusedTask())
             .thenReturn(REQUESTED_KEYBOARD_FOCUS_TASK_IDS)
         whenever(taskbarManager.getUIControllerForDisplay(anyInt())).thenReturn(taskbarUIController)
 
@@ -656,7 +658,7 @@ class OverviewCommandHelperTest {
             assertThat(command.status).isEqualTo(CommandStatus.PROCESSING)
             verify(swipeUpHandler).onGestureStarted(any())
             verify(newGestureState).setHandlingAtomicEvent(GestureState.GestureEndTarget.RECENTS)
-            verify(recentView).setKeyboardFocusTask(KeyboardFocusTask.CurrentPageTaskView)
+            verify(recentView).setKeyboardFocusTask(KeyboardFocusTask.ExpectedCurrentTask)
 
             // Make sure we can transition to completed state once we see an end callback.
             val gestureAnimationEndCallbackCaptor = argumentCaptor<Runnable>()

@@ -26,6 +26,7 @@ import static com.android.launcher3.Utilities.getDescendantCoordRelativeToAncest
 import static com.android.launcher3.anim.AnimatorListeners.forEndCallback;
 import static com.android.launcher3.config.FeatureFlags.ENABLE_TASKBAR_NAVBAR_UNIFICATION;
 import static com.android.launcher3.taskbar.LauncherTaskbarUIController.SYSUI_SURFACE_PROGRESS_INDEX;
+import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar;
 import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_A11Y;
 import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_BACK;
 import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_HOME;
@@ -161,6 +162,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
     private static final int FLAG_SMALL_SCREEN = 1 << 13;
     private static final int FLAG_SLIDE_IN_VIEW_VISIBLE = 1 << 14;
     private static final int FLAG_KEYBOARD_SHORTCUT_HELPER_SHOWING = 1 << 15;
+    private static final int FLAG_TASKBAR_STASHED_ON_CD = 1 << 16;
 
     /**
      * Flags where a UI could be over Taskbar surfaces, so the color override should be disabled.
@@ -459,6 +461,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                             (flags & FLAG_ONLY_BACK_FOR_BOUNCER_VISIBLE) != 0 ||
                             (flags & FLAG_KEYGUARD_OCCLUDED) != 0;
                     return (flags & FLAG_DISABLE_BACK) == 0
+                            && (flags & FLAG_TASKBAR_STASHED_ON_CD) == 0
                             && (!mContext.isGestureNav() || !mContext.isUserSetupComplete())
                             && ((flags & FLAG_KEYGUARD_VISIBLE) == 0 || showingOnKeyguard);
                 }));
@@ -492,7 +495,8 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         mHomeButtonAlpha.setUpdateVisibility(true);
         mPropertyHolders.add(
                 new StatePropertyHolder(mHomeButtonAlpha.get(ALPHA_INDEX_KEYGUARD_OR_DISABLE),
-                        this::shouldShowHomeButtonInLockscreen));
+                        flags -> shouldShowHomeButtonInLockscreen(flags)
+                                && (flags & FLAG_TASKBAR_STASHED_ON_CD) == 0));
 
         // Recents button
         mRecentsButton = addButton(R.drawable.ic_sysbar_recent, BUTTON_RECENTS,
@@ -510,14 +514,12 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         });
         mRecentsButton.addOnLayoutChangeListener(
                 (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
-                    int[] location = v.getLocationOnScreen();
-                    Rect bounds = new Rect(location[0], location[1], location[0] + v.getWidth(),
-                            location[1] + v.getHeight());
-                    navButtonController.onRecentsButtonLayoutChanged(bounds);
+                    notifyRecentsButtonPosition();
                 });
         mPropertyHolders.add(new StatePropertyHolder(mRecentsButton,
                 flags -> (flags & FLAG_KEYGUARD_VISIBLE) == 0 && (flags & FLAG_DISABLE_RECENTS) == 0
-                        && !mContext.isNavBarKidsModeActive() && !mContext.isGestureNav()));
+                        && !mContext.isNavBarKidsModeActive() && !mContext.isGestureNav()
+                        && (flags & FLAG_TASKBAR_STASHED_ON_CD) == 0));
 
         // A11y button
         mA11yButton = addButton(R.drawable.ic_sysbar_accessibility_button, BUTTON_A11Y,
@@ -534,6 +536,20 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         if (android.view.accessibility.Flags.navbarFlipOrderOption()) {
             SettingsCache.INSTANCE.get(mContext).register(
                     mButtonOrderChangedUri, mButtonOrderListener);
+        }
+    }
+
+    private void notifyRecentsButtonPosition() {
+        if (mRecentsButton != null && mControllers != null
+                && mControllers.navButtonController != null) {
+            int[] location = mRecentsButton.getLocationOnScreen();
+            Rect bounds = new Rect(
+                    location[0],
+                    location[1],
+                    location[0] + mRecentsButton.getWidth(),
+                    location[1] + mRecentsButton.getHeight()
+            );
+            mControllers.navButtonController.onRecentsButtonLayoutChanged(bounds);
         }
     }
 
@@ -575,9 +591,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         boolean isBackDismissIme = (sysUiStateFlags & SYSUI_STATE_BACK_DISMISS_IME) != 0;
         boolean a11yVisible = (sysUiStateFlags & SYSUI_STATE_A11Y_BUTTON_CLICKABLE) != 0;
         boolean isHomeDisabled = (sysUiStateFlags & SYSUI_STATE_HOME_DISABLED) != 0;
-        // TODO: b/409075366 - ensure this signal is correctly set for external displays.
-        boolean isRecentsDisabled = mContext.isPrimaryDisplay()
-                && (sysUiStateFlags & SYSUI_STATE_OVERVIEW_DISABLED) != 0;
+        boolean isRecentsDisabled = (sysUiStateFlags & SYSUI_STATE_OVERVIEW_DISABLED) != 0;
         boolean isBackDisabled = (sysUiStateFlags & SYSUI_STATE_BACK_DISABLED) != 0;
         long shadeExpandedFlags = SYSUI_STATE_NOTIFICATION_PANEL_EXPANDED
                 | SYSUI_STATE_QUICK_SETTINGS_EXPANDED;
@@ -656,6 +670,17 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
     /** {@code true} if a slide in view is currently visible over taskbar. */
     public void setSlideInViewVisible(boolean isSlideInViewVisible) {
         updateStateForFlag(FLAG_SLIDE_IN_VIEW_VISIBLE, isSlideInViewVisible);
+        applyState();
+    }
+
+    /** Should be called when the taskbar is stashed on CD to stash nav buttons. */
+    public void setTaskbarStashedIfConnectedDisplay(boolean isTaskbarStashed) {
+        if (!enableAutoStashConnectedDisplayTaskbar.isTrue()
+                || mControllers.taskbarActivityContext.isPrimaryDisplay()) {
+            return;
+        }
+
+        updateStateForFlag(FLAG_TASKBAR_STASHED_ON_CD, isTaskbarStashed);
         applyState();
     }
 
@@ -847,6 +872,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                 + imeAdjustmentTranslationY
                 + inAppDisplayAdjustmentTranslationY;
         mNavButtonsView.setTranslationY(mLastSetNavButtonTranslationY);
+        notifyRecentsButtonPosition();
     }
 
     /**
@@ -1407,6 +1433,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         }
         mNavButtonContainer.setTranslationX(getNavBarTranslationX(location));
         mBubbleBarTargetLocation = location;
+        notifyRecentsButtonPosition();
     }
 
     /** Animates navigation buttons accordingly to the bubble bar position. */
