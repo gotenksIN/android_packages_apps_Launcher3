@@ -332,7 +332,9 @@ class TaskbarRecentAppsController(
                     allRecentTasks
                         .filterIsInstance<DesktopTask>()
                         .flatMap { it.tasks }
-                        .filterNot { it.key.isTopActivityTransparent }
+                        .filterNot {
+                            it.key.isTopActivityTransparent && it.key.isActivityStackTransparent
+                        }
                 val runningTasksChanged = oldRunningTaskdIds != runningTaskIds
                 val minimizedTasksChanged = oldMinimizedTaskIds != minimizedTaskIds
 
@@ -379,14 +381,14 @@ class TaskbarRecentAppsController(
                             groupTask.bitmapInfos[i] = bi
                             task.titleDescription = d
                             task.title = t
-                            controllers.taskbarViewController.onTaskUpdated(task)
+                            controllers.taskbarViewController.onTaskUpdated(task, groupTask)
                         }
                     } else {
                         recentsModel.iconCache.getIconInBackground(task) { ic, d, t ->
                             task.icon = ic
                             task.titleDescription = d
                             task.title = t
-                            controllers.taskbarViewController.onTaskUpdated(task)
+                            controllers.taskbarViewController.onTaskUpdated(task, groupTask)
                         }
                     }
                 if (cancellableTask != null) {

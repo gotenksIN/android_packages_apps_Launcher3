@@ -471,6 +471,7 @@ public class DeviceProfile {
         }
 
         splitPlaceholderInset = res.getDimensionPixelSize(R.dimen.split_placeholder_inset);
+
         // We need to use the full window bounds for split determination because on near-square
         // devices, the available bounds (bounds minus insets) may actually be in landscape while
         // actually portrait
@@ -479,11 +480,8 @@ public class DeviceProfile {
         boolean allowLeftRightSplitInPortrait =
                 leftRightSplitPortraitResId > 0
                         && res.getBoolean(leftRightSplitPortraitResId);
-        if (allowLeftRightSplitInPortrait && mDeviceProperties.isTablet()) {
-            isLeftRightSplit = !mDeviceProperties.isLandscape();
-        } else {
-            isLeftRightSplit = mDeviceProperties.isLandscape();
-        }
+        isLeftRightSplit = Utilities.calculateIsLeftRightSplit(
+                allowLeftRightSplitInPortrait, mDeviceProperties, isExternalDisplay);
 
         mWorkspaceProfile = WorkspaceProfile.Factory.createWorkspaceProfile(
                 /*context*/ context,
@@ -508,35 +506,9 @@ public class DeviceProfile {
                 /*isSeascape*/ isSeascape(),
                 /*hotseatProfile*/ hotseatProfile,
                 /*hotseatBarBottomSpacePx*/ hotseatBarBottomSpacePx,
-                /*hotseatQsbSpace*/hotseatQsbSpace
+                /*hotseatQsbSpace*/hotseatQsbSpace,
+                /*hotseatBarSizePx*/hotseatBarSizePx
         );
-
-        if (mIsScalableGrid && !mIsResponsiveGrid) {
-            mWorkspaceProfile = mWorkspaceProfile.calculateAndSetWorkspaceVerticalPadding(
-                    context,
-                    inv,
-                    mWorkspaceProfile.getExtraSpace()
-            );
-        }
-
-        if (!mIsResponsiveGrid) {
-            // We also need to update WorkspacePadding and CellLayoutPadding, keeping it in a
-            // different method to make it easier to keep track
-            mWorkspaceProfile = mWorkspaceProfile.recalculateWorkspacePadding(
-                    isVerticalBarLayout(),
-                    isSeascape(),
-                    inv.isFixedLandscape,
-                    mIsScalableGrid,
-                    hotseatProfile,
-                    hotseatBarSizePx,
-                    mInsets,
-                    mDeviceProperties,
-                    res,
-                    hotseatBarBottomSpacePx,
-                    hotseatQsbSpace,
-                    inv
-            );
-        }
 
         updateIconSize(mWorkspaceProfile.getScale(), context);
 

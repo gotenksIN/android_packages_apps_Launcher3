@@ -44,7 +44,6 @@ import android.graphics.Rect;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.RemoteAnimationTarget;
-import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -57,9 +56,9 @@ import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.statemanager.BaseState;
 import com.android.launcher3.statemanager.StatefulContainer;
 import com.android.launcher3.taskbar.TaskbarInteractor;
+import com.android.launcher3.taskbar.TaskbarUiState;
 import com.android.launcher3.taskbar.TaskbarUiStateMonitor;
 import com.android.launcher3.util.DisplayController;
-import com.android.launcher3.util.TaskbarModeUtil;
 import com.android.launcher3.util.WindowBounds;
 import com.android.launcher3.views.ScrimColors;
 import com.android.launcher3.views.ScrimColorsEvaluator;
@@ -74,6 +73,7 @@ import com.android.wm.shell.shared.desktopmode.DesktopState;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -109,9 +109,14 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
     public abstract boolean isStarted();
     public boolean deferStartingActivity(
             @NonNull RecentsAnimationDeviceState deviceState, MotionEvent ev) {
-        TaskbarInteractor interactor = getTaskbarInteractor();
+        final TaskbarInteractor interactor = getTaskbarInteractor();
+        final CONTAINER_TYPE container = getCreatedContainer();
+        final TaskbarUiState taskbarUiState = container != null
+                ? TaskbarUiStateMonitor.INSTANCE.get(container.asContext())
+                .getTaskbarUiState(ev.getDisplayId())
+                : null;
         boolean isEventOverBubbleBarStashHandle =
-                interactor != null && interactor.isEventOverBubbleBarViews(ev);
+                isEventOverBubbleBarView(interactor, taskbarUiState, ev);
         boolean isEventOverAnyTaskbarItem =
                 interactor != null && interactor.isEventOverAnyTaskbarItem(ev);
         return deviceState.isInDeferredGestureRegion(ev)
@@ -321,16 +326,19 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
     }
 
     /**
-     * Called when the animation to the target has finished, but right before updating the state.
-     * @return A View that needs to draw before ending the recents animation to LAST_TASK.
-     * (This is a hack to ensure Taskbar draws its background first to avoid flickering.)
+     * Schedule a {@link FrameHandler} on taskbar's root view before ending the recents animation to
+     * LAST_TASK. This method is called when the animation to the target has finished, but right
+     * before updating the state. (This is a hack to ensure Taskbar draws its background first to
+     * avoid flickering.)
+     *
+     * @return true if {@link FrameHandler} is successfully posted and vice versa.
      */
-    public @Nullable View onSettledOnEndTarget(GestureState.GestureEndTarget endTarget) {
+    public boolean onSettledOnEndTarget(Runnable callback, Executor executor) {
         TaskbarInteractor taskbarInteractor = getTaskbarInteractor();
         if (taskbarInteractor != null) {
-            return taskbarInteractor.getRootView();
+            return taskbarInteractor.postOnRootViewDraw(callback, executor);
         }
-        return null;
+        return false;
     }
 
     /**
@@ -397,7 +405,7 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
         float maxScale = res.getFloat(R.dimen.overview_max_scale);
         Rect gridRect = new Rect();
         calculateGridSize(dp, context, gridRect);
-        calculateTaskSizeInternal(context, dp, gridRect, maxScale, Gravity.CENTER, outRect);
+        calculateTaskSizeInternal(dp, gridRect, maxScale, Gravity.CENTER, outRect);
     }
 
     private void calculateTaskSizeInternal(Context context, DeviceProfile dp, int claimedSpaceAbove,
@@ -439,12 +447,12 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
         orientationHandler.rotateInsets(outRect, outRect);
         potentialTaskRect.inset(outRect);
 
-        calculateTaskSizeInternal(context, dp, potentialTaskRect, maxScale, gravity, outRect);
+        calculateTaskSizeInternal(dp, potentialTaskRect, maxScale, gravity, outRect);
     }
 
-    private void calculateTaskSizeInternal(Context context, DeviceProfile dp,
+    private void calculateTaskSizeInternal(DeviceProfile dp,
             Rect potentialTaskRect, float targetScale, int gravity, Rect outRect) {
-        PointF taskDimension = getTaskDimension(context, dp);
+        PointF taskDimension = getTaskDimension(dp);
 
         float scale = Math.min(
                 potentialTaskRect.width() / taskDimension.x,
@@ -456,20 +464,20 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
         Gravity.apply(gravity, outWidth, outHeight, potentialTaskRect, outRect);
     }
 
-    private static PointF getTaskDimension(Context context, DeviceProfile dp) {
+    private static PointF getTaskDimension(DeviceProfile dp) {
         PointF dimension = new PointF();
-        getTaskDimension(context, dp, dimension);
+        getTaskDimension(dp, dimension);
         return dimension;
     }
 
     /**
      * Gets the dimension of the task in the current system state.
      */
-    public static void getTaskDimension(Context context, DeviceProfile dp, PointF out) {
+    public static void getTaskDimension(DeviceProfile dp, PointF out) {
         out.x = dp.getDeviceProperties().getWidthPx();
         out.y = dp.getDeviceProperties().getHeightPx();
         if (dp.getDeviceProperties().isTablet()
-                && !TaskbarModeUtil.INSTANCE.get(context).isTransient()) {
+                && !dp.getTaskbarProfile().isTransientTaskbar()) {
             out.y -= dp.getTaskbarProfile().getHeight();
         }
     }
@@ -501,7 +509,7 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
                 + dp.getOverviewProfile().getTaskThumbnailTopMarginPx()
                 - dp.getOverviewProfile().getRowSpacing()) / 2f;
 
-        PointF taskDimension = getTaskDimension(context, dp);
+        PointF taskDimension = getTaskDimension(dp);
         float scale = (rowHeight - dp.getOverviewProfile().getTaskThumbnailTopMarginPx())
                 / taskDimension.y;
         int outWidth = Math.round(scale * taskDimension.x);
@@ -535,6 +543,22 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
                 Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM,
                 outRect,
                 orientationHandler);
+    }
+
+    private boolean isEventOverBubbleBarView(
+            @Nullable TaskbarInteractor interactor,
+            @Nullable TaskbarUiState taskbarUiState, MotionEvent ev) {
+        if (refactorTaskbarUiState()) {
+            final boolean ret = taskbarUiState != null
+                    && taskbarUiState.isEventOverBubbleBarViews(ev);
+            if (BuildConfig.IS_STUDIO_BUILD && ret
+                    != (interactor != null && interactor.isEventOverBubbleBarViews(ev))) {
+                throw new IllegalStateException("isEventOverBubbleBarView doesn't match");
+            }
+            return ret;
+        } else {
+            return interactor != null && interactor.isEventOverBubbleBarViews(ev);
+        }
     }
 
     private static int getModalClaimedSpaceBelow(DeviceProfile dp, Rect outRect,
