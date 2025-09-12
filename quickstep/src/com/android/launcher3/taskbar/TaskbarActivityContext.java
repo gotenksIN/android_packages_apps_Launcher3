@@ -33,6 +33,7 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_ON_BOARD_POPUP;
 import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
 import static com.android.launcher3.AbstractFloatingView.TYPE_TASKBAR_OVERLAY_PROXY;
 import static com.android.launcher3.Flags.enableCursorHoverStates;
+import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.Utilities.calculateTextHeight;
 import static com.android.launcher3.Utilities.isRunningInTestHarness;
 import static com.android.launcher3.config.FeatureFlags.ENABLE_TASKBAR_NAVBAR_UNIFICATION;
@@ -124,6 +125,7 @@ import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.AppPairInfo;
 import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.ItemInfo;
+import com.android.launcher3.model.data.ResolvedTargetInfo;
 import com.android.launcher3.model.data.TaskItemInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.PopupContainer;
@@ -160,7 +162,6 @@ import com.android.launcher3.touch.ItemClickHandler.ItemClickProxy;
 import com.android.launcher3.util.ActivityOptionsWrapper;
 import com.android.launcher3.util.ApiWrapper;
 import com.android.launcher3.util.ApplicationInfoWrapper;
-import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.Executors;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
@@ -195,6 +196,7 @@ import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags;
 import com.android.systemui.unfold.updates.RotationChangeProvider;
 import com.android.systemui.unfold.util.ScopedUnfoldTransitionProgressProvider;
 import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource;
+import com.android.wm.shell.shared.desktopmode.DesktopState;
 import com.android.wm.shell.shared.desktopmode.DesktopTaskToFrontReason;
 
 import java.io.PrintWriter;
@@ -346,7 +348,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             Optional<BubbleBarSwipeController> bubbleBarSwipeController = Optional.empty();
             if (isTransientTaskbar) {
                 bubbleHandleController = Optional.of(
-                        new BubbleStashedHandleViewController(this, bubbleHandleView));
+                        new BubbleStashedHandleViewController(
+                                this, bubbleHandleView, mTaskbarUiState));
                 bubbleBarSwipeController = Optional.of(new BubbleBarSwipeController(this));
             }
             TaskbarHotseatDimensionsProvider dimensionsProvider =
@@ -503,6 +506,13 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     }
 
     /**
+     * Used to confirm we are on AL device.
+     */
+    public boolean shouldShowHomeBehindDesktop() {
+        return DesktopState.getInstance(this).getShouldShowHomeBehindDesktop();
+    }
+
+    /**
      * Copy the original DeviceProfile, match the number of hotseat icons and qsb width and update
      * the icon size
      */
@@ -523,6 +533,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         };
         mDeviceProfile = originDeviceProfile.toBuilder()
                 .withDimensionsOverride(overrideProvider).build();
+        if (refactorTaskbarUiState()) {
+            mTaskbarUiState.setDeviceProfile(mDeviceProfile);
+        }
 
         if (isTransientTaskbar()) {
             mTransientTaskbarProfile = mDeviceProfile.getTaskbarProfile();
@@ -1960,10 +1973,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
         boolean isLaunchingAppPair = itemInfos.size() == 2;
         // Convert the list of ItemInfo instances to a list of ComponentKeys
-        List<ComponentKey> componentKeys =
-                itemInfos.stream().map(ItemInfo::getComponentKey).toList();
+        List<ResolvedTargetInfo> resolvedTargetInfo =
+                itemInfos.stream().map(ItemInfo::getResolvedTargetInfo).toList();
         recents.getSplitSelectController().findLastActiveTasksAndRunCallback(
-                componentKeys,
+                resolvedTargetInfo,
                 isLaunchingAppPair,
                 foundTasks -> {
                     @Nullable Task foundTask = foundTasks[0];

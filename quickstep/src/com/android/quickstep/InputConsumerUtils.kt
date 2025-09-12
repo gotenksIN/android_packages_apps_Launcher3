@@ -16,8 +16,10 @@
 package com.android.quickstep
 
 import android.content.Context
+import android.view.InputDevice
 import android.view.MotionEvent
 import androidx.annotation.VisibleForTesting
+import com.android.launcher3.Utilities.shouldEnableMouseInteractionChanges
 import com.android.launcher3.anim.AnimatedFloat
 import com.android.launcher3.statemanager.BaseState
 import com.android.launcher3.statemanager.StatefulContainer
@@ -622,7 +624,11 @@ object InputConsumerUtils {
                     )
                     .append(", trying to use launcher input consumer"),
             )
-        } else if (deviceState.isGestureBlockedTask(runningTask) || launcherChildActivityResumed) {
+        } else if (
+            deviceState.isGestureBlockedTask(runningTask) ||
+                launcherChildActivityResumed ||
+                ignoreNonTrackpadMouseEvent(context, gestureState, event)
+        ) {
             getDefaultInputConsumer(
                 gestureState.displayId,
                 userUnlocked,
@@ -631,7 +637,9 @@ object InputConsumerUtils {
                 reasonString.append(
                     if (launcherChildActivityResumed)
                         "%sis launcher child-task, trying to use default input consumer"
-                    else "%sis gesture-blocked task, trying to use default input consumer",
+                    else if (deviceState.isGestureBlockedTask(runningTask))
+                        "%sis gesture-blocked task, trying to use default input consumer"
+                    else "%sis non trackpad mouse event, trying to use default input consumer",
                     SUBSTRING_PREFIX,
                 ),
             )
@@ -650,7 +658,6 @@ object InputConsumerUtils {
                 event,
                 runningTask.isHomeTask,
                 rotationTouchHelper,
-                desktopState,
             )
         }
     }
@@ -815,7 +822,6 @@ object InputConsumerUtils {
         event: MotionEvent,
         isHomeTask: Boolean,
         rotationTouchHelper: RotationTouchHelper,
-        desktopState: DesktopState,
     ): InputConsumer where T : RecentsViewContainer, T : StatefulContainer<S> {
         val containerInterface = gestureState.getContainerInterface<S, T>()
         val shouldDefer =
@@ -836,7 +842,6 @@ object InputConsumerUtils {
             disableHorizontalSwipe,
             swipeUpHandlerFactory,
             rotationTouchHelper,
-            desktopState
         )
     }
 
@@ -861,6 +866,16 @@ object InputConsumerUtils {
     ): Boolean {
         return (com.android.launcher3.Flags.ignoreThreeFingerTrackpadForNavHandleLongPress() &&
             gestureState.isThreeFingerTrackpadGesture)
+    }
+
+    private fun ignoreNonTrackpadMouseEvent(
+        context: Context,
+        gestureState: GestureState,
+        event: MotionEvent,
+    ): Boolean {
+        return shouldEnableMouseInteractionChanges(context) &&
+            !gestureState.isTrackpadGesture() &&
+            event.isFromSource(InputDevice.SOURCE_MOUSE)
     }
 
     private fun handleOrientationSetup(baseInputConsumer: InputConsumer) {

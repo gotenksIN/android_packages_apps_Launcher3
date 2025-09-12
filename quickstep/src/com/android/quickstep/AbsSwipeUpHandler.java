@@ -642,7 +642,12 @@ public abstract class AbsSwipeUpHandler<
             if (snapshots != null) {
                 mRecentsView.switchToScreenshot(snapshots, () -> {
                     if (mRecentsAnimationController != null) {
-                        mRecentsAnimationController.finish(/* toHome= */ true, () -> {});
+                        mRecentsAnimationController.finish(
+                                /* toHome= */ true,
+                                /* onFinishComplete= */ () -> {},
+                                new ActiveGestureLog.CompoundString(
+                                        "AbsSwipeUpHandler.onActivityInit: switch to screenshot on "
+                                                + "recents animation canceled"));
                     }
                     mRecentsView.onRecentsAnimationComplete();
                 });
@@ -762,9 +767,11 @@ public abstract class AbsSwipeUpHandler<
 
     private void onDeferredActivityLaunch() {
         mContainerInterface.switchRunningTaskViewToScreenshot(
-                null, () -> {
-                    mTaskAnimationManager.finishRunningRecentsAnimation(true /* toHome */);
-                });
+                null, () -> mTaskAnimationManager.finishRunningRecentsAnimation(
+                        /* toHome= */ true,
+                        /* reason= */ new ActiveGestureLog.CompoundString(
+                                "AbsSwipeUpHandler.onDeferredActivityLaunch: "
+                                        + "switching running task view to screenshot")));
     }
 
     private void setupRecentsViewUi() {
@@ -1295,8 +1302,6 @@ public abstract class AbsSwipeUpHandler<
         // Fast-finish the attaching animation if it's still running.
         maybeUpdateRecentsAttachedState(false);
         final GestureEndTarget endTarget = mGestureState.getEndTarget();
-        // Wait until the given View (if supplied) draws before resuming the last task.
-        View postResumeLastTask = mContainerInterface.onSettledOnEndTarget(endTarget);
 
         // TODO(b/378443899): Add a CUJ for REJECT_HOME
         if (endTarget != NEW_TASK) {
@@ -1331,10 +1336,9 @@ public abstract class AbsSwipeUpHandler<
                 mStateCallback.setState(STATE_START_NEW_TASK | STATE_CAPTURE_SCREENSHOT);
                 break;
             case LAST_TASK:
-                if (postResumeLastTask != null) {
-                    ViewUtils.postFrameDrawn(postResumeLastTask,
-                            () -> mStateCallback.setState(STATE_RESUME_LAST_TASK));
-                } else {
+                // Wait until the given View (if supplied) draws before resuming the last task.
+                if (!mContainerInterface.onSettledOnEndTarget(
+                        () -> mStateCallback.setState(STATE_RESUME_LAST_TASK), MAIN_EXECUTOR)) {
                     mStateCallback.setState(STATE_RESUME_LAST_TASK);
                 }
                 // Restore the divider as it resumes the last top-tasks.
@@ -2330,7 +2334,11 @@ public abstract class AbsSwipeUpHandler<
     @UiThread
     private void resumeLastTask() {
         if (mRecentsAnimationController != null) {
-            mRecentsAnimationController.finish(false /* toRecents */, null);
+            mRecentsAnimationController.finish(
+                    /* toHome= */ false,
+                    /* onFinishComplete= */ null,
+                    /* reason= */ new ActiveGestureLog.CompoundString(
+                            "AbsSwipeUpHandler.resumeLastTask"));
         }
         doLogGesture(LAST_TASK, null);
         reset();
@@ -2339,7 +2347,11 @@ public abstract class AbsSwipeUpHandler<
     @UiThread
     private void finishRejectHome() {
         if (mRecentsAnimationController != null) {
-            mRecentsAnimationController.finish(false /* toRecents */, null);
+            mRecentsAnimationController.finish(
+                    /* toHome=  */ false,
+                    /* onFinishComplete= */ null,
+                    /* reason= */ new ActiveGestureLog.CompoundString(
+                            "AbsSwipeUpHandler.finishRejectHome"));
         }
         doLogGesture(REJECT_HOME, null);
         reset();
@@ -2376,7 +2388,11 @@ public abstract class AbsSwipeUpHandler<
         // Finish the controller here, since we won't get onTaskAppeared() for a task that already
         // appeared.
         if (mRecentsAnimationController != null) {
-            mRecentsAnimationController.finish(false, null);
+            mRecentsAnimationController.finish(
+                    /* toHome= */ false,
+                    /* onfinishComplete= */ null,
+                    /* reason= */ new ActiveGestureLog.CompoundString(
+                            "AbsSwipeUpHandler.onRestartPreviouslyAppearedTask"));
         }
         reset();
     }
@@ -2719,7 +2735,11 @@ public abstract class AbsSwipeUpHandler<
             mContainerInterface.onLaunchTaskFailed();
             Toast.makeText(mContext, R.string.activity_not_available, LENGTH_SHORT).show();
             if (mRecentsAnimationController != null) {
-                mRecentsAnimationController.finish(true /* toRecents */, null);
+                mRecentsAnimationController.finish(
+                        /* toHome= */ true,
+                        /* onFinishComplete= */ null,
+                        /* reason= */ new ActiveGestureLog.CompoundString(
+                                "AbsSwipeUpHander.startNewTask: missing task to launch"));
             }
             mCanceled = false;
             return;
@@ -2749,7 +2769,12 @@ public abstract class AbsSwipeUpHandler<
             } else {
                 mContainerInterface.onLaunchTaskFailed();
                 if (mRecentsAnimationController != null) {
-                    mRecentsAnimationController.finish(true /* toRecents */, null);
+                    mRecentsAnimationController.finish(
+                            /* toHome= */ true,
+                            /* onFinishComplete= */ null,
+                            /* reason= */ new ActiveGestureLog.CompoundString(
+                                    "AbsSwipeUpHander.startNewTask: "
+                                            + "launchWithoutAnimation failed"));
                 }
             }
             return Unit.INSTANCE;
@@ -2939,7 +2964,10 @@ public abstract class AbsSwipeUpHandler<
                             }
                             if (mRecentsAnimationController != null) {
                                 mRecentsAnimationController.finish(
-                                        /* toRecents= */ false, () -> splashView.setAlpha(1));
+                                        /* toHome= */ false,
+                                        /* onFinishComplete= */ () -> splashView.setAlpha(1),
+                                        /* reason= */ new ActiveGestureLog.CompoundString(
+                                                "AbsSwipeUpHandler.animateSplashScreenExit"));
                             }
                         }
                     });
@@ -2950,7 +2978,11 @@ public abstract class AbsSwipeUpHandler<
             Runnable onFinishComplete, ActiveGestureLog.CompoundString failureReason) {
         ActiveGestureProtoLogProxy.logOnInvalidTasksAppeared(failureReason);
         if (mRecentsAnimationController != null) {
-            mRecentsAnimationController.finish(/* toRecents= */ false, onFinishComplete);
+            mRecentsAnimationController.finish(
+                    /* toHome= */ false,
+                    onFinishComplete,
+                    new ActiveGestureLog.CompoundString(
+                            "AbsSwipeUpHandler.onInvalidTasksAppeared"));
         }
     }
 

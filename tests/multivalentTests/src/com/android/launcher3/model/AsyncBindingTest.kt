@@ -16,19 +16,15 @@
 
 package com.android.launcher3.model
 
-import android.app.blob.BlobStoreManager
 import android.os.Looper
-import android.os.ParcelFileDescriptor
-import android.os.ParcelFileDescriptor.MODE_READ_WRITE
 import android.util.SparseArray
 import android.view.View
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
+import com.android.launcher3.Flags
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.Launcher
 import com.android.launcher3.LauncherModel
-import com.android.launcher3.LauncherSettings.Settings
-import com.android.launcher3.LauncherSettings.Settings.LAYOUT_PROVIDER_KEY
 import com.android.launcher3.ModelCallbacks
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.pageindicators.PageIndicatorDots
@@ -44,10 +40,9 @@ import com.android.launcher3.util.SandboxApplication
 import com.android.launcher3.util.TestUtil
 import com.android.launcher3.util.TestUtil.runOnExecutorSync
 import com.google.common.truth.Truth.assertThat
-import java.io.File
-import java.io.FileWriter
-import java.security.MessageDigest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -64,6 +59,7 @@ import org.mockito.kotlin.argThat
 import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.isNull
 import org.mockito.kotlin.never
 import org.mockito.kotlin.spy
@@ -109,7 +105,7 @@ class AsyncBindingTest {
         doReturn(context).whenever(launcher).applicationContext
 
         // Set up the workspace with 3 pages of apps
-        setupDefaultLayoutProvider(
+        context.appComponent.layoutParserFactory.overrideXmlLayout(
             LauncherLayoutBuilder()
                 .atWorkspace(0, 1, 0)
                 .putApp(TEST_PACKAGE, TEST_PACKAGE)
@@ -121,6 +117,7 @@ class AsyncBindingTest {
                 .putApp(TEST_PACKAGE, TEST_PACKAGE)
                 .atWorkspace(0, 1, 2)
                 .putApp(TEST_PACKAGE, TEST_PACKAGE)
+                .build()
         )
         callbacks =
             spy(ModelCallbacks(launcher).apply { pagesToBindSynchronously = IntSet.wrap(0) })
@@ -147,8 +144,8 @@ class AsyncBindingTest {
 
         // Verify that all items were inflated on the background thread
         assertThat(inflationLooper.size()).isAtLeast(5)
-        for (i in 0..<inflationLooper.size()) assertEquals(
-            MODEL_EXECUTOR.looper,
+        for (i in 0..<inflationLooper.size()) assertNotEquals(
+            MAIN_EXECUTOR.looper,
             inflationLooper.valueAt(i),
         )
     }
@@ -172,7 +169,13 @@ class AsyncBindingTest {
                 )
 
             // Verify that onInitialBindComplete is called and the binding is not yet complete
-            assertNotNull(callbacks.pendingExecutor)
+            verify(launcher).bindComplete(any(), eq(true))
+
+            if (Flags.simplifiedLauncherModelBinding()) {
+                assertFalse(callbacks.activeBindTask.get().isCanceled)
+            } else {
+                assertNotNull(callbacks.pendingExecutor)
+            }
             clearInvocations(launcher)
         }
 
@@ -192,7 +195,7 @@ class AsyncBindingTest {
         for (i in 0..<inflationLooper.size()) {
             if (firstPageBindIds.contains(inflationLooper.keyAt(i)))
                 assertEquals(MAIN_EXECUTOR.looper, inflationLooper.valueAt(i))
-            else assertEquals(MODEL_EXECUTOR.looper, inflationLooper.valueAt(i))
+            else assertNotEquals(MAIN_EXECUTOR.looper, inflationLooper.valueAt(i))
         }
     }
 
@@ -201,22 +204,5 @@ class AsyncBindingTest {
             runOnExecutorSync(MAIN_EXECUTOR) {}
             runOnExecutorSync(MODEL_EXECUTOR) {}
         }
-    }
-
-    private fun setupDefaultLayoutProvider(builder: LauncherLayoutBuilder) {
-        val file = File.createTempFile("blobsession", "tmp")
-        FileWriter(file).use { builder.build(it) }
-
-        val blobManager = context.spyService(BlobStoreManager::class.java)
-        doAnswer { ParcelFileDescriptor.open(file, MODE_READ_WRITE) }
-            .whenever(blobManager)
-            .openBlob(any())
-
-        context.appComponent.settingsCache.applyLocalSecureStringOverride(
-            LAYOUT_PROVIDER_KEY,
-            Settings.createBlobProviderKey(
-                MessageDigest.getInstance("SHA-256").digest(byteArrayOf(1, 1, 1))
-            ),
-        )
     }
 }

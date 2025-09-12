@@ -71,6 +71,7 @@ import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.taskbar.customization.TaskbarAllAppsButtonContainer;
 import com.android.launcher3.taskbar.customization.TaskbarDividerContainer;
 import com.android.launcher3.taskbar.customization.TaskbarIconsContainer;
+import com.android.launcher3.taskbar.handoff.HandoffSuggestion;
 import com.android.launcher3.util.LauncherBindableItemsContainer.ItemOperator;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
@@ -84,6 +85,7 @@ import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -436,8 +438,12 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         view.setTag(null);
     }
 
-    /** Inflates/binds the hotseat items and recent tasks to the view. */
-    protected void updateItems(ItemInfo[] hotseatItemInfos, List<GroupTask> recentTasks) {
+    /** Inflates/binds the hotseat items, recent tasks, and handoff suggestions to the view. */
+    protected void updateItems(
+        ItemInfo[] hotseatItemInfos,
+        List<GroupTask> recentTasks,
+        List<HandoffSuggestion> handoffSuggestions) {
+
         if (mActivityContext.isDestroyed()) return;
         // Filter out unsupported items.
         hotseatItemInfos = Arrays.stream(hotseatItemInfos)
@@ -469,6 +475,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
 
         // Update left section.
         if (mIsRtl) {
+            updateHandoffSuggestions(handoffSuggestions);
             updateRecents(recentTasks.reversed(), hotseatItemLength);
         } else {
             updateHotseatItems(hotseatItemInfos);
@@ -485,6 +492,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             updateHotseatItems(hotseatItemInfos);
         } else {
             updateRecents(recentTasks, hotseatItemLength);
+            updateHandoffSuggestions(handoffSuggestions);
         }
 
         // Recents divider takes priority.
@@ -841,7 +849,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             final List<GroupTask> overflownRecents = recentTasks.subList(startIndex, endIndex);
             mTaskbarRecentsOverflowView.setItems(
                     overflownRecents.stream().map(
-                            t -> new TaskWrapper(((SingleTask) t).getTask())).toList());
+                            t -> new TaskWrapper(mActivityContext, ((SingleTask) t))).toList());
             overflownRecentsSet = new ArraySet<>(overflownRecents);
         } else {
             overflownRecentsSet = Collections.emptySet();
@@ -928,6 +936,42 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
 
         mPrevRecentTasks = recentTasksSet;
         mPrevOverflowTasks = overflownRecentsSet;
+    }
+
+    private void updateHandoffSuggestions(List<HandoffSuggestion> handoffSuggestions) {
+        Set<HandoffSuggestion> tasksToAdd = new HashSet<>(handoffSuggestions);
+        while (isNextViewInSection(HandoffSuggestion.class)) {
+            View view = getChildAt(mNextViewIndex);
+            if (tasksToAdd.contains(view.getTag())) {
+                tasksToAdd.remove(view.getTag());
+                mNextViewIndex++;
+            } else {
+                removeAndRecycle(getChildAt(mNextViewIndex));
+            }
+        }
+
+        for (HandoffSuggestion handoffSuggestion : tasksToAdd) {
+            View recentIcon = inflate(R.layout.taskbar_app_icon);
+            LayoutParams lp = new TaskbarLayoutParams(mIconTouchSize, mIconTouchSize);
+            recentIcon.setPadding(mItemPadding, mItemPadding, mItemPadding, mItemPadding);
+            addView(recentIcon, mNextViewIndex++, lp);
+            applyHandoffSuggestionToBubbleTextView((BubbleTextView) recentIcon, handoffSuggestion);
+        }
+    }
+
+    public void applyHandoffSuggestionToBubbleTextView(
+        BubbleTextView bubbleTextView,
+        HandoffSuggestion handoffSuggestion) {
+
+        HandoffSuggestion.Metadata metadata = handoffSuggestion.getMetadata();
+        if (metadata != null) {
+            bubbleTextView.applyIconAndLabel(
+                metadata.getIcon(),
+                metadata.getLabel(),
+                metadata.getLabel());
+        }
+
+        bubbleTextView.setTag(handoffSuggestion);
     }
 
     private boolean isNextViewInSection(Class<?> tagClass) {

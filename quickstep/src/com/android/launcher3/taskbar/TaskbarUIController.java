@@ -236,6 +236,10 @@ public class TaskbarUIController implements BubbleBarController.BubbleBarLocatio
         }
     }
 
+    /**
+     * Return true only if drags originating from taskbar window is dragging an item. Drag
+     * originating from all apps using {@link TaskbarOverlayContext} is excluded.
+     */
     public boolean isDraggingItem() {
         boolean bubblesDragging = false;
         if (mControllers.bubbleControllers.isPresent()) {
@@ -269,7 +273,7 @@ public class TaskbarUIController implements BubbleBarController.BubbleBarLocatio
         }
 
         recentsView.getSplitSelectController().findLastActiveTasksAndRunCallback(
-                Collections.singletonList(splitSelectSource.getItemInfo().getComponentKey()),
+                Collections.singletonList(splitSelectSource.getItemInfo().getResolvedTargetInfo()),
                 false /* findExactPairMatch */,
                 foundTasks -> {
                     @Nullable Task foundTask = foundTasks[0];
@@ -318,7 +322,7 @@ public class TaskbarUIController implements BubbleBarController.BubbleBarLocatio
 
         RecentsView recents = getRecentsView();
         recents.getSplitSelectController().findLastActiveTasksAndRunCallback(
-                Collections.singletonList(info.getComponentKey()),
+                Collections.singletonList(info.getResolvedTargetInfo()),
                 false /* findExactPairMatch */,
                 foundTasks -> {
                     @Nullable Task foundTask = foundTasks[0];
