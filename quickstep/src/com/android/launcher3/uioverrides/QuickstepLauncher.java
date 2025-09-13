@@ -231,6 +231,7 @@ import com.android.systemui.unfold.progress.RemoteUnfoldTransitionReceiver;
 import com.android.systemui.unfold.updates.RotationChangeProvider;
 import com.android.wm.shell.shared.bubbles.BubbleAnythingFlagHelper;
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
+import com.android.wm.shell.shared.bubbles.logging.EntryPoint;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.shared.desktopmode.DesktopState;
 
@@ -546,8 +547,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         if (container == CONTAINER_HOTSEAT || container == CONTAINER_DESKTOP
                 || /* Folder */ container > 0) {
             shortcuts.add(REMOVE);
-        } else if (Flags.homeScreenEditImprovements() && (container == CONTAINER_ALL_APPS
-                || container == CONTAINER_ALL_APPS_PREDICTION)) {
+        } else if (container == CONTAINER_ALL_APPS || container == CONTAINER_ALL_APPS_PREDICTION) {
             shortcuts.add(ADD_TO_HOME_SCREEN);
         }
         shortcuts.add(DONT_SUGGEST_APP);
@@ -1591,15 +1591,15 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     }
 
     @Override
-    public void showShortcutBubble(ShortcutInfo info) {
+    public void showShortcutBubble(ShortcutInfo info, EntryPoint entryPoint) {
         if (info == null) return;
-        BubbleActivityStarter.INSTANCE.get(this).showShortcutBubble(info);
+        BubbleActivityStarter.INSTANCE.get(this).showShortcutBubble(info, entryPoint);
     }
 
     @Override
-    public void showAppBubble(Intent intent, UserHandle user) {
+    public void showAppBubble(Intent intent, UserHandle user, EntryPoint entryPoint) {
         if (intent == null || intent.getPackage() == null) return;
-        BubbleActivityStarter.INSTANCE.get(this).showAppBubble(intent, user);
+        BubbleActivityStarter.INSTANCE.get(this).showAppBubble(intent, user, entryPoint);
     }
 
     /** Sets the location of the bubble bar */

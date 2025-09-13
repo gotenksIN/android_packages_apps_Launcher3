@@ -44,6 +44,7 @@ import com.android.launcher3.R;
 import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.icons.IconProvider;
 import com.android.launcher3.util.DaggerSingletonTracker;
+import com.android.launcher3.util.Executors;
 import com.android.launcher3.util.LockedUserState;
 import com.android.quickstep.util.GroupTask;
 import com.android.quickstep.util.SplitTask;
@@ -58,7 +59,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import java.util.ArrayList;
 import java.util.function.Consumer;
@@ -91,12 +93,13 @@ public class RecentsModelTest {
 
     private Resources mResource;
 
+    @Rule public MockitoRule mockitoRule = MockitoJUnit.rule();
+
     @Rule
     public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     @Before
     public void setup() throws NoSuchFieldException {
-        MockitoAnnotations.initMocks(this);
         mSetFlagsRule.enableFlags(Flags.FLAG_ENABLE_GRID_ONLY_OVERVIEW);
         mTaskResult = getTaskResult();
         doAnswer(invocation-> {
@@ -125,7 +128,7 @@ public class RecentsModelTest {
 
         mRecentsModel = new RecentsModel(mContext, mTasksList, mock(TaskIconCache.class),
                 mThumbnailCache, mock(IconProvider.class), mock(TaskStackChangeListeners.class),
-                mLockedUserState, () -> mThemeManager, mock(DaggerSingletonTracker.class));
+                mLockedUserState, () -> mThemeManager, mock(DaggerSingletonTracker.class), Executors.UI_HELPER_EXECUTOR);
 
         mResource = mock(Resources.class);
         when(mResource.getInteger((R.integer.recentsThumbnailCacheSize))).thenReturn(3);

@@ -17,6 +17,7 @@
 package com.android.quickstep.views;
 
 import static android.app.ActivityTaskManager.INVALID_TASK_ID;
+import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.os.Trace.traceBegin;
 import static android.os.Trace.traceEnd;
 import static android.view.View.MeasureSpec.EXACTLY;
@@ -38,6 +39,7 @@ import static com.android.launcher3.Flags.enableDesktopExplodedView;
 import static com.android.launcher3.Flags.enableExpressiveDismissTaskMotion;
 import static com.android.launcher3.Flags.enableOverviewBackgroundWallpaperBlur;
 import static com.android.launcher3.Flags.enableOverviewDesktopTileWallpaperBackground;
+import static com.android.launcher3.Flags.enablePreventOverviewMouseDrag;
 import static com.android.launcher3.Flags.enableRefactorTaskThumbnail;
 import static com.android.launcher3.LauncherAnimUtils.SUCCESS_TRANSITION_PROGRESS;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_ALPHA;
@@ -1467,7 +1469,9 @@ public abstract class RecentsView<
             @Nullable TransitionInfo transitionInfo) {
         AnimatorSet anim = new AnimatorSet();
         TaskView taskView = getTaskViewByTaskId(taskId);
-        if (taskView == null || !isTaskViewVisible(taskView)) {
+        if (taskView == null
+                || !isTaskViewVisible(taskView)
+                || isTaskOnDesktopLaunchingFullscreen(taskId, taskView, apps)) {
             // TODO: Refine this animation.
             SurfaceTransactionApplier surfaceApplier =
                     new SurfaceTransactionApplier(mContainer.getDragLayer());
@@ -1523,6 +1527,15 @@ public abstract class RecentsView<
                     getDepthController(), transitionInfo, /* appearedTaskId= */ taskId);
         }
         anim.start();
+    }
+
+    private static boolean isTaskOnDesktopLaunchingFullscreen(
+            int taskId, TaskView taskView, RemoteAnimationTarget[] apps) {
+        if (!(taskView instanceof DesktopTaskView)) {
+            return false;
+        }
+        return Arrays.stream(apps).anyMatch(t -> t.taskId == taskId
+                && t.windowConfiguration.getWindowingMode() == WINDOWING_MODE_FULLSCREEN);
     }
 
     public boolean isTaskViewVisible(TaskView tv) {
@@ -1919,9 +1932,10 @@ public abstract class RecentsView<
     }
 
     private boolean shouldAllowDrag(MotionEvent ev) {
-        return !ev.isFromSource(InputDevice.SOURCE_MOUSE)
-                || MotionEventsUtils.isTrackpadScroll(ev)
-                || MotionEventsUtils.isTrackpadFourFingerSwipe(ev);
+        boolean isMouseDrag = ev.isFromSource(InputDevice.SOURCE_MOUSE)
+                && !MotionEventsUtils.isTrackpadScroll(ev)
+                && !MotionEventsUtils.isTrackpadFourFingerSwipe(ev);
+        return !(enablePreventOverviewMouseDrag() && isMouseDrag);
     }
 
     /**
@@ -2872,6 +2886,7 @@ public abstract class RecentsView<
         if (enableRefactorTaskThumbnail()) {
             mRecentsViewModel.onReset();
         }
+        executeSideTaskLaunchCallback();
     }
 
     public int getRunningTaskViewId() {
@@ -6197,7 +6212,6 @@ public abstract class RecentsView<
         setCurrentTask(-1);
         mRecentsAnimationController = null;
         mSplitSelectStateController.setRecentsAnimationRunning(false);
-        executeSideTaskLaunchCallback();
         if (enableOverviewBackgroundWallpaperBlur()) {
             mBlurUtils.setDrawLiveTileBelowRecents(false);
         }
