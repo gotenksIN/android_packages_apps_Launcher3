@@ -23,13 +23,6 @@ flag {
 }
 
 flag {
-    name: "enable_cursor_hover_states"
-    namespace: "launcher"
-    description: "Enables cursor hover states for certain elements."
-    bug: "243191650"
-}
-
-flag {
     name: "enable_responsive_workspace"
     namespace: "launcher"
     description: "Enables new workspace grid calculations method."
@@ -624,11 +617,28 @@ flag {
      }
  }
 
- flag {
+flag {
   name: "enable_auto_stash_connected_display_taskbar"
   namespace: "launcher"
   description: "Enables auto stashing of connected display taskbar when in full or split screen"
   bug: "394486228"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+    name: "expandable_long_press_menu"
+    namespace: "launcher"
+    description: "Enables expandable long press menu"
+    bug: "444003708"
+}
+
+flag {
+  name: "enable_app_widget_picker_refactor"
+  namespace: "launcher"
+  description: "Migrates the small widget pickers to compose"
+  bug: "436344835"
   metadata {
     purpose: PURPOSE_BUGFIX
   }

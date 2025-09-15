@@ -62,8 +62,10 @@ import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.taskbar.bubbles.BubbleActivityStarter
 import com.android.launcher3.util.DaggerSingletonObject
-import com.android.launcher3.util.Executors
-import com.android.launcher3.util.Executors.MAIN_EXECUTOR
+import com.android.launcher3.concurrent.annotations.LightweightBackground
+import com.android.launcher3.concurrent.annotations.Ui
+import com.android.launcher3.concurrent.annotations.LightweightBackgroundPriority.UI
+import com.android.launcher3.util.LooperExecutor
 import com.android.launcher3.util.Preconditions
 import com.android.launcher3.util.SplitConfigurationOptions.StagePosition
 import com.android.quickstep.util.ActiveGestureProtoLogProxy
@@ -100,6 +102,7 @@ import com.android.wm.shell.shared.GroupedTaskInfo
 import com.android.wm.shell.shared.IShellTransitions
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation.UpdateSource
+import com.android.wm.shell.shared.bubbles.logging.EntryPoint
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus
 import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource
 import com.android.wm.shell.shared.desktopmode.DesktopTaskToFrontReason
@@ -111,12 +114,16 @@ import com.android.wm.shell.splitscreen.ISplitSelectListener
 import com.android.wm.shell.startingsurface.IStartingWindow
 import com.android.wm.shell.startingsurface.IStartingWindowListener
 import java.io.PrintWriter
+import java.util.concurrent.Executor
 import javax.inject.Inject
 
 /** Holds the reference to SystemUI. */
 @LauncherAppSingleton
-class SystemUiProxy @Inject constructor(@ApplicationContext private val context: Context) :
-    NavHandle {
+class SystemUiProxy @Inject constructor(
+    @ApplicationContext private val context: Context,
+    @Ui private val uiExecutor: Executor,
+    @LightweightBackground(priority = UI) private val lightweightBackgroundExecutor: LooperExecutor
+) : NavHandle {
 
     private var systemUiProxy: ISystemUiProxy? = null
     private var pip: IPip? = null
@@ -132,7 +139,7 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
     private var unfoldAnimation: IUnfoldAnimation? = null
 
     private val systemUiProxyDeathRecipient =
-        IBinder.DeathRecipient { Executors.MAIN_EXECUTOR.execute { clearProxy() } }
+        IBinder.DeathRecipient { uiExecutor.execute { clearProxy() } }
 
     // Save the listeners passed into the proxy since LauncherProxyService may not have been bound
     // yet, and we'll need to set/register these listeners with SysUI when they do.  Note that it is
@@ -152,7 +159,7 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
                 startRecents: Boolean,
                 withRecentsWct: WindowContainerTransaction?,
             ): Boolean {
-                MAIN_EXECUTOR.execute {
+                uiExecutor.execute {
                     for (listener in splitSelectListeners) {
                         if (
                             listener.onRequestSplitSelect(
@@ -201,7 +208,7 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
     private var lastLauncherKeepClearAreaHeightVisible = false
 
     private val asyncHandler =
-        Handler(Executors.UI_HELPER_EXECUTOR.looper) { handleMessageAsync(it) }
+        Handler(lightweightBackgroundExecutor.looper) { handleMessageAsync(it) }
 
     // TODO(141886704): Find a way to remove this
     @SystemUiStateFlags var lastSystemUiStateFlags: Long = 0
@@ -736,12 +743,17 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
      * [BubbleActivityStarter.showShortcutBubble] instead.
      *
      * @param info the shortcut info used to create or identify the bubble.
+     * @param entryPoint indicates how the bubble was created.
      * @param bubbleBarLocation the optional location of the bubble bar.
      */
     @JvmOverloads
-    fun showShortcutBubble(info: ShortcutInfo?, bubbleBarLocation: BubbleBarLocation? = null) =
+    fun showShortcutBubble(
+        info: ShortcutInfo?,
+        entryPoint: EntryPoint,
+        bubbleBarLocation: BubbleBarLocation? = null,
+    ) =
         executeWithErrorLog({ "Failed call showShortcutBubble" }) {
-            bubbles?.showShortcutBubble(info, bubbleBarLocation)
+            bubbles?.showShortcutBubble(info, entryPoint, bubbleBarLocation)
         }
 
     /**
@@ -751,16 +763,18 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
      * instead.
      *
      * @param intent the intent used to create the bubble.
+     * @param entryPoint indicates how the bubble was created.
      * @param bubbleBarLocation the optional location of the bubble bar.
      */
     @JvmOverloads
     fun showAppBubble(
         intent: Intent?,
         user: UserHandle,
+        entryPoint: EntryPoint,
         bubbleBarLocation: BubbleBarLocation? = null,
     ) =
         executeWithErrorLog({ "Failed call showAppBubble" }) {
-            bubbles?.showAppBubble(intent, user, bubbleBarLocation)
+            bubbles?.showAppBubble(intent, user, entryPoint, bubbleBarLocation)
         }
 
     /** Tells SysUI to show the expanded view. */

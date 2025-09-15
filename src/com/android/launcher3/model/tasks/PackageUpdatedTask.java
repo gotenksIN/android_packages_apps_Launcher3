@@ -16,9 +16,6 @@
 package com.android.launcher3.model.tasks;
 
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT;
-import static com.android.launcher3.model.data.AppsListData.FLAG_PRIVATE_PROFILE_QUIET_MODE_ENABLED;
-import static com.android.launcher3.model.data.AppsListData.FLAG_QUIET_MODE_ENABLED;
-import static com.android.launcher3.model.data.AppsListData.FLAG_WORK_PROFILE_QUIET_MODE_ENABLED;
 import static com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_ARCHIVED;
 import static com.android.launcher3.model.data.LauncherAppWidgetInfo.FLAG_PROVIDER_NOT_READY;
 import static com.android.launcher3.model.data.WorkspaceItemInfo.FLAG_AUTOINSTALL_ICON;
@@ -31,7 +28,6 @@ import android.content.pm.LauncherActivityInfo;
 import android.content.pm.LauncherApps;
 import android.content.pm.ShortcutInfo;
 import android.os.UserHandle;
-import android.os.UserManager;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -45,12 +41,10 @@ import com.android.launcher3.model.AllAppsList;
 import com.android.launcher3.model.BgDataModel;
 import com.android.launcher3.model.ItemInstallQueue;
 import com.android.launcher3.model.ModelTaskController;
-import com.android.launcher3.model.UserManagerState;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pm.PackageInstallInfo;
-import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.shortcuts.ShortcutRequest;
 import com.android.launcher3.util.ApiWrapper;
 import com.android.launcher3.util.FlagOp;
@@ -109,9 +103,7 @@ public class PackageUpdatedTask implements ModelUpdateTask {
         final int packageCount = packages.length;
         final FlagOp flagOp;
         final HashSet<String> packageSet = new HashSet<>(Arrays.asList(packages));
-        final Predicate<ItemInfo> matcher = mOp == OP_USER_AVAILABILITY_CHANGE
-                ? ItemInfoMatcher.ofUser(mUser) // We want to update all packages for this user
-                : ItemInfoMatcher.ofPackages(packageSet, mUser);
+        final Predicate<ItemInfo> matcher = ItemInfoMatcher.ofPackages(packageSet, mUser);
         final HashSet<ComponentName> removedComponents = new HashSet<>();
         final HashMap<String, List<LauncherActivityInfo>> activitiesLists = new HashMap<>();
         if (DEBUG) {
@@ -146,28 +138,6 @@ public class PackageUpdatedTask implements ModelUpdateTask {
                 // Since package was just updated, the target must be available now.
                 flagOp = FlagOp.NO_OP.removeFlag(WorkspaceItemInfo.FLAG_DISABLED_NOT_AVAILABLE);
                 break;
-            case OP_USER_AVAILABILITY_CHANGE: {
-                UserManagerState ums = new UserManagerState();
-                UserManager userManager = context.getSystemService(UserManager.class);
-                ums.init(UserCache.INSTANCE.get(context), userManager);
-                boolean isUserQuiet =  ums.isUserQuiet(mUser);
-                flagOp = FlagOp.NO_OP.setFlag(
-                        WorkspaceItemInfo.FLAG_DISABLED_QUIET_USER, isUserQuiet);
-                appsList.updateDisabledFlags(matcher, flagOp);
-
-                if (Flags.enablePrivateSpace()) {
-                    UserCache userCache = UserCache.INSTANCE.get(context);
-                    if (userCache.getUserInfo(mUser).isWork()) {
-                        appsList.setFlags(FLAG_WORK_PROFILE_QUIET_MODE_ENABLED, isUserQuiet);
-                    } else if (userCache.getUserInfo(mUser).isPrivate()) {
-                        appsList.setFlags(FLAG_PRIVATE_PROFILE_QUIET_MODE_ENABLED, isUserQuiet);
-                    }
-                } else {
-                    // We are not synchronizing here, as int operations are atomic
-                    appsList.setFlags(FLAG_QUIET_MODE_ENABLED, ums.isAnyProfileQuietModeEnabled());
-                }
-                break;
-            }
             default:
                 flagOp = FlagOp.NO_OP;
                 break;
@@ -424,7 +394,6 @@ public class PackageUpdatedTask implements ModelUpdateTask {
             case OP_NONE -> "NONE";
             case OP_ADD -> "ADD";
             case OP_UPDATE -> "UPDATE";
-            case OP_USER_AVAILABILITY_CHANGE -> "USER_AVAILABILITY_CHANGE";
             default -> "UNKNOWN";
         };
     }
