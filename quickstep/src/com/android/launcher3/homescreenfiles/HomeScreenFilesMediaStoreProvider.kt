@@ -17,18 +17,26 @@
 package com.android.launcher3.homescreenfiles
 
 import android.content.ContentResolver
+import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
 import android.database.ContentObserver
 import android.net.Uri
 import android.os.Process
+import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.provider.MediaStore.Files.FileColumns.RELATIVE_PATH
+import android.util.Log
+import androidx.annotation.WorkerThread
 import androidx.core.database.getStringOrNull
+import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider.Companion.HOME_SCREEN_FOLDER_RELATIVE_PATH
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider.FileChange
 import com.android.launcher3.util.DaggerSingletonTracker
 import com.android.launcher3.util.MutableListenableStream
 import java.io.File
 import java.util.concurrent.Callable
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletableFuture.supplyAsync
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Future
 
@@ -45,7 +53,7 @@ class HomeScreenFilesMediaStoreProvider(
         val observer =
             object : ContentObserver(null) {
                 override fun onChange(selfChange: Boolean, uri: Uri?, flags: Int) {
-                    if (!selfChange && uri != null) {
+                    if (!selfChange && uri != null && uri.hasIdSegment()) {
                         fileChanges.dispatchValue(
                             FileChange(uri, flags, query(uri), Process.myUserHandle())
                         )
@@ -55,6 +63,33 @@ class HomeScreenFilesMediaStoreProvider(
         context.contentResolver.registerContentObserver(uri, true, observer)
 
         lifecycle.addCloseable { context.contentResolver.unregisterContentObserver(observer) }
+    }
+
+    override fun canMoveToHomeScreen(uriList: List<Uri>?): Boolean =
+        uriList?.run { isNotEmpty() && all { uri -> canMoveToHomeScreen(uri) } } == true
+
+    /** NOTE: Currently only URIs which can be resolved by the media store are supported. */
+    private fun canMoveToHomeScreen(uri: Uri): Boolean =
+        isExternalStorageProviderUri(uri) || isMediaStoreUri(uri)
+
+    override fun moveToHomeScreen(uriList: List<Uri>): List<CompletableFuture<Boolean>> =
+        uriList.map { uri: Uri -> supplyAsync({ moveToHomeScreen(uri) }, executorService) }
+
+    @WorkerThread
+    private fun moveToHomeScreen(uri: Uri): Boolean {
+        try {
+            // NOTE: The selection criteria below prevents moving a URI to a path it already
+            // occupies. The media provider has additional protections to prevent recursive moves.
+            return context.contentResolver.update(
+                if (isMediaStoreUri(uri)) uri else MediaStore.getMediaUri(context, uri)!!,
+                ContentValues().apply { put(RELATIVE_PATH, HOME_SCREEN_FOLDER_RELATIVE_PATH) },
+                /*where=*/ "$RELATIVE_PATH != ?",
+                /*selectionArgs=*/ arrayOf(HOME_SCREEN_FOLDER_RELATIVE_PATH),
+            ) == 1
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "Unable to move URI to '$HOME_SCREEN_FOLDER_RELATIVE_PATH'", e)
+            return false
+        }
     }
 
     /** Returns all file items presented in [HOME_SCREEN_FOLDER_RELATIVE_PATH]. */
@@ -130,7 +165,6 @@ class HomeScreenFilesMediaStoreProvider(
     }
 
     companion object {
-        private const val HOME_SCREEN_FOLDER_RELATIVE_PATH = "Home screen/"
         private val QUERY_DEFAULT_PROJECTION =
             arrayOf(
                 MediaStore.Files.FileColumns.DISPLAY_NAME,
@@ -140,8 +174,16 @@ class HomeScreenFilesMediaStoreProvider(
         private const val QUERY_DEFAULT_SELECTION =
             "${MediaStore.Files.FileColumns.RELATIVE_PATH} = ?"
         private val QUERY_DEFAULT_SELECTION_ARGS = arrayOf(HOME_SCREEN_FOLDER_RELATIVE_PATH)
+        private const val TAG = "HomeScreenFilesMediaStoreProvider"
+
+        private fun isExternalStorageProviderUri(uri: Uri?) =
+            uri?.scheme == ContentResolver.SCHEME_CONTENT &&
+                uri.authority == DocumentsContract.EXTERNAL_STORAGE_PROVIDER_AUTHORITY
 
         private fun isMediaStoreUri(uri: Uri) =
             uri.scheme == ContentResolver.SCHEME_CONTENT && uri.authority == MediaStore.AUTHORITY
+
+        private fun Uri.hasIdSegment(): Boolean =
+            kotlin.runCatching { ContentUris.parseId(this) != -1L }.getOrDefault(false)
     }
 }
