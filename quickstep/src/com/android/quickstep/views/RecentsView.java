@@ -254,6 +254,7 @@ import com.android.systemui.shared.system.PackageManagerWrapper;
 import com.android.systemui.shared.system.TaskStackChangeListener;
 import com.android.systemui.shared.system.TaskStackChangeListeners;
 import com.android.wm.shell.common.pip.IPipAnimationListener;
+import com.android.wm.shell.common.pip.IPipAnimationListener.PipResources;
 import com.android.wm.shell.shared.GroupedTaskInfo;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource;
@@ -726,8 +727,7 @@ public abstract class RecentsView<
 
     private final PinnedStackAnimationListener mIPipAnimationListener =
             new PinnedStackAnimationListener();
-    private int mPipCornerRadius;
-    private int mPipShadowRadius;
+    private PipResources mPipResources = new PipResources();
 
     // Used to keep track of the last requested task list id, so that we do not request to load the
     // tasks again if we have already requested it and the task list has not changed
@@ -1319,13 +1319,9 @@ public abstract class RecentsView<
             if (enableOverviewDesktopTileWallpaperBackground()) {
                 reset();
             }
-            try {
-                mTaskViewPool.killOngoingInitializations();
-                mGroupedTaskViewPool.killOngoingInitializations();
-                mDesktopTaskViewPool.killOngoingInitializations();
-            } catch (InterruptedException e) {
-                Log.e(TAG, "Ongoing initializations could not be killed", e);
-            }
+            mTaskViewPool.cancelOngoingInitializations();
+            mGroupedTaskViewPool.cancelOngoingInitializations();
+            mDesktopTaskViewPool.cancelOngoingInitializations();
             mHelper.onDestroy();
             RecentsDependencies.destroy(getContext());
         }
@@ -2282,17 +2278,21 @@ public abstract class RecentsView<
         updateEmptyMessage();
     }
 
+    protected void resetTaskVisuals(TaskView taskView) {
+        taskView.resetViewTransforms();
+        taskView.setIconVisibleForGesture(mTaskIconVisible);
+        taskView.setStableAlpha(mContentAlpha);
+        taskView.setFullscreenProgress(mFullscreenProgress);
+        taskView.setModalness(mTaskModalness);
+        taskView.setTaskThumbnailSplashAlpha(mTaskThumbnailSplashAlpha);
+        taskView.setBorderEnabled(mBorderEnabled);
+    }
+
     public void resetTaskVisuals() {
         for (TaskView taskView : getTaskViews()) {
             if (Arrays.stream(taskView.getTaskIds()).noneMatch(
                     taskId -> taskId == mIgnoreResetTaskId)) {
-                taskView.resetViewTransforms();
-                taskView.setIconVisibleForGesture(mTaskIconVisible);
-                taskView.setStableAlpha(mContentAlpha);
-                taskView.setFullscreenProgress(mFullscreenProgress);
-                taskView.setModalness(mTaskModalness);
-                taskView.setTaskThumbnailSplashAlpha(mTaskThumbnailSplashAlpha);
-                taskView.setBorderEnabled(mBorderEnabled);
+                resetTaskVisuals(taskView);
             }
         }
         // resetTaskVisuals is called at the end of dismiss animation which could update
@@ -4550,8 +4550,12 @@ public abstract class RecentsView<
         if (!cycle && (newPageUnbound < 0 || newPageUnbound > pageCount)) {
             return false;
         }
-        snapToPage((newPageUnbound + pageCount) % pageCount);
-        getChildAt(getNextPage()).requestFocus();
+        final int newPage = (newPageUnbound + pageCount) % pageCount;
+        snapToPage(newPage);
+        View child = getChildAt(newPage);
+        if (child != null) {
+            child.requestFocus();
+        }
         return true;
     }
 
@@ -6839,19 +6843,11 @@ public abstract class RecentsView<
     }
 
     /**
-     * @return Corner radius in pixel value for PiP window, which is updated via
+     * @return PiP resources for PiP window, which is updated via
      * {@link #mIPipAnimationListener}
      */
-    public int getPipCornerRadius() {
-        return mPipCornerRadius;
-    }
-
-    /**
-     * @return Shadow radius in pixel value for PiP window, which is updated via
-     * {@link #mIPipAnimationListener}
-     */
-    public int getPipShadowRadius() {
-        return mPipShadowRadius;
+    public PipResources getPipResources() {
+        return mPipResources;
     }
 
     @Override
@@ -7000,10 +6996,9 @@ public abstract class RecentsView<
         }
 
         @Override
-        public void onPipResourceDimensionsChanged(int cornerRadius, int shadowRadius) {
+        public void onPipResourceDimensionsChanged(PipResources res) {
             if (mRecentsView != null) {
-                mRecentsView.mPipCornerRadius = cornerRadius;
-                mRecentsView.mPipShadowRadius = shadowRadius;
+                mRecentsView.mPipResources = res;
             }
         }
 

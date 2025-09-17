@@ -16,6 +16,9 @@
 
 package com.android.launcher3.shortcuts;
 
+import static com.android.launcher3.AbstractFloatingView.TYPE_FOLDER;
+import static com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_NOT_PINNABLE;
+
 import android.content.Context;
 import android.content.pm.ShortcutInfo;
 import android.content.res.ColorStateList;
@@ -30,12 +33,15 @@ import android.util.AttributeSet;
 import android.view.View;
 import android.widget.FrameLayout;
 
+import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.Launcher;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.accessibility.LauncherAccessibilityDelegate;
+import com.android.launcher3.folder.Folder;
 import com.android.launcher3.logging.StatsLogManager;
+import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.PopupContainerWithArrow;
 import com.android.launcher3.util.Themes;
@@ -161,10 +167,19 @@ public class DeepShortcutView extends FrameLayout implements BubbleTextHolder {
         mBubbleText.setOnClickListener(container.getItemClickListener());
         mBubbleText.setOnLongClickListener(container.getItemDragHandler());
         mBubbleText.setOnTouchListener(container.getItemDragHandler());
-        if (ac instanceof Launcher launcher) {
+        if (ac instanceof Launcher launcher && isPinnable(container)) {
             setupAddButton();
             setAddButtonClickListener(launcher, info, container);
         }
+    }
+
+    private boolean isPinnable(PopupContainerWithArrow container) {
+        BubbleTextView bbtv = container.getOriginalIcon();
+        boolean isPinnable = false;
+        if (bbtv.getTag() instanceof ItemInfoWithIcon infoWithIcon) {
+            isPinnable = (infoWithIcon.runtimeStatusFlags & FLAG_NOT_PINNABLE) == 0;
+        }
+        return isPinnable;
     }
 
     private void setupAddButton() {
@@ -191,7 +206,12 @@ public class DeepShortcutView extends FrameLayout implements BubbleTextHolder {
                                 .log(StatsLogManager.LauncherEvent
                                         .LAUNCHER_TAP_TO_ADD_DEEP_SHORTCUT);
                     });
-            container.close(true);
+            // If we have an open folder, don't animate the popup closing.
+            Folder folder = AbstractFloatingView.getOpenView(launcher, TYPE_FOLDER);
+            container.close(folder == null);
+            if (folder != null) {
+                folder.close(true);
+            }
         });
     }
 
