@@ -16,8 +16,17 @@
 
 package com.android.launcher3.util
 
-import com.android.launcher3.Flags
+import android.animation.Animator
 
-object OverviewReleaseFlags {
-    @JvmStatic fun enableOverviewIconMenu() = Flags.enableOverviewIconMenu()
+/**
+ * Interface that mimics Animator to allow impl to drives animation(s) across different thread. This
+ * interface is currently used to drive animation on launcher and taskbar (if rendered on separate
+ * UI thread).
+ */
+interface ThreadedAnimator {
+    fun start()
+
+    fun end()
+
+    fun addListener(listener: Animator.AnimatorListener)
 }

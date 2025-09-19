@@ -16,8 +16,20 @@
 
 package com.android.launcher3.util
 
-import com.android.launcher3.Flags
+import android.animation.Animator
 
-object OverviewReleaseFlags {
-    @JvmStatic fun enableOverviewIconMenu() = Flags.enableOverviewIconMenu()
+/** Wraps [Animator] add forward calls to it. */
+class ImmediateAnimator(val animator: Animator) : ThreadedAnimator {
+
+    override fun start() {
+        animator.start()
+    }
+
+    override fun end() {
+        animator.end()
+    }
+
+    override fun addListener(listener: Animator.AnimatorListener) {
+        animator.addListener(listener)
+    }
 }

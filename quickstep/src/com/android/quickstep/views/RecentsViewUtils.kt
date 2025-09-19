@@ -23,9 +23,11 @@ import android.graphics.Rect
 import android.util.FloatProperty
 import android.util.Log
 import android.util.Property
+import android.view.KeyEvent
 import android.view.View
 import android.view.View.LAYOUT_DIRECTION_LTR
 import android.view.View.LAYOUT_DIRECTION_RTL
+import androidx.core.view.ancestors
 import androidx.core.view.children
 import androidx.core.view.isEmpty
 import androidx.core.view.isInvisible
@@ -45,7 +47,6 @@ import com.android.launcher3.statehandlers.DesktopVisibilityController.Companion
 import com.android.launcher3.statemanager.BaseState
 import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.IntArray
-import com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOverview
 import com.android.launcher3.util.OverviewReleaseFlags.enableOverviewIconMenu
 import com.android.launcher3.util.window.WindowManagerProxy.DesktopVisibilityListener
 import com.android.quickstep.GestureState
@@ -53,6 +54,7 @@ import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle
 import com.android.quickstep.util.DesksUtils.Companion.areMultiDesksFlagsEnabled
 import com.android.quickstep.util.DesktopTask
 import com.android.quickstep.util.GroupTask
+import com.android.quickstep.util.TaskGridNavHelper
 import com.android.quickstep.util.isExternalDisplay
 import com.android.quickstep.views.RecentsView.DESKTOP_CAROUSEL_DETACH_PROGRESS
 import com.android.quickstep.views.RecentsView.RECENTS_GRID_PROGRESS
@@ -111,7 +113,7 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
         return otherTasks + externalDisplayTasks
     }
 
-    class TaskViewsIterable(val recentsView: RecentsView<*, *>) : Iterable<TaskView> {
+    open class TaskViewsIterable(val recentsView: RecentsView<*, *>) : Iterable<TaskView> {
         /** Iterates TaskViews when its index inside the RecentsView is needed. */
         fun forEachWithIndexInParent(consumer: BiConsumer<Int, TaskView>) {
             recentsView.children.forEachIndexed { index, child ->
@@ -212,19 +214,69 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
      * Returns the [TaskView] that should be the current page during task binding, in the following
      * priorities:
      * 1. Running task
-     * 2. Focused task
-     * 3. First non-desktop task
-     * 4. Last desktop task
-     * 5. null otherwise
+     * 2. First non-desktop task
+     * 3. Last desktop task
+     * 4. null otherwise
      */
-    fun getExpectedCurrentTask(runningTaskView: TaskView?, focusedTaskView: TaskView?): TaskView? =
+    fun getExpectedCurrentTask(runningTaskView: TaskView?): TaskView? =
         runningTaskView
-            ?: focusedTaskView
             ?: taskViews.firstOrNull {
                 it !is DesktopTaskView &&
                     (enableOverviewOnConnectedDisplays() || !it.isExternalDisplay)
             }
             ?: taskViews.lastOrNull()
+
+    fun handleTabKeyEvent(event: KeyEvent, superCall: (KeyEvent) -> Boolean): Boolean {
+        val isShiftPressed = event.isShiftPressed
+        val cycleTaskViews = {
+            recentsView.snapToPageRelative(
+                if (isShiftPressed) -1 else 1,
+                /* cycle= */ true,
+                TaskGridNavHelper.TaskNavDirection.TAB,
+            )
+        }
+
+        // When alt + tabbing on phones (KQS handles on large screens) go to the next task.
+        if (event.isAltPressed) {
+            return cycleTaskViews()
+        }
+
+        // If not alt + tabbing, cycle through the available views in a single task (e.g. chip menu)
+        val currentFocus: View = recentsView.findFocus() ?: return superCall(event)
+
+        // If already at the last focusable element within the TaskView (or if cycling in reverse
+        // order and on first element), snap to the next page.
+        val direction = if (isShiftPressed) View.FOCUS_BACKWARD else View.FOCUS_FORWARD
+        findParentTaskView(currentFocus)?.getVisibleFocusables(direction)?.let { focusables ->
+            if (
+                focusables.isNotEmpty() &&
+                    ((!isShiftPressed && currentFocus == focusables.last()) ||
+                        (isShiftPressed && currentFocus == focusables.first()))
+            ) {
+                return cycleTaskViews()
+            }
+        }
+
+        // Snap to next page if a single item is focusable, like the clear all button. Skip any
+        // invisible views for focusing.
+        val nextFocus: View? = recentsView.focusSearch(currentFocus, direction)
+        if (nextFocus == null || !nextFocus.isVisibleToUser) {
+            return cycleTaskViews()
+        }
+
+        return nextFocus.requestFocus()
+    }
+
+    /** Finds the first parent of this View that is an instance of TaskView, including itself. */
+    private fun findParentTaskView(view: View): TaskView? {
+        if (view is TaskView) {
+            return view
+        }
+        return view.ancestors.filterIsInstance<TaskView>().firstOrNull()
+    }
+
+    fun View.getVisibleFocusables(direction: Int): List<View> =
+        getFocusables(direction)?.filter { it.isVisibleToUser } ?: emptyList()
 
     private fun getDeviceProfile() = (recentsView.mContainer as RecentsViewContainer).deviceProfile
 
@@ -572,9 +624,6 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
     }
 
     fun updateCentralTask() {
-        val isTablet: Boolean = getDeviceProfile().deviceProperties.isTablet
-        val actionsViewCanRelateToTaskView = !(isTablet && enableGridOnlyOverview())
-        val focusedTaskView = recentsView.focusedTaskView
         val currentPageTaskView = recentsView.currentPageTaskView
 
         fun isInExpectedScrollPosition(taskView: TaskView?) =
@@ -582,9 +631,7 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
 
         val centralTaskIds: Set<Int> =
             when {
-                !actionsViewCanRelateToTaskView -> emptySet()
-                isTablet && isInExpectedScrollPosition(focusedTaskView) ->
-                    focusedTaskView!!.taskIdSet
+                getDeviceProfile().deviceProperties.isTablet -> emptySet()
                 isInExpectedScrollPosition(currentPageTaskView) -> currentPageTaskView!!.taskIdSet
                 else -> emptySet()
             }
@@ -611,7 +658,6 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
         oldSelectedTaskView: TaskView?,
         newSelectedTaskView: TaskView?,
     ) {
-        if (!enableGridOnlyOverview()) return
         with(recentsView) {
             oldSelectedTaskView?.modalScale = 1f
             oldSelectedTaskView?.modalPivot = null
@@ -737,30 +783,17 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
                 }
                 remoteTargetHandles.forEach { remoteTargetHandle ->
                     val taskViewSimulator = remoteTargetHandle.taskViewSimulator
-                    if (enableGridOnlyOverview()) {
-                        animatorSet.play(taskViewSimulator.carouselScale.animateToValue(1f))
-                        animatorSet.play(
-                            taskViewSimulator.taskGridTranslationX.animateToValue(
-                                runningTaskGridTranslationX
-                            )
+                    animatorSet.play(taskViewSimulator.carouselScale.animateToValue(1f))
+                    animatorSet.play(
+                        taskViewSimulator.taskGridTranslationX.animateToValue(
+                            runningTaskGridTranslationX
                         )
-                        animatorSet.play(
-                            taskViewSimulator.taskGridTranslationY.animateToValue(
-                                runningTaskGridTranslationY
-                            )
+                    )
+                    animatorSet.play(
+                        taskViewSimulator.taskGridTranslationY.animateToValue(
+                            runningTaskGridTranslationY
                         )
-                    } else {
-                        animatorSet.play(
-                            taskViewSimulator.taskPrimaryTranslation.animateToValue(
-                                runningTaskGridTranslationX
-                            )
-                        )
-                        animatorSet.play(
-                            taskViewSimulator.taskSecondaryTranslation.animateToValue(
-                                runningTaskGridTranslationY
-                            )
-                        )
-                    }
+                    )
                 }
             }
             animatorSet.play(
@@ -772,10 +805,8 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
             )
             animatorSet.play(ObjectAnimator.ofFloat(this, DESKTOP_CAROUSEL_DETACH_PROGRESS, 0f))
 
-            if (enableGridOnlyOverview()) {
-                // Reload visible tasks according to new [mCurrentGestureEndTarget] value.
-                loadVisibleTaskData(FLAG_UPDATE_ALL)
-            }
+            // Reload visible tasks according to new [mCurrentGestureEndTarget] value.
+            loadVisibleTaskData(FLAG_UPDATE_ALL)
         }
     }
 
@@ -788,7 +819,7 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
             is KeyboardFocusTask.Unfocused -> null
             is KeyboardFocusTask.CurrentPageTaskView -> recentsView.currentPageTaskView
             is KeyboardFocusTask.ExpectedCurrentTask ->
-                getExpectedCurrentTask(recentsView.runningTaskView, recentsView.focusedTaskView)
+                getExpectedCurrentTask(recentsView.runningTaskView)
             is KeyboardFocusTask.TaskViewWithIds ->
                 recentsView.getTaskViewByTaskIds(keyboardFocusTask.taskIds.toIntArray())
         }

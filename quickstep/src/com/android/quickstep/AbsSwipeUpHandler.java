@@ -137,6 +137,7 @@ import com.android.launcher3.taskbar.TaskbarUiState;
 import com.android.launcher3.taskbar.TaskbarUiStateMonitor;
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
+import com.android.launcher3.util.ThreadedAnimator;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.MSDLPlayerWrapper;
 import com.android.launcher3.util.NavigationMode;
@@ -325,7 +326,7 @@ public abstract class AbsSwipeUpHandler<
     // Either RectFSpringAnim (if animating home) or ObjectAnimator (from mCurrentShift) otherwise
     private RunningWindowAnim[] mRunningWindowAnim;
     // Possible second animation running at the same time as mRunningWindowAnim
-    private Animator mParallelRunningAnim;
+    private ThreadedAnimator mParallelRunningAnim;
     private boolean mIsMotionPaused;
     private boolean mHasMotionEverBeenPaused;
 
@@ -2548,8 +2549,6 @@ public abstract class AbsSwipeUpHandler<
             // ensure it's taken in the correct orientation, but no need to update the thumbnail.
             return;
         }
-
-        mRecentsView.updateThumbnail(mTaskSnapshotCache);
     }
 
     private void setScreenshotCapturedState() {
