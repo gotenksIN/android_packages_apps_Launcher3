@@ -21,7 +21,6 @@ import static com.android.app.animation.Interpolators.LINEAR;
 import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherAnimUtils.SCRIM_COLORS;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
-import static com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOverview;
 import static com.android.quickstep.AbsSwipeUpHandler.RECENTS_ATTACH_DURATION;
 import static com.android.quickstep.GestureState.GestureEndTarget.HOME;
 import static com.android.quickstep.GestureState.GestureEndTarget.LAST_TASK;
@@ -58,7 +57,9 @@ import com.android.launcher3.statemanager.StatefulContainer;
 import com.android.launcher3.taskbar.TaskbarInteractor;
 import com.android.launcher3.taskbar.TaskbarUiState;
 import com.android.launcher3.taskbar.TaskbarUiStateMonitor;
+import com.android.launcher3.util.ThreadedAnimator;
 import com.android.launcher3.util.DisplayController;
+import com.android.launcher3.util.ImmediateAnimator;
 import com.android.launcher3.util.WindowBounds;
 import com.android.launcher3.views.ScrimColors;
 import com.android.launcher3.views.ScrimColorsEvaluator;
@@ -302,7 +303,7 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
      * Called when the gesture ends and the animation starts towards the given target. Used to add
      * an optional additional animation with the same duration.
      */
-    public @Nullable Animator getParallelAnimationToGestureEndTarget(
+    public @Nullable ThreadedAnimator getParallelAnimationToGestureEndTarget(
             GestureState.GestureEndTarget endTarget, long duration,
             RecentsAnimationCallbacks callbacks) {
         if (endTarget == RECENTS) {
@@ -320,7 +321,7 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
                     recentsView == null || !recentsView.isKeyboardTaskFocusPending()
                             ? LINEAR : INSTANT);
 
-            return animScrim;
+            return new ImmediateAnimator(animScrim);
         }
         return null;
     }
@@ -526,9 +527,8 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
     public final void calculateModalTaskSize(Context context, DeviceProfile dp, Rect outRect,
             RecentsPagedOrientationHandler orientationHandler) {
         calculateTaskSize(context, dp, outRect, orientationHandler);
-        boolean isGridOnlyOverview = dp.getDeviceProperties().isTablet() && enableGridOnlyOverview();
         int minimumHorizontalPadding = 0;
-        if (!isGridOnlyOverview) {
+        if (!dp.getDeviceProperties().isTablet()) {
             float maxScale = context.getResources().getFloat(R.dimen.overview_modal_max_scale);
             minimumHorizontalPadding =
                     Math.round((dp.getDeviceProperties().getAvailableWidthPx() - outRect.width() * maxScale) / 2);
@@ -537,7 +537,7 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
                 context,
                 dp,
                 dp.getOverviewProfile().getTaskMarginPx(),
-                getModalClaimedSpaceBelow(dp, outRect, isGridOnlyOverview),
+                getModalClaimedSpaceBelow(dp, outRect, dp.getDeviceProperties().isTablet()),
                 minimumHorizontalPadding,
                 1f /*maxScale*/,
                 Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM,
