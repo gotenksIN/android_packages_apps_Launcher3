@@ -43,6 +43,7 @@ import android.window.TransitionInfo
 import android.window.TransitionInfo.Change
 import android.window.WindowContainerToken
 import androidx.annotation.VisibleForTesting
+import androidx.core.animation.doOnEnd
 import androidx.core.util.component1
 import androidx.core.util.component2
 import com.android.app.animation.Interpolators
@@ -60,7 +61,6 @@ import com.android.launcher3.statehandlers.DepthController
 import com.android.launcher3.statemanager.StateManager
 import com.android.launcher3.taskbar.TaskbarActivityContext
 import com.android.launcher3.util.MultiPropertyFactory.MULTI_PROPERTY_VALUE
-import com.android.launcher3.util.OverviewReleaseFlags.enableOverviewIconMenu
 import com.android.launcher3.util.SplitConfigurationOptions.SplitSelectSource
 import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.views.BaseDragLayer
@@ -75,7 +75,6 @@ import com.android.quickstep.views.RecentsViewContainer
 import com.android.quickstep.views.SplitInstructionsView
 import com.android.quickstep.views.TaskContainer
 import com.android.quickstep.views.TaskView
-import com.android.quickstep.views.TaskViewIcon
 import com.android.wm.shell.shared.TransitionUtil
 import java.util.Optional
 import java.util.function.Supplier
@@ -130,7 +129,7 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
                         drawable,
                         fadeWithThumbnail = true,
                         isStagedTask = true,
-                        iconView = container.iconView.asView(),
+                        iconView = container.iconView,
                         container.task.titleDescription,
                     )
                 }
@@ -150,7 +149,7 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
                     drawable,
                     fadeWithThumbnail = true,
                     isStagedTask = true,
-                    iconView = it.iconView.asView(),
+                    iconView = it.iconView,
                     it.task.titleDescription,
                 )
             }
@@ -164,10 +163,13 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
      *
      * @return the [Drawable] icon, or a translucent drawable if none was found
      */
-    fun getDrawable(iconView: TaskViewIcon, splitSelectSource: SplitSelectSource?): Drawable {
+    fun getDrawable(iconView: IconAppChipView, splitSelectSource: SplitSelectSource?): Drawable {
         val drawable =
-            if (iconView.drawable == null && splitSelectSource != null) splitSelectSource.drawable
-            else iconView.drawable
+            if (iconView.getDrawable() == null && splitSelectSource != null) {
+                splitSelectSource.drawable
+            } else {
+                iconView.getDrawable()
+            }
         return drawable ?: ColorDrawable(Color.TRANSPARENT)
     }
 
@@ -192,24 +194,18 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
         isPrimaryTaskSplitting: Boolean,
     ) {
         val taskContentView = taskContainer.taskContentView
-        val iconView: View = taskContainer.iconView.asView()
+        val iconView = taskContainer.iconView
         builder.add(
             AnimatedFloat { v -> taskContainer.taskView.splitSplashAlpha = v }.animateToValue(1f)
         )
         // With the new `IconAppChipView`, we always want to keep the chip pinned to the
         // top left of the task / thumbnail.
-        if (enableOverviewIconMenu()) {
-            builder.add(
-                ObjectAnimator.ofFloat(
-                    (iconView as IconAppChipView).getSplitTranslationX(),
-                    MULTI_PROPERTY_VALUE,
-                    0f,
-                )
-            )
-            builder.add(
-                ObjectAnimator.ofFloat(iconView.getSplitTranslationY(), MULTI_PROPERTY_VALUE, 0f)
-            )
-        }
+        builder.add(
+            ObjectAnimator.ofFloat(iconView.getSplitTranslationX(), MULTI_PROPERTY_VALUE, 0f)
+        )
+        builder.add(
+            ObjectAnimator.ofFloat(iconView.getSplitTranslationY(), MULTI_PROPERTY_VALUE, 0f)
+        )
 
         val splitBoundsConfig =
             (taskContainer.taskView as? GroupedTaskView)?.splitBoundsConfig ?: return
@@ -233,58 +229,27 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
                     centerThumbnailTranslationX,
                 )
             )
-            if (!enableOverviewIconMenu()) {
-                // icons are anchored from Gravity.END, so need to use negative translation
-                val centerIconTranslationX: Float = (taskViewWidth - iconView.width) / 2f
-                builder.add(
-                    ObjectAnimator.ofFloat(iconView, View.TRANSLATION_X, -centerIconTranslationX)
-                )
-            }
             builder.add(ObjectAnimator.ofFloat(taskContentView, View.SCALE_X, finalScaleX))
 
             // Reset other dimensions
             // TODO(b/271468547), can't set Y translate to 0, need to account for top space
             taskContentView.scaleY = 1f
-            val translateYResetVal: Float =
-                if (!isPrimaryTaskSplitting) 0f
-                else deviceProfile.overviewProfile.taskThumbnailTopMarginPx.toFloat()
-            builder.add(
-                ObjectAnimator.ofFloat(taskContentView, View.TRANSLATION_Y, translateYResetVal)
-            )
+            builder.add(ObjectAnimator.ofFloat(taskContentView, View.TRANSLATION_Y, 0f))
         } else {
-            val thumbnailSize =
-                taskViewHeight - deviceProfile.overviewProfile.taskThumbnailTopMarginPx
             // Center view first so scaling happens uniformly, alternatively we can move pivotY to 0
             // primary thumbnail has layout margin above it, so secondary thumbnail needs to take
             // that into account. We should migrate to only using translations otherwise this
             // asymmetry causes problems..
 
             // Icon defaults to center | horizontal, we add additional translation for split
-            var centerThumbnailTranslationY: Float
-
-            // TODO(b/271468547), primary thumbnail has layout margin above it, so secondary
-            //  thumbnail needs to take that into account. We should migrate to only using
-            //  translations otherwise this asymmetry causes problems..
-            if (isPrimaryTaskSplitting) {
-                centerThumbnailTranslationY = (thumbnailSize - snapshotViewSize.y) / 2f
-                centerThumbnailTranslationY +=
-                    deviceProfile.overviewProfile.taskThumbnailTopMarginPx.toFloat()
-            } else {
-                centerThumbnailTranslationY = (thumbnailSize - snapshotViewSize.y) / 2f
-            }
-            val finalScaleY: Float = thumbnailSize.toFloat() / snapshotViewSize.y
+            val finalScaleY: Float = taskViewHeight.toFloat() / snapshotViewSize.y
             builder.add(
                 ObjectAnimator.ofFloat(
                     taskContentView,
                     View.TRANSLATION_Y,
-                    centerThumbnailTranslationY,
+                    (taskViewHeight - snapshotViewSize.y) / 2f,
                 )
             )
-
-            if (!enableOverviewIconMenu()) {
-                // icons are anchored from Gravity.END, so need to use negative translation
-                builder.add(ObjectAnimator.ofFloat(iconView, View.TRANSLATION_X, 0f))
-            }
             builder.add(ObjectAnimator.ofFloat(taskContentView, View.SCALE_Y, finalScaleY))
 
             // Reset other dimensions
@@ -338,12 +303,21 @@ class SplitAnimationController(val splitSelectStateController: SplitSelectStateC
     }
 
     /** Does not play any animation if user is not currently in split selection state. */
-    fun playPlaceholderDismissAnim(container: RecentsViewContainer, splitDismissEvent: EventEnum) {
+    @JvmOverloads
+    fun playPlaceholderDismissAnim(
+        container: RecentsViewContainer,
+        splitDismissEvent: EventEnum,
+        onAnimationEnd: Runnable? = null,
+    ) {
         if (!splitSelectStateController.isSplitSelectActive) {
             return
         }
 
-        val anim = createPlaceholderDismissAnim(container, splitDismissEvent, null /*duration*/)
+        val anim =
+            createPlaceholderDismissAnim(container, splitDismissEvent, null /*duration*/).apply {
+                doOnEnd { onAnimationEnd?.run() }
+            }
+
         anim.start()
     }
 

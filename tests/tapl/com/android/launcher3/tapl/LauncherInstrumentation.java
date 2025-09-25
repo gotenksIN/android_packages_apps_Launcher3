@@ -106,6 +106,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -553,6 +554,11 @@ public final class LauncherInstrumentation {
 
     public void setEnableRotation(boolean on) {
         getTestInfo(TestProtocol.REQUEST_ENABLE_ROTATION, Boolean.toString(on));
+    }
+
+    /** Enables fixed landscape mode if supported on device */
+    public void setFixedLandscape(boolean on) {
+        getTestInfo(TestProtocol.REQUEST_ENABLE_FIXED_LANDSCAPE, Boolean.toString(on));
     }
 
     public boolean hadNontestEvents() {
@@ -2949,5 +2955,29 @@ public final class LauncherInstrumentation {
     public int getTaskbarUnstashInputArea() {
         return getTestInfo(TestProtocol.REQUEST_TASKBAR_UNSTASHED_INPUT_AREA).getInt(
                 TestProtocol.TEST_INFO_RESPONSE_FIELD);
+    }
+
+    /**
+     * Waits for the provided condition to be true, otherwise fails with the provided message
+     */
+    public void waitForCondition(String errorMessage, long timeout, Callable<Boolean> condition) {
+        waitForCondition(() -> errorMessage, timeout, condition);
+    }
+
+    /**
+     * Waits for the provided condition to be true, otherwise fails with the provided message
+     */
+    public void waitForCondition(
+            Supplier<String> errorMessage, long timeout, Callable<Boolean> condition) {
+        if (!mDevice.wait(d -> {
+            try {
+                return condition.call();
+            } catch (Throwable t) {
+                throw new RuntimeException(t);
+            }
+        }, timeout)) {
+            checkForAnomaly(false, false);
+            fail(errorMessage.get());
+        }
     }
 }

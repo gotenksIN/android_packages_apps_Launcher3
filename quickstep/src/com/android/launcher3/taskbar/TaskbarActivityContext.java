@@ -32,6 +32,7 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_ALL;
 import static com.android.launcher3.AbstractFloatingView.TYPE_ON_BOARD_POPUP;
 import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
 import static com.android.launcher3.AbstractFloatingView.TYPE_TASKBAR_OVERLAY_PROXY;
+import static com.android.launcher3.Flags.enableTaskbarUiThread;
 import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.Utilities.calculateTextHeight;
 import static com.android.launcher3.Utilities.isRunningInTestHarness;
@@ -40,10 +41,12 @@ import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCH
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_DRAGGING;
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_FULLSCREEN;
 import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar;
+import static com.android.launcher3.taskbar.TaskbarManagerImpl.TASKBAR_UI_THREAD;
 import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_SECONDARY_LAUNCHER_ON_CD;
 import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_STASHED_IN_APP_AUTO;
 import static com.android.launcher3.taskbar.TaskbarStashController.SHOULD_BUBBLES_FOLLOW_DEFAULT_VALUE;
 import static com.android.launcher3.testing.shared.ResourceUtils.getBoolByName;
+import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.quickstep.util.ExternalDisplaysKt.isExternalDisplay;
@@ -75,6 +78,7 @@ import android.os.Trace;
 import android.provider.Settings;
 import android.provider.Settings.Secure;
 import android.util.Log;
+import android.util.Pair;
 import android.view.Gravity;
 import android.view.Surface;
 import android.view.View;
@@ -90,6 +94,7 @@ import android.window.RemoteTransition;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.UiThread;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.internal.jank.Cuj;
@@ -148,6 +153,7 @@ import com.android.launcher3.taskbar.bubbles.stashing.TransientBubbleStashContro
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator;
 import com.android.launcher3.taskbar.customization.TaskbarSpecsEvaluator;
 import com.android.launcher3.taskbar.growth.NudgeController;
+import com.android.launcher3.taskbar.handoff.HandoffSuggestion;
 import com.android.launcher3.taskbar.handoff.TaskbarHandoffController;
 import com.android.launcher3.taskbar.navbutton.NearestTouchFrame;
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayContext;
@@ -180,7 +186,6 @@ import com.android.quickstep.util.SingleTask;
 import com.android.quickstep.util.SlideInRemoteTransition;
 import com.android.quickstep.util.SplitTask;
 import com.android.quickstep.views.DesktopTaskView;
-import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.TaskView;
 import com.android.systemui.animation.ViewRootSync;
 import com.android.systemui.rotation.impl.RotationPolicyWrapperImpl;
@@ -200,6 +205,7 @@ import java.io.PrintWriter;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 /**
@@ -214,6 +220,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     private static final String TAG = "TaskbarActivityContext";
 
     private static final String WINDOW_TITLE = "Taskbar";
+
+    private static final Executor UI_EXECUTOR = enableTaskbarUiThread()
+            ? TASKBAR_UI_THREAD : MAIN_EXECUTOR;
 
     public static final String SIMPLE_VIEW_SETTINGS_KEY = "matcha_enable";
 
@@ -1630,30 +1639,22 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     // If in overview, and a desktop task is available, launches the overview desktop task and
     // schedules the provided runnable.
-    // Returns whether the runnable has been posted.
-    private boolean runAfterLaunchingDesktopTaskIfInOverview(
-            RecentsView recents,
-            Runnable runnableToRun) {
+    private void runAfterLaunchingDesktopTaskIfInOverview(
+            RecentsViewInteractor recents,
+            Runnable runnableToRun,
+            Executor executor) {
         if (recents == null || !isTaskbarShowingDesktopTasks()
                 || !mControllers.uiController.isInOverviewUi()
                 || recents.isSplitSelectionActive()) {
-            return false;
+            executor.execute(runnableToRun);
         }
 
-        RunnableList runnableList = recents.launchRunningDesktopTaskView();
-        // Wrapping it in runnable so we post after DW is ready for the app
-        // launch.
-        if (runnableList == null) {
-            return false;
-        }
-
-        runnableList.add(() -> UI_HELPER_EXECUTOR.execute(runnableToRun));
-        return true;
+        recents.launchRunningDesktopTaskView(runnableToRun, executor);
     }
 
     protected void onTaskbarIconClicked(View view) {
         TaskbarUIController taskbarUIController = mControllers.uiController;
-        RecentsView recents = taskbarUIController.getRecentsView();
+        RecentsViewInteractor recents = taskbarUIController.getRecentsViewInteractor();
         boolean shouldCloseAllOpenViews = true;
         Object tag = view.getTag();
 
@@ -1666,12 +1667,13 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                             ? createDesktopAppLaunchRemoteTransition(AppLaunchType.UNMINIMIZE,
                             Cuj.CUJ_DESKTOP_MODE_APP_LAUNCH_FROM_ICON)
                             : null;
-            Runnable launchTask = () -> handleGroupTaskLaunch(singleTask, remoteTransition,
+            Pair<Executor, Runnable> inferredTask = inferGroupTaskLaunch(
+                    singleTask, remoteTransition,
                     isTaskbarShowingDesktopTasks(), DesktopTaskToFrontReason.TASKBAR_TAP, view,
                     DesktopModeTransitionSource.TASKBAR);
-            if (!runAfterLaunchingDesktopTaskIfInOverview(recents, launchTask)) {
-                launchTask.run();
-            }
+
+            runAfterLaunchingDesktopTaskIfInOverview(
+                    recents, inferredTask.second, inferredTask.first);
 
             mControllers.taskbarStashController.updateAndAnimateTransientTaskbar(true);
         } else if (tag instanceof SplitTask st) {
@@ -1721,10 +1723,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                         SystemUiProxy.INSTANCE.get(this).showDesktopApp(
                                 info.getTaskId(), remoteTransition,
                                 DesktopTaskToFrontReason.TASKBAR_TAP);
-                if (!runAfterLaunchingDesktopTaskIfInOverview(recents, launchTask)) {
-                    UI_HELPER_EXECUTOR.execute(launchTask);
-                }
-
+                runAfterLaunchingDesktopTaskIfInOverview(recents, launchTask, UI_HELPER_EXECUTOR);
             }
             mControllers.taskbarStashController.updateAndAnimateTransientTaskbar(
                     /* stash= */ true);
@@ -1803,6 +1802,14 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             mControllers.taskbarStashController.updateAndAnimateTransientTaskbar(true);
         } else if (tag instanceof ItemClickProxy) {
             ((ItemClickProxy) tag).onItemClicked(view);
+        } else if (tag instanceof HandoffSuggestion handoffSuggestion) {
+            if (android.companion.Flags.enableTaskContinuity()) {
+                mControllers.taskbarHandoffController.launch(handoffSuggestion);
+            } else {
+                Log.w(
+                    TAG,
+                    "Click on HandoffSuggestion ignored because Handoff feature flag is disabled.");
+            }
         } else {
             Log.e(TAG, "Unknown type clicked: " + tag);
         }
@@ -1831,45 +1838,60 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             DesktopTaskToFrontReason toFrontReason,
             View startingView,
             DesktopModeTransitionSource transitionSource) {
+        Pair<Executor, Runnable> inferredTask = inferGroupTaskLaunch(
+                task, remoteTransition, onDesktop, toFrontReason, startingView, transitionSource);
+        inferredTask.first.execute(inferredTask.second);
+    }
+
+    private Pair<Executor, Runnable> inferGroupTaskLaunch(
+            GroupTask task,
+            @Nullable RemoteTransition remoteTransition,
+            boolean onDesktop,
+            DesktopTaskToFrontReason toFrontReason,
+            View startingView,
+            DesktopModeTransitionSource transitionSource) {
+
         if (task instanceof DesktopTask) {
-            UI_HELPER_EXECUTOR.execute(
+            return Pair.create(UI_HELPER_EXECUTOR,
                     () -> SystemUiProxy.INSTANCE.get(this).showDesktopApps(getDisplayId(),
                             remoteTransition, /* taskIdReorderToFront */ null, transitionSource));
-            return;
         }
 
         if (task instanceof SingleTask singleTask) {
             TaskbarUIController taskbarUIController = mControllers.uiController;
-            RecentsView recents = taskbarUIController.getRecentsView();
+            RecentsViewInteractor recents = taskbarUIController.getRecentsViewInteractor();
 
             if (DesktopExperienceFlags.ENABLE_TASKBAR_RUNNING_TASKS_IN_SPLITSCREEN_SELECT_BUGFIX
                     .isTrue() && recents != null && recents.isSplitSelectionActive()) {
-                taskbarUIController.moveRunningTaskToSplitSelection(singleTask.getTask(), null,
-                        startingView);
-                return;
+                return Pair.create(UI_EXECUTOR,
+                        () -> taskbarUIController.moveRunningTaskToSplitSelection(
+                                singleTask.getTask(), null, startingView));
             }
 
             if (onDesktop) {
                 boolean useRemoteTransition = canUnminimizeDesktopTask(singleTask.getTask().key.id);
-                UI_HELPER_EXECUTOR.execute(() -> {
-                    SystemUiProxy.INSTANCE.get(this).showDesktopApp(singleTask.getTask().key.id,
-                            useRemoteTransition ? remoteTransition : null, toFrontReason);
-                });
-                return;
+                return Pair.create(UI_HELPER_EXECUTOR,
+                        () -> SystemUiProxy.INSTANCE.get(this).showDesktopApp(
+                                singleTask.getTask().key.id,
+                                useRemoteTransition ? remoteTransition : null,
+                                toFrontReason));
             }
-            UI_HELPER_EXECUTOR.execute(() -> {
-                ActivityOptions activityOptions =
-                        makeDefaultActivityOptions(SPLASH_SCREEN_STYLE_UNDEFINED).options;
-                activityOptions.setRemoteTransition(remoteTransition);
 
-                ActivityManagerWrapper.getInstance().startActivityFromRecents(
-                        singleTask.getTask().key, activityOptions);
-            });
-            return;
+            return Pair.create(UI_HELPER_EXECUTOR,
+                    () -> {
+                        ActivityOptions activityOptions =
+                                makeDefaultActivityOptions(SPLASH_SCREEN_STYLE_UNDEFINED).options;
+                        activityOptions.setRemoteTransition(remoteTransition);
+
+                        ActivityManagerWrapper.getInstance().startActivityFromRecents(
+                                singleTask.getTask().key, activityOptions);
+                    });
         }
 
         assert task instanceof SplitTask;
-        mControllers.uiController.launchSplitTasks((SplitTask) task, remoteTransition);
+        return Pair.create(UI_EXECUTOR,
+                () -> mControllers.uiController.launchSplitTasks(
+                        (SplitTask) task, remoteTransition));
     }
 
     /** Returns whether the given task is minimized and can be unminimized. */
@@ -1898,7 +1920,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      * Runs when the user taps a Taskbar icon in TaskbarActivityContext (Overview or inside an app),
      * and calls the appropriate method to animate and launch.
      */
-    private void launchFromTaskbar(@Nullable RecentsView recents, @Nullable View launchingIconView,
+    private void launchFromTaskbar(
+            @Nullable RecentsViewInteractor recents, @Nullable View launchingIconView,
             List<? extends ItemInfo> itemInfos) {
         if (isInApp()) {
             launchFromInAppTaskbar(recents, launchingIconView, itemInfos);
@@ -1910,7 +1933,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     /**
      * Runs when the user taps a Taskbar icon while inside an app.
      */
-    private void launchFromInAppTaskbar(@Nullable RecentsView recents,
+    private void launchFromInAppTaskbar(@Nullable RecentsViewInteractor recents,
             @Nullable View launchingIconView, List<? extends ItemInfo> itemInfos) {
         boolean launchedFromExternalDisplay =
                 DesktopExperienceFlags.ENABLE_TASKBAR_CONNECTED_DISPLAYS.isTrue()
@@ -1925,11 +1948,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             // If the icon is an app pair, the logic gets a bit complicated because we play
             // different animations depending on which app (or app pair) is currently running on
             // screen, so delegate logic to appPairsController.
-            if (recents != null && recents.getSplitSelectController() != null
-                    && launchingIconView != null) {
+            if (recents != null && launchingIconView != null) {
                 // TODO: b/441341469 - Split screen should be handled correctly on CD.
-                recents.getSplitSelectController().getAppPairsController()
-                        .handleAppPairLaunchInApp((AppPairIcon) launchingIconView, itemInfos);
+                recents.handleAppPairLaunchInApp((AppPairIcon) launchingIconView, itemInfos);
             }
         } else {
             // Tapped a single app, nothing complicated here.
@@ -1943,7 +1964,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      * as if the user tapped on it (preserving the split pair). Otherwise, launch it normally
      * (potentially breaking a split pair).
      */
-    private void launchFromOverviewTaskbar(@Nullable RecentsView recents,
+    private void launchFromOverviewTaskbar(@Nullable RecentsViewInteractor recents,
             @Nullable View launchingIconView, List<? extends ItemInfo> itemInfos) {
         if (recents == null) {
             return;
@@ -1953,7 +1974,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         // Convert the list of ItemInfo instances to a list of ComponentKeys
         List<ResolvedTargetInfo> resolvedTargetInfo =
                 itemInfos.stream().map(ItemInfo::getResolvedTargetInfo).toList();
-        recents.getSplitSelectController().findLastActiveTasksAndRunCallback(
+        recents.findLastActiveTasksAndRunCallback(
                 resolvedTargetInfo,
                 isLaunchingAppPair,
                 foundTasks -> {
@@ -1977,17 +1998,12 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                         recents.switchToScreenshot(() ->
                                 recents.finishRecentsAnimation(true /*toHome*/,
                                         false /*shouldPip*/,
-                                        () -> recents
-                                                .getSplitSelectController()
-                                                .getAppPairsController()
-                                                .launchAppPair((AppPairIcon) launchingIconView,
+                                        () -> recents.launchAppPair((AppPairIcon) launchingIconView,
                                                         -1 /*cuj*/)));
                     } else {
                         Runnable launchTask =
                                 () -> startItemInfoActivity(itemInfos.get(0), foundTask);
-                        if (!runAfterLaunchingDesktopTaskIfInOverview(recents, launchTask)) {
-                            launchTask.run();
-                        }
+                        runAfterLaunchingDesktopTaskIfInOverview(recents, launchTask, UI_EXECUTOR);
                     }
                 }
         );
@@ -1998,6 +2014,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      * taskInRecents is present, it will prioritize re-launching an existing instance via
      * {@link ActivityManagerWrapper#startActivityFromRecents(int, ActivityOptions)}
      */
+    @UiThread
     private void startItemInfoActivity(ItemInfo info, @Nullable Task taskInRecents) {
         Intent intent = new Intent(info.getIntent())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -2018,7 +2035,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 // Re launch instance from recents
                 if (ActivityManagerWrapper.getInstance()
                         .startActivityFromRecents(taskInRecents.key, opts.options)) {
-                    mControllers.uiController.getRecentsView()
+                    mControllers.uiController.getRecentsViewInteractor()
                             .addSideTaskLaunchCallback(opts.onEndCallback);
                     return;
                 }

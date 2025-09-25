@@ -32,7 +32,6 @@ import android.util.Log
 import android.view.Display.INVALID_DISPLAY
 import android.view.Gravity
 import android.view.View
-import android.view.ViewStub
 import android.widget.ImageView
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.drawable.toDrawable
@@ -46,7 +45,6 @@ import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.testing.TestLogging
 import com.android.launcher3.testing.shared.TestProtocol
 import com.android.launcher3.util.KFloatProperty
-import com.android.launcher3.util.OverviewReleaseFlags.enableOverviewIconMenu
 import com.android.launcher3.util.RunnableList
 import com.android.launcher3.util.SplitConfigurationOptions
 import com.android.launcher3.util.TransformingTouchDelegate
@@ -128,7 +126,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
 
     private val tempPointF = PointF()
     private val lastComputedTaskSize = Rect()
-    private lateinit var iconView: TaskViewIcon
+    private lateinit var iconView: IconAppChipView
     private lateinit var iconTouchDelegate: TransformingTouchDelegate
     private lateinit var contentView: DesktopTaskContentView
     private lateinit var backgroundView: ImageView
@@ -197,9 +195,6 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         super.onFinishInflate()
         contentView =
             findViewById<DesktopTaskContentView>(R.id.desktop_content).apply {
-                updateLayoutParams<LayoutParams> {
-                    topMargin = container.deviceProfile.overviewProfile.taskThumbnailTopMarginPx
-                }
                 cornerRadius = contentViewFullscreenParams.currentCornerRadius
                 backgroundView = findViewById(R.id.background)
                 if (!enableOverviewDesktopTileWallpaperBackground()) {
@@ -210,16 +205,6 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                     )
                 }
             }
-    }
-
-    override fun inflateViewStubs() {
-        findViewById<ViewStub>(R.id.icon)
-            ?.apply {
-                layoutResource =
-                    if (enableOverviewIconMenu()) R.layout.icon_app_chip_view
-                    else R.layout.icon_view
-            }
-            ?.inflate()
     }
 
     private fun positionTaskWindows(updateLayout: Boolean = false) {
@@ -466,7 +451,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         }
 
         iconView =
-            (findViewById<View>(R.id.icon) as TaskViewIcon).apply {
+            (findViewById<IconAppChipView>(R.id.icon)).apply {
                 setIcon(
                     this,
                     ResourcesCompat.getDrawable(
@@ -477,9 +462,8 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                 )
                 setText(resources.getText(R.string.recent_task_desktop))
             }
-        iconTouchDelegate = TransformingTouchDelegate(iconView.asView())
+        iconTouchDelegate = TransformingTouchDelegate(iconView)
 
-        cancelPendingLoadTasks()
         val backgroundViewIndex = contentView.indexOfChild(backgroundView)
         taskContainers =
             tasks.map { task ->
@@ -543,24 +527,9 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         updateTaskPositions()
     }
 
-    override fun onTaskListVisibilityChanged(visible: Boolean, changes: Int) {
-        super.onTaskListVisibilityChanged(visible, changes)
-        if (needsUpdate(changes, FLAG_UPDATE_CORNER_RADIUS)) {
-            contentViewFullscreenParams.updateCornerRadius(context)
-        }
-    }
-
-    override fun onIconLoaded(taskContainer: TaskContainer) {
-        // Update contentDescription of snapshotView only, individual task icon is unused.
-        taskContainer.snapshotView.contentDescription = taskContainer.task.titleDescription
-    }
-
     override fun setIconState(container: TaskContainer, state: TaskData?) {
         container.snapshotView.contentDescription = (state as? TaskData.Data)?.titleDescription
     }
-
-    // Ignoring [onIconUnloaded] as all tasks shares the same Desktop icon
-    override fun onIconUnloaded(taskContainer: TaskContainer) {}
 
     // thumbnailView is laid out differently and is handled in onMeasure
     override fun updateThumbnailSize() {}
@@ -635,10 +604,10 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
     override fun confirmSecondSplitSelectApp(): Boolean =
         recentsView?.canLaunchFullscreenTask() != true
 
-    override fun getTaskIcons(): Sequence<Pair<TaskViewIcon, TransformingTouchDelegate>> =
+    override fun getTaskIcons(): Sequence<Pair<IconAppChipView, TransformingTouchDelegate>> =
         sequenceOf(iconView to iconTouchDelegate)
 
-    override fun getContainerForIconView(iconView: TaskViewIcon) = null
+    override fun getContainerForIconView(appChip: IconAppChipView) = null
 
     override fun onFullscreenProgressChanged(fullscreenProgress: Float) {
         backgroundView.alpha = 1 - fullscreenProgress
@@ -653,7 +622,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
 
     override fun addChildrenForAccessibility(outChildren: ArrayList<View>) {
         super.addChildrenForAccessibility(outChildren)
-        addAccessibleChildToList(iconView.asView(), outChildren)
+        addAccessibleChildToList(iconView, outChildren)
         addAccessibleChildToList(backgroundView, outChildren)
     }
 
@@ -767,9 +736,8 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
      *   height.
      */
     private fun getScreenScaleFactors(): Pair<Float, Float> {
-        val thumbnailTopMarginPx = container.deviceProfile.overviewProfile.taskThumbnailTopMarginPx
         val taskViewWidth = layoutParams.width
-        val taskViewHeight = layoutParams.height - thumbnailTopMarginPx
+        val taskViewHeight = layoutParams.height
 
         val screenRect = getScreenRect()
         val widthScale = taskViewWidth / screenRect.width().toFloat()
@@ -790,6 +758,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
             cancelFetchWallpaperBackgroundJobs()
             setWallpaperBackground(true)
         }
+        contentViewFullscreenParams.updateCornerRadius(context)
     }
 
     private fun setWallpaperBackground(forceRefresh: Boolean) {
