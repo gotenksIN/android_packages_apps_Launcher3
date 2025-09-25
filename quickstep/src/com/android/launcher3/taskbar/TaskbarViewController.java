@@ -30,6 +30,7 @@ import static com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_ALPHA;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_TRANSLATE_X;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_TRANSLATE_Y;
+import static com.android.launcher3.Utilities.dpToPx;
 import static com.android.launcher3.Utilities.mapRange;
 import static com.android.launcher3.anim.AnimatedFloat.VALUE;
 import static com.android.launcher3.anim.AnimatorListeners.forEndCallback;
@@ -87,6 +88,7 @@ import com.android.launcher3.taskbar.bubbles.BubbleBarController;
 import com.android.launcher3.taskbar.bubbles.BubbleControllers;
 import com.android.launcher3.taskbar.customization.TaskbarAllAppsButtonContainer;
 import com.android.launcher3.taskbar.customization.TaskbarDividerContainer;
+import com.android.launcher3.taskbar.customization.TaskbarIconSpecs;
 import com.android.launcher3.taskbar.customization.TaskbarIconsContainer;
 import com.android.launcher3.taskbar.handoff.HandoffSuggestion;
 import com.android.launcher3.util.ItemInfoMatcher;
@@ -103,10 +105,12 @@ import com.android.systemui.shared.recents.model.Task;
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
 
 import java.io.PrintWriter;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * Handles properties/data collection, then passes the results to TaskbarView to render.
@@ -255,7 +259,8 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
         mTaskbarLeftRightMargin = mActivity.getResources().getDimensionPixelSize(
                 R.dimen.transient_taskbar_padding);
         mRunningStateController = new TaskbarRunningAppStateAnimationController(mActivity);
-        mOverflownAppsContainerController = new OverflownAppsContainerController(mActivity);
+        mOverflownAppsContainerController = new OverflownAppsContainerController(mActivity,
+                mRunningStateController);
     }
 
     /**
@@ -644,7 +649,11 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
         float left = iconViews[0].getX();
 
         int rightIndex = iconViews.length - 1;
-        float right = iconViews[rightIndex].getRight() + iconViews[rightIndex].getTranslationX();
+        int[] location = new int[2];
+        iconViews[rightIndex].getLocationOnScreen(location);
+        int width = iconViews[rightIndex].getWidth();
+        int absoluteRight = location[0] + width;
+        float right = absoluteRight + iconViews[rightIndex].getTranslationX();
 
         return right - left + (2 * mTaskbarLeftRightMargin);
     }
@@ -719,6 +728,8 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
         float scale = mTaskbarIconTranslationYForPinning.value;
         float taskbarIconTranslationYForPinningValue;
 
+        int transientIconSize = dpToPx(TaskbarIconSpecs.INSTANCE.getIconSize52dp().getSize());
+
         // transY is calculated here by adding/subtracting the taskbar bottom margin
         // aligning the icon bound to be at bottom of current taskbar view and then
         // finally placing the icon in the middle of new taskbar background height.
@@ -727,14 +738,14 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
                     + (mTransientTaskbarProfile.getHeight()
                         - mTaskbarView.getTransientTaskbarIconLayoutBounds().bottom)
                             - (mPersistentTaskbarProfile.getHeight()
-                            - mTransientTaskbarProfile.getIconSize()) / 2f;
+                            - transientIconSize) / 2f;
             taskbarIconTranslationYForPinningValue = mapRange(scale, 0f, transY);
         } else {
             float transY = -mTransientTaskbarProfile.getBottomMargin()
                     + (mPersistentTaskbarProfile.getHeight()
                         - mTaskbarView.getTransientTaskbarIconLayoutBounds().bottom)
                             - (mTransientTaskbarProfile.getHeight()
-                            - mTransientTaskbarProfile.getIconSize())
+                            - transientIconSize)
                             / 2f;
             taskbarIconTranslationYForPinningValue = mapRange(scale, transY, 0f);
         }
@@ -796,13 +807,12 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
      * and minimized tasks.
      */
     public void updateIconViewsRunningStates() {
-        for (View iconView : getIconViews()) {
-            if (iconView instanceof BubbleTextView btv) {
-                updateRunningState(btv);
-                if (shouldUpdateIconContentDescription(btv)) {
-                    btv.setContentDescription(
-                            btv.getContentDescription() + " " + btv.getIconStateDescription());
-                }
+        for (BubbleTextView iconView : getAllAppIcons()) {
+            updateRunningState(iconView);
+            if (shouldUpdateIconContentDescription(iconView)) {
+                iconView.setContentDescription(
+                        iconView.getContentDescription() + " "
+                                + iconView.getIconStateDescription());
             }
         }
     }
@@ -826,16 +836,27 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
         }
 
         Set<Integer> shownTasks = new HashSet<>();
-        for (View iconView : getIconViews()) {
-            if (iconView instanceof BubbleTextView btv) {
-                if (btv.getTag() instanceof TaskItemInfo itemInfo) {
-                    shownTasks.add(itemInfo.getTaskId());
-                } else if (btv.getTag() instanceof SingleTask task) {
-                    shownTasks.add(task.getTask().getKey().id);
-                }
+        for (BubbleTextView iconView : getAllAppIcons()) {
+            if (iconView.getTag() instanceof TaskItemInfo itemInfo) {
+                shownTasks.add(itemInfo.getTaskId());
+            } else if (iconView.getTag() instanceof SingleTask task) {
+                shownTasks.add(task.getTask().getKey().id);
             }
         }
         return shownTasks;
+    }
+
+    /**
+     * Returns all app icons that are currently in the taskbar, including the icons in TaskbarView
+     * and the icons in overflown container if it is opened.
+     */
+    private BubbleTextView[] getAllAppIcons() {
+        Stream<BubbleTextView> taskbarIcons = Arrays.stream(mTaskbarView.getIconViews()).filter(
+                v -> v instanceof BubbleTextView).map(v -> (BubbleTextView) v);
+        Stream<BubbleTextView> overflownIcons =
+                mOverflownAppsContainerController.getOverflownApps().stream();
+
+        return Stream.concat(taskbarIcons, overflownIcons).toArray(BubbleTextView[]::new);
     }
 
     private void updateRunningState(BubbleTextView btv) {

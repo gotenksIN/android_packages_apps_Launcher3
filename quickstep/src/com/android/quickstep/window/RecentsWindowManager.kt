@@ -59,6 +59,7 @@ import com.android.launcher3.QuickstepTransitionManager.RECENTS_LAUNCH_DURATION
 import com.android.launcher3.QuickstepTransitionManager.STATUS_BAR_TRANSITION_DURATION
 import com.android.launcher3.QuickstepTransitionManager.STATUS_BAR_TRANSITION_PRE_DELAY
 import com.android.launcher3.R
+import com.android.launcher3.SplitScreenUiState
 import com.android.launcher3.anim.PendingAnimation
 import com.android.launcher3.compat.AccessibilityManagerCompat
 import com.android.launcher3.concurrent.annotations.Ui
@@ -79,7 +80,6 @@ import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.Executors
 import com.android.launcher3.util.LooperExecutor
 import com.android.launcher3.util.RunnableList
-import com.android.launcher3.util.SafeCloseable
 import com.android.launcher3.util.ScreenOnTracker
 import com.android.launcher3.util.ScreenOnTracker.ScreenOnListener
 import com.android.launcher3.util.SystemUiController
@@ -196,6 +196,7 @@ constructor(
             systemUiProxy,
             recentsModel,
             /* activityBackCallback= */ null,
+            SplitScreenUiState(),
         )
 
     // Callback array that corresponds to events defined in @ActivityEvent
@@ -261,7 +262,6 @@ constructor(
                 recentAnimationStopped()
             }
         }
-    private var removeRecentsAnimationListenerClosable: SafeCloseable? = null
 
     private val screenChangedListener = ScreenOnListener { isOn ->
         if (!isOn) {
@@ -373,7 +373,7 @@ constructor(
             windowView
                 ?.findOnBackInvokedDispatcher()
                 ?.unregisterOnBackInvokedCallback(onBackInvokedCallback)
-            removeRecentsAnimationListenerClosable?.close()
+            callbacks?.removeListener(recentsAnimationListener)
             if (displayId == DEFAULT_DISPLAY) {
                 homeVisibilityState.removeListener(homeVisibilityListener)
             }
@@ -437,7 +437,7 @@ constructor(
         windowRootView.visibility = View.VISIBLE
 
         this.callbacks = callbacks
-        removeRecentsAnimationListenerClosable = callbacks?.addListener(recentsAnimationListener)
+        callbacks?.addListener(recentsAnimationListener)
         screenOnTracker.addListener(screenChangedListener)
     }
 
@@ -654,8 +654,7 @@ constructor(
             )
         }
         stateManager.moveToRestState()
-        removeRecentsAnimationListenerClosable?.close()
-        removeRecentsAnimationListenerClosable = null
+        callbacks?.removeListener(recentsAnimationListener)
         callbacks = null
         screenOnTracker.removeListener(screenChangedListener)
     }

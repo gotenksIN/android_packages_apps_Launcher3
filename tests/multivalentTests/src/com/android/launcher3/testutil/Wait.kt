@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,12 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.util
+package com.android.launcher3.testutil
 
 import android.os.SystemClock
 import android.util.Log
-import com.android.launcher3.tapl.LauncherInstrumentation
-import java.util.function.Supplier
+import com.android.launcher3.util.TestUtil
 import org.junit.Assert
 
 /** A utility class for waiting for a condition to be true. */
@@ -26,49 +25,23 @@ object Wait {
     private const val DEFAULT_SLEEP_MS: Long = 200
 
     @JvmStatic
-    @JvmOverloads
-    fun atMost(
-        message: String,
-        condition: Condition,
-        launcherInstrumentation: LauncherInstrumentation? = null,
-        timeout: Long = TestUtil.DEFAULT_UI_TIMEOUT,
-    ) {
-        atMost({ message }, condition, launcherInstrumentation, timeout)
-    }
+    fun atMost(message: String, condition: Condition) =
+        atMost(message, TestUtil.DEFAULT_UI_TIMEOUT, condition)
 
     @JvmStatic
-    @JvmOverloads
-    fun atMost(
-        message: Supplier<String>,
-        condition: Condition,
-        launcherInstrumentation: LauncherInstrumentation? = null,
-        timeout: Long = TestUtil.DEFAULT_UI_TIMEOUT,
-    ) {
+    fun atMost(message: String, timeout: Long, condition: Condition) {
         val startTime = SystemClock.uptimeMillis()
         val endTime = startTime + timeout
         Log.d("Wait", "atMost: $startTime - $endTime")
         while (SystemClock.uptimeMillis() < endTime) {
-            try {
-                if (condition.isTrue()) {
-                    return
-                }
-            } catch (t: Throwable) {
-                throw RuntimeException(t)
-            }
+            if (condition.isTrue()) return
             SystemClock.sleep(DEFAULT_SLEEP_MS)
         }
 
         // Check once more before returning false.
-        try {
-            if (condition.isTrue()) {
-                return
-            }
-        } catch (t: Throwable) {
-            throw RuntimeException(t)
-        }
+        if (condition.isTrue()) return
         Log.d("Wait", "atMost: timed out: " + SystemClock.uptimeMillis())
-        launcherInstrumentation?.checkForAnomaly(false, false)
-        Assert.fail(message.get())
+        Assert.fail(message)
     }
 
     /** Interface representing a generic condition */
