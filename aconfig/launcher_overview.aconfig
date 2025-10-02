@@ -19,13 +19,6 @@ flag {
 }
 
 flag {
-    name: "enable_expressive_dismiss_task_motion"
-    namespace: "launcher_overview"
-    description: "Enables expressive motion and animations for dismissing a task in Overview."
-    bug: "381239462"
-}
-
-flag {
     name: "enable_meta_tab_toggle_in_overview"
     namespace: "launcher_overview"
     description: "Enables Meta-Tab toggle between Overview and recent tasks."
@@ -40,13 +33,6 @@ flag {
     namespace: "launcher_overview"
     description: "Enable overview on connected displays."
     bug: "363251602"
-}
-
-flag {
-    name: "enable_overview_background_wallpaper_blur"
-    namespace: "launcher_overview"
-    description: "Enable wallpaper blur in overview."
-    bug: "360297985"
 }
 
 flag {
@@ -96,4 +82,11 @@ flag {
     namespace: "launcher_overview"
     description: "Allows the user to scroll overview with a mouse click."
     bug: "443252794"
+}
+
+flag {
+    name: "enable_replace_share_target_with_sharesheet"
+    namespace: "launcher_overview"
+    description: "Replaces overview share target with share sheet."
+    bug: "437084247"
 }

@@ -46,6 +46,7 @@ import com.android.launcher3.Utilities.qsbOnFirstScreen
 import com.android.launcher3.WorkspaceLayoutManager
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger.RestoreError
 import com.android.launcher3.homescreenfiles.HomeScreenFile
+import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils
 import com.android.launcher3.icons.BitmapInfo
 import com.android.launcher3.icons.CacheableShortcutInfo
 import com.android.launcher3.icons.IconCache
@@ -83,6 +84,7 @@ import org.mockito.junit.MockitoJUnit
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argThat
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
@@ -785,10 +787,70 @@ class WorkspaceItemProcessorTest {
 
     @Test
     fun restoresFileSystemFileItemType() {
+        testRestoresFileSystemItem(
+            ITEM_TYPE_FILE_SYSTEM_FILE,
+            HomeScreenFile(
+                uri = Uri.parse("content://media/external_primary/file/1"),
+                displayName = "file.png",
+                mimeType = "image/png",
+                isDirectory = false,
+                user = Process.myUserHandle(),
+            ),
+        )
+    }
+
+    @Test
+    fun restoresFileSystemFolderItemType() {
+        testRestoresFileSystemItem(
+            ITEM_TYPE_FILE_SYSTEM_FOLDER,
+            HomeScreenFile(
+                uri = Uri.parse("content://media/external_primary/file/1"),
+                displayName = "folder_a",
+                mimeType = null,
+                isDirectory = true,
+                user = Process.myUserHandle(),
+            ),
+        )
+    }
+
+    private fun testRestoresFileSystemItem(itemType: Int, homeScreenFile: HomeScreenFile) {
+        // Given
+        val homeScreenFiles = lazyOf(mapOf(homeScreenFile.uri to homeScreenFile))
+        mockCursor.apply {
+            this.itemType = itemType
+            whenever(title).thenReturn(homeScreenFile.displayName)
+            whenever(parseIntent())
+                .thenReturn(
+                    HomeScreenFilesUtils.buildLaunchIntent(homeScreenFile.uri, homeScreenFile)
+                )
+        }
+
+        // When
+        itemProcessorUnderTest =
+            createWorkspaceItemProcessorUnderTest(homeScreenFiles = homeScreenFiles)
+        itemProcessorUnderTest.processItem()
+
+        // Then
+        val itemCaptor = argumentCaptor<ItemInfo>()
+        verify(mockCursor).markRestored()
+        verify(mockCursor).checkAndAddItem(itemCaptor.capture(), any(), anyOrNull())
+        assertThat(itemCaptor.firstValue.itemType).isEqualTo(itemType)
+        assertThat(itemCaptor.firstValue.title).isEqualTo(homeScreenFile.displayName)
+        assertThat(itemCaptor.firstValue.intent!!.data).isEqualTo(homeScreenFile.uri)
+    }
+
+    @Test
+    fun deletesFileSystemItemThatNoLongerExists() {
         // Given
         mockCursor.apply {
             itemType = ITEM_TYPE_FILE_SYSTEM_FILE
             whenever(title).thenReturn("name.ext")
+            whenever(parseIntent())
+                .thenReturn(
+                    HomeScreenFilesUtils.buildLaunchIntent(
+                        Uri.parse("content://media/external_primary/file/1")
+                    )
+                )
         }
 
         // When
@@ -796,8 +858,6 @@ class WorkspaceItemProcessorTest {
         itemProcessorUnderTest.processItem()
 
         // Then
-        // TODO(b/424466810): update expectation after implementing
-        // `WorkspaceItemProcessor#processFileSystemItem()`.
         verify(mockCursor)
             .markDeleted(
                 "File system item name.ext no longer exists",
@@ -807,38 +867,29 @@ class WorkspaceItemProcessorTest {
     }
 
     @Test
-    fun restoresFileSystemFolderItemType() {
-        // Given
-        mockCursor.apply {
-            itemType = ITEM_TYPE_FILE_SYSTEM_FOLDER
-            whenever(title).thenReturn("folder_a")
-        }
-
-        // When
-        itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
-        itemProcessorUnderTest.processItem()
-
-        // Then
-        // TODO(b/424466810): update expectation after implementing
-        // `WorkspaceItemProcessor#processFileSystemItem()`.
-        verify(mockCursor)
-            .markDeleted(
-                "File system item folder_a no longer exists",
-                RestoreError.FILE_SYSTEM_ITEM_NO_LONGER_EXISTS,
-            )
-        verify(mockCursor, times(0)).checkAndAddItem(any(), any(), anyOrNull())
-    }
-
-    @Test
     fun addsRemainingFileSystemItemsThatWereNotPartOfRestore() {
         // Given
+        val uri1 = Uri.parse("content://media/external_primary/file/1")
+        val uri2 = Uri.parse("content://media/external_primary/file/2")
         val homeScreenFiles =
             lazyOf(
                 mapOf(
-                    Uri.parse("content://media/external_primary/file/1") to
-                        HomeScreenFile("file.png", "image/png", false),
-                    Uri.parse("content://media/external_primary/file/2") to
-                        HomeScreenFile("folder_a", null, true),
+                    uri1 to
+                        HomeScreenFile(
+                            uri = uri1,
+                            displayName = "file.png",
+                            mimeType = "image/png",
+                            isDirectory = false,
+                            user = Process.myUserHandle(),
+                        ),
+                    uri2 to
+                        HomeScreenFile(
+                            uri = uri2,
+                            displayName = "folder_a",
+                            mimeType = null,
+                            isDirectory = true,
+                            user = Process.myUserHandle(),
+                        ),
                 )
             )
         val maybeReservesSpaceForQsb: (ArrayList<WorkspaceItemInfo>) -> Boolean = { addItemsFinal ->
@@ -890,8 +941,7 @@ class WorkspaceItemProcessorTest {
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or
                     Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
-        assertThat(items.get(0).intent!!.data)
-            .isEqualTo(Uri.parse("content://media/external_primary/file/1"))
+        assertThat(items.get(0).intent!!.data).isEqualTo(uri1)
         assertThat(items.get(0).intent!!.type).isEqualTo("image/png")
 
         assertThat(items.get(1).id).isEqualTo(1)
@@ -910,8 +960,7 @@ class WorkspaceItemProcessorTest {
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or
                     Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
-        assertThat(items.get(1).intent!!.data)
-            .isEqualTo(Uri.parse("content://media/external_primary/file/2"))
+        assertThat(items.get(1).intent!!.data).isEqualTo(uri2)
         assertThat(items.get(1).intent!!.type).isEqualTo(DocumentsContract.Document.MIME_TYPE_DIR)
     }
 }

@@ -17,10 +17,10 @@ package com.android.launcher3.taskbar;
 
 import static com.android.launcher3.Flags.enableTaskbarUiThread;
 import static com.android.launcher3.Utilities.isRunningInTestHarness;
-import static com.android.launcher3.taskbar.TaskbarManagerImpl.TASKBAR_UI_THREAD;
 import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_APP;
 import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_STASHED_LAUNCHER_STATE;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
+import static com.android.launcher3.util.Executors.TASKBAR_UI_THREAD;
 
 import android.animation.Animator;
 
@@ -181,6 +181,10 @@ public class FallbackTaskbarUIController
                 .get(mControllers.taskbarActivityContext).getCachedTopTask(true,
                         mRecentsContainer.asContext().getDisplayId());
         return topTask.isHomeTask() || topTask.isRecentsTask();
+    }
+
+    protected boolean isInOverviewUi() {
+        return mRecentsContainer.getStateManager().getState().isRecentsViewVisible();
     }
 
     @Override
