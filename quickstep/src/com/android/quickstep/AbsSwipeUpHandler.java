@@ -106,6 +106,7 @@ import android.window.TransitionInfo;
 import android.window.WindowAnimationState;
 
 import androidx.annotation.CallSuper;
+import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
@@ -116,7 +117,6 @@ import com.android.internal.util.LatencyTracker;
 import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.BuildConfig;
 import com.android.launcher3.DeviceProfile;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LifecycleTracker;
 import com.android.launcher3.QuickstepTransitionManager;
 import com.android.launcher3.R;
@@ -137,11 +137,11 @@ import com.android.launcher3.taskbar.TaskbarUiState;
 import com.android.launcher3.taskbar.TaskbarUiStateMonitor;
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
-import com.android.launcher3.util.ThreadedAnimator;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.MSDLPlayerWrapper;
 import com.android.launcher3.util.NavigationMode;
 import com.android.launcher3.util.SafeCloseable;
+import com.android.launcher3.util.ThreadedAnimator;
 import com.android.launcher3.util.TraceHelper;
 import com.android.launcher3.util.VibratorWrapper;
 import com.android.quickstep.GestureState.GestureEndTarget;
@@ -187,6 +187,8 @@ import com.google.android.msdl.data.model.MSDLToken;
 
 import kotlin.Unit;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -321,6 +323,19 @@ public abstract class AbsSwipeUpHandler<
 
     private static final int REJECT_HOME_ANIM_DURATION_MS = 200;
     private static final float REJECT_HOME_ANIM_MINIMUM_SHIFT = 0.1f;
+
+    // Flags to defer tracking lifecycle on destroy.
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef({HANDLER_VALID, LAUNCH_WITHOUT_ANIMATION_CALLBACK_PENDING})
+    private @interface DeferLifecycleOnDestroyFlag {}
+
+    @VisibleForTesting
+    protected static final int HANDLER_VALID = 1 << 0;
+    @VisibleForTesting
+    protected static final int LAUNCH_WITHOUT_ANIMATION_CALLBACK_PENDING = 1 << 1;
+
+    @VisibleForTesting
+    protected int mDeferLifecycleOnDestroyFlags = HANDLER_VALID;
 
     protected TaskAnimationManager mTaskAnimationManager;
     // Either RectFSpringAnim (if animating home) or ObjectAnimator (from mCurrentShift) otherwise
@@ -2437,9 +2452,20 @@ public abstract class AbsSwipeUpHandler<
                 mActivityRestartListener);
         mTaskSnapshotCache.clear();
 
-        for (LifecycleTracker tracker:
-                LauncherComponentProvider.get(mContext).getLifecycleTrackers()) {
-            tracker.trackLifecycleOnDestroy(this, 1000L);
+        updateDeferStateForFlag(HANDLER_VALID, false);
+    }
+
+    private void updateDeferStateForFlag(@DeferLifecycleOnDestroyFlag int flag, boolean enabled) {
+        if (enabled) {
+            mDeferLifecycleOnDestroyFlags |= flag;
+        } else {
+            mDeferLifecycleOnDestroyFlags &= ~flag;
+        }
+        if (mDeferLifecycleOnDestroyFlags == 0) {
+            for (LifecycleTracker tracker:
+                    LauncherComponentProvider.get(mContext).getLifecycleTrackers()) {
+                tracker.trackLifecycleOnDestroy(this, 1000L);
+            }
         }
     }
 
@@ -2757,6 +2783,7 @@ public abstract class AbsSwipeUpHandler<
             ActiveGestureLog.INSTANCE.trackEvent(EXPECTING_TASK_APPEARED);
         }
         ActiveGestureProtoLogProxy.logStartNewTask(nextTaskLog);
+        updateDeferStateForFlag(LAUNCH_WITHOUT_ANIMATION_CALLBACK_PENDING, true);
         taskToLaunch.launchWithoutAnimation(true, success -> {
             resultCallback.accept(success);
             if (success) {
@@ -2774,6 +2801,7 @@ public abstract class AbsSwipeUpHandler<
                                             + "launchWithoutAnimation failed"));
                 }
             }
+            updateDeferStateForFlag(LAUNCH_WITHOUT_ANIMATION_CALLBACK_PENDING, false);
             return Unit.INSTANCE;
         }  /* freezeTaskList */);
         mCanceled = false;
@@ -3159,43 +3187,9 @@ public abstract class AbsSwipeUpHandler<
     }
 
     private boolean shouldAllowTaskbarToAutoStash() {
-        if (refactorTaskbarUiState()) {
-            final boolean ret = newShouldAllowTaskbarToAutoStash();
-            if (BuildConfig.IS_STUDIO_BUILD && ret != legacyShouldAllowTaskbarToAutoStash()) {
-                throw new IllegalStateException("shouldAllowTaskbarToAutoStash() doesn't match");
-            }
-            return ret;
-        } else {
-            return legacyShouldAllowTaskbarToAutoStash();
-        }
-    }
-
-    private boolean legacyShouldAllowTaskbarToAutoStash() {
         return mContainerInterface.getTaskbarInteractor() == null
                 ? mIsTransientTaskbar
                 : mContainerInterface.getTaskbarInteractor().shouldAllowTaskbarToAutoStash();
-    }
-
-    private boolean newShouldAllowTaskbarToAutoStash() {
-        final int displayId = mContext.getDisplayId();
-        final TaskbarUiState taskbarUiState = TaskbarUiStateMonitor.INSTANCE.get(mContext)
-                .getTaskbarUiState(displayId);
-
-        // Mimic TaskbarActivityContext.isTransientTaskbar
-        final boolean isInPhoneMode = mDp.getDeviceProperties().isPhone() && !mDp.isTaskbarPresent;
-        if (mIsTransientTaskbar
-                && taskbarUiState.isPrimaryDisplayRef().getValue() && !isInPhoneMode) {
-            return true;
-        }
-
-        final boolean isTaskbarPinningOnInDesktopMode =
-                LauncherPrefs.TASKBAR_PINNING_IN_DESKTOP_MODE.get(mContext);
-        final boolean isTaskbarShowingDesktopTasks =
-                DesktopVisibilityController.INSTANCE.get(mContext).isInDesktopMode(displayId)
-                || taskbarUiState.getShowDesktopTaskbarForFreeformDisplayRef().getValue()
-                || (taskbarUiState.getShowLockedTaskbarOnHome().getValue()
-                        && taskbarUiState.isTaskbarOnHomeRef().getValue());
-        return !isTaskbarPinningOnInDesktopMode && isTaskbarShowingDesktopTasks;
     }
 
     private void setDividerShown(boolean shown) {

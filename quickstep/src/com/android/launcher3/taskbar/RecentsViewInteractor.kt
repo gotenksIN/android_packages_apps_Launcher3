@@ -26,16 +26,20 @@ import com.android.launcher3.Flags.enableTaskbarUiThread
 import com.android.launcher3.apppairs.AppPairIcon
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.ResolvedTargetInfo
+import com.android.launcher3.util.AsyncView
 import com.android.launcher3.util.Executors.IMMEDIATE_EXECUTOR
 import com.android.launcher3.util.Executors.MAIN_EXECUTOR
+import com.android.launcher3.util.Executors.TASKBAR_UI_THREAD
 import com.android.launcher3.util.RunnableList
 import com.android.launcher3.util.SplitConfigurationOptions
+import com.android.quickstep.util.GroupTask
 import com.android.quickstep.views.RecentsView
 import com.android.quickstep.views.TaskView
 import com.android.systemui.shared.recents.model.Task
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
 import java.util.function.Consumer
+import java.util.function.Predicate
 import javax.annotation.concurrent.ThreadSafe
 
 /**
@@ -54,44 +58,51 @@ class RecentsViewInteractor(private val recentsView: RecentsView<*, *>) {
     fun hasSameRecentsView(recentsView: RecentsView<*, *>) = this.recentsView === recentsView
 
     @AnyThread
-    fun launchRunningDesktopTaskView(taskToRun: Runnable, callbackExecutor: Executor) {
-        CompletableFuture.supplyAsync({ recentsView.launchRunningDesktopTaskView() }, mainExecutor)
+    fun launchDesktopTaskView(taskToRun: Runnable, callbackExecutor: Executor) {
+        CompletableFuture.supplyAsync({ recentsView.launchDesktopTaskView() }, mainExecutor)
             .thenApplyAsync(
                 { runnableList ->
-                    {
-                        if (runnableList != null) {
-                            runnableList.add { callbackExecutor.execute(taskToRun) }
-                        } else {
-                            callbackExecutor.execute(taskToRun)
-                        }
+                    if (runnableList != null) {
+                        runnableList.add { callbackExecutor.execute(taskToRun) }
+                    } else {
+                        callbackExecutor.execute(taskToRun)
                     }
                 },
                 mainExecutor,
             )
     }
 
-    // TODO(b/404636836): pass callback executor param and return SafeClosable
     @AnyThread
-    fun addSideTaskLaunchCallback(callback: RunnableList?) {
-        mainExecutor.execute { recentsView.addSideTaskLaunchCallback(callback) }
+    fun addSideTaskLaunchCallback(callback: RunnableList) {
+        val wrapperRunnable = Runnable { TASKBAR_UI_THREAD.execute(callback::executeAllAndDestroy) }
+        mainExecutor.execute { recentsView.addSideTaskLaunchCallback(wrapperRunnable) }
     }
 
-    // TODO(b/404636836): pass callback executor param and return SafeClosable
     @AnyThread
     fun setTaskLaunchListener(taskLaunchListener: RecentsView.TaskLaunchListener?) {
-        mainExecutor.execute { recentsView.setTaskLaunchListener(taskLaunchListener) }
+        val wrapperListener =
+            if (taskLaunchListener != null)
+                RecentsView.TaskLaunchListener {
+                    TASKBAR_UI_THREAD.execute { taskLaunchListener.onTaskLaunched() }
+                }
+            else null
+        mainExecutor.execute { recentsView.setTaskLaunchListener(wrapperListener) }
     }
 
-    // TODO(b/404636836): pass callback executor param and return SafeClosable
     @AnyThread
     fun setTaskLaunchCancelledRunnable(onTaskLaunchCancelledRunnable: Runnable?) {
-        mainExecutor.execute {
-            recentsView.setTaskLaunchCancelledRunnable(onTaskLaunchCancelledRunnable)
-        }
+        val wrapperRunnable =
+            if (onTaskLaunchCancelledRunnable != null)
+                Runnable { TASKBAR_UI_THREAD.execute(onTaskLaunchCancelledRunnable) }
+            else null
+        mainExecutor.execute { recentsView.setTaskLaunchCancelledRunnable(wrapperRunnable) }
     }
 
-    // TODO(b/404636836): Pass Consumer<View> to post actions on found task view to main thread.
-    fun getTaskViewByTaskId(taskId: Int) = recentsView.getTaskViewByTaskId(taskId)
+    @AnyThread
+    fun getTaskViewByTaskId(taskId: Int): AsyncView<TaskView> {
+        // TaskView should be found on main thread which renders it for recents.
+        return AsyncView(mainExecutor) { recentsView.getTaskViewByTaskId(taskId) }
+    }
 
     @AnyThread
     fun handleAppPairLaunchInApp(launchingIconView: AppPairIcon, itemInfos: List<ItemInfo>) {
@@ -104,12 +115,14 @@ class RecentsViewInteractor(private val recentsView: RecentsView<*, *>) {
 
     @AnyThread
     fun findLastActiveTasksAndRunCallback(
+        filter: Predicate<GroupTask>,
         resolvedTargetInfos: List<ResolvedTargetInfo>?,
         findExactPairMatch: Boolean,
         callback: Consumer<Array<Task>>,
     ) {
         mainExecutor.execute {
             recentsView.splitSelectController?.findLastActiveTasksAndRunCallback(
+                filter,
                 resolvedTargetInfos,
                 findExactPairMatch,
                 callback,

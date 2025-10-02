@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,20 @@
  * limitations under the License.
  */
 
-package com.android.quickstep.util;
+package com.android.launcher3.util
 
-import com.android.quickstep.AbstractQuickStepTest;
+import android.view.View
 
-import org.junit.Test;
+/** Extension functions for [View] and its subclasses */
+object ViewEx {
 
-public class TaplTestsPredictionRow extends AbstractQuickStepTest {
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        mLauncher.getWorkspace().switchToAllApps();
-    }
-
-    @Test
-    public void testPredictionRow() {
-        mLauncher.getAllApps().getPredictionRowView();
+    /** Goes up the view hierarchy until a view (inclusive) matching [predicate] is found. */
+    inline fun View.findInParentTree(predicate: (View) -> Boolean): View? {
+        var current: View = this
+        while (!predicate(current)) {
+            val parent = current.parent
+            if (parent is View) current = parent else return null
+        }
+        return current
     }
 }

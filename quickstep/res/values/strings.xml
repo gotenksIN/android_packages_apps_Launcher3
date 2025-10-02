@@ -267,6 +267,8 @@
     <!-- Message shown when an action is blocked by a policy enforced by the app or the organization managing the device. [CHAR_LIMIT=NONE] -->
     <string name="blocked_by_policy">This action isn\'t allowed by the app or your organization</string>
     <string name="split_widgets_not_supported">Widgets not currently supported, please select another app</string>
+    <!-- Label for the sharesheet Image copy action [CHAR LIMIT=32] -->
+    <string name="action_image_copy">Copy</string>
 
 
     <!-- Accessibility label for the rotation suggestion button -->
@@ -338,7 +340,9 @@
     <!-- Accessibility title for the Taskbar vertical divider icon. [CHAR_LIMIT=NONE] -->
     <string name="taskbar_divider_a11y_title">Taskbar Divider</string>
     <!-- Accessibility title for the Taskbar Overflow icon. [CHAR_LIMIT=NONE] -->
-    <string name="taskbar_overflow_a11y_title">Other recent apps</string>
+    <string name="taskbar_recents_overflow_a11y_title">Other recent apps</string>
+    <!-- Accessibility title for the Taskbar Overflow icon. [CHAR_LIMIT=NONE] -->
+    <string name="taskbar_pinned_overflow_a11y_title">Other apps</string>
 
     <!-- Label for moving drop target to the top or left side of the screen, depending on orientation (from the Taskbar only). -->
     <string name="move_drop_target_top_or_left">Move to top&#47;left</string>

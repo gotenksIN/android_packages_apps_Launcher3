@@ -23,8 +23,6 @@ import static android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED;
 
 import static com.android.app.animation.Interpolators.EMPHASIZED;
 import static com.android.internal.jank.Cuj.CUJ_LAUNCHER_LAUNCH_APP_PAIR_FROM_WORKSPACE;
-import static com.android.launcher3.Flags.enableExpressiveDismissTaskMotion;
-import static com.android.launcher3.Flags.enableOverviewBackgroundWallpaperBlur;
 import static com.android.launcher3.Flags.enableUnfoldStateAnimation;
 import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherConstants.SavedInstanceKeys.PENDING_SPLIT_SELECT_INFO;
@@ -39,6 +37,7 @@ import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPLICA
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT;
 import static com.android.launcher3.LauncherState.ALL_APPS;
 import static com.android.launcher3.LauncherState.FLAG_SKIP_STATE_ANNOUNCEMENT;
+import static com.android.launcher3.LauncherState.HOTSEAT_ICONS;
 import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.LauncherState.NO_OFFSET;
 import static com.android.launcher3.LauncherState.OVERVIEW;
@@ -98,6 +97,7 @@ import android.os.Trace;
 import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.AttributeSet;
+import android.util.SparseArray;
 import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
 import android.view.View;
@@ -171,7 +171,6 @@ import com.android.launcher3.uioverrides.touchcontrollers.StatusBarTouchControll
 import com.android.launcher3.uioverrides.touchcontrollers.TaskViewDismissTouchController;
 import com.android.launcher3.uioverrides.touchcontrollers.TaskViewLaunchTouchController;
 import com.android.launcher3.uioverrides.touchcontrollers.TaskViewRecentsTouchContext;
-import com.android.launcher3.uioverrides.touchcontrollers.TaskViewTouchControllerDeprecated;
 import com.android.launcher3.uioverrides.touchcontrollers.TransposedQuickSwitchTouchController;
 import com.android.launcher3.uioverrides.touchcontrollers.TwoButtonNavbarTouchController;
 import com.android.launcher3.util.ActivityOptionsWrapper;
@@ -210,6 +209,7 @@ import com.android.quickstep.util.SplitSelectStateController;
 import com.android.quickstep.util.SplitTask;
 import com.android.quickstep.util.SplitToWorkspaceController;
 import com.android.quickstep.util.SplitWithKeyboardShortcutController;
+import com.android.quickstep.util.SurfaceTransactionApplier;
 import com.android.quickstep.util.TISBindHelper;
 import com.android.quickstep.util.unfold.LauncherUnfoldTransitionController;
 import com.android.quickstep.util.unfold.ProxyUnfoldTransitionProvider;
@@ -328,7 +328,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         mOverviewBlurEnabled = isOverviewBackgroundBlurEnabled();
         getTheme().applyStyle(getOverviewBlurStyleResId(), true);
         super.setupViews();
-        mDepthController.setSurfaceTransactionApplier(getRootView());
+        SurfaceTransactionApplier surfaceTransactionApplier = new SurfaceTransactionApplier(
+                getRootView());
+        mDepthController.setSurfaceTransactionApplier(surfaceTransactionApplier);
 
         mActionsView = findViewById(R.id.overview_actions_view);
         RecentsView<?, LauncherState> overviewPanel = getOverviewPanel();
@@ -344,7 +346,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                     getDepthController(), DesktopState.getInstance(this));
         }
         overviewPanel.init(mActionsView, mSplitSelectStateController,
-                mDesktopRecentsTransitionController);
+                mDesktopRecentsTransitionController, surfaceTransactionApplier);
         mSplitWithKeyboardShortcutController = new SplitWithKeyboardShortcutController(
                 this, mSplitSelectStateController);
         mSplitToWorkspaceController = new SplitToWorkspaceController(this,
@@ -496,20 +498,13 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public boolean isOverviewBackgroundBlurEnabled() {
-        return mDepthController != null && mDepthController.isCrossWindowBlursEnabled()
-                && enableOverviewBackgroundWallpaperBlur();
+        return mDepthController != null && mDepthController.isCrossWindowBlursEnabled();
     }
 
     /** Apply the blur or blur fallback style to the current theme. */
     public void updateBlurStyle() {
-        if (enableOverviewBackgroundWallpaperBlur()) {
-            if (isOverviewBackgroundBlurEnabled() != mOverviewBlurEnabled) {
-                mWallpaperThemeManager.recreateToUpdateTheme();
-            }
-        } else if (Flags.allAppsBlur()) {
-            // For all apps, we only need to update the scrim, which draws the panel. But if the
-            // activity was recreated above, this is unnecessary.
-            getAppsView().invalidateHeader();
+        if (isOverviewBackgroundBlurEnabled() != mOverviewBlurEnabled) {
+            mWallpaperThemeManager.recreateToUpdateTheme();
         }
     }
 
@@ -621,15 +616,14 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     private void onStateOrResumeChanging(boolean inTransition) {
         LauncherState state = getStateManager().getState();
         boolean started = ((getActivityFlags() & ACTIVITY_STATE_STARTED)) != 0;
-        if (started) {
-            DeviceProfile profile = getDeviceProfile();
-            boolean visible = (state == NORMAL || state == OVERVIEW)
-                    && isUserActive()
-                    && !profile.isVerticalBarLayout()
-                    && !mIsOverlayVisible;
-            SystemUiProxy.INSTANCE.get(this)
-                    .setLauncherKeepClearAreaHeight(visible, profile.hotseatBarSizePx);
-        }
+        DeviceProfile profile = getDeviceProfile();
+        boolean visible = state.areElementsVisible(getLauncherUiState(), HOTSEAT_ICONS)
+                && started
+                && isUserActive()
+                && !profile.isVerticalBarLayout()
+                && !mIsOverlayVisible;
+        SystemUiProxy.INSTANCE.get(this)
+                .setLauncherKeepClearAreaHeight(visible, profile.hotseatBarSizePx);
         if (state == NORMAL && !inTransition) {
             ((RecentsView) getOverviewPanel()).setSwipeDownShouldLaunchApp(false);
         }
@@ -801,15 +795,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                 list.add(new PortraitStatesTouchController(this));
                 break;
         }
-
         list.add(new StatusBarTouchController(this, () -> this.isInState(LauncherState.NORMAL)));
-
-        if (enableExpressiveDismissTaskMotion()) {
-            list.add(new TaskViewLaunchTouchController<>(this, mTaskViewRecentsTouchContext));
-            list.add(new TaskViewDismissTouchController<>(this, mTaskViewRecentsTouchContext));
-        } else {
-            list.add(new TaskViewTouchControllerDeprecated<>(this, mTaskViewRecentsTouchContext));
-        }
+        list.add(new TaskViewLaunchTouchController<>(this, mTaskViewRecentsTouchContext));
+        list.add(new TaskViewDismissTouchController<>(this, mTaskViewRecentsTouchContext));
         return list.toArray(new TouchController[list.size()]);
     }
 
@@ -1510,6 +1498,12 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
             taskbarManager.debugPrimaryTaskbar("QuickstepLauncher#onDeviceProfileChanged",
                     true);
         }
+    }
+
+    @Override
+    public SparseArray<ItemInfo> getPinnedItems() {
+        if (mTaskbarInteractor == null) return super.getPinnedItems();
+        return mTaskbarInteractor.getPinnedApps();
     }
 
     /**

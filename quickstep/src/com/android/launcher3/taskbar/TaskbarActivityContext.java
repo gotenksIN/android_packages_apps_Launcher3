@@ -41,13 +41,14 @@ import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCH
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_DRAGGING;
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_FULLSCREEN;
 import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar;
-import static com.android.launcher3.taskbar.TaskbarManagerImpl.TASKBAR_UI_THREAD;
 import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_SECONDARY_LAUNCHER_ON_CD;
 import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_STASHED_IN_APP_AUTO;
 import static com.android.launcher3.taskbar.TaskbarStashController.SHOULD_BUBBLES_FOLLOW_DEFAULT_VALUE;
 import static com.android.launcher3.testing.shared.ResourceUtils.getBoolByName;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
+import static com.android.launcher3.util.Executors.TASKBAR_UI_THREAD;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
+import static com.android.quickstep.RecentsFilterState.EMPTY_FILTER;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.quickstep.util.ExternalDisplaysKt.isExternalDisplay;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_NOTIFICATION_PANEL_VISIBLE;
@@ -61,6 +62,7 @@ import static java.lang.invoke.MethodHandles.Lookup.PROTECTED;
 import android.animation.AnimatorSet;
 import android.animation.ValueAnimator;
 import android.app.ActivityOptions;
+import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -92,6 +94,7 @@ import android.window.DesktopModeFlags;
 import android.window.DesktopModeFlags.DesktopModeFlag;
 import android.window.RemoteTransition;
 
+import androidx.annotation.AnyThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
@@ -165,6 +168,7 @@ import com.android.launcher3.touch.ItemClickHandler.ItemClickProxy;
 import com.android.launcher3.util.ActivityOptionsWrapper;
 import com.android.launcher3.util.ApiWrapper;
 import com.android.launcher3.util.ApplicationInfoWrapper;
+import com.android.launcher3.util.AsyncView;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.Executors;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
@@ -178,6 +182,7 @@ import com.android.launcher3.util.VibratorWrapper;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.BaseDragLayer;
 import com.android.quickstep.NavHandle;
+import com.android.quickstep.RecentsFilterState;
 import com.android.quickstep.RecentsModel;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.util.DesktopTask;
@@ -307,6 +312,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mIsPinned = mTaskbarFeatureEvaluator.isPinned();
         mTaskbarUiState = TaskbarUiStateMonitor.INSTANCE.get(this).getTaskbarUiState(displayId);
         mTaskbarUiState.setIsPrimaryDisplay(isPrimaryDisplay);
+        mTaskbarUiState.setIsTransient(mIsTransient);
         mNavigationBarPanelContext = navigationBarPanelContext;
         mSysUiProxy = sysUiProxy;
         mPrimaryDisplayId = primaryDisplayId;
@@ -565,6 +571,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                     mDeviceProfile.inv);
         }
         mNavMode = getNavigationMode();
+        mTaskbarUiState.setNavigationMode(mNavMode);
 
         SettingsCache settingsCache = SettingsCache.INSTANCE.get(this);
         mIsUserSetupComplete = settingsCache.getValue(Secure.getUriFor(Secure.USER_SETUP_COMPLETE));
@@ -1647,9 +1654,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 || !mControllers.uiController.isInOverviewUi()
                 || recents.isSplitSelectionActive()) {
             executor.execute(runnableToRun);
+            return;
         }
 
-        recents.launchRunningDesktopTaskView(runnableToRun, executor);
+        recents.launchDesktopTaskView(runnableToRun, executor);
     }
 
     protected void onTaskbarIconClicked(View view) {
@@ -1706,13 +1714,12 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 mControllers.taskbarStashController.updateAndAnimateTransientTaskbar(true);
             }
         } else if (tag instanceof TaskItemInfo info) {
-            Task task = null;
             if (DesktopExperienceFlags.ENABLE_TASKBAR_RUNNING_TASKS_IN_SPLITSCREEN_SELECT_BUGFIX
                         .isTrue()
                     && recents != null && recents.isSplitSelectionActive()
-                    && (task = getControllers().taskbarRecentAppsController.getDesktopTaskWithId(
+                    && (getControllers().taskbarRecentAppsController.getDesktopTaskWithId(
                                 info.getTaskId())) != null) {
-                taskbarUIController.moveRunningTaskToSplitSelection(task, info, view);
+                taskbarUIController.triggerSecondAppForSplit(info, info.intent, view, EMPTY_FILTER);
             } else {
                 RemoteTransition remoteTransition = canUnminimizeDesktopTask(info.getTaskId())
                         ? createDesktopAppLaunchRemoteTransition(
@@ -1733,7 +1740,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             if (!info.isDisabled() || !ItemClickHandler.handleDisabledItemClicked(info, this)) {
                 if (recents != null && recents.isSplitSelectionActive()) {
                     // If we are selecting a second app for split, launch the split tasks
-                    taskbarUIController.triggerSecondAppForSplit(info, info.intent, view);
+                    taskbarUIController.triggerSecondAppForSplit(info, info.intent, view,
+                            RecentsFilterState.getDesktopTaskFilter());
                 } else {
                     // Else launch the selected task
                     Intent intent = new Intent(info.getIntent())
@@ -1794,7 +1802,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             AppInfo info = (AppInfo) tag;
             if (recents != null && recents.isSplitSelectionActive()) {
                 // If we are selecting a second app for split, launch the split tasks
-                taskbarUIController.triggerSecondAppForSplit(info, info.intent, view);
+                taskbarUIController.triggerSecondAppForSplit(info, info.intent, view,
+                        RecentsFilterState.getDesktopTaskFilter());
             } else {
                 launchFromTaskbar(recents, view, Collections.singletonList(info));
             }
@@ -1923,10 +1932,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     private void launchFromTaskbar(
             @Nullable RecentsViewInteractor recents, @Nullable View launchingIconView,
             List<? extends ItemInfo> itemInfos) {
-        if (isInApp()) {
-            launchFromInAppTaskbar(recents, launchingIconView, itemInfos);
-        } else {
+        if (mControllers.uiController.isInOverviewUi()) {
             launchFromOverviewTaskbar(recents, launchingIconView, itemInfos);
+        } else {
+            launchFromInAppTaskbar(recents, launchingIconView, itemInfos);
         }
     }
 
@@ -1975,20 +1984,23 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         List<ResolvedTargetInfo> resolvedTargetInfo =
                 itemInfos.stream().map(ItemInfo::getResolvedTargetInfo).toList();
         recents.findLastActiveTasksAndRunCallback(
+                RecentsFilterState.getDesktopTaskFilter(),
                 resolvedTargetInfo,
                 isLaunchingAppPair,
                 foundTasks -> {
                     @Nullable Task foundTask = foundTasks[0];
                     if (foundTask != null) {
-                        TaskView foundTaskView = recents.getTaskViewByTaskId(foundTask.key.id);
-                        if (foundTaskView != null
-                                && foundTaskView.isVisibleToUser()
-                                && !(foundTaskView instanceof DesktopTaskView)) {
-                            TestLogging.recordEvent(
-                                    TestProtocol.SEQUENCE_MAIN, "start: taskbarAppIcon");
-                            foundTaskView.launchWithAnimation();
-                            return;
-                        }
+                        AsyncView<TaskView> asyncTaskView =
+                                recents.getTaskViewByTaskId(foundTask.key.id);
+                        asyncTaskView.postCallback((foundTaskView) -> {
+                            if (foundTaskView.isVisibleToUser()
+                                    && !(foundTaskView instanceof DesktopTaskView)) {
+                                TestLogging.recordEvent(
+                                        TestProtocol.SEQUENCE_MAIN, "start: taskbarAppIcon");
+                                foundTaskView.launchWithAnimation();
+                            }
+                        });
+
                     }
 
                     if (isLaunchingAppPair) {
@@ -2095,7 +2107,14 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         // There is no task associated with this launch - launch a new task through an intent
         ActivityOptionsWrapper opts = getActivityLaunchDesktopOptions();
         if (DesktopModeFlags.ENABLE_START_LAUNCH_TRANSITION_FROM_TASKBAR_BUGFIX.isTrue()) {
-            mSysUiProxy.startLaunchIntentTransition(intent, opts.options.toBundle(), displayId);
+            PendingIntent pendingIntent = PendingIntent.getActivity(
+                    this,
+                    /* requestCode= */ 0,
+                    intent,
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_ONE_SHOT,
+                    /* options= */ null);
+            mSysUiProxy.startLaunchIntentTransition(pendingIntent, opts.options.toBundle(),
+                    displayId);
         } else {
             startActivity(intent, opts.options.toBundle());
         }
@@ -2225,6 +2244,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     /**
      * @return if we should allow taskbar to auto stash
      */
+    @AnyThread
     public boolean shouldAllowTaskbarToAutoStash() {
         return mControllers.taskbarStashController.shouldAllowTaskbarToAutoStash();
     }
