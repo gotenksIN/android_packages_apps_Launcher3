@@ -34,6 +34,10 @@ import com.android.app.displaylib.PerDisplayRepository
 import com.android.app.tracing.traceSection
 import com.android.internal.jank.Cuj
 import com.android.launcher3.DeviceProfile
+import com.android.launcher3.anim.AnimatorListeners
+import com.android.launcher3.concurrent.annotations.LightweightBackground
+import com.android.launcher3.concurrent.annotations.LightweightBackgroundPriority
+import com.android.launcher3.concurrent.annotations.Ui
 import com.android.launcher3.logger.LauncherAtom
 import com.android.launcher3.logging.StatsLogManager
 import com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_OVERVIEW_SHOW_OVERVIEW_FROM_3_BUTTON
@@ -43,7 +47,6 @@ import com.android.launcher3.taskbar.TaskbarInteractor
 import com.android.launcher3.taskbar.TaskbarManager
 import com.android.launcher3.util.OverviewCommandHelperProtoLogProxy
 import com.android.launcher3.util.RunnableList
-import com.android.launcher3.util.coroutines.DispatcherProvider
 import com.android.quickstep.GestureState.GestureEndTarget
 import com.android.quickstep.GestureState.displaySupportsHomeGesture
 import com.android.quickstep.OverviewCommandHelper.CommandInfo.CommandStatus
@@ -54,6 +57,8 @@ import com.android.quickstep.OverviewCommandHelper.CommandType.SHOW_WITH_FOCUS
 import com.android.quickstep.OverviewCommandHelper.CommandType.TOGGLE
 import com.android.quickstep.OverviewCommandHelper.CommandType.TOGGLE_OVERVIEW_PREVIOUS
 import com.android.quickstep.OverviewCommandHelper.CommandType.TOGGLE_WITH_FOCUS
+import com.android.quickstep.fallback.RecentsState
+import com.android.quickstep.fallback.toRecentsState
 import com.android.quickstep.util.ActiveGestureLog
 import com.android.quickstep.util.ActiveGestureProtoLogProxy
 import com.android.quickstep.views.DesktopTaskView
@@ -71,6 +76,7 @@ import java.io.PrintWriter
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ensureActive
@@ -84,15 +90,16 @@ class OverviewCommandHelper
 constructor(
     @Assisted private val touchInteractionService: TouchInteractionService,
     private val overviewComponentObserver: OverviewComponentObserver,
-    private val dispatcherProvider: DispatcherProvider,
+    @Ui private val uiDispatcher: CoroutineDispatcher,
+    @LightweightBackground(LightweightBackgroundPriority.UI)
+    private val uiLightweightDispatcher: CoroutineDispatcher,
     private val displayRepository: DisplayRepository,
     @Assisted private val taskbarManager: TaskbarManager,
     private val taskAnimationManagerRepository: PerDisplayRepository<TaskAnimationManager>,
     @ElapsedRealtimeLong private val elapsedRealtime: () -> Long,
     @Assisted private val systemUiProxy: SystemUiProxy,
 ) {
-    private val coroutineScope =
-        CoroutineScope(SupervisorJob() + dispatcherProvider.lightweightBackground)
+    private val coroutineScope = CoroutineScope(SupervisorJob() + uiLightweightDispatcher)
 
     private val commandQueue = ConcurrentLinkedDeque<CommandInfo>()
 
@@ -143,7 +150,7 @@ constructor(
 
         if (commandQueue.size == 1) {
             OverviewCommandHelperProtoLogProxy.logCommandExecuted(command, commandQueue.size)
-            coroutineScope.launch(dispatcherProvider.main) { processNextCommand() }
+            coroutineScope.launch(uiDispatcher) { processNextCommand() }
         } else {
             OverviewCommandHelperProtoLogProxy.logCommandNotExecuted(command, commandQueue.size)
         }
@@ -202,7 +209,7 @@ constructor(
             command.status = CommandStatus.PROCESSING
             OverviewCommandHelperProtoLogProxy.logExecutingCommand(command)
 
-            coroutineScope.launch(dispatcherProvider.main) {
+            coroutineScope.launch(uiDispatcher) {
                 traceSection("OverviewCommandHelper.executeCommandWithTimeout") {
                     withTimeout(QUEUE_WAIT_DURATION_IN_MS) {
                         executeCommandSuspended(command)
@@ -272,17 +279,31 @@ constructor(
             }
 
             TOGGLE -> {
-                val runningTaskId = recentsView.runningTaskView?.taskIdSet
-                launchTask(
-                    recentsView,
-                    getNextToggledTaskView(recentsView, command.displayId),
-                    command,
-                ) {
-                    if (runningTaskId != null) {
-                        lastToggleInfo[command.displayId] =
-                            ToggleInfo(command.createTime, runningTaskId)
+                val recentsState = recentsView.getStateManager().state.toRecentsState()
+                if (recentsState == RecentsState.MODAL_TASK) {
+                    val recentsViewContainer =
+                        getContainerInterface(command.displayId)?.getCreatedContainer()
+                    if (recentsViewContainer != null) {
+                        val listener =
+                            AnimatorListeners.forEndCallback(Runnable { onCallbackResult() })
+                        recentsViewContainer.goToRecentsState(RecentsState.DEFAULT, true, listener)
+                        false
+                    } else {
+                        true
                     }
-                    onCallbackResult()
+                } else {
+                    val runningTaskId = recentsView.runningTaskView?.taskIdSet
+                    launchTask(
+                        recentsView,
+                        getNextToggledTaskView(recentsView, command.displayId),
+                        command,
+                    ) {
+                        if (runningTaskId != null) {
+                            lastToggleInfo[command.displayId] =
+                                ToggleInfo(command.createTime, runningTaskId)
+                        }
+                        onCallbackResult()
+                    }
                 }
             }
             TOGGLE_OVERVIEW_PREVIOUS -> {
