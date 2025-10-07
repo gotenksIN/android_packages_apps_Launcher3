@@ -18,6 +18,9 @@ package com.android.launcher3.graphics
 
 import android.content.Context
 import android.content.res.Resources
+import android.graphics.Color
+import android.graphics.drawable.AdaptiveIconDrawable
+import android.graphics.drawable.ColorDrawable
 import com.android.launcher3.EncryptionType
 import com.android.launcher3.Item
 import com.android.launcher3.LauncherPrefChangeListener
@@ -27,7 +30,9 @@ import com.android.launcher3.concurrent.annotations.Ui
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.graphics.ShapeDelegate.Companion.DEFAULT_PATH_SIZE_INT
 import com.android.launcher3.graphics.ShapeDelegate.Companion.pickBestShape
+import com.android.launcher3.icons.DotRenderer.IconShapeInfo
 import com.android.launcher3.icons.GraphicsUtils.generateIconShape
 import com.android.launcher3.icons.IconShape
 import com.android.launcher3.icons.IconThemeController
@@ -106,9 +111,7 @@ constructor(
         iconState = newState
         if (hasThemedChanged) {
             // trigger listeners only for theme change, not shape change
-            listeners.forEach {
-                it.onThemeChanged()
-            }
+            listeners.forEach { it.onThemeChanged() }
         }
     }
 
@@ -179,6 +182,9 @@ constructor(
         val shapeRadius: Float,
     ) {
         fun toUniqueId() = "${iconMask.hashCode()},$themeCode"
+
+        val iconShapeInfo = IconShapeInfo.fromPath(iconShape.getPath(), DEFAULT_PATH_SIZE_INT)
+        val folderShapeInfo = IconShapeInfo.fromPath(folderShape.getPath(), DEFAULT_PATH_SIZE_INT)
     }
 
     /** Interface for receiving theme change events */
@@ -204,6 +210,8 @@ constructor(
         @JvmField val THEMED_ICONS = backedUpItem(KEY_THEMED_ICONS, false, EncryptionType.ENCRYPTED)
         @JvmField val PREF_ICON_SHAPE = backedUpItem(KEY_ICON_SHAPE, "", EncryptionType.ENCRYPTED)
 
+        @JvmField val DEFAULT_SHAPE_DELEGATE = pickBestShape(shapeStr = "")
+
         private const val ACTION_OVERLAY_CHANGED = "android.intent.action.OVERLAY_CHANGED"
         private val CONFIG_ICON_MASK_RES_ID: Int =
             Resources.getSystem().getIdentifier("config_icon_mask", "string", "android")
@@ -213,5 +221,6 @@ constructor(
 
         private fun ShapeDelegate.createIconShape(size: Int) =
             generateIconShape(size, getPath(size.toFloat()))
+
     }
 }

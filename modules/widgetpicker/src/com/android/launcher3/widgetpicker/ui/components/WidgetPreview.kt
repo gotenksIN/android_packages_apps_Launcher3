@@ -24,17 +24,18 @@ import android.view.View.DragShadowBuilder
 import android.widget.FrameLayout
 import android.widget.RemoteViews
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -44,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -69,7 +71,6 @@ import com.android.launcher3.widgetpicker.shared.model.WidgetSizeInfo
 import com.android.launcher3.widgetpicker.shared.model.isAppWidget
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionSource
-import com.android.launcher3.widgetpicker.ui.theme.WidgetPickerTheme
 import kotlin.math.roundToInt
 
 /** Renders a different types of preview for an appwidget. */
@@ -83,10 +84,13 @@ fun WidgetPreview(
     showDragShadow: Boolean,
     widgetInteractionSource: WidgetInteractionSource,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
-    onAddButtonToggle: (WidgetId) -> Unit,
+    onClick: (WidgetId) -> Unit,
+    onHoverChange: (Boolean) -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val haptic = LocalHapticFeedback.current
+
+    val isHovered by interactionSource.collectIsHoveredAsState()
 
     val widgetRadius = dimensionResource(android.R.dimen.system_app_widget_background_radius)
 
@@ -96,20 +100,28 @@ fun WidgetPreview(
             DpSize(sizeInfo.containerWidthPx.toDp(), sizeInfo.containerHeightPx.toDp())
         }
 
+    LaunchedEffect(isHovered) { onHoverChange(isHovered) }
+
     Box(
         modifier =
-            modifier.wrapContentSize().clickable(
-                interactionSource = interactionSource,
-                // no ripples for preview taps that toggle the add button.
-                indication = null,
-            ) {
-                haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                onAddButtonToggle(id)
-            }
+            modifier
+                .wrapContentSize()
+                // Preview can be dragged and this container can be clicked. But we don't support
+                // keyboard focus as the details is focusable.
+                .focusProperties { canFocus = false }
+                .clickable(
+                    interactionSource = interactionSource,
+                    // no ripples for preview taps that toggle the add button.
+                    indication = null,
+                ) {
+                    haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                    onClick(id)
+                }
+                .hoverable(interactionSource = interactionSource)
     ) {
         when (preview) {
             is WidgetPreview.PlaceholderWidgetPreview ->
-                PlaceholderWidgetPreview(size = containerSize, widgetRadius = widgetRadius)
+                PlaceholderWidgetPreview(size = containerSize)
 
             is WidgetPreview.BitmapWidgetPreview ->
                 BitmapWidgetPreview(
@@ -152,19 +164,11 @@ fun WidgetPreview(
 }
 
 @Composable
-private fun PlaceholderWidgetPreview(size: DpSize, widgetRadius: Dp) {
+private fun PlaceholderWidgetPreview(size: DpSize) {
     Box(
         contentAlignment = Alignment.Center,
-        modifier =
-            Modifier.width(size.width)
-                .height(size.height)
-                .background(
-                    color = WidgetPickerTheme.colors.widgetPlaceholderBackground,
-                    shape = RoundedCornerShape(widgetRadius),
-                ),
-    ) {
-        CircularProgressIndicator(color = WidgetPickerTheme.colors.widgetPlaceholderContent)
-    }
+        modifier = Modifier.width(size.width).height(size.height),
+    ) {}
 }
 
 @Composable
@@ -215,6 +219,10 @@ private fun BitmapWidgetPreview(
             Modifier.onGloballyPositioned { coordinates ->
                     imagePositionInParent = coordinates.positionInParent()
                 }
+                .fadeInWhenVisible("BitmapWidgetPreview")
+                // Preview can be dragged / clicked. But we don't support keyboard focus as
+                // the details is focusable.
+                .focusProperties { canFocus = false }
                 .pointerInput(bitmap) {
                     detectDragGesturesAfterLongPress(
                         onDrag = { change, _ -> change.consume() },
@@ -341,7 +349,11 @@ private fun RemoteViewsWidgetPreview(
     key(appWidgetHostView) {
         AndroidView(
             modifier =
-                Modifier.pointerInput(appWidgetHostView) {
+                Modifier.fadeInWhenVisible("RemoteViewsWidgetPreview")
+                    // Preview can be dragged / clicked. But we don't support keyboard focus as
+                    // the details is focusable.
+                    .focusProperties { canFocus = false }
+                    .pointerInput(appWidgetHostView) {
                         detectDragGesturesAfterLongPress(
                             onDrag = { change, _ -> change.consume() },
                             onDragStart = { offset ->

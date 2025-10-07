@@ -17,6 +17,8 @@ package com.android.launcher3.taskbar;
 
 import static com.android.app.animation.Interpolators.FAST_OUT_SLOW_IN;
 import static com.android.launcher3.AbstractFloatingView.TYPE_TASKBAR_ALL_APPS;
+import static com.android.launcher3.Flags.enableSystemDrag;
+import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS_PREDICTION;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT;
@@ -122,7 +124,14 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
     private ValueAnimator mReturnAnimator;
     private boolean mDisallowGlobalDrag;
     private boolean mDisallowLongClick;
+
+    private TaskbarUiState mTaskbarUiState;
+
+    private boolean mIsTaskbarDragging;
     private @Nullable DragToBubbleController mDragToBubbleController;
+
+    private @Nullable DragController.SystemDragHandler mSystemDragHandler;
+    private @Nullable View.OnDragListener mSystemDragListener;
 
     public TaskbarDragController(BaseTaskbarContext activity) {
         super(activity);
@@ -130,7 +139,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
         mDragIconSize = resources.getDimensionPixelSize(R.dimen.taskbar_icon_drag_icon_size);
     }
 
-    public void init(TaskbarControllers controllers) {
+    public void init(TaskbarControllers controllers, TaskbarUiState taskbarUiState) {
         mControllers = controllers;
         mControllers.runAfterInit(() ->
                 mControllers.bubbleControllers
@@ -139,6 +148,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
                             mDragToBubbleController = dragToBubbleController;
                             mDragToBubbleController.addBubbleBarDropTargets(this);
                         }));
+        mTaskbarUiState = taskbarUiState;
     }
 
     /** Called when the controller is destroyed. */
@@ -172,6 +182,14 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
                 iconShift);
     }
 
+    private void updateIsDragging() {
+        mIsTaskbarDragging = TaskbarDragController.super.isDragging()
+                || mIsSystemDragInProgress;
+        if (refactorTaskbarUiState()) {
+            mTaskbarUiState.setIsTaskbarDragging(mIsTaskbarDragging);
+        }
+    }
+
     private boolean startDragOnLongClick(
             View view,
             @Nullable DragPreviewProvider dragPreviewProvider,
@@ -193,6 +211,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
             btv.setIconDisabled(true);
             mControllers.taskbarAutohideSuspendController.updateFlag(
                     TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_DRAGGING, true);
+            mControllers.taskbarStashController.updateAndAnimateTransientTaskbar(false);
         });
         return true;
     }
@@ -227,9 +246,10 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
         if (dragOptions.preDragCondition == null) {
             // See if view supports a popup container.
             PopupContainerWithArrow<BaseTaskbarContext> popupContainer =
-                    mControllers.taskbarPopupController.showForIcon(btv);
+                    (PopupContainerWithArrow<BaseTaskbarContext>)
+                            mControllers.taskbarPopupController.show(btv);
             if (popupContainer != null) {
-                dragOptions.preDragCondition = popupContainer.createPreDragCondition(false);
+                dragOptions.preDragCondition = popupContainer.createPreDragCondition();
             }
         }
 
@@ -347,6 +367,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
 
         handleMoveEvent(mLastTouch.x, mLastTouch.y);
 
+        updateIsDragging();
         return dragView;
     }
 
@@ -368,6 +389,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
     @Override
     protected void callOnDragStart() {
         super.callOnDragStart();
+        updateIsDragging();
         // TODO(297921594) clean it up when taskbar to desktop drag is implemented.
         // Pre-drag has ended, start the global system drag.
         if (mDisallowGlobalDrag
@@ -488,7 +510,8 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
                 // Tell WM Shell to ignore drag events in the provided transient taskbar region.
                 TaskbarDragLayer dragLayer = mControllers.taskbarActivityContext.getDragLayer();
                 int[] locationOnScreen = dragLayer.getLocationOnScreen();
-                RectF disallowExternalDropRegion = new RectF(dragLayer.getLastDrawnTransientRect());
+                RectF disallowExternalDropRegion = new RectF(mControllers.taskbarViewController
+                        .getTransientTaskbarIconLayoutBoundsInParent());
                 disallowExternalDropRegion.offset(locationOnScreen[0], locationOnScreen[1]);
                 intent.putExtra(DragAndDropConstants.EXTRA_DISALLOW_HIT_REGION,
                         disallowExternalDropRegion);
@@ -499,7 +522,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
                     View.DRAG_FLAG_GLOBAL | View.DRAG_FLAG_OPAQUE
                             | View.DRAG_FLAG_REQUEST_SURFACE_FOR_RETURN_ANIMATION)) {
                 notifyDragToBubbleController(/* dragInProgress = */ true);
-                onSystemDragStarted(btv);
+                onSystemDragStarted();
 
                 mActivity.getStatsLogManager().logger().withItemInfo(mDragObject.dragInfo)
                         .withInstanceId(launcherInstanceId)
@@ -511,35 +534,62 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
         AbstractFloatingView.closeAllOpenViews(mActivity);
     }
 
-    private void onSystemDragStarted(BubbleTextView btv) {
+    private void onSystemDragStarted() {
         mIsSystemDragInProgress = true;
-        mActivity.getDragLayer().setOnDragListener((view, dragEvent) -> {
-            switch (dragEvent.getAction()) {
-                case DragEvent.ACTION_DRAG_STARTED:
-                    // Return true to tell system we are interested in events, so we get DRAG_ENDED.
-                    return true;
-                case DragEvent.ACTION_DRAG_ENDED:
-                    mIsSystemDragInProgress = false;
-                    if (dragEvent.getResult()) {
-                        maybeOnDragEnd();
-                    } else {
-                        // This will take care of calling maybeOnDragEnd() after the animation
-                        animateGlobalDragViewToOriginalPosition(btv, dragEvent);
-                        //TODO(b/399678274): hide drop target in shell
-                        notifyBubbleBarItemDragCanceled();
-                    }
-                    notifyDragToBubbleController(/* dragInProgress = */ false);
-                    mActivity.getDragLayer().setOnDragListener(null);
+        updateIsDragging();
 
-                    return true;
+        if (enableSystemDrag()) {
+            if (mSystemDragHandler == null) {
+                mSystemDragHandler = this::onSystemDrag;
             }
-            return false;
-        });
+            mActivity.getDragController().addSystemDragHandler(mSystemDragHandler);
+        } else {
+            if (mSystemDragListener == null) {
+                mSystemDragListener = (view, dragEvent) -> onSystemDrag(dragEvent);
+            }
+            mActivity.getDragLayer().setOnDragListener(mSystemDragListener);
+        }
     }
 
+    private boolean onSystemDrag(DragEvent dragEvent) {
+        final boolean enableSystemDrag = enableSystemDrag();
+        return switch (dragEvent.getAction()) {
+            case DragEvent.ACTION_DRAG_STARTED -> {
+                // Return true to tell system we are interested in events, so we get DRAG_ENDED.
+                yield true;
+            }
+            case DragEvent.ACTION_DRAG_ENDED -> {
+                mIsSystemDragInProgress = false;
+                updateIsDragging();
+                if (dragEvent.getResult()) {
+                    maybeOnDragEnd();
+                } else {
+                    // This will take care of calling maybeOnDragEnd() after the animation
+                    BubbleTextView btv = (BubbleTextView) mDragObject.originalView;
+                    animateGlobalDragViewToOriginalPosition(btv, dragEvent);
+                }
+                notifyDragToBubbleController(/* dragInProgress = */ false);
+
+                if (enableSystemDrag) {
+                    mActivity.getDragController().removeSystemDragHandler(mSystemDragHandler);
+                } else {
+                    mActivity.getDragLayer().setOnDragListener(null);
+                }
+
+                yield true;
+            }
+            default -> enableSystemDrag;
+        };
+    }
+
+    /**
+     * {@link TaskbarDragController} will rely on {@link DragListener}'s callback to update
+     * {@link mIsTaskbarDragging} field. This ensures correctness during long press and
+     * drag settle animation.
+     */
     @Override
     public boolean isDragging() {
-        return super.isDragging() || mIsSystemDragInProgress;
+        return mIsTaskbarDragging;
     }
 
     /** {@code true} if the system is currently handling the drag. */
@@ -549,6 +599,9 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
 
     @VisibleForTesting
     private void maybeOnDragEnd() {
+        // maybeOnDragEnd() is called after callOnDragEnd() and endDrag() where isDragging() can
+        // change, we should update mIsTaskbarDragging before checking the value.
+        updateIsDragging();
         if (!isDragging()) {
             ((BubbleTextView) mDragObject.originalView).setIconDisabled(false);
             mControllers.taskbarAutohideSuspendController.updateFlag(
@@ -579,11 +632,6 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
     private boolean isBubbleBarShowingDropTarget() {
         return mControllers.bubbleControllers.map(
                 bc -> bc.bubbleBarViewController.isShowingDropTarget()).orElse(false);
-    }
-
-    private void notifyBubbleBarItemDragCanceled() {
-        mControllers.bubbleControllers.ifPresent(bc ->
-                bc.bubbleBarViewController.onItemDraggedOutsideBubbleBarDropZone());
     }
 
     @Override
@@ -624,6 +672,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
             mReturnAnimator.start();
         }
         super.endDrag();
+        updateIsDragging();
     }
 
     @Override

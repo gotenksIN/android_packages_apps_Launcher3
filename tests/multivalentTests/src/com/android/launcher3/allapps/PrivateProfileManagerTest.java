@@ -16,6 +16,8 @@
 
 package com.android.launcher3.allapps;
 
+import static android.app.PendingIntent.FLAG_IMMUTABLE;
+
 import static androidx.test.core.app.ApplicationProvider.getApplicationContext;
 
 import static com.android.launcher3.allapps.UserProfileManager.STATE_DISABLED;
@@ -45,7 +47,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.pm.UserCache;
-import com.android.launcher3.util.ActivityContextWrapper;
 import com.android.launcher3.util.ApiWrapper;
 import com.android.launcher3.util.UserIconInfo;
 import com.android.launcher3.util.rule.TestStabilityRule;
@@ -58,7 +59,8 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -77,6 +79,8 @@ public class PrivateProfileManagerTest {
             new UserIconInfo(PRIVATE_HANDLE, UserIconInfo.TYPE_PRIVATE);
 
     private PrivateProfileManager mPrivateProfileManager;
+
+    @Rule public MockitoRule mockitoRule = MockitoJUnit.rule();
     @Mock
     private ActivityAllAppsContainerView mAllApps;
     @Mock
@@ -88,7 +92,7 @@ public class PrivateProfileManagerTest {
     @Mock
     private Context mContext;
     @Mock
-    private AllAppsStore<?> mAllAppsStore;
+    private AllAppsStore mAllAppsStore;
     @Mock
     private PackageManager mPackageManager;
     @Mock
@@ -100,7 +104,6 @@ public class PrivateProfileManagerTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         when(mUserCache.getUserProfiles())
                 .thenReturn(Arrays.asList(MAIN_HANDLE, PRIVATE_HANDLE));
         when(mUserCache.getUserInfo(Process.myUserHandle())).thenReturn(MAIN_ICON_INFO);
@@ -113,9 +116,9 @@ public class PrivateProfileManagerTest {
         when(mContext.getPackageManager()).thenReturn(mPackageManager);
         when(mPackageManager.resolveActivity(any(), any())).thenReturn(new ResolveInfo());
         when(mContext.getSystemService(LauncherApps.class)).thenReturn(mLauncherApps);
-        when(mLauncherApps.getAppMarketActivityIntent(any(), any())).thenReturn(PendingIntent
-                .getActivity(new ActivityContextWrapper(getApplicationContext()), 0,
-                        new Intent(), PendingIntent.FLAG_IMMUTABLE).getIntentSender());
+        when(mLauncherApps.getAppMarketActivityIntent(any(), any())).thenReturn(
+                PendingIntent.getActivity(getApplicationContext(), 0, new Intent(), FLAG_IMMUTABLE)
+                        .getIntentSender());
         when(mContext.getPackageName())
                 .thenReturn("com.android.launcher3.tests.privateProfileManager");
         when(mLauncherApps.getPreInstalledSystemPackages(any())).thenReturn(new ArrayList<>());

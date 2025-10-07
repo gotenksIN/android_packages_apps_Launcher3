@@ -31,8 +31,8 @@ import com.android.launcher3.celllayout.testgenerator.ValidGridMigrationTestCase
 import com.android.launcher3.celllayout.testgenerator.generateItemsForTest
 import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 import com.android.launcher3.model.DatabaseHelper
+import com.android.launcher3.model.DbReader
 import com.android.launcher3.model.DeviceGridState
-import com.android.launcher3.model.GridSizeMigrationDBController
 import com.android.launcher3.pm.UserCache
 import com.android.launcher3.provider.LauncherDbUtils
 import com.android.launcher3.util.rule.TestStabilityRule
@@ -133,32 +133,35 @@ class ValidGridMigrationUnitTest {
                 {},
             )
 
-        Favorites.addTableToDb(dbHelper.writableDatabase, userSerial, false, srcGrid.tableName)
+        dbHelper.writableDatabase.use { writableDb ->
+            Favorites.addTableToDb(writableDb, userSerial, false, srcGrid.tableName)
 
-        addItemsToDb(dbHelper.writableDatabase, srcGrid)
-        addItemsToDb(dbHelper.writableDatabase, dstGrid)
+            addItemsToDb(writableDb, srcGrid)
+            addItemsToDb(writableDb, dstGrid)
 
-        LauncherDbUtils.SQLiteTransaction(dbHelper.writableDatabase).use {
-            val gridSizeMigrationLogic = context.appComponent.createNewGridSizeMigrationLogic()
-            val idsInUse = mutableListOf<Int>()
-            gridSizeMigrationLogic.migrateHotseat(
-                srcGrid.size.x,
-                dstGrid.size.x,
-                GridSizeMigrationDBController.DbReader(it.db, srcGrid.tableName, context),
-                GridSizeMigrationDBController.DbReader(it.db, dstGrid.tableName, context),
-                dbHelper,
-                idsInUse,
-            )
-            gridSizeMigrationLogic.migrateWorkspace(
-                GridSizeMigrationDBController.DbReader(it.db, srcGrid.tableName, context),
-                GridSizeMigrationDBController.DbReader(it.db, dstGrid.tableName, context),
-                dbHelper,
-                dstGrid.size,
-                idsInUse,
-            )
-            it.commit()
+            LauncherDbUtils.SQLiteTransaction(writableDb).use { transaction ->
+                val gridSizeMigrationLogic = context.appComponent.createNewGridSizeMigrationLogic()
+                val idsInUse = mutableListOf<Int>()
+                gridSizeMigrationLogic.migrateHotseat(
+                    srcGrid.size.x,
+                    dstGrid.size.x,
+                    DbReader(writableDb, srcGrid.tableName, context),
+                    DbReader(writableDb, dstGrid.tableName, context),
+                    dbHelper,
+                    idsInUse,
+                )
+                gridSizeMigrationLogic.migrateWorkspace(
+                    DbReader(writableDb, srcGrid.tableName, context),
+                    DbReader(writableDb, dstGrid.tableName, context),
+                    dbHelper,
+                    dstGrid.size,
+                    idsInUse,
+                )
+                transaction.commit()
+            }
         }
-        return readDb(dstGrid.tableName, dbHelper.readableDatabase)
+
+        return dbHelper.readableDatabase.use { readDb(dstGrid.tableName, it) }
     }
 
     @Test

@@ -101,6 +101,8 @@ public class ItemInfo {
      * {@link Favorites#ITEM_TYPE_QSB}.
      * {@link Favorites#ITEM_TYPE_SEARCH_ACTION}.
      * {@link Favorites#ITEM_TYPE_PRIVATE_SPACE_INSTALL_APP_BUTTON}.
+     * {@link Favorites#ITEM_TYPE_FILE_SYSTEM_FILE}.
+     * {@link Favorites#ITEM_TYPE_FILE_SYSTEM_FOLDER}.
      */
     public int itemType;
 
@@ -343,6 +345,13 @@ public class ItemInfo {
     }
 
     /**
+     * Returns if an Item is in the All Apps container.
+     */
+    public boolean isInAllApps() {
+        return container == CONTAINER_ALL_APPS || container == CONTAINER_ALL_APPS_PREDICTION;
+    }
+
+    /**
      * Returns whether this item should use the background animation.
      */
     public boolean shouldUseBackgroundAnimation() {
@@ -438,7 +447,7 @@ public class ItemInfo {
     protected LauncherAtom.ItemInfo.Builder getDefaultItemInfoBuilder(Context context) {
         LauncherAtom.ItemInfo.Builder itemBuilder = LauncherAtom.ItemInfo.newBuilder();
         itemBuilder.setIsKidsMode(
-                SettingsCache.INSTANCE.get(context).getValue(NAV_BAR_KIDS_MODE, 0));
+                SettingsCache.INSTANCE.get(context).getValue(NAV_BAR_KIDS_MODE));
         itemBuilder.setUserType(getUserType(UserCache.INSTANCE.get(context).getUserInfo(user)));
         itemBuilder.setRank(rank);
         itemBuilder.addAllItemAttributes(mAttributeList);

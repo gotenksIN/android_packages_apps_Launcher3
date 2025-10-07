@@ -68,7 +68,15 @@ public final class LaunchedAppState extends Background {
                     TestProtocol.TEST_INFO_RESPONSE_FIELD) - 1f) < 0.00001f;
 
     LaunchedAppState(LauncherInstrumentation launcher) {
+        this(launcher, /* inDesktopMode= */ false);
+    }
+
+    LaunchedAppState(LauncherInstrumentation launcher, boolean inDesktopMode) {
         super(launcher);
+        if (inDesktopMode) {
+            mLauncher.assertTrue("Taskbar should be persistent in desktop mode",
+                    !mLauncher.isTransientTaskbar());
+        }
     }
 
     @Override
@@ -86,7 +94,7 @@ public final class LaunchedAppState extends Background {
     public BaseOverview switchToOverview() {
         try (LauncherInstrumentation.Closable ignored = mLauncher.eventsCheck();
              LauncherInstrumentation.Closable ignored1 = mLauncher.addContextLayer(
-                     "want to switch from background to overview")) {
+                     "want to switch from LaunchedAppState to overview")) {
             verifyActiveContainer();
             goToOverviewUnchecked();
             return mLauncher.is3PLauncher()
@@ -112,10 +120,7 @@ public final class LaunchedAppState extends Background {
      * The bubble bar must already be visible when calling this method.
      */
     public BubbleBar getBubbleBar() {
-        try (LauncherInstrumentation.Closable c = mLauncher.addContextLayer(
-                "want to get the bubble bar")) {
-            return new BubbleBar(mLauncher);
-        }
+        return mLauncher.getBubbleBar();
     }
 
     /**

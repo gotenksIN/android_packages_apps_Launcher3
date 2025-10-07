@@ -18,11 +18,13 @@ package com.android.launcher3;
 
 import static com.android.launcher3.AbstractFloatingView.TYPE_WIDGET_RESIZE_FRAME;
 import static com.android.launcher3.BubbleTextView.DISPLAY_FOLDER;
+import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherAnimUtils.SPRING_LOADED_EXIT_DELAY;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS_PREDICTION;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION;
+import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPWIDGET;
 import static com.android.launcher3.LauncherState.ALL_APPS;
 import static com.android.launcher3.LauncherState.EDIT_MODE;
 import static com.android.launcher3.LauncherState.FLAG_MULTI_PAGE;
@@ -92,6 +94,7 @@ import com.android.launcher3.dragndrop.DragLayer;
 import com.android.launcher3.dragndrop.DragOptions;
 import com.android.launcher3.dragndrop.DragView;
 import com.android.launcher3.dragndrop.DraggableView;
+import com.android.launcher3.dragndrop.LauncherDragController;
 import com.android.launcher3.dragndrop.SpringLoadedDragController;
 import com.android.launcher3.folder.Folder;
 import com.android.launcher3.folder.FolderIcon;
@@ -109,6 +112,8 @@ import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pageindicators.PageIndicator;
+import com.android.launcher3.popup.Poppable;
+import com.android.launcher3.popup.Popup;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.StateHandler;
 import com.android.launcher3.statemanager.StateManager.StateListener;
@@ -129,7 +134,7 @@ import com.android.launcher3.widget.LauncherAppWidgetHostView;
 import com.android.launcher3.widget.NavigableAppWidgetHostView;
 import com.android.launcher3.widget.PendingAddShortcutInfo;
 import com.android.launcher3.widget.PendingAddWidgetInfo;
-import com.android.launcher3.widget.util.WidgetSizes;
+import com.android.launcher3.widget.util.WidgetSizeHandler;
 import com.android.systemui.plugins.shared.LauncherOverlayManager.LauncherOverlayCallbacks;
 import com.android.systemui.plugins.shared.LauncherOverlayManager.LauncherOverlayTouchProxy;
 
@@ -221,6 +226,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
     @Thunk
     final Launcher mLauncher;
+    final LauncherUiState mLauncherUiState;
     @Thunk
     DragController mDragController;
 
@@ -335,6 +341,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     public Workspace(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
         mLauncher = Launcher.getLauncher(context);
+        mLauncherUiState = mLauncher.launcherUiState;
         mStateTransitionAnimation = new WorkspaceStateTransitionAnimation(mLauncher, this);
         mWallpaperManager = WallpaperManager.getInstance(context);
         mAllAppsIconSize = mLauncher.getDeviceProfile().getAllAppsProfile().getIconSizePx();
@@ -356,19 +363,19 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
         mWorkspaceFadeInAdjacentScreens = grid.shouldFadeAdjacentWorkspaceScreens();
 
-        Rect padding = grid.workspacePadding;
+        Rect padding = grid.mWorkspaceProfile.getWorkspacePadding();
         setPadding(padding.left, padding.top, padding.right, padding.bottom);
         mInsets.set(insets);
 
         if (mWorkspaceFadeInAdjacentScreens) {
             // In landscape mode the page spacing is set to the default.
-            setPageSpacing(grid.edgeMarginPx);
+            setPageSpacing(grid.mWorkspaceProfile.getEdgeMarginPx());
         } else {
             // In portrait, we want the pages spaced such that there is no
             // overhang of the previous / next page into the current page viewport.
             // We assume symmetrical padding in portrait mode.
             int maxInsets = Math.max(insets.left, insets.right);
-            int maxPadding = Math.max(grid.edgeMarginPx, padding.left + 1);
+            int maxPadding = Math.max(grid.mWorkspaceProfile.getEdgeMarginPx(), padding.left + 1);
             setPageSpacing(Math.max(maxInsets, maxPadding));
         }
 
@@ -383,10 +390,10 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mPageIndicator.getLayoutParams();
 
         // Set insets for page indicator
-        Rect padding = grid.workspacePadding;
+        Rect padding = grid.mWorkspaceProfile.getWorkspacePadding();
         if (grid.isVerticalBarLayout()) {
-            lp.leftMargin = padding.left + grid.workspaceCellPaddingXPx;
-            lp.rightMargin = padding.right + grid.workspaceCellPaddingXPx;
+            lp.leftMargin = padding.left + grid.mWorkspaceProfile.getWorkspaceCellPaddingXPx();
+            lp.rightMargin = padding.right + grid.mWorkspaceProfile.getWorkspaceCellPaddingXPx();
             lp.bottomMargin = padding.bottom;
         } else {
             lp.leftMargin = lp.rightMargin = 0;
@@ -397,7 +404,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     }
 
     private void updateCellLayoutMeasures() {
-        Rect padding = mLauncher.getDeviceProfile().cellLayoutPaddingPx;
+        Rect padding = mLauncher.getDeviceProfile().mWorkspaceProfile.getCellLayoutPaddingPx();
         mWorkspaceScreens.forEach(cellLayout -> {
             cellLayout.setPadding(padding.left, padding.top, padding.right, padding.bottom);
             cellLayout.setSpaceBetweenCellLayoutsPx(getPageSpacing() / 4);
@@ -412,12 +419,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             int shortcutsAndWidgetCount = shortcutAndWidgetContainer.getChildCount();
             for (int j = 0; j < shortcutsAndWidgetCount; j++) {
                 View view = shortcutAndWidgetContainer.getChildAt(j);
-                if (view instanceof LauncherAppWidgetHostView
-                        && view.getTag() instanceof LauncherAppWidgetInfo) {
-                    LauncherAppWidgetInfo launcherAppWidgetInfo =
-                            (LauncherAppWidgetInfo) view.getTag();
-                    WidgetSizes.updateWidgetSizeRanges((LauncherAppWidgetHostView) view,
-                            mLauncher, launcherAppWidgetInfo.spanX, launcherAppWidgetInfo.spanY);
+                if (view instanceof LauncherAppWidgetHostView widgetView
+                        && view.getTag() instanceof LauncherAppWidgetInfo info) {
+                    WidgetSizeHandler.updateSizeRanges(widgetView, info.spanX, info.spanY);
                 }
             }
         }
@@ -790,6 +794,13 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         }
     }
 
+    private boolean canRemoveEmptyScreen(int screenId, CellLayout screen) {
+        // FIRST_SCREEN_ID can never be removed.
+        return screenId > FIRST_SCREEN_ID
+                && screen.getShortcutsAndWidgets().getChildCount() == 0
+                && !screen.isDropPending();
+    }
+
     /**
      * If two panel home is enabled we convert the last two screens that are visible at the same
      * time. In other cases we only convert the last page.
@@ -813,8 +824,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         for (int pageIndex = pageCount - panelCount; pageIndex < pageCount; pageIndex++) {
             int screenId = mScreenOrder.get(pageIndex);
             CellLayout screen = mWorkspaceScreens.get(screenId);
-            if (screen == null || screen.getShortcutsAndWidgets().getChildCount() != 0
-                    || screen.isDropPending()) {
+            if (screen == null || !canRemoveEmptyScreen(screenId, screen)) {
                 // Final screen doesn't exist or it isn't empty or there's a pending drop
                 return;
             }
@@ -1053,9 +1063,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             int id = mWorkspaceScreens.keyAt(i);
             CellLayout cl = mWorkspaceScreens.valueAt(i);
             // FIRST_SCREEN_ID can never be removed.
-            if (id > FIRST_SCREEN_ID && cl.getShortcutsAndWidgets().getChildCount() == 0) {
-                removeScreens.add(id);
-            }
+            if (canRemoveEmptyScreen(id, cl)) removeScreens.add(id);
         }
 
         // When two panel home is enabled we only remove an empty page if both visible pages are
@@ -1344,6 +1352,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 mOverlayShown = false;
                 mLauncher.onOverlayVisibilityChanged(false);
             }
+        }
+        if (refactorTaskbarUiState()) {
+            mLauncherUiState.setIsOverlayShown(mOverlayShown);
         }
         int count = mOverlayCallbacks.size();
         for (int i = 0; i < count; i++) {
@@ -1752,10 +1763,18 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         if (child instanceof BubbleTextView) {
             BubbleTextView btv = (BubbleTextView) child;
             if (!dragOptions.isAccessibleDrag) {
-                dragOptions.preDragCondition = btv.startLongPressAction();
+                dragOptions.preDragCondition =
+                        btv.startLongPressAction(mLauncher.getPopupControllerForAppIcons());
             }
             if (btv.isDisplaySearchResult()) {
                 dragOptions.preDragEndScale = (float) mAllAppsIconSize / btv.getIconSize();
+            }
+        } else if (Flags.homeScreenEditImprovements() && child instanceof Poppable
+                && !dragOptions.isAccessibleDrag) {
+            Popup popup = mLauncher.getPopupControllerForHomeScreenItems()
+                    .show(child);
+            if (popup != null) {
+                dragOptions.preDragCondition = popup.createPreDragCondition();
             }
         }
 
@@ -1770,6 +1789,14 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
         final DragView dv;
         if (contentView != null) {
+            if (Flags.homeScreenEditImprovements()
+                    && ((ItemInfo) child.getTag()).itemType == ITEM_TYPE_APPWIDGET
+                    && mDragController instanceof LauncherDragController launcherDragController) {
+                dragOptions.preDragEndScale = (contentView.getMeasuredWidth()
+                        + launcherDragController.getWidgetDragScalePx(
+                                null, contentView, dragObject))
+                        / contentView.getMeasuredWidth();
+            }
             dv = mDragController.startDrag(
                     contentView,
                     draggableView,
@@ -1782,6 +1809,14 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                     scale,
                     dragOptions);
         } else {
+            if (Flags.homeScreenEditImprovements()
+                    && child.getTag() instanceof ItemInfo childItemInfo
+                    && childItemInfo.itemType == ITEM_TYPE_APPWIDGET
+                    && mDragController instanceof LauncherDragController launcherDragController) {
+                dragOptions.preDragEndScale = (drawable.getIntrinsicWidth()
+                        + launcherDragController.getWidgetDragScalePx(drawable, null, dragObject))
+                        / drawable.getIntrinsicWidth();
+            }
             dv = mDragController.startDrag(
                     drawable,
                     draggableView,
@@ -2109,8 +2144,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                     item.spanX = resultSpan[0];
                     item.spanY = resultSpan[1];
                     AppWidgetHostView awhv = (AppWidgetHostView) cell;
-                    WidgetSizes.updateWidgetSizeRanges(awhv, mLauncher, resultSpan[0],
-                            resultSpan[1]);
+                    WidgetSizeHandler.updateSizeRanges(awhv, resultSpan[0], resultSpan[1]);
                 }
 
                 if (foundCell) {
@@ -2891,7 +2925,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                     ((PendingAddWidgetInfo) pendingInfo).boundWidget : null;
 
             if (finalView != null && updateWidgetSize) {
-                WidgetSizes.updateWidgetSizeRanges(finalView, mLauncher, item.spanX, item.spanY);
+                WidgetSizeHandler.updateSizeRanges(finalView, item.spanX, item.spanY);
             }
 
             int animationStyle = ANIMATE_INTO_POSITION_AND_DISAPPEAR;

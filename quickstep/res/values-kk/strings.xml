@@ -76,7 +76,7 @@
     <string name="overview_gesture_feedback_home_detected" msgid="663432226180397138">"Жіберер алдында терезені ұзағырақ ұстап тұруға тырысыңыз."</string>
     <string name="overview_gesture_feedback_wrong_swipe_direction" msgid="1191055451018584958">"Тігінен жоғары қарай сырғытыңыз да, кідіріңіз."</string>
     <string name="overview_gesture_feedback_complete_with_follow_up" msgid="3544611727467765026">"Қимылдарды қолдануды үйрендіңіз. Қимылдарды өшіру үшін \"Параметрлер\" бөліміне өтіңіз."</string>
-    <string name="overview_gesture_feedback_complete_without_follow_up" msgid="2903050864432331629">"Қолданбаларды ауыстыру қимылын аяқтадыңыз."</string>
+    <string name="overview_gesture_feedback_complete_without_follow_up" msgid="2903050864432331629">"Қолданбалар арасында ауысу қимылын аяқтадыңыз."</string>
     <string name="overview_gesture_intro_title" msgid="2902054412868489378">"Қолданбаларды ауыстыру үшін сырғытыңыз"</string>
     <string name="overview_gesture_intro_subtitle" msgid="4968091015637850859">"Бір қолданбадан екіншісіне ауысу үшін экранның төменгі жағынан жоғары қарай сырғытып, ұстап тұрыңыз, кейін жіберіңіз."</string>
     <string name="overview_gesture_tutorial_title" msgid="4125835002668708720">"Қолданбалар арасында ауысу"</string>
@@ -93,10 +93,13 @@
     <string name="allset_button_hint" msgid="2395219947744706291">"Негізгі экранға өту үшін негізгі экран түймесін түртіңіз."</string>
     <string name="allset_description_generic" msgid="5385500062202019855">"<xliff:g id="DEVICE">%1$s</xliff:g> пайдалануға дайын."</string>
     <string name="allset_description_fallback" msgid="2488751930355201578">"Құрылғы пайдалануға дайын."</string>
-    <string name="allset_navigation_settings" msgid="4713404605961476027"><annotation id="link">"Навигацияның жүйелік параметрлері"</annotation></string>
+    <string name="allset_navigation_settings" msgid="4713404605961476027"><annotation id="link">"Жүйе навигациясы параметрлері"</annotation></string>
     <string name="allset_title_expressive" msgid="474399969304146994">"<xliff:g id="DEVICE">%1$s</xliff:g> \nдайын!"</string>
     <string name="allset_title_expressive_fallback" msgid="2829102990606405239">"Құрылғыңыз \nдайын!"</string>
+    <string name="allset_title_expressive_fixed" msgid="3564219469262883526">"Іске кірісуге болады!"</string>
     <string name="allset_subtitle_expressive" msgid="419688197551192358">"Жаңа <xliff:g id="DEVICE">%1$s</xliff:g> дайын!"</string>
+    <string name="allset_subtitle_expressive_gesture_navigation" msgid="8931442349501593934">"<xliff:g id="DEVICE">%1$s</xliff:g> құрылғысын пайдалануды бастау үшін жоғары сырғытыңыз."</string>
+    <string name="allset_subtitle_expressive_button_navigation" msgid="5219509605046028014">"<xliff:g id="DEVICE">%1$s</xliff:g> қолдануды бастау үшін түртіңіз."</string>
     <string name="allset_navigation_settings_expressive" msgid="3745595273748356"><annotation id="link">"Өту жолын таңдау"</annotation></string>
     <string name="allset_hint_expressive" msgid="756856423510976261">"Жоғары сырғыту"</string>
     <string name="allset_button_hint_expressive" msgid="667643693410494225">"Негізгі экран түймесін түртіңіз"</string>
@@ -147,6 +150,10 @@
     <string name="change_navigation_mode" msgid="9088393078736808968">"Навигация режимін өзгерту"</string>
     <string name="taskbar_divider_a11y_title" msgid="6608690309720242080">"Тапсырмалар жолағын бөлгіш"</string>
     <string name="taskbar_overflow_a11y_title" msgid="8114045167370723746">"Басқа соңғы қолданбалар"</string>
+    <!-- no translation found for app_added_to_taskbar (1160433791917609063) -->
+    <skip />
+    <!-- no translation found for app_removed_from_taskbar (7887298201562912487) -->
+    <skip />
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Жоғары/солға жылжыту"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Төмен/оңға жылжыту"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"Қолданбаны қалқыма терезе түрінде ашу"</string>

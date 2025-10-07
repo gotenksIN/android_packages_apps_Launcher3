@@ -32,7 +32,6 @@ import com.android.launcher3.DropTarget.DragObject
 import com.android.launcher3.dragndrop.DragOptions
 import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.taskbar.bubbles.BubbleBarController.BubbleBarLocationListener
-import com.android.quickstep.SystemUiProxy
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation
 import com.android.wm.shell.shared.bubbles.DeviceConfig
 import com.android.wm.shell.shared.bubbles.DragZoneFactory
@@ -45,8 +44,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
@@ -63,7 +64,7 @@ class DragToBubbleControllerTest {
     private val context = getApplicationContext<Context>()
     private val container = FrameLayout(context)
     private val bubbleBarViewController: BubbleBarViewController = mock()
-    private val systemUiProxy: SystemUiProxy = mock()
+    private val bubbleActivityStarter: BubbleActivityStarter = mock()
     private val bubbleBarLocationListener: BubbleBarLocationListener = mock()
     private val bubbleBarPropertiesProvider = FakeBubbleBarPropertiesProvider()
     private val testDragZonesFactory = createTestDragZoneFactory()
@@ -107,7 +108,7 @@ class DragToBubbleControllerTest {
             bubbleBarViewController,
             bubbleBarPropertiesProvider,
             bubbleBarLocationListener,
-            systemUiProxy,
+            bubbleActivityStarter,
         )
         dragToBubbleController.dragZoneFactory = testDragZonesFactory
     }
@@ -294,8 +295,8 @@ class DragToBubbleControllerTest {
         }
 
         assertThat(dragToBubbleController.isItemDropHandled).isFalse()
-        verify(systemUiProxy, never()).showAppBubble(any(), any(), any())
-        verify(systemUiProxy, never()).showShortcutBubble(any(), any())
+        verify(bubbleActivityStarter, never()).showAppBubble(any(), any(), any())
+        verify(bubbleActivityStarter, never()).showShortcutBubble(any(), any())
     }
 
     @Test
@@ -315,7 +316,12 @@ class DragToBubbleControllerTest {
             bubbleBarLeftDropTarget.onDragExit(dragObject)
         }
 
-        verify(systemUiProxy).showAppBubble(itemIntent, appInfo.user, BubbleBarLocation.LEFT)
+        // Intent does not implement equals() so we need to capture and compare the intents manually
+        val intentCaptor = argumentCaptor<Intent>()
+        verify(bubbleActivityStarter)
+            .showAppBubble(intentCaptor.capture(), eq(appInfo.user),
+            eq(BubbleBarLocation.LEFT))
+        assertThat(intentCaptor.firstValue.filterEquals(itemIntent)).isTrue()
     }
 
     @Test
@@ -550,6 +556,26 @@ class DragToBubbleControllerTest {
     }
 
     @Test
+    fun showShellBubbleBarDropTargetToNotNullLocation_setsBubbleBarIsShowingDropTargetToTrue() {
+        // When show null location
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            dragToBubbleController.showShellBubbleBarDropTargetAt(BubbleBarLocation.RIGHT)
+        }
+        // Then bubbleBarViewController isShowingDropTarget should change to true
+        verify(bubbleBarViewController).isShowingDropTarget = true
+    }
+
+    @Test
+    fun showShellBubbleBarDropTargetNullLocation_setsBubbleBarIsShowingDropTargetToFalse() {
+        // When show null location
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            dragToBubbleController.showShellBubbleBarDropTargetAt(null)
+        }
+        // Then bubbleBarViewController isShowingDropTarget should change to false
+        verify(bubbleBarViewController).isShowingDropTarget = false
+    }
+
+    @Test
     fun showShellBubbleBarDropTargetAt_consecutiveCallsSameLocation_noCallsToListener() {
         // Given
         prepareBubbleBarViewController(bubbleBarLocation = BubbleBarLocation.LEFT)
@@ -569,6 +595,84 @@ class DragToBubbleControllerTest {
         }
         // Then no new calls to onDragUpdated
         verify(bubbleBarLocationListener, never()).onBubbleBarLocationAnimated(any())
+    }
+
+    @Test
+    fun setOverlayContainerView_nullPassed_sameContainerIsUsed() {
+        // Given
+        dragToBubbleController.setOverlayContainerView(null)
+        // When
+        dragToBubbleController.onDragStart(dragObject, DragOptions())
+        // Then
+        val dropContainer = dragToBubbleController.launcherDropTargetManager.dropTargetView.parent
+        assertThat(dropContainer).isEqualTo(container)
+        assertThat(container.childCount).isEqualTo(DROP_VIEWS_COUNT_NO_BUBBLE_BAR)
+    }
+
+    @Test
+    fun setOverlayContainerView_containerPassed_newContainerIsUsed() {
+        // Given
+        val newContainer = FrameLayout(context)
+        dragToBubbleController.setOverlayContainerView(newContainer)
+        // When
+        dragToBubbleController.onDragStart(dragObject, DragOptions())
+        // Then
+        val dropContainer = dragToBubbleController.launcherDropTargetManager.dropTargetView.parent
+        assertThat(dropContainer).isEqualTo(newContainer)
+        assertThat(container.childCount).isEqualTo(0)
+        assertThat(newContainer.childCount).isEqualTo(DROP_VIEWS_COUNT_NO_BUBBLE_BAR)
+    }
+
+    @Test
+    fun isDragInProgress_initially_returnsFalse() {
+        assertThat(dragToBubbleController.isDragInProgress).isFalse()
+    }
+
+    @Test
+    fun isDragInProgress_afterLauncherDragStart_returnsTrue() {
+        // When
+        dragToBubbleController.onDragStart(dragObject, DragOptions())
+
+        // Then
+        assertThat(dragToBubbleController.isDragInProgress).isTrue()
+    }
+
+    @Test
+    fun isDragInProgress_afterShellDragStart_returnsTrue() {
+        // When
+        dragToBubbleController.onShellDragStateChanged(true)
+
+        // Then
+        assertThat(dragToBubbleController.isDragInProgress).isTrue()
+    }
+
+    @Test
+    fun isDragInProgress_afterLauncherDragStartAndDragEnd_returnsFalse() {
+        // Given
+        dragToBubbleController.onDragStart(dragObject, DragOptions())
+
+        // When
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            dragToBubbleController.onDragEnd()
+        }
+
+        // Then
+        assertThat(dragToBubbleController.isDragInProgress).isFalse()
+    }
+
+    @Test
+    fun isDragInProgress_afterLauncherAndShellDragStartAndDragForShellEnd_returnsTrue() {
+        // Given
+        dragToBubbleController.onDragStart(dragObject, DragOptions())
+        dragToBubbleController.onShellDragStateChanged(true)
+
+        // When
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            dragToBubbleController.onShellDragStateChanged(false)
+        }
+
+        // Then
+        assertThat(dragToBubbleController.isDragInProgress).isTrue()
     }
 
     private fun prepareBubbleBarViewController(

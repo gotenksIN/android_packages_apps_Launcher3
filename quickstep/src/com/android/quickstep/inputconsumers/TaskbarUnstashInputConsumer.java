@@ -21,7 +21,6 @@ import static android.view.RoundedCorner.POSITION_BOTTOM_LEFT;
 import static android.view.RoundedCorner.POSITION_BOTTOM_RIGHT;
 
 import static com.android.launcher3.Flags.enableCursorHoverStates;
-import static com.android.launcher3.Flags.enableScalingRevealHomeAnimation;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent;
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_TOUCHING;
 import static com.android.systemui.shared.Flags.cursorHotCorner;
@@ -48,7 +47,6 @@ import com.android.launcher3.taskbar.TaskbarActivityContext;
 import com.android.launcher3.taskbar.TaskbarThresholdUtils;
 import com.android.launcher3.taskbar.TaskbarTranslationController.TransitionCallback;
 import com.android.launcher3.touch.OverScroll;
-import com.android.launcher3.util.DisplayController;
 import com.android.quickstep.GestureState;
 import com.android.quickstep.InputConsumer;
 import com.android.quickstep.OverviewCommandHelper;
@@ -106,7 +104,7 @@ public class TaskbarUnstashInputConsumer extends DelegateInputConsumer {
             GestureState gestureState) {
         super(gestureState.getDisplayId(), delegate, inputMonitor);
         mTaskbarActivityContext = taskbarActivityContext;
-        mIsTransientTaskbar = DisplayController.isTransientTaskbar(context);
+        mIsTransientTaskbar = taskbarActivityContext.getTaskbarFeatureEvaluator().isTransient();
         mOverviewCommandHelper = overviewCommandHelper;
         mDisplayManager = context.getSystemService(DisplayManager.class);
         mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
@@ -153,7 +151,7 @@ public class TaskbarUnstashInputConsumer extends DelegateInputConsumer {
 
     @Override
     public void onMotionEvent(MotionEvent ev) {
-        if (enableScalingRevealHomeAnimation() && mIsTransientTaskbar) {
+        if (mIsTransientTaskbar) {
             checkVelocityForTaskbarBackground(ev);
         }
         if (mState != STATE_ACTIVE) {

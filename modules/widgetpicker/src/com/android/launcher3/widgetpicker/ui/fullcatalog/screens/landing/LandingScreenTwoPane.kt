@@ -65,9 +65,9 @@ import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.Landing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.leftPaneContentBottomEdgeSpacing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneDimens.pagerItemsSpacing
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneTestTags.FEATURED_WIDGETS_HEADER_TEST_TAG
+import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneTestTags.PERSONAL_WIDGETS_LIST_TEST_TAG
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneTestTags.PERSONAL_WIDGETS_TAB_TEST_TAG
 import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneTestTags.WORK_WIDGETS_TAB_TEST_TAG
-import com.android.launcher3.widgetpicker.ui.fullcatalog.screens.landing.LandingScreenTwoPaneTestTags.PERSONAL_WIDGETS_LIST_TEST_TAG
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -84,6 +84,7 @@ fun LandingScreenTwoPane(
     searchBar: @Composable () -> Unit,
     featuredWidgets: @Composable () -> Unit,
     featuredWidgetsCount: Int,
+    featuredShortcutsCount: Int,
     widgetAppIconsState: AppIconsState,
     browseWidgetsState: BrowseWidgetsState.Data,
     personalWidgetPreviewsState: PreviewsState,
@@ -115,10 +116,12 @@ fun LandingScreenTwoPane(
     Box(modifier = Modifier.fillMaxSize()) {
         TwoPaneLayout(
             searchBar = searchBar,
+            leftPaneTitle = stringResource(R.string.widget_picker_left_pane_accessibility_label),
             leftContent = {
                 LeftPaneContent(
                     isFeaturedSectionSelected = isFeaturedSectionShowing,
                     featuredWidgetsCount = featuredWidgetsCount,
+                    featuredShortcutsCount = featuredShortcutsCount,
                     pagerState = pagerState,
                     hasWorkProfile = hasWorkProfile,
                     browseWidgetsState = browseWidgetsState,
@@ -286,6 +289,7 @@ private fun LeftPaneContent(
     isFeaturedSectionSelected: Boolean,
     onFeaturedHeaderClick: () -> Unit,
     featuredWidgetsCount: Int,
+    featuredShortcutsCount: Int,
     pagerState: PagerState,
     hasWorkProfile: Boolean,
     browseWidgetsState: BrowseWidgetsState.Data,
@@ -307,7 +311,8 @@ private fun LeftPaneContent(
             SelectableSuggestionsHeader(
                 selected = isFeaturedSectionSelected,
                 onSelect = onFeaturedHeaderClick,
-                count = featuredWidgetsCount,
+                widgetsCount = featuredWidgetsCount,
+                shortcutsCount = featuredShortcutsCount,
                 shape = contentShape,
                 modifier =
                     Modifier.fillMaxWidth().widgetPickerTestTag(FEATURED_WIDGETS_HEADER_TEST_TAG),
@@ -372,9 +377,7 @@ private fun PersonalSection(
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         WidgetAppsList(
-            modifier = Modifier
-                .widgetPickerTestTag(PERSONAL_WIDGETS_LIST_TEST_TAG)
-                .fillMaxSize(),
+            modifier = Modifier.widgetPickerTestTag(PERSONAL_WIDGETS_LIST_TEST_TAG).fillMaxSize(),
             widgetApps = browseWidgetsState.personalWidgetApps,
             selectedWidgetAppId = selectedPersonalWidgetAppId,
             widgetAppHeaderStyle = WidgetAppHeaderStyle.CLICKABLE,
@@ -437,8 +440,11 @@ private fun PersonalWorkToolbar(
         remember(currentPage, personalUserProfile, workUserProfile) {
             buildList {
                 add {
+                    val tabLabel = personalUserProfile.label
                     LeadingIconToolbarTab(
-                        label = personalUserProfile.label,
+                        label = tabLabel,
+                        contentDescription =
+                            stringResource(R.string.widgets_tab_accessibility_label, tabLabel),
                         leadingIcon = Icons.Filled.Person,
                         selected = currentPage == PERSONAL_TAB_INDEX,
                         onClick = {
@@ -448,8 +454,11 @@ private fun PersonalWorkToolbar(
                     )
                 }
                 add {
+                    val tabLabel = workUserProfile.label
                     LeadingIconToolbarTab(
                         label = workUserProfile.label,
+                        contentDescription =
+                            stringResource(R.string.widgets_tab_accessibility_label, tabLabel),
                         leadingIcon = Icons.Outlined.Work,
                         selected = currentPage == WORK_TAB_INDEX,
                         onClick = {

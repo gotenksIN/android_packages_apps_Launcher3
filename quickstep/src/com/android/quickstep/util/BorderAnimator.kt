@@ -31,7 +31,6 @@ import androidx.core.animation.doOnEnd
 import androidx.core.animation.doOnStart
 import com.android.app.animation.Interpolators
 import com.android.launcher3.anim.AnimatedFloat
-import com.android.launcher3.anim.AnimatorListeners
 import kotlin.math.roundToInt
 
 /**
@@ -65,8 +64,8 @@ private constructor(
 
     companion object {
         const val DEFAULT_BORDER_COLOR = Color.WHITE
-        private const val DEFAULT_APPEARANCE_ANIMATION_DURATION_MS = 300L
-        private const val DEFAULT_DISAPPEARANCE_ANIMATION_DURATION_MS = 133L
+        const val DEFAULT_APPEARANCE_ANIMATION_DURATION_MS = 300L
+        const val DEFAULT_DISAPPEARANCE_ANIMATION_DURATION_MS = 133L
         val DEFAULT_INTERPOLATOR = Interpolators.EMPHASIZED_DECELERATE
 
         /** Property used to animate the border color change in `setBorderColor()`. */
@@ -74,7 +73,7 @@ private constructor(
             object : IntProperty<BorderAnimator>("color") {
                 override fun setValue(animator: BorderAnimator, color: Int) {
                     animator.borderPaint.color = color
-                    animator.borderAnimationParams.targetView.invalidate()
+                    animator.updateOutline()
                 }
 
                 override fun get(animator: BorderAnimator): Int {
@@ -256,15 +255,17 @@ private constructor(
             return
         }
 
-        runningColorAnimation?.cancel()
-
         // Animate the color change.
-        runningColorAnimation = ObjectAnimator.ofArgb(this, BORDER_COLOR_PROPERTY, borderColor)
-        runningColorAnimation?.setDuration(appearanceDurationMs)?.setInterpolator(interpolator)
-        runningColorAnimation?.addListener(
-            AnimatorListeners.forEndCallback(Runnable { runningColorAnimation = null })
-        )
-        runningColorAnimation?.start()
+        ObjectAnimator.ofArgb(this, BORDER_COLOR_PROPERTY, borderColor).apply {
+            duration = appearanceDurationMs
+            interpolator = this@BorderAnimator.interpolator
+            doOnStart {
+                runningColorAnimation?.cancel()
+                runningColorAnimation = this
+            }
+            doOnEnd { runningColorAnimation = null }
+            start()
+        }
     }
 
     /** Params for handling different target view layout situations. */

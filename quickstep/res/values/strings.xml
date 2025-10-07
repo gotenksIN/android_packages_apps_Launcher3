@@ -100,9 +100,6 @@
     <!-- tip shown when hotseat edu is requested while predictions are disabled -->
     <string name="hotsaet_tip_prediction_disabled">App suggestions are disabled</string>
 
-    <!-- content description for hotseat items -->
-    <string name="hotseat_prediction_content_description">Predicted app: <xliff:g id="title" example="Chrome">%1$s</xliff:g></string>
-
     <!-- Title of the Gesture Navigation Tutorial page [CHAR LIMIT=NONE] -->
     <string name="gesture_tutorial_title">Gesture Navigation Tutorial</string>
 
@@ -232,8 +229,14 @@
     <string name="allset_title_expressive">Your <xliff:g id="device" example="Pixel 9">%1$s</xliff:g> is \nready!</string>
     <!-- Description of "All Set" page on the user's device when no device name is provided [CHAR LIMIT=NONE] -->
     <string name="allset_title_expressive_fallback">Your device is \nready!</string>
+    <!-- Fixed Title of "All Set" page [CHAR LIMIT=NONE] -->
+    <string name="allset_title_expressive_fixed">You\'re ready to roll!</string>
     <!-- New subtitle of "All Set" page [CHAR LIMIT=NONE] -->
     <string name="allset_subtitle_expressive">Enjoy your new <xliff:g id="device" example="phone">%1$s</xliff:g>!</string>
+    <!-- Subtitle of "All Set" page for Gesture Navigation [CHAR LIMIT=NONE] -->
+    <string name="allset_subtitle_expressive_gesture_navigation">Swipe up to get started with your <xliff:g id="device" example="phone">%1$s</xliff:g></string>
+    <!-- Subtitle of "All Set" page for 3 Button Navigation [CHAR LIMIT=NONE] -->
+    <string name="allset_subtitle_expressive_button_navigation">Tap to get started with your <xliff:g id="device" example="phone">%1$s</xliff:g></string>
     <!-- String linking to navigation settings on "All Set" page [CHAR LIMIT=NONE] -->
     <string name="allset_navigation_settings_expressive"><annotation id="link">Choose how to navigate</annotation></string>
     <!-- Hint string at the bottom of "All Set" page [CHAR LIMIT=NONE] -->
@@ -336,7 +339,10 @@
     <string name="taskbar_divider_a11y_title">Taskbar Divider</string>
     <!-- Accessibility title for the Taskbar Overflow icon. [CHAR_LIMIT=NONE] -->
     <string name="taskbar_overflow_a11y_title">Other recent apps</string>
-
+    <!-- Accessibility confirmation for item pinned to taskbar. [CHAR_LIMIT=NONE] -->
+    <string name="app_added_to_taskbar">App added to Taskbar</string>
+    <!-- Accessibility confirmation for item unpinned from taskbar. [CHAR_LIMIT=NONE] -->
+    <string name="app_removed_from_taskbar">App removed from Taskbar</string>
 
     <!-- Label for moving drop target to the top or left side of the screen, depending on orientation (from the Taskbar only). -->
     <string name="move_drop_target_top_or_left">Move to top&#47;left</string>

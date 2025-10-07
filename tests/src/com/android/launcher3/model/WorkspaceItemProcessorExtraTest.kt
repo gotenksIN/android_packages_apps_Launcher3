@@ -34,6 +34,7 @@ import com.android.launcher3.LauncherSettings.Favorites
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPLICATION
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPWIDGET
+import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 import com.android.launcher3.icons.CacheableShortcutInfo
 import com.android.launcher3.icons.IconCache
 import com.android.launcher3.model.data.IconRequestInfo
@@ -49,14 +50,14 @@ import com.android.launcher3.util.UserIconInfo
 import com.android.launcher3.widget.WidgetInflater
 import com.google.common.truth.Truth.assertThat
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Answers
 import org.mockito.ArgumentCaptor
 import org.mockito.Mock
-import org.mockito.Mockito.RETURNS_DEEP_STUBS
 import org.mockito.Mockito.verify
-import org.mockito.MockitoAnnotations
+import org.mockito.junit.MockitoJUnit
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.doAnswer
@@ -78,6 +79,8 @@ class WorkspaceItemProcessorExtraTest {
     @Mock private lateinit var mockUserCache: UserCache
     @Mock private lateinit var mockUserManagerState: UserManagerState
     @Mock private lateinit var mockWidgetInflater: WidgetInflater
+    @Mock private lateinit var mockWorkspaceItemSpaceFinder: WorkspaceItemSpaceFinder
+    @get:Rule val mockitoRule = MockitoJUnit.rule()
 
     private var intent: Intent = Intent()
     private var mUserHandle: UserHandle = UserHandle(0)
@@ -93,8 +96,6 @@ class WorkspaceItemProcessorExtraTest {
 
     @Before
     fun setup() {
-        MockitoAnnotations.initMocks(this)
-
         mUserHandle = UserHandle(0)
         mComponentName = ComponentName("package", "class")
         mUnlockedUsersArray = LongSparseArray<Boolean>(1).apply { put(101, true) }
@@ -289,5 +290,8 @@ class WorkspaceItemProcessorExtraTest {
             idp = InvariantDeviceProfile.INSTANCE.get(context),
             iconCache = mockIconCache,
             isSafeMode = false,
+            widgetSizeHandler = context.appComponent.widgetSizeHandler,
+            homeScreenFiles = lazyOf(mapOf()),
+            workspaceItemSpaceFinder = mockWorkspaceItemSpaceFinder,
         )
 }

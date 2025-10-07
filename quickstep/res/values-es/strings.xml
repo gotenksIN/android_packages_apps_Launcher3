@@ -79,7 +79,7 @@
     <string name="overview_gesture_feedback_complete_without_follow_up" msgid="2903050864432331629">"Has completado el gesto para cambiar de aplicación"</string>
     <string name="overview_gesture_intro_title" msgid="2902054412868489378">"Desliza el dedo para cambiar de aplicación"</string>
     <string name="overview_gesture_intro_subtitle" msgid="4968091015637850859">"Para cambiar de aplicación, desliza el dedo hacia arriba desde el borde inferior, mantenlo pulsado y suéltalo."</string>
-    <string name="overview_gesture_tutorial_title" msgid="4125835002668708720">"Cambiar de aplicación"</string>
+    <string name="overview_gesture_tutorial_title" msgid="4125835002668708720">"Cambiar de app"</string>
     <string name="overview_gesture_tutorial_subtitle" msgid="5253549754058973071">"Desliza hacia arriba desde la parte inferior de la pantalla, mantenla pulsada y suelta el dedo."</string>
     <string name="overview_gesture_tutorial_success" msgid="1910267697807973076">"¡Muy bien!"</string>
     <string name="gesture_tutorial_confirm_title" msgid="6201516182040074092">"Todo listo"</string>
@@ -96,7 +96,10 @@
     <string name="allset_navigation_settings" msgid="4713404605961476027"><annotation id="link">"Opciones de navegación"</annotation></string>
     <string name="allset_title_expressive" msgid="474399969304146994">"¡Todo listo para \ntu <xliff:g id="DEVICE">%1$s</xliff:g>!"</string>
     <string name="allset_title_expressive_fallback" msgid="2829102990606405239">"¡Tu dispositivo está \nlisto!"</string>
+    <string name="allset_title_expressive_fixed" msgid="3564219469262883526">"¡Ya está todo listo!"</string>
     <string name="allset_subtitle_expressive" msgid="419688197551192358">"¡Disfruta de tu <xliff:g id="DEVICE">%1$s</xliff:g>!"</string>
+    <string name="allset_subtitle_expressive_gesture_navigation" msgid="8931442349501593934">"Desliza hacia arriba para empezar a usar tu <xliff:g id="DEVICE">%1$s</xliff:g>"</string>
+    <string name="allset_subtitle_expressive_button_navigation" msgid="5219509605046028014">"Toca para empezar a usar tu <xliff:g id="DEVICE">%1$s</xliff:g>"</string>
     <string name="allset_navigation_settings_expressive" msgid="3745595273748356"><annotation id="link">"Elige cómo navegar"</annotation></string>
     <string name="allset_hint_expressive" msgid="756856423510976261">"Deslizar hacia arriba"</string>
     <string name="allset_button_hint_expressive" msgid="667643693410494225">"Toca el botón de inicio"</string>
@@ -147,6 +150,10 @@
     <string name="change_navigation_mode" msgid="9088393078736808968">"Cambiar el modo de navegación"</string>
     <string name="taskbar_divider_a11y_title" msgid="6608690309720242080">"Divisor de Barra de Tareas"</string>
     <string name="taskbar_overflow_a11y_title" msgid="8114045167370723746">"Otras aplicaciones recientes"</string>
+    <!-- no translation found for app_added_to_taskbar (1160433791917609063) -->
+    <skip />
+    <!-- no translation found for app_removed_from_taskbar (7887298201562912487) -->
+    <skip />
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Mover arriba/a la izquierda"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Mover abajo/a la derecha"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"Abrir aplicación como burbuja"</string>

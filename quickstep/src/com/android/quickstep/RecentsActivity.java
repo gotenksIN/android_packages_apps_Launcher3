@@ -15,6 +15,7 @@
  */
 package com.android.quickstep;
 
+import static android.app.ActivityTaskManager.INVALID_TASK_ID;
 import static android.os.Trace.TRACE_TAG_APP;
 import static android.view.RemoteAnimationTarget.MODE_CLOSING;
 import static android.view.RemoteAnimationTarget.MODE_OPENING;
@@ -36,7 +37,6 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.app.ActivityOptions;
 import android.content.Intent;
-import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -217,7 +217,7 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
 
         // In case we are reusing IDP, create a copy so that we don't conflict with Launcher
         // activity.
-        return dp.copy(this);
+        return dp.copy();
     }
 
     @Override
@@ -237,6 +237,11 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
     @Override
     public SplitSelectStateController getSplitSelectStateController() {
         return mSplitSelectStateController;
+    }
+
+    @Override
+    public void goToRecentsState(RecentsState recentsState, boolean animated) {
+        getStateManager().goToState(recentsState, animated);
     }
 
     @Override
@@ -332,8 +337,8 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
         boolean activityClosing = taskIsATargetWithMode(appTargets, getTaskId(), MODE_CLOSING);
         PendingAnimation pa = new PendingAnimation(RECENTS_LAUNCH_DURATION);
         createRecentsWindowAnimator(recentsView, taskView, !activityClosing, appTargets,
-                wallpaperTargets, nonAppTargets, /* depthController= */ null ,
-                /* transitionInfo= */ null, pa);
+                wallpaperTargets, nonAppTargets, /* depthController= */ null,
+                /* transitionInfo= */ null, /* appearedTaskId= */ INVALID_TASK_ID, pa);
         target.play(pa.buildAnim());
 
         // Found a visible recents task that matches the opening app, lets launch the app from there
@@ -471,45 +476,50 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
 
     @Override
     public void onBackPressed() {
-        // TODO: Launch the task we came from
-        startHome();
+        getStateManager().getState().onBackInvoked(this);
     }
 
-    public void startHome() {
+    @Override
+    public void startHome(boolean animated, @Nullable Runnable onHomeAnimationComplete) {
         RecentsView recentsView = getOverviewPanel();
         recentsView.switchToScreenshot(() -> recentsView.finishRecentsAnimation(true,
-                this::startHomeInternal));
+                () -> startHomeInternal(onHomeAnimationComplete)));
     }
 
-    private void startHomeInternal() {
+    private void startHomeInternal(@Nullable Runnable onHomeAnimationComplete) {
+        RemoteAnimationFactory animationToHomeFactory =
+                (transit, appTargets, wallpaperTargets, nonAppTargets, result) -> {
+                    AnimatorPlaybackController controller =
+                            getStateManager().createAnimationToNewWorkspace(
+                                    RecentsState.BG_LAUNCHER, HOME_APPEAR_DURATION);
+                    controller.dispatchOnStart();
+
+                    RemoteAnimationTargets targets = new RemoteAnimationTargets(
+                            appTargets, wallpaperTargets, nonAppTargets, MODE_OPENING);
+                    for (RemoteAnimationTarget app : targets.apps) {
+                        new Transaction().setAlpha(app.leash, 1).apply();
+                    }
+                    AnimatorSet anim = new AnimatorSet();
+                    anim.play(controller.getAnimationPlayer());
+                    anim.setDuration(HOME_APPEAR_DURATION);
+                    result.setAnimation(anim, RecentsActivity.this,
+                            () -> {
+                                getStateManager().goToState(RecentsState.HOME, false);
+                                if (onHomeAnimationComplete != null) {
+                                    onHomeAnimationComplete.run();
+                                }
+                            },
+                            true /* skipFirstFrame */);
+                };
+
         LauncherAnimationRunner runner = new LauncherAnimationRunner(
-                getMainThreadHandler(), mAnimationToHomeFactory, true);
+                getMainThreadHandler(), animationToHomeFactory, true);
         ActivityOptions options = ActivityOptions.makeRemoteAnimation(
                 new RemoteAnimationAdapter(runner, HOME_APPEAR_DURATION, 0),
                 new RemoteTransition(runner.toRemoteTransition(), getIApplicationThread(),
                         "StartHomeFromRecents"));
         startHomeIntentSafely(this, options.toBundle(), TAG, getDisplayId());
     }
-
-    private final RemoteAnimationFactory mAnimationToHomeFactory =
-            (transit, appTargets, wallpaperTargets, nonAppTargets, result) -> {
-                AnimatorPlaybackController controller =
-                        getStateManager().createAnimationToNewWorkspace(
-                                RecentsState.BG_LAUNCHER, HOME_APPEAR_DURATION);
-                controller.dispatchOnStart();
-
-                RemoteAnimationTargets targets = new RemoteAnimationTargets(
-                        appTargets, wallpaperTargets, nonAppTargets, MODE_OPENING);
-                for (RemoteAnimationTarget app : targets.apps) {
-                    new Transaction().setAlpha(app.leash, 1).apply();
-                }
-                AnimatorSet anim = new AnimatorSet();
-                anim.play(controller.getAnimationPlayer());
-                anim.setDuration(HOME_APPEAR_DURATION);
-                result.setAnimation(anim, RecentsActivity.this,
-                        () -> getStateManager().goToState(RecentsState.HOME, false),
-                        true /* skipFirstFrame */);
-            };
 
     @Override
     public void collectStateHandlers(List<StateHandler<RecentsState>> out) {

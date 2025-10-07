@@ -16,6 +16,7 @@
 
 package com.android.launcher3;
 
+import static android.app.ActivityTaskManager.INVALID_TASK_ID;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_HOME;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD;
 import static android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW;
@@ -46,8 +47,7 @@ import static com.android.launcher3.BaseActivity.INVISIBLE_ALL;
 import static com.android.launcher3.BaseActivity.INVISIBLE_BY_APP_TRANSITIONS;
 import static com.android.launcher3.BaseActivity.INVISIBLE_BY_PENDING_FLAGS;
 import static com.android.launcher3.BaseActivity.PENDING_INVISIBLE_BY_WALLPAPER_ANIMATION;
-import static com.android.launcher3.Flags.enableContainerReturnAnimations;
-import static com.android.launcher3.Flags.enableScalingRevealHomeAnimation;
+import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.Flags.syncAppLaunchWithTaskbarStash;
 import static com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY;
 import static com.android.launcher3.LauncherState.ALL_APPS;
@@ -57,15 +57,14 @@ import static com.android.launcher3.LauncherState.OVERVIEW;
 import static com.android.launcher3.Utilities.mapBoundToRange;
 import static com.android.launcher3.config.FeatureFlags.SEPARATE_RECENTS_ACTIVITY;
 import static com.android.launcher3.testing.shared.TestProtocol.WALLPAPER_OPEN_ANIMATION_FINISHED_MESSAGE;
-import static com.android.launcher3.util.DisplayController.isTransientTaskbar;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.MultiPropertyFactory.MULTI_PROPERTY_VALUE;
 import static com.android.launcher3.util.window.RefreshRateTracker.getSingleFrameMs;
 import static com.android.launcher3.views.FloatingIconView.SHAPE_PROGRESS_DURATION;
-import static com.android.launcher3.views.FloatingIconView.getFloatingIconView;
 import static com.android.quickstep.TaskViewUtils.findTaskViewToLaunch;
 import static com.android.quickstep.util.AnimUtils.clampToDuration;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
+import static com.android.quickstep.util.FloatingIconViewHelper.getFloatingIconView;
 import static com.android.systemui.shared.system.QuickStepContract.getWindowCornerRadius;
 import static com.android.systemui.shared.system.QuickStepContract.supportsRoundedCornersOnWindows;
 import static com.android.wm.shell.Flags.enableDynamicInsetsForAppLaunch;
@@ -136,7 +135,6 @@ import com.android.launcher3.testing.shared.ResourceUtils;
 import com.android.launcher3.touch.PagedOrientationHandler;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
 import com.android.launcher3.util.ActivityOptionsWrapper;
-import com.android.launcher3.util.DynamicResource;
 import com.android.launcher3.util.RunnableList;
 import com.android.launcher3.util.StableViewInfo;
 import com.android.launcher3.views.FloatingIconView;
@@ -153,7 +151,6 @@ import com.android.quickstep.util.RectFSpringAnim;
 import com.android.quickstep.util.RectFSpringAnim.DefaultSpringConfig;
 import com.android.quickstep.util.RectFSpringAnim.TaskbarHotseatSpringConfig;
 import com.android.quickstep.util.ScalingWorkspaceRevealAnim;
-import com.android.quickstep.util.StaggeredWorkspaceAnim;
 import com.android.quickstep.util.SurfaceTransaction;
 import com.android.quickstep.util.SurfaceTransaction.SurfaceProperties;
 import com.android.quickstep.util.SurfaceTransactionApplier;
@@ -370,7 +367,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         // app transition is created.
         LauncherTaskbarUIController taskbarController = mLauncher.getTaskbarUIController();
         if (syncAppLaunchWithTaskbarStash()
-                && enableScalingRevealHomeAnimation()
                 && mLauncher.getStateManager().getState() == NORMAL
                 && taskbarController != null) {
             taskbarController.setIgnoreInAppFlagForSync(true);
@@ -434,7 +430,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         TaskViewUtils.composeRecentsLaunchAnimator(anim, v, appTargets, wallpaperTargets,
                 nonAppTargets, launcherClosing, mLauncher.getStateManager(),
                 mLauncher.getOverviewPanel(), mLauncher.getDepthController(),
-                /* transitionInfo= */ null);
+                /* transitionInfo= */ null, /* appearedTaskId= */ INVALID_TASK_ID);
     }
 
     private boolean areAllTargetsTranslucent(@NonNull RemoteAnimationTarget[] targets) {
@@ -554,8 +550,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 : new float[]{0, 1};
 
         float[] scales = isAppOpening
-                ? new float[]{1, mDeviceProfile.workspaceContentScale}
-                : new float[]{mDeviceProfile.workspaceContentScale, 1};
+                ? new float[]{1, mDeviceProfile.mWorkspaceProfile.getWorkspaceContentScale()}
+                : new float[]{mDeviceProfile.mWorkspaceProfile.getWorkspaceContentScale(), 1};
 
         // Pause expensive view updates as they can lead to layer thrashing and skipped frames.
         mLauncher.pauseExpensiveViewUpdates();
@@ -691,7 +687,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 && mDeviceProfile.isTaskbarPresent
                 && mDeviceProfile.isTaskbarPresentInApps
                 && target != null && !target.willShowImeOnTarget
-                && !isTransientTaskbar(mLauncher);
+                && !isTransientTaskbar();
     }
 
     /**
@@ -719,7 +715,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
         RectF launcherIconBounds = new RectF();
         FloatingIconView floatingView = getFloatingIconView(mLauncher, v,
-                (mLauncher.getTaskbarUIController() == null || !isTransientTaskbar(mLauncher))
+                (mLauncher.getTaskbarUIController() == null || !isTransientTaskbar())
                         ? null
                         : mLauncher.getTaskbarUIController().findMatchingView(v),
                 null /* fadeOutView */, !appTargetsAreTranslucent, launcherIconBounds,
@@ -769,8 +765,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         appAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationStart(Animator animation) {
-                LauncherTaskbarUIController taskbarController = mLauncher.getTaskbarUIController();
-                if (taskbarController != null && taskbarController.shouldShowEduOnAppLaunch()) {
+                if (shouldShowEduOnAppLaunch()) {
                     // LAUNCHER_TASKBAR_EDUCATION_SHOWING is set to true here, when the education
                     // flow is about to start, to avoid a race condition with other components
                     // that would show something else to the user as soon as the app is opened.
@@ -789,6 +784,27 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                     taskbarController.showEduOnAppLaunch();
                 }
                 openingTargets.release();
+            }
+
+            private boolean shouldShowEduOnAppLaunch() {
+                if (refactorTaskbarUiState()) {
+                    final boolean ret = newShouldShowEduOnAppLaunch();
+                    if (BuildConfig.IS_STUDIO_BUILD && ret != legacyShouldShowEduOnAppLaunch()) {
+                        throw new IllegalStateException("shouldShowEduOnAppLaunch() doesn't match");
+                    }
+                    return ret;
+                } else {
+                    return legacyShouldShowEduOnAppLaunch();
+                }
+            }
+
+            private boolean legacyShouldShowEduOnAppLaunch() {
+                return mLauncher.getTaskbarUIController() != null
+                        && mLauncher.getTaskbarUIController().shouldShowEduOnAppLaunch();
+            }
+
+            private boolean newShouldShowEduOnAppLaunch() {
+                return mLauncher.getTaskbarUiState().getShouldShowEduOnAppLaunchRef().getValue();
             }
         });
 
@@ -996,6 +1012,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             animatorSet.playTogether(appAnimator, getBackgroundAnimator());
         }
         return animatorSet;
+    }
+
+    private boolean isTransientTaskbar() {
+        return mLauncher.getTaskbarUIController().getTaskbarFeatureEvaluator().isTransient();
     }
 
     private Animator getOpeningWindowAnimatorsForWidget(LauncherAppWidgetHostView v,
@@ -1239,7 +1259,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         homeCheck.mRequirements[0].mActivityType = ACTIVITY_TYPE_HOME;
         homeCheck.mRequirements[0].mTopActivity = mLauncher.getComponentName();
         homeCheck.mRequirements[0].mModes = new int[]{TRANSIT_OPEN, TRANSIT_TO_FRONT};
-        homeCheck.mRequirements[0].mOrder = CONTAINER_ORDER_TOP;
+        if (!com.android.window.flags.Flags.polishCloseWallpaperIncludesOpenChange()) {
+            homeCheck.mRequirements[0].mOrder = CONTAINER_ORDER_TOP;
+        }
 
         homeCheck.mRequirements[1].mActivityType = ACTIVITY_TYPE_STANDARD;
         homeCheck.mRequirements[1].mModes = new int[]{TRANSIT_CLOSE, TRANSIT_TO_BACK};
@@ -1458,13 +1480,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                             ? null
                             : mLauncher.getTaskbarUIController().findMatchingView(launcherView),
                     true /* hideOriginal */, targetRect, false /* isOpening */);
-            if (launcherView.getTag() instanceof ItemInfo itemInfo) {
-                isInHotseat = itemInfo.isInHotseat();
-                if (isInHotseat) {
-                    int dx = mLauncher.getHotseatItemTranslationX(itemInfo);
-                    targetRect.offset(dx, 0);
-                }
-            }
         } else {
             targetRect.set(getDefaultWindowTargetRect());
         }
@@ -1693,8 +1708,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             float startWindowCornerRadius,
             boolean fromPredictiveBack) {
         View launcherView = findLauncherView(appTargets);
-        if (checkReturnAnimationsFlags()
-                && launcherView != null
+        if (launcherView != null
                 && launcherView.getTag() instanceof ItemInfo info
                 && info.shouldUseBackgroundAnimation()) {
             // Try to create a return animation
@@ -1734,33 +1748,19 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         boolean playWorkspaceReveal = true;
         boolean skipAllAppsScale = false;
         if (!playFallBackAnimation) {
-            PointF velocity;
-            if (enableScalingRevealHomeAnimation()) {
-                velocity = new PointF();
-            } else {
-                // Use a fixed velocity to start the animation.
-                float velocityPxPerS = DynamicResource.provider(mLauncher)
-                        .getDimension(R.dimen.unlock_staggered_velocity_dp_per_s);
-                velocity = new PointF(0, -velocityPxPerS);
-            }
             rectFSpringAnim = getClosingWindowAnimators(
-                    anim, appTargets, launcherView, velocity, startRect,
+                    anim, appTargets, launcherView, new PointF(), startRect,
                     startWindowCornerRadius);
             if (mLauncher.isInState(LauncherState.ALL_APPS)) {
                 // Skip scaling all apps, otherwise FloatingIconView will get wrong
                 // layout bounds.
                 skipAllAppsScale = true;
             } else {
-                if (enableScalingRevealHomeAnimation()) {
-                    anim.play(
-                            new ScalingWorkspaceRevealAnim(mLauncher, rectFSpringAnim,
-                                    rectFSpringAnim.getTargetRect(),
-                                    !fromPredictiveBack /* playAlphaReveal */,
-                                    true /* playBlur */).getAnimators());
-                } else {
-                    anim.play(new StaggeredWorkspaceAnim(mLauncher, velocity.y,
-                            true /* animateOverviewScrim */, launcherView).getAnimators());
-                }
+                anim.play(
+                        new ScalingWorkspaceRevealAnim(mLauncher, rectFSpringAnim,
+                                rectFSpringAnim.getTargetRect(),
+                                !fromPredictiveBack /* playAlphaReveal */,
+                                true /* playBlur */).getAnimators());
 
                 // We play StaggeredWorkspaceAnim as a part of the closing window animation.
                 playWorkspaceReveal = false;
@@ -1846,15 +1846,11 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             boolean isPersistentTaskbarAndNotInDesktopMode) {
         if (isPersistentTaskbarAndNotInDesktopMode) {
             return PINNED_TASKBAR_TRANSITION_DURATION;
-        } else if (enableScalingRevealHomeAnimation() && !shouldOverrideToFastAnimation) {
+        } else if (!shouldOverrideToFastAnimation) {
             return TASKBAR_TO_HOME_DURATION_SLOW;
         } else {
             return TASKBAR_TO_HOME_DURATION_FAST;
         }
-    }
-
-    private static boolean checkReturnAnimationsFlags() {
-        return enableContainerReturnAnimations();
     }
 
     /**
@@ -1952,7 +1948,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             }
 
             // Syncs the app launch animation and taskbar stash animation (if exists).
-            if (syncAppLaunchWithTaskbarStash() && enableScalingRevealHomeAnimation()) {
+            if (syncAppLaunchWithTaskbarStash()) {
                 LauncherTaskbarUIController taskbarController = mLauncher.getTaskbarUIController();
                 if (taskbarController != null) {
                     taskbarController.setIgnoreInAppFlagForSync(false);
@@ -1995,12 +1991,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 StartingWindowListener startingWindowListener,
                 RunnableList onEndCallback,
                 @Nullable WindowAnimationState windowState) {
-            if (!forLaunch && !checkReturnAnimationsFlags()) {
-                throw new IllegalStateException(
-                        "forLaunch cannot be false when the enableContainerReturnAnimations or "
-                                + "returnAnimationFrameworkLibrary flag is disabled");
-            }
-
             // First the controller is created. This is used by the runner to animate the
             // origin/target view.
             ActivityTransitionAnimator.Controller controller =

@@ -142,7 +142,7 @@
     <string name="allow_rotation_title" msgid="7222049633713050106">"Draaien van startscherm toestaan"</string>
     <string name="allow_rotation_desc" msgid="8662546029078692509">"Als de telefoon gedraaid is"</string>
     <string name="landscape_mode_title" msgid="5138814555934843926">"Liggende modus"</string>
-    <string name="landscape_mode_desc" msgid="3085236452297838664">"Startscherm instellen op liggende modus"</string>
+    <string name="landscape_mode_desc" msgid="3085236452297838664">"Stel startscherm in op liggende modus"</string>
     <string name="notification_dots_title" msgid="9062440428204120317">"Meldingsstipjes"</string>
     <string name="notification_dots_desc_on" msgid="1679848116452218908">"Aan"</string>
     <string name="notification_dots_desc_off" msgid="1760796511504341095">"Uit"</string>
@@ -201,7 +201,6 @@
     <string name="all_apps_work_tab_content_description" msgid="3835637212347968316">"Tabblad Werk-apps"</string>
     <string name="work_profile_toggle_label" msgid="3081029915775481146">"Werkprofiel"</string>
     <string name="work_profile_edu_work_apps" msgid="7895468576497746520">"Werk-apps hebben badges en zijn zichtbaar voor je IT-beheerder"</string>
-    <string name="work_profile_edu_accept" msgid="6069788082535149071">"OK"</string>
     <string name="work_apps_paused_title" msgid="3040901117349444598">"Werk-apps zijn gepauzeerd"</string>
     <string name="work_apps_paused_info_body" msgid="1687828929959237477">"Je krijgt geen meldingen van je werk-apps"</string>
     <string name="work_apps_paused_body" msgid="261634750995824906">"Je werk-apps kunnen je geen meldingen sturen, je batterij niet gebruiken en geen toegang krijgen tot je locatie"</string>

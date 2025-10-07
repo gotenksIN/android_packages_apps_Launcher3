@@ -29,7 +29,6 @@ import com.android.launcher3.logging.DumpManager.LauncherDumpable
 import com.android.launcher3.model.AllAppsList
 import com.android.launcher3.model.BaseLauncherBinder.BaseLauncherBinderFactory
 import com.android.launcher3.model.BgDataModel
-import com.android.launcher3.model.CacheDataUpdatedTask
 import com.android.launcher3.model.ItemInstallQueue
 import com.android.launcher3.model.LoaderTask
 import com.android.launcher3.model.LoaderTask.LoaderTaskFactory
@@ -39,11 +38,12 @@ import com.android.launcher3.model.ModelInitializer
 import com.android.launcher3.model.ModelLauncherCallbacks
 import com.android.launcher3.model.ModelTaskController
 import com.android.launcher3.model.ModelWriter
-import com.android.launcher3.model.PackageUpdatedTask
-import com.android.launcher3.model.ShortcutsChangedTask
-import com.android.launcher3.model.UserLockStateChangedTask
 import com.android.launcher3.model.UserManagerState
 import com.android.launcher3.model.data.WorkspaceItemInfo
+import com.android.launcher3.model.tasks.CacheDataUpdatedTask
+import com.android.launcher3.model.tasks.PackageUpdatedTask
+import com.android.launcher3.model.tasks.ShortcutsChangedTask
+import com.android.launcher3.model.tasks.UserLockStateChangedTask
 import com.android.launcher3.pm.UserCache
 import com.android.launcher3.shortcuts.ShortcutRequest
 import com.android.launcher3.util.DaggerSingletonTracker
@@ -283,7 +283,6 @@ constructor(
                     // For now, continue posting the binding of AllApps as there are other
                     // issues that arise from that.
                     launcherBinder.bindAllApps()
-                    launcherBinder.bindDeepShortcuts()
                     launcherBinder.bindWidgets()
                     return true
                 } else {
@@ -315,6 +314,13 @@ constructor(
             return false
         }
     }
+
+    /**
+     * Checks whether the launcher model is active.
+     *
+     * @return true if the model is loaded or if loader task is running.
+     */
+    fun isActive(): Boolean = mModelLoaded || mIsLoaderTaskRunning
 
     /**
      * Loads the model if not loaded
@@ -419,10 +425,12 @@ constructor(
     }
 
     fun updateAndBindWorkspaceItem(si: WorkspaceItemInfo, info: ShortcutInfo) {
-        enqueueModelUpdateTask { taskController, _, _ ->
+        enqueueModelUpdateTask { taskController, dataModel, _ ->
             si.updateFromDeepShortcutInfo(info, context)
             iconCache.getShortcutIcon(si, info)
             taskController.getModelWriter().updateItemInDatabase(si)
+
+            dataModel.updateItems(listOf(si), null)
             taskController.bindUpdatedWorkspaceItems(listOf(si))
         }
     }

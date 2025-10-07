@@ -41,7 +41,6 @@ import com.android.launcher3.model.data.FolderInfo
 import com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_ARCHIVED
 import com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_INSTALL_SESSION_ACTIVE
 import com.android.launcher3.model.data.WorkspaceItemInfo
-import com.android.launcher3.util.ActivityContextWrapper
 import com.android.launcher3.util.AllModulesForTest
 import com.android.launcher3.util.Executors
 import com.android.launcher3.util.Executors.MODEL_EXECUTOR
@@ -53,6 +52,7 @@ import com.android.launcher3.util.LauncherModelHelper.TEST_ACTIVITY3
 import com.android.launcher3.util.LauncherModelHelper.TEST_ACTIVITY4
 import com.android.launcher3.util.LauncherModelHelper.TEST_PACKAGE
 import com.android.launcher3.util.SandboxApplication
+import com.android.launcher3.util.TestActivityContext
 import com.android.launcher3.util.TestUtil
 import com.android.launcher3.util.UserIconInfo
 import com.google.common.truth.Truth.assertThat
@@ -68,11 +68,13 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
-import org.mockito.MockitoAnnotations
+import org.mockito.junit.MockitoJUnit
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.never
+import org.mockito.kotlin.reset
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
@@ -82,7 +84,10 @@ import org.mockito.kotlin.whenever
 class PreviewItemManagerTest {
 
     @get:Rule val context = SandboxApplication().withModelDependency()
+    @get:Rule val uiContext = TestActivityContext(context)
+
     @get:Rule val theseStateRule = ThemeStateRule()
+    @get:Rule val mockitoRule = MockitoJUnit.rule()
 
     private lateinit var previewItemManager: PreviewItemManager
     private lateinit var folderItems: ArrayList<WorkspaceItemInfo>
@@ -91,12 +96,11 @@ class PreviewItemManagerTest {
 
     @Before
     fun setup() {
-        MockitoAnnotations.initMocks(this)
         context.initDaggerComponent(DaggerPreviewItemManagerTestComponent.builder())
         theseStateRule.themeState?.let {
             LauncherPrefs.get(context).putSync(ThemeManager.THEMED_ICONS.to(it))
         }
-        folderIcon = FolderIcon(ActivityContextWrapper(context))
+        folderIcon = FolderIcon(uiContext)
 
         iconCache = LauncherAppState.INSTANCE[context].iconCache
         spyOn(iconCache)
@@ -270,6 +274,23 @@ class PreviewItemManagerTest {
         callbackCaptor.firstValue.reapplyItemInfo(folderItems[3])
         assertThat(drawingParams.drawable.getDelegate())
             .isNotInstanceOf(PlaceHolderDrawableDelegate::class.java)
+    }
+
+    @Test
+    fun `prevent recursive calls when loading high res icon`() {
+        val drawingParams = PreviewItemDrawingParams(0f, 0f, 0f)
+        folderItems[3].bitmap = BitmapInfo.LOW_RES_INFO
+
+        // Setting low res icon will trigger update
+        previewItemManager.setDrawable(drawingParams, folderItems[3])
+        val callbackCaptor = argumentCaptor<ItemInfoUpdateReceiver>()
+        verify(iconCache)
+            .updateIconInBackground(callbackCaptor.capture(), eq(folderItems[3]), any())
+
+        reset(iconCache)
+        callbackCaptor.firstValue.reapplyItemInfo(folderItems[3])
+        // Verify that no new update calls are made, if the cache returns the same low-res icon
+        verify(iconCache, never()).updateIconInBackground(any(), any(), any())
     }
 
     private fun profileFlagOp(type: Int) =

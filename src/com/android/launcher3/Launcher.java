@@ -27,7 +27,7 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
 import static com.android.launcher3.AbstractFloatingView.TYPE_WIDGETS_FULL_SHEET;
 import static com.android.launcher3.AbstractFloatingView.getTopOpenViewWithType;
 import static com.android.launcher3.Flags.allAppsBlur;
-import static com.android.launcher3.Flags.enableLongPressRemoveShortcut;
+import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherAnimUtils.HOTSEAT_SCALE_PROPERTY_FACTORY;
 import static com.android.launcher3.LauncherAnimUtils.SCALE_INDEX_WIDGET_TRANSITION;
 import static com.android.launcher3.LauncherAnimUtils.SPRING_LOADED_EXIT_DELAY;
@@ -197,11 +197,9 @@ import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.PredictedContainerInfo;
 import com.android.launcher3.model.data.WorkspaceData;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
-import com.android.launcher3.notification.NotificationListener;
 import com.android.launcher3.pm.PinRequestHelper;
 import com.android.launcher3.popup.ArrowPopup;
-import com.android.launcher3.popup.PopupDataProvider;
-import com.android.launcher3.popup.PopupDataRepository;
+import com.android.launcher3.popup.PopupController;
 import com.android.launcher3.popup.SystemShortcut;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.StateHandler;
@@ -215,7 +213,6 @@ import com.android.launcher3.touch.ItemLongClickListener;
 import com.android.launcher3.util.ActivityResultInfo;
 import com.android.launcher3.util.BackPressHandler;
 import com.android.launcher3.util.CannedAnimationCoordinator;
-import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.ContextTracker;
 import com.android.launcher3.util.IntSet;
 import com.android.launcher3.util.ItemInflater;
@@ -253,7 +250,7 @@ import com.android.launcher3.widget.custom.CustomWidgetManager;
 import com.android.launcher3.widget.model.WidgetsListBaseEntry;
 import com.android.launcher3.widget.picker.WidgetsFullSheet;
 import com.android.launcher3.widget.picker.model.WidgetPickerDataProvider;
-import com.android.launcher3.widget.util.WidgetSizes;
+import com.android.launcher3.widget.util.WidgetSizeHandler;
 import com.android.systemui.plugins.LauncherOverlayPlugin;
 import com.android.systemui.plugins.PluginListener;
 import com.android.systemui.plugins.shared.LauncherOverlayManager;
@@ -263,7 +260,6 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -316,6 +312,8 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     private final ModelCallbacks mModelCallbacks = createModelCallbacks();
 
+    public final LauncherUiState launcherUiState = new LauncherUiState();
+
     private final KeyboardShortcutsDelegate mKeyboardShortcutsDelegate =
             new KeyboardShortcutsDelegate(this);
 
@@ -359,9 +357,9 @@ public class Launcher extends StatefulActivity<LauncherState>
     private ModelWriter mModelWriter;
     private LauncherAccessibilityDelegate mAccessibilityDelegate;
 
-    private PopupDataProvider mPopupDataProvider;
+    private PopupController<Launcher> mPopupControllerForHomeScreenItems;
+    private PopupController<Launcher> mPopupControllerForAppIcons;
 
-    private PopupDataRepository mPopupDataRepository;
     private WidgetPickerDataProvider mWidgetPickerDataProvider;
 
     // We only want to get the SharedPreferences once since it does an FS stat each time we get
@@ -444,6 +442,9 @@ public class Launcher extends StatefulActivity<LauncherState>
         initDragController();
         mAllAppsController = new AllAppsTransitionController(this);
         mStateManager = new StateManager<>(this, NORMAL);
+        if (refactorTaskbarUiState()) {
+            mStateManager.setLauncherUiState(launcherUiState);
+        }
 
         mAppWidgetManager = new WidgetManagerHelper(this);
         mAppWidgetHolder = LauncherWidgetHolder.newInstance(this);
@@ -455,12 +456,15 @@ public class Launcher extends StatefulActivity<LauncherState>
 
         mAppWidgetHolder.startListening();
         mAppWidgetHolder.addProviderChangeListener(() -> refreshAndBindWidgetsForPackageUser(null));
-        mItemInflater = new ItemInflater<>(this, mAppWidgetHolder, getItemOnClickListener(),
-                mFocusHandler, new CellLayout(mWorkspace.getContext(), mWorkspace));
         mWidgetVisibilityTracker = new WidgetVisibilityTracker(this, mAppWidgetHolder, mWorkspace,
             mStateManager);
 
-        mPopupDataProvider = new PopupDataProvider(this);
+        mPopupControllerForHomeScreenItems =
+                PopupController.PopupControllerFactory.createPopupController(
+                        LauncherComponentProvider.get(this).getPopupDataRepository(),
+                        getDragController());
+        mPopupControllerForAppIcons = PopupController.PopupControllerFactory
+                .createPopupController();
         mWidgetPickerDataProvider = new WidgetPickerDataProvider();
         PillColorProvider.getInstance(mWorkspace.getContext()).registerObserver();
 
@@ -709,6 +713,9 @@ public class Launcher extends StatefulActivity<LauncherState>
         }
 
         mDeviceProfile = deviceProfile;
+        if (refactorTaskbarUiState()) {
+            launcherUiState.setDeviceProfile(deviceProfile);
+        }
 
         if (FOLDABLE_SINGLE_PAGE.get() && mDeviceProfile.getDeviceProperties().isTwoPanels()) {
             mCellPosMapper = new TwoPanelCellPosMapper(mDeviceProfile.inv.numColumns);
@@ -976,7 +983,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         hideKeyboard();
         logStopAndResume(false /* isResume */);
         mAppWidgetHolder.setActivityStarted(false);
-        NotificationListener.removeNotificationsChangedListener(getPopupDataProvider());
         FloatingIconView.resetIconLoadResult();
         AccessibilityManagerCompat.sendTestProtocolEventToTest(
                 this, LAUNCHER_ACTIVITY_STOPPED_MESSAGE);
@@ -1005,9 +1011,6 @@ public class Launcher extends StatefulActivity<LauncherState>
 
         // Refresh shortcuts if the permission changed.
         mModel.validateModelDataOnResume();
-
-        // Set the notification listener and fetch updated notifications when we resume
-        NotificationListener.addNotificationsChangedListener(mPopupDataProvider);
 
         DiscoveryBounce.showForHomeIfNeeded(this);
         mAppWidgetHolder.setActivityResumed(true);
@@ -1160,7 +1163,7 @@ public class Launcher extends StatefulActivity<LauncherState>
         if (ALL_APPS.equals(mPrevLauncherState) && !ALL_APPS.equals(state)
                 // Making sure mAllAppsSessionLogId is not null to avoid double logging.
                 && mAllAppsSessionLogId != null) {
-            getAppsView().reset(false);
+            getAppsView().reset(false /* animate */, true /* clearScrim */);
             getAllAppsExitEvent().ifPresent(getStatsLogManager().logger()::log);
             mAllAppsSessionLogId = null;
         }
@@ -1297,6 +1300,9 @@ public class Launcher extends StatefulActivity<LauncherState>
                 this, R.attr.isWorkspaceDarkText) ? Color.BLACK : Color.WHITE);
 
         mDepthBlurTargets = List.of(mWorkspace, mHotseat);
+
+        mItemInflater = new ItemInflater<>(this, mAppWidgetHolder, getItemOnClickListener(),
+                mFocusHandler, new CellLayout(mWorkspace.getContext(), mWorkspace));
     }
 
     /**
@@ -1422,12 +1428,11 @@ public class Launcher extends StatefulActivity<LauncherState>
                     (LauncherAppWidgetInfo) reInflatedHostView.getTag(),
                     presenterPos);
             // We always update widget size after re-inflating PendingAppWidgetHostView
-            WidgetSizes.updateWidgetSizeRanges(
-                    reInflatedHostView, this, itemInfo.spanX, itemInfo.spanY);
+            WidgetSizeHandler.updateSizeRanges(reInflatedHostView, itemInfo.spanX, itemInfo.spanY);
             return;
         }
         if (updateWidgetSize) {
-            WidgetSizes.updateWidgetSizeRanges(hostView, this, itemInfo.spanX, itemInfo.spanY);
+            WidgetSizeHandler.updateSizeRanges(hostView, itemInfo.spanX, itemInfo.spanY);
         }
         if (itemInfo instanceof PendingAddWidgetInfo) {
             launcherInfo.sourceContainer = ((PendingAddWidgetInfo) itemInfo).sourceContainer;
@@ -1543,7 +1548,8 @@ public class Launcher extends StatefulActivity<LauncherState>
 
                 // Reset the apps view
                 if (!alreadyOnHome) {
-                    mAppsView.reset(isStarted() /* animate */);
+                    mAppsView.reset(mStateManager.shouldAnimateStateChange() /* animate */,
+                            false /* clearScrim */);
                 }
 
                 if (shouldMoveToDefaultScreen && !mWorkspace.isHandlingTouch()) {
@@ -2048,6 +2054,15 @@ public class Launcher extends StatefulActivity<LauncherState>
             return result;
         }
 
+        if (shouldShowHomeBehindDesktop() && isInState(ALL_APPS)) {
+            // On desktop form factor, first wait for the all apps page to close and then launch
+            // the activity.
+            getStateManager().goToState(NORMAL, forEndCallback(() -> {
+                startActivitySafely(v, intent, item);
+            }));
+            return null;
+        }
+
         RunnableList result = super.startActivitySafely(v, intent, item);
         if (result != null && v instanceof BubbleTextView) {
             // This is set to the view that launched the activity that navigated the user away
@@ -2094,9 +2109,6 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     @Override
     public void bindCompleteModelAsync(WorkspaceData itemIdMap, boolean isBindingSync) {
-        mPopupDataRepository = PopupDataRepository.PopupDataRepositoryFactory
-                .createRepository(itemIdMap.stream().toArray(ItemInfo[]:: new));
-        mPopupDataRepository.getAllPopupData();
         mModelCallbacks.bindCompleteModelAsync(itemIdMap, isBindingSync);
     }
 
@@ -2335,15 +2347,6 @@ public class Launcher extends StatefulActivity<LauncherState>
     public void bindAllApplications(AppInfo[] apps, int flags,
             Map<PackageUserKey, Integer> packageUserKeytoUidMap) {
         mModelCallbacks.bindAllApplications(apps, flags, packageUserKeytoUidMap);
-        Trace.endAsyncSection(DISPLAY_ALL_APPS_TRACE_METHOD_NAME, SINGLE_TRACE_COOKIE);
-    }
-
-    /**
-     * See {@code LauncherBindingDelegate}
-     */
-    @Override
-    public void bindDeepShortcutMap(HashMap<ComponentKey, Integer> deepShortcutMapCopy) {
-        mModelCallbacks.bindDeepShortcutMap(deepShortcutMapCopy);
     }
 
     @Override
@@ -2382,9 +2385,6 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     /** Called to updated any prediction info by the {@link #mModelCallbacks} */
     public void bindPredictedContainerInfo(PredictedContainerInfo info) { }
-
-    /** Called after an item is pinned using the context menu. */
-    public void onItemPinnedFromContextMenu() {}
 
     /**
      * @param packageUser if null, refreshes all widgets and shortcuts, otherwise only
@@ -2452,7 +2452,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         // Extra logging for general debugging
         mDragLayer.dump(prefix, writer);
         mStateManager.dump(prefix, writer);
-        mPopupDataProvider.dump(prefix, writer);
         mWidgetPickerDataProvider.dump(prefix, writer);
         mDeviceProfile.dump(this, prefix, writer);
         mAppsView.getAppsStore().dump(prefix, writer);
@@ -2470,6 +2469,9 @@ public class Launcher extends StatefulActivity<LauncherState>
         mOverlayManager.dump(prefix, writer);
         ACTIVITY_TRACKER.dump(prefix, writer);
         LauncherComponentProvider.get(this).getDumpManager().dump(prefix, writer, args);
+
+        // Dump the SystemUIController
+        getSystemUiController().dump(writer);
     }
 
     /**
@@ -2751,15 +2753,12 @@ public class Launcher extends StatefulActivity<LauncherState>
         return mStateManager;
     }
 
-    @NonNull
-    @Override
-    public PopupDataProvider getPopupDataProvider() {
-        return mPopupDataProvider;
+    public PopupController<Launcher> getPopupControllerForHomeScreenItems() {
+        return mPopupControllerForHomeScreenItems;
     }
 
-    @NonNull
-    public PopupDataRepository getPopupDataRepository() {
-        return mPopupDataRepository;
+    public PopupController<Launcher> getPopupControllerForAppIcons() {
+        return mPopupControllerForAppIcons;
     }
 
     @NonNull
@@ -2870,8 +2869,7 @@ public class Launcher extends StatefulActivity<LauncherState>
      * @return a stream of supported system shortcuts.
      */
     public Stream<SystemShortcut.Factory> getSupportedShortcuts(int container) {
-        if (enableLongPressRemoveShortcut()
-                && (container == CONTAINER_DESKTOP || container == CONTAINER_HOTSEAT)) {
+        if (container == CONTAINER_DESKTOP || container == CONTAINER_HOTSEAT) {
             return Stream.of(APP_INFO, WIDGETS, INSTALL, REMOVE);
         }
         return Stream.of(APP_INFO, WIDGETS, INSTALL);

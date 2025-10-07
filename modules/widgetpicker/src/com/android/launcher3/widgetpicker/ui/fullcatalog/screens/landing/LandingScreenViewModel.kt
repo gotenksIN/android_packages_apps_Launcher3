@@ -31,12 +31,15 @@ import com.android.launcher3.widgetpicker.shared.model.WidgetId
 import com.android.launcher3.widgetpicker.shared.model.WidgetPreview
 import com.android.launcher3.widgetpicker.shared.model.WidgetUserProfile
 import com.android.launcher3.widgetpicker.shared.model.WidgetUserProfileType
+import com.android.launcher3.widgetpicker.shared.model.isAppWidget
+import com.android.launcher3.widgetpicker.shared.model.isShortcut
 import com.android.launcher3.widgetpicker.ui.ViewModel
 import com.android.launcher3.widgetpicker.ui.model.DisplayableWidgetApp
 import com.android.launcher3.widgetpicker.ui.model.DisplayableWidgetApp.Companion.getWidgetIdsForApp
 import com.android.launcher3.widgetpicker.ui.model.WidgetSizeGroup
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -62,6 +65,9 @@ constructor(
             awaitCancellation()
         }
     }
+
+    private var uiReady by mutableStateOf(false)
+    private var pendingUpdate = AtomicReference<(() -> Unit)?>(null)
 
     /** Section within the landing screen that is currently showing. */
     var selectedSubSection by mutableStateOf(LandingScreenSubSection.FEATURED)
@@ -127,6 +133,20 @@ constructor(
     var featuredWidgetPreviewsState by mutableStateOf(PreviewsState())
         private set
 
+    private fun postUpdateOnUiReady(block: () -> Unit) {
+        if (uiReady) {
+            block()
+        } else {
+            pendingUpdate.set(block)
+        }
+    }
+
+    fun onUiReady() {
+        pendingUpdate.get()?.invoke()
+        pendingUpdate.set(null)
+        uiReady = true
+    }
+
     private suspend fun initBrowseWidgets() {
         widgetsInteractor.getWidgetAppsByProfile().collect { result ->
             val personalEntry =
@@ -177,26 +197,35 @@ constructor(
 
     private suspend fun initFeaturedWidgets() {
         widgetsInteractor.getFeaturedWidgets().collect { result ->
-            featuredWidgetsState =
+            val widgetsState =
                 FeaturedWidgetsState(
-                    result
-                        .groupBy {
-                            Pair(it.sizeInfo.containerWidthPx, it.sizeInfo.containerHeightPx)
-                        }
-                        .map { (containerSize, value) ->
-                            WidgetSizeGroup(
-                                previewContainerWidthPx = containerSize.first,
-                                previewContainerHeightPx = containerSize.second,
-                                widgets = value,
-                            )
-                        },
-                    result.size,
+                    sizeGroups =
+                        result
+                            .groupBy {
+                                Pair(it.sizeInfo.containerWidthPx, it.sizeInfo.containerHeightPx)
+                            }
+                            .map { (containerSize, value) ->
+                                WidgetSizeGroup(
+                                    previewContainerWidthPx = containerSize.first,
+                                    previewContainerHeightPx = containerSize.second,
+                                    widgets = value,
+                                )
+                            },
+                    widgetsCount = result.count { it.widgetInfo.isAppWidget() },
+                    shortcutsCount = result.count { it.widgetInfo.isShortcut() },
                 )
 
-            featuredWidgetPreviewsState =
+            val previewsState =
                 PreviewsState(
                     result.associate { res -> res.id to widgetsInteractor.getWidgetPreview(res.id) }
                 )
+
+            // Since rendering widgets is expensive, bind featured widgets only once the animations
+            // for the landing screen are complete.
+            postUpdateOnUiReady {
+                featuredWidgetsState = widgetsState
+                featuredWidgetPreviewsState = previewsState
+            }
         }
         awaitCancellation()
     }
@@ -294,12 +323,15 @@ sealed class BrowseWidgetsState {
  *   manner in the featured section.
  * @param widgetsCount total count of widgets in the size groups (pre-computed so UI doesn't need to
  *   count).
+ * @param shortcutsCount total count of shortcuts in the size groups (pre-computed so UI doesn't
+ *   need to count).
  */
 @Stable
 @Immutable
 data class FeaturedWidgetsState(
     val sizeGroups: List<WidgetSizeGroup> = emptyList(),
     val widgetsCount: Int = 0,
+    val shortcutsCount: Int = 0,
 )
 
 /**

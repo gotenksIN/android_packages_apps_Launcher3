@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.BottomSheetDismissDimensions.NOT_VISIBLE_PREDICTIVE_BACK_SCALE
+import com.android.launcher3.widgetpicker.ui.components.bottomsheet.BottomSheetDismissDimensions.OFFSET_DIFF_TO_TRIGGER_DISMISS_CALLBACK
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.BottomSheetDismissDimensions.PredictiveBackContentTransformOrigin
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.BottomSheetDismissDimensions.SETTLE_ANIMATION_SPEC
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.BottomSheetDismissDimensions.VISIBLE_PREDICTIVE_BACK_SCALE
@@ -49,6 +50,7 @@ import com.android.launcher3.widgetpicker.ui.components.bottomsheet.BottomSheetD
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.BottomSheetDismissDimensions.predictiveBackMaxScaleYDistance
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.BottomSheetDismissDimensions.sheetPositionalThreshold
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlinx.coroutines.cancel
@@ -61,17 +63,23 @@ import kotlinx.coroutines.launch
  *
  * Use in combination with [dismissableBottomSheetContent] that's applied on the content.
  *
+ * @param onSheetOpen callback invoked when sheet is fully opened first time.
  * @param onDismissSheet final callback invoked when the sheet has settled animating after a gesture
  *   that led to dismissing the sheet.
  * @param maxHeight max height available for the sheet
+ * @param enableNestedScrolling whether to support nested scrolling; can be set to false when using
+ *   accessibility services.
  */
 fun Modifier.dismissibleBottomSheet(
     sheetState: BottomSheetDismissState,
+    onSheetOpen: () -> Unit,
     onDismissSheet: () -> Unit,
     maxHeight: Float,
+    enableNestedScrolling: Boolean = true,
 ): Modifier = composed {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
+
     val flingBehavior =
         AnchoredDraggableDefaults.flingBehavior(
             state = sheetState.anchoredDraggableState,
@@ -93,18 +101,46 @@ fun Modifier.dismissibleBottomSheet(
                 BottomSheetNestedScrollConnection(
                     sheetState = sheetState,
                     flingBehavior = flingBehavior,
+                    enabled = enableNestedScrolling,
                 )
             )
 
     LaunchedEffect(Unit) { sheetState.expand() }
 
-    LaunchedEffect(sheetState) {
+    LaunchedEffect(sheetState, maxHeight) {
         var previous = SheetPositionValue.COLLAPSED
         snapshotFlow { sheetState.anchoredDraggableState.currentValue }
             .collect {
                 if (previous == SheetPositionValue.EXPANDED && it == SheetPositionValue.COLLAPSED) {
-                    onDismissSheet()
-                    cancel()
+                    // We are about to close, monitor close offset and dismiss sheet once almost
+                    // down.
+                    snapshotFlow { sheetState.anchoredDraggableState.offset }
+                        .collect { offset ->
+                            val offsetRemaining = abs(offset - maxHeight)
+                            if (offsetRemaining < OFFSET_DIFF_TO_TRIGGER_DISMISS_CALLBACK) {
+                                onDismissSheet()
+                                cancel()
+                            }
+                        }
+                }
+                previous = it
+            }
+    }
+
+    LaunchedEffect(sheetState) {
+        var previous = SheetPositionValue.COLLAPSED
+        snapshotFlow { sheetState.anchoredDraggableState.currentValue }
+            .collect {
+                if (previous == SheetPositionValue.COLLAPSED && it == SheetPositionValue.EXPANDED) {
+                    // We are about to open, monitor close offset and invoke sheet open callback
+                    // once fully open
+                    snapshotFlow { sheetState.anchoredDraggableState.offset }
+                        .collect { offset ->
+                            if (offset <= 5f) {
+                                onSheetOpen()
+                                cancel()
+                            }
+                        }
                 }
                 previous = it
             }
@@ -115,7 +151,7 @@ fun Modifier.dismissibleBottomSheet(
             // Gesture start
             progress.collect { backEvent ->
                 val currentProgress = backEvent.progress
-                scope.launch { sheetState.predictiveBackProgress.snapTo(currentProgress) }
+                scope.launch { sheetState.backProgress.snapTo(currentProgress) }
             }
 
             // Gesture completed, let's settle
@@ -126,12 +162,7 @@ fun Modifier.dismissibleBottomSheet(
                 .invokeOnCompletion { onDismissSheet() }
         } catch (e: CancellationException) {
             // Cancel gesture
-            scope.launch {
-                sheetState.predictiveBackProgress.animateTo(
-                    targetValue = 0f,
-                    animationSpec = SETTLE_ANIMATION_SPEC,
-                )
-            }
+            scope.launch { sheetState.settleProgress() }
         }
     }
 
@@ -139,8 +170,8 @@ fun Modifier.dismissibleBottomSheet(
         val sheetOffset = sheetState.anchoredDraggableState.requireOffset()
 
         if (maxHeight != 0f) {
-            scaleX = calculatePredictiveBackScaleX(sheetState.predictiveBackProgress.value)
-            scaleY = calculatePredictiveBackScaleY(sheetState.predictiveBackProgress.value)
+            scaleX = calculatePredictiveBackScaleX(sheetState.backProgress.value)
+            scaleY = calculatePredictiveBackScaleY(sheetState.backProgress.value)
             transformOrigin =
                 TransformOrigin(
                     pivotFractionX = 0.5f,
@@ -156,7 +187,7 @@ fun Modifier.dismissibleBottomSheet(
  */
 fun Modifier.dismissableBottomSheetContent(sheetState: BottomSheetDismissState): Modifier {
     return this.graphicsLayer {
-        val progress = sheetState.predictiveBackProgress.value
+        val progress = sheetState.backProgress.value
         val predictiveBackScaleX = calculatePredictiveBackScaleX(progress)
         val predictiveBackScaleY = calculatePredictiveBackScaleY(progress)
 
@@ -202,7 +233,7 @@ private fun calculateContentPredictiveBackScaleY(sheetScaleX: Float, sheetScaleY
         VISIBLE_PREDICTIVE_BACK_SCALE
     }
 
-private object BottomSheetDismissDimensions {
+internal object BottomSheetDismissDimensions {
     val sheetPositionalThreshold = 56.dp
 
     val predictiveBackMaxScaleXDistance = 48.dp
@@ -212,7 +243,7 @@ private object BottomSheetDismissDimensions {
 
     // Scale that essentially makes content disappear
     const val NOT_VISIBLE_PREDICTIVE_BACK_SCALE = 0f
-    const val DEFAULT_PREDICTIVE_BACK_SCALE = 1f
+    private const val DEFAULT_PREDICTIVE_BACK_SCALE = 1f
     const val VISIBLE_PREDICTIVE_BACK_SCALE = DEFAULT_PREDICTIVE_BACK_SCALE
 
     fun Float.isInvalidSize() = this.isNaN() || this == 0f
@@ -220,4 +251,7 @@ private object BottomSheetDismissDimensions {
     /** Animation spec to use for settling the sheet after a gesture / fling. */
     val SETTLE_ANIMATION_SPEC: AnimationSpec<Float> =
         tween(durationMillis = 267, easing = LinearOutSlowInEasing)
+
+    /** Offset closer to dismissal when we should invoke the dismiss callback. */
+    const val OFFSET_DIFF_TO_TRIGGER_DISMISS_CALLBACK = 5
 }

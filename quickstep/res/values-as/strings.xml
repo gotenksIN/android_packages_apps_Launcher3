@@ -96,7 +96,10 @@
     <string name="allset_navigation_settings" msgid="4713404605961476027"><annotation id="link">"ছিষ্টেম নেভিগেশ্বনৰ ছেটিং"</annotation></string>
     <string name="allset_title_expressive" msgid="474399969304146994">"আপোনাৰ <xliff:g id="DEVICE">%1$s</xliff:g>টো \nসাজু হৈছে!"</string>
     <string name="allset_title_expressive_fallback" msgid="2829102990606405239">"আপোনাৰ ডিভাইচটো \nসাজু হৈছে!"</string>
+    <string name="allset_title_expressive_fixed" msgid="3564219469262883526">"আপুনি ব্যৱহাৰ কৰিবলৈ সাজু!"</string>
     <string name="allset_subtitle_expressive" msgid="419688197551192358">"আপোনাৰ নতুন <xliff:g id="DEVICE">%1$s</xliff:g>টো উপভোগ কৰক!"</string>
+    <string name="allset_subtitle_expressive_gesture_navigation" msgid="8931442349501593934">"আপোনাৰ <xliff:g id="DEVICE">%1$s</xliff:g> ব্যৱহাৰ কৰা আৰম্ভ কৰিবলৈ ওপৰলৈ ছোৱাইপ কৰক"</string>
+    <string name="allset_subtitle_expressive_button_navigation" msgid="5219509605046028014">"আপোনাৰ <xliff:g id="DEVICE">%1$s</xliff:g> ব্যৱহাৰ কৰা আৰম্ভ কৰিবলৈ টিপক"</string>
     <string name="allset_navigation_settings_expressive" msgid="3745595273748356"><annotation id="link">"নেভিগে’ট কেনেকৈ কৰিব লাগে বাছনি কৰক"</annotation></string>
     <string name="allset_hint_expressive" msgid="756856423510976261">"ওপৰলৈ ছোৱাইপ কৰক"</string>
     <string name="allset_button_hint_expressive" msgid="667643693410494225">"বুটামটোত টিপক"</string>
@@ -147,6 +150,10 @@
     <string name="change_navigation_mode" msgid="9088393078736808968">"নেভিগেশ্বন ম’ড সলনি কৰক"</string>
     <string name="taskbar_divider_a11y_title" msgid="6608690309720242080">"টাস্কবাৰ বিভাজক"</string>
     <string name="taskbar_overflow_a11y_title" msgid="8114045167370723746">"অন্য শেহতীয়া এপ্‌"</string>
+    <!-- no translation found for app_added_to_taskbar (1160433791917609063) -->
+    <skip />
+    <!-- no translation found for app_removed_from_taskbar (7887298201562912487) -->
+    <skip />
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"ওপৰৰ বাঁওফাললৈ নিয়ক"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"তলৰ সোঁফাললৈ নিয়ক"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"বাবল হিচাপে এপ্‌টো খোলক"</string>

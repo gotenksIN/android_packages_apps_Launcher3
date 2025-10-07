@@ -67,7 +67,7 @@ class BgDataModel
 constructor(
     /** Entire list of widgets. */
     @JvmField val widgetsModel: WidgetsModel,
-    homeDataProvider: Provider<HomeScreenRepository?>,
+    private val repo: Provider<HomeScreenRepository>,
     dumpManager: DumpManager,
     lifeCycle: DaggerSingletonTracker,
 ) : LauncherDumpable {
@@ -86,12 +86,12 @@ constructor(
     val extraItems = IntSparseArrayMap<FixedContainerItems>()
 
     /** Maps all launcher activities to counts of their shortcuts. */
-    @JvmField val deepShortcutMap = HashMap<ComponentKey, Int>()
+    var deepShortcutMap: Map<ComponentKey, Int> = emptyMap()
+        private set
 
     /** Cache for strings used in launcher */
-    @JvmField val stringCache = StringCache()
-
-    private val repo = if (Flags.modelRepository()) homeDataProvider.get() else null
+    var stringCache = StringCache.EMPTY
+        private set
 
     /** Id when the model was last bound */
     @JvmField var lastBindId: Int = 0
@@ -106,7 +106,7 @@ constructor(
     /** Clears all the data */
     @Synchronized
     fun clear() {
-        deepShortcutMap.clear()
+        deepShortcutMap = emptyMap()
         extraItems.clear()
     }
 
@@ -159,8 +159,8 @@ constructor(
     }
 
     private fun updateHomeRepository() {
-        if (Flags.modelRepository() && repo != null) {
-            repo.dispatchChange(mutableWorkspaceData.copy())
+        if (Flags.modelRepository()) {
+            repo.get().dispatchWorkspaceDataChange(mutableWorkspaceData.copy())
         }
     }
 
@@ -207,6 +207,16 @@ constructor(
         for (user in UserCache.INSTANCE[context].userProfiles) {
             updateShortcutPinnedState(context, user)
         }
+    }
+
+    /** Reloads the [stringCache] */
+    fun updateStringCache(context: Context) {
+        stringCache = StringCache.fromContext(context)
+        if (Flags.modelRepository()) repo.get().dispatchStringCacheChange(stringCache)
+    }
+
+    fun notifyWidgetsUpdate(allWidgets: List<WidgetsListBaseEntry>) {
+        if (Flags.modelRepository()) repo.get().dispatchWidgetsChange(allWidgets)
     }
 
     /**
@@ -313,15 +323,13 @@ constructor(
      * Clear all the deep shortcut counts for the given package, and re-add the new shortcut counts.
      */
     @Synchronized
+    @JvmOverloads
     fun updateDeepShortcutCounts(
-        packageName: String?,
-        user: UserHandle,
         shortcuts: List<ShortcutInfo>,
+        keysToRemove: ((ComponentKey) -> Boolean)? = null,
     ) {
-        if (packageName != null) {
-            deepShortcutMap.keys.removeAll {
-                it.componentName.packageName == packageName && it.user == user
-            }
+        if (keysToRemove != null) {
+            deepShortcutMap = deepShortcutMap.filterKeys { !keysToRemove.invoke(it) }
         }
 
         // Now add the new shortcuts to the map.
@@ -404,8 +412,6 @@ constructor(
 
         /** Binds the app widgets to the providers that share widgets with the UI. */
         fun bindAllWidgets(widgets: List<@JvmSuppressWildcards WidgetsListBaseEntry>) {}
-
-        fun bindDeepShortcutMap(deepShortcutMap: HashMap<ComponentKey, Int>) {}
 
         /** Binds extra item provided any external source */
         fun bindExtraContainerItems(item: FixedContainerItems) {}

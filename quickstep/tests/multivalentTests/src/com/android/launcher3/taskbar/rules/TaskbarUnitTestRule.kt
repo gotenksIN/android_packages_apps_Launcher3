@@ -19,6 +19,7 @@ package com.android.launcher3.taskbar.rules
 import android.app.Instrumentation
 import android.app.PendingIntent
 import android.content.IIntentSender
+import android.os.UserHandle
 import android.os.UserManager
 import android.provider.Settings.Secure.NAV_BAR_KIDS_MODE
 import android.provider.Settings.Secure.USER_SETUP_COMPLETE
@@ -131,8 +132,13 @@ class TaskbarUnitTestRule(
 
                 val isUserUnlocked = description.getAnnotation(UserLocked::class.java) == null
                 context.base.spyService(UserManager::class.java).stub {
-                    on { isUserUnlocked(any<Int>()) } doAnswer { isUserUnlocked }
-                    on { isUserUnlockingOrUnlocked(any<Int>()) } doAnswer { isUserUnlocked }
+                    doAnswer { isUserUnlocked }.whenever(mock).isUserUnlocked(any<Int>())
+                    doAnswer { isUserUnlocked }.whenever(mock).isUserUnlockingOrUnlocked(any<Int>())
+                    // Needed because the Robolectric version does not overload to the ID method.
+                    doAnswer { isUserUnlocked }.whenever(mock).isUserUnlocked(any<UserHandle>())
+                    doAnswer { isUserUnlocked }
+                        .whenever(mock)
+                        .isUserUnlockingOrUnlocked(any<UserHandle>())
                 }
 
                 taskbarManager =

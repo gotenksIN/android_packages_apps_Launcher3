@@ -20,7 +20,6 @@ import static android.platform.test.flag.junit.SetFlagsRule.DefaultInitValueType
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 import static com.android.launcher3.AbstractFloatingView.TYPE_SNACKBAR;
-import static com.android.launcher3.Flags.FLAG_ENABLE_DISMISS_PREDICTION_UNDO;
 import static com.android.launcher3.Flags.FLAG_ENABLE_PRIVATE_SPACE;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION;
@@ -39,6 +38,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -74,7 +74,7 @@ import com.android.launcher3.util.AllModulesForTest;
 import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.LauncherMultivalentJUnit;
 import com.android.launcher3.util.SandboxApplication;
-import com.android.launcher3.util.TestSandboxModelContextWrapper;
+import com.android.launcher3.util.TestActivityContext;
 import com.android.launcher3.util.TestUtil;
 import com.android.launcher3.util.UserIconInfo;
 import com.android.launcher3.views.Snackbar;
@@ -91,19 +91,22 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Answers;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 @SmallTest
 @RunWith(LauncherMultivalentJUnit.class)
 public class SystemShortcutTest {
     @Rule public final SetFlagsRule mSetFlagsRule = new SetFlagsRule(DEVICE_DEFAULT);
-    @Rule public final SandboxApplication mSandboxContext = new SandboxApplication();
+    @Rule public MockitoRule mockitoRule = MockitoJUnit.rule();
+    @Rule public final SandboxApplication mSandboxContext = spy(new SandboxApplication());
+    @Rule public final TestActivityContext mTestContext =
+            spy(new TestActivityContext(mSandboxContext));
 
     private static final UserHandle PRIVATE_HANDLE = new UserHandle(11);
     private static final UserHandle MAIN_HANDLE = Process.myUserHandle();
     private View mView;
     private ItemInfo mItemInfo;
-    private TestSandboxModelContextWrapper mTestContext;
     private PrivateProfileManager mPrivateProfileManager;
     private WidgetPickerDataProvider mWidgetPickerDataProvider;
     private AppInfo mAppInfo;
@@ -118,17 +121,11 @@ public class SystemShortcutTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         mSandboxContext.initDaggerComponent(
                 DaggerSystemShortcutTest_TestComponent.builder().bindUserCache(mUserCache)
         );
-        mTestContext = new TestSandboxModelContextWrapper(mSandboxContext) {
-            @Override
-            public StatsLogManager getStatsLogManager() {
-                return mStatsLogManager;
-            }
-        };
-        spyOn(mSandboxContext);
+        doReturn(mStatsLogManager).when(mTestContext).getStatsLogManager();
+
         doReturn(mStatsLogger).when(mStatsLogManager).logger();
 
         mView = new View(mTestContext);
@@ -187,25 +184,6 @@ public class SystemShortcutTest {
     }
 
     @Test
-    @DisableFlags(FLAG_ENABLE_DISMISS_PREDICTION_UNDO)
-    public void testDontSuggestAppForPredictedItem() {
-        mAppInfo = new AppInfo();
-        mAppInfo.componentName = new ComponentName(mTestContext, getClass());
-        mAppInfo.container = CONTAINER_HOTSEAT_PREDICTION;
-        assertTrue(mAppInfo.isPredictedItem());
-        SystemShortcut systemShortcut = SystemShortcut.DONT_SUGGEST_APP
-                .getShortcut(mTestContext, mAppInfo, mView);
-        assertNotNull(systemShortcut);
-
-        TestUtil.runOnExecutorSync(MAIN_EXECUTOR, () -> systemShortcut.onClick(mView));
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-
-        verify(mStatsLogger).log(eq(LAUNCHER_SYSTEM_SHORTCUT_DONT_SUGGEST_APP_TAP));
-        assertFalse(AbstractFloatingView.hasOpenView(mTestContext, TYPE_SNACKBAR));
-    }
-
-    @Test
-    @EnableFlags(FLAG_ENABLE_DISMISS_PREDICTION_UNDO)
     public void testDontSuggestAppForPredictedItemWithUndo() {
         mAppInfo = new AppInfo();
         mAppInfo.componentName = new ComponentName(mTestContext, getClass());

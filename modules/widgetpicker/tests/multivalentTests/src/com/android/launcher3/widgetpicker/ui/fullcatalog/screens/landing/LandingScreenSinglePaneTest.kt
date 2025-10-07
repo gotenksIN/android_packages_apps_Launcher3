@@ -21,6 +21,8 @@ import android.platform.test.rule.DeviceProduct
 import android.platform.test.rule.LimitDevicesRule
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -130,6 +132,8 @@ class LandingScreenSinglePaneTest {
                 viewModel = viewModel,
             )
         }
+
+        LaunchedEffect(Unit) { viewModel.onUiReady() }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -163,12 +167,20 @@ class LandingScreenSinglePaneTest {
             composeTestRule.waitForIdle()
 
             // Toolbar tabs state
-            composeTestRule.onNode(hasTextExactly(featuredTabLabel)).assertIsSelected()
+            composeTestRule
+                .onNode(hasTextExactly(featuredTabLabel))
+                .assertIsSelected()
+                .assertContentDescriptionEquals("$featuredTabLabel widgets")
             composeTestRule
                 .onNode(hasTextExactly(PERSONAL_LABEL))
                 .assertExists()
+                .assertContentDescriptionEquals("$PERSONAL_LABEL widgets")
                 .assertIsNotSelected()
-            composeTestRule.onNode(hasTextExactly(WORK_LABEL)).assertExists().assertIsNotSelected()
+            composeTestRule
+                .onNode(hasTextExactly(WORK_LABEL))
+                .assertExists()
+                .assertContentDescriptionEquals("$WORK_LABEL widgets")
+                .assertIsNotSelected()
             // Featured Widgets state
             composeTestRule
                 .onNode(hasContentDescription(featuredWidgetA.label, substring = true))

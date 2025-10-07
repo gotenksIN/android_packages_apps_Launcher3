@@ -39,6 +39,8 @@ import com.android.launcher3.widgetpicker.data.repository.WidgetUsersRepository
 import com.android.launcher3.widgetpicker.data.repository.WidgetsRepository
 import com.android.launcher3.widgetpicker.listeners.WidgetPickerAddItemListener
 import com.android.launcher3.widgetpicker.listeners.WidgetPickerDragItemListener
+import com.android.launcher3.widgetpicker.logging.LauncherWidgetPickerCuiReporter
+import com.android.launcher3.widgetpicker.shared.model.CloseBehavior
 import com.android.launcher3.widgetpicker.shared.model.HostConstraint
 import com.android.launcher3.widgetpicker.shared.model.WidgetHostInfo
 import com.android.launcher3.widgetpicker.shared.model.isAppWidget
@@ -46,10 +48,10 @@ import com.android.launcher3.widgetpicker.theme.LauncherWidgetPickerTheme
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionSource
 import com.android.launcher3.widgetpicker.ui.WidgetPickerEventListeners
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Provider
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.launch
 
 /**
  * An helper that bootstraps widget picker UI (from [WidgetPickerComponent]) in to
@@ -75,6 +77,7 @@ constructor(
     ) {
         val widgetPickerComponent = newWidgetPickerComponent(widgetPickerConfig)
         val callbacks = activity.buildEventListeners(widgetPickerConfig, apiWrapper)
+        val uiEventsReporter = LauncherWidgetPickerCuiReporter(activity.statsLogManager)
 
         val fullWidgetsCatalog = widgetPickerComponent.getFullWidgetsCatalog()
         val composeView = ComposeFacade.initComposeView(activity.asContext()) as ComposeView
@@ -86,7 +89,7 @@ constructor(
 
                 LauncherWidgetPickerTheme {
                     val eventListeners = remember { callbacks }
-                    fullWidgetsCatalog.Content(eventListeners)
+                    fullWidgetsCatalog.Content(eventListeners, uiEventsReporter)
                 }
 
                 DisposableEffect(view) {
@@ -117,6 +120,10 @@ constructor(
                         description = widgetPickerConfig.description,
                         constraints = widgetPickerConfig.asHostConstraints(),
                         showDragShadow = !widgetPickerConfig.isForHomeScreen,
+                        enableSwipeUpToDismiss = widgetPickerConfig.enableSwipeUpToDismiss,
+                        closeBehavior =
+                            if (widgetPickerConfig.isDesktopFormFactor) CloseBehavior.CLOSE_BUTTON
+                            else CloseBehavior.DRAG_HANDLE,
                     ),
                 backgroundContext = backgroundContext,
             )

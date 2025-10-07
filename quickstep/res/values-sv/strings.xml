@@ -80,7 +80,7 @@
     <string name="overview_gesture_intro_title" msgid="2902054412868489378">"Svep för att byta mellan appar"</string>
     <string name="overview_gesture_intro_subtitle" msgid="4968091015637850859">"Byt mellan appar genom att svepa uppåt från skärmens nederkant. Håll fingret nedtryckt och släpp."</string>
     <string name="overview_gesture_tutorial_title" msgid="4125835002668708720">"Byt app"</string>
-    <string name="overview_gesture_tutorial_subtitle" msgid="5253549754058973071">"Svep uppåt från skärmens nederkant. Håll fingret nedtryckt och släpp sedan"</string>
+    <string name="overview_gesture_tutorial_subtitle" msgid="5253549754058973071">"Svep uppåt från skärmens nederkant. Håll fingret nedtryckt och släpp sedan."</string>
     <string name="overview_gesture_tutorial_success" msgid="1910267697807973076">"Bra gjort!"</string>
     <string name="gesture_tutorial_confirm_title" msgid="6201516182040074092">"Klart"</string>
     <string name="gesture_tutorial_action_button_label" msgid="6249846312991332122">"Klar"</string>
@@ -96,7 +96,10 @@
     <string name="allset_navigation_settings" msgid="4713404605961476027"><annotation id="link">"Systemnavigeringsinställningar"</annotation></string>
     <string name="allset_title_expressive" msgid="474399969304146994">"Din <xliff:g id="DEVICE">%1$s</xliff:g> är \nklar!"</string>
     <string name="allset_title_expressive_fallback" msgid="2829102990606405239">"Din enhet är \nklar!"</string>
+    <string name="allset_title_expressive_fixed" msgid="3564219469262883526">"Nu kan du börja!"</string>
     <string name="allset_subtitle_expressive" msgid="419688197551192358">"Ha kul med din nya <xliff:g id="DEVICE">%1$s</xliff:g>!"</string>
+    <string name="allset_subtitle_expressive_gesture_navigation" msgid="8931442349501593934">"Svep uppåt för att komma igång med din <xliff:g id="DEVICE">%1$s</xliff:g>"</string>
+    <string name="allset_subtitle_expressive_button_navigation" msgid="5219509605046028014">"Tryck för att komma igång med din <xliff:g id="DEVICE">%1$s</xliff:g>"</string>
     <string name="allset_navigation_settings_expressive" msgid="3745595273748356"><annotation id="link">"Välj hur du vill navigera"</annotation></string>
     <string name="allset_hint_expressive" msgid="756856423510976261">"Svep uppåt"</string>
     <string name="allset_button_hint_expressive" msgid="667643693410494225">"Tryck på hemknappen"</string>
@@ -147,6 +150,10 @@
     <string name="change_navigation_mode" msgid="9088393078736808968">"Ändra navigeringsläge"</string>
     <string name="taskbar_divider_a11y_title" msgid="6608690309720242080">"Avdelare för aktivitetsfältet"</string>
     <string name="taskbar_overflow_a11y_title" msgid="8114045167370723746">"Andra appar som använts nyligen"</string>
+    <!-- no translation found for app_added_to_taskbar (1160433791917609063) -->
+    <skip />
+    <!-- no translation found for app_removed_from_taskbar (7887298201562912487) -->
+    <skip />
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Flytta högst upp/till vänster"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Flytta längst ned/till höger"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"Öppna appen som en bubbla"</string>

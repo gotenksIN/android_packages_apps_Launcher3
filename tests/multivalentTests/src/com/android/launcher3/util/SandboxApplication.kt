@@ -67,6 +67,7 @@ class SandboxApplication private constructor(private val base: SandboxApplicatio
     SandboxContext(base), TestRule {
 
     private val mockResolver = MockContentResolver()
+    private val manuallyNamedServices = ArrayMap<Class<*>, String>()
     private val spiedServices = ArrayMap<String, Any>()
     private val packageManager = spy(baseContext.packageManager)
     private val dbDir = File(cacheDir, UUID.randomUUID().toString())
@@ -142,6 +143,10 @@ class SandboxApplication private constructor(private val base: SandboxApplicatio
 
     override fun getPackageManager(): PackageManager = packageManager
 
+    override fun getSystemServiceName(tClass: Class<*>): String? {
+        return manuallyNamedServices[tClass] ?: super.getSystemServiceName(tClass)
+    }
+
     override fun getSystemService(name: String): Any? =
         spiedServices[name] ?: super.getSystemService(name)
 
@@ -155,12 +160,18 @@ class SandboxApplication private constructor(private val base: SandboxApplicatio
         return super.getSharedPreferences(file, mode)
     }
 
-    fun <T> spyService(tClass: Class<T>): T {
+    fun <T> mockService(name: String, mockedServiceType: Class<T>, mockedServiceInstance: T) {
+        manuallyNamedServices[mockedServiceType] = name
+        spiedServices[name] = mockedServiceInstance
+    }
+
+    @JvmOverloads
+    fun <T> spyService(tClass: Class<T>, provider: (T?) -> T = { spy(it!!) }): T {
         val name = getSystemServiceName(tClass)
         val service = spiedServices[name]
         if (service != null) return service as T
 
-        val result = spy(getSystemService(tClass))
+        val result = provider.invoke(getSystemService(tClass))
         spiedServices[name] = result
         return result
     }

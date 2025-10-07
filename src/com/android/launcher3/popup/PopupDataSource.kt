@@ -29,6 +29,7 @@ import com.android.launcher3.R
 import com.android.launcher3.SecondaryDropTarget
 import com.android.launcher3.Utilities
 import com.android.launcher3.allapps.PrivateProfileManager
+import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.logging.StatsLogManager.LauncherEvent
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
@@ -41,8 +42,10 @@ import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.views.Snackbar
 import com.android.launcher3.widget.LauncherAppWidgetHostView
 import com.android.launcher3.widget.WidgetsBottomSheet
+import javax.inject.Inject
 
-class PopupDataSource {
+@LauncherAppSingleton
+class PopupDataSource @Inject constructor() {
     // Handles action from tapping remove shortcut.
     private val handleRemove = { activityContext: ActivityContext, itemInfo: ItemInfo, view: View ->
         AbstractFloatingView.closeAllOpenViews(activityContext)
@@ -207,20 +210,18 @@ class PopupDataSource {
                 .logger()
                 .withItemInfo(itemInfo)
                 .log(LauncherEvent.LAUNCHER_SYSTEM_SHORTCUT_DONT_SUGGEST_APP_TAP)
-            if (Flags.enableDismissPredictionUndo()) {
-                Snackbar.show(
-                    activityContext,
-                    view.context.getString(R.string.item_removed),
-                    R.string.undo,
-                    {},
-                    {
-                        activityContext.statsLogManager
-                            .logger()
-                            .withItemInfo(itemInfo)
-                            .log(LauncherEvent.LAUNCHER_DISMISS_PREDICTION_UNDO)
-                    },
-                )
-            }
+            Snackbar.show(
+                activityContext,
+                view.context.getString(R.string.item_removed),
+                R.string.undo,
+                {},
+                {
+                    activityContext.statsLogManager
+                        .logger()
+                        .withItemInfo(itemInfo)
+                        .log(LauncherEvent.LAUNCHER_DISMISS_PREDICTION_UNDO)
+                },
+            )
         }
 
     // Popup data the "don't suggest app" shortcut.
@@ -274,8 +275,8 @@ class PopupDataSource {
         }
 
         // If we're here check for an intent
-        val intent: Intent? = itemInfo.intent
-        if (intent != null) {
+        if (itemInfo.intent != null) {
+            val intent = Intent(itemInfo.intent)
             if (intent.getPackage() == null) {
                 intent.setPackage(itemInfo.getTargetPackage())
             }

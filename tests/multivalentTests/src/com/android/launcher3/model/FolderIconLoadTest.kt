@@ -152,7 +152,7 @@ class FolderIconLoadTest {
         app.model.forceReload()
         app.model.loadModelSync()
         val collections =
-            app.model.bgDataModel.itemsIdMap
+            context.bgDataModel.itemsIdMap
                 .filter { it.itemType == ITEM_TYPE_FOLDER }
                 .map { it as FolderInfo }
         assertThat(collections.size).isEqualTo(1)
@@ -187,6 +187,6 @@ class FolderIconLoadTest {
 
     /** Recreate DeviceProfiles after changing InvariantDeviceProfile */
     private fun recreateSupportedDeviceProfiles() {
-        getIdp().supportedProfiles = getIdp().supportedProfiles.map { it.copy(context) }
+        getIdp().supportedProfiles = getIdp().supportedProfiles.map { it.copy() }
     }
 }

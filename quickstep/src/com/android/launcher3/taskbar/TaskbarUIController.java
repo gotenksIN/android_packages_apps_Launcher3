@@ -37,6 +37,8 @@ import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.popup.SystemShortcut;
 import com.android.launcher3.taskbar.bubbles.BubbleBarController;
+import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator;
+import com.android.launcher3.taskbar.customization.TaskbarSpecsEvaluator;
 import com.android.launcher3.util.SplitConfigurationOptions;
 import com.android.quickstep.GestureState;
 import com.android.quickstep.RecentsAnimationCallbacks;
@@ -79,6 +81,10 @@ public class TaskbarUIController implements BubbleBarController.BubbleBarLocatio
         }
     }
 
+    protected TaskbarSpecsEvaluator getTaskbarSpecsEvaluator() {
+        return mControllers.taskbarActivityContext.getTaskbarSpecsEvaluator();
+    }
+
     protected boolean isTaskbarTouchable() {
         return true;
     }
@@ -108,14 +114,6 @@ public class TaskbarUIController implements BubbleBarController.BubbleBarLocatio
 
     public View getRootView() {
         return mControllers.taskbarActivityContext.getDragLayer();
-    }
-
-    /**
-     * Called when swiping from the bottom nav region in fully gestural mode.
-     * @param inProgress True if the animation started, false if we just settled on an end target.
-     */
-    public void setSystemGestureInProgress(boolean inProgress) {
-        mControllers.taskbarStashController.setSystemGestureInProgress(inProgress);
     }
 
     /**
@@ -172,6 +170,10 @@ public class TaskbarUIController implements BubbleBarController.BubbleBarLocatio
      */
     public boolean shouldAllowTaskbarToAutoStash() {
         return mControllers.taskbarActivityContext.shouldAllowTaskbarToAutoStash();
+    }
+
+    public TaskbarFeatureEvaluator getTaskbarFeatureEvaluator() {
+        return mControllers.taskbarActivityContext.getTaskbarFeatureEvaluator();
     }
 
     /**

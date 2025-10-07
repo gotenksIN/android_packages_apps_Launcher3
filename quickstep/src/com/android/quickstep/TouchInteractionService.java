@@ -42,6 +42,7 @@ import static com.android.quickstep.InputConsumer.TYPE_CURSOR_HOVER;
 import static com.android.quickstep.InputConsumer.createNoOpInputConsumer;
 import static com.android.quickstep.InputConsumerUtils.newConsumer;
 import static com.android.quickstep.InputConsumerUtils.tryCreateAssistantInputConsumer;
+import static com.android.quickstep.RecentsAnimationDeviceState.RESET_TO_DEFAULT_GESTURAL_HEIGHT;
 import static com.android.quickstep.window.RecentsWindowFlags.enableOverviewOnConnectedDisplays;
 import static com.android.systemui.shared.system.ActivityManagerWrapper.CLOSE_SYSTEM_WINDOWS_REASON_RECENTS;
 
@@ -92,7 +93,6 @@ import com.android.launcher3.taskbar.TaskbarManagerImplWrapper;
 import com.android.launcher3.taskbar.TaskbarNavButtonController.TaskbarNavButtonCallbacks;
 import com.android.launcher3.taskbar.bubbles.BubbleControllers;
 import com.android.launcher3.testing.TestLogging;
-import com.android.launcher3.testing.shared.ResourceUtils;
 import com.android.launcher3.testing.shared.TestProtocol;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.LockedUserState;
@@ -141,6 +141,7 @@ import com.android.wm.shell.draganddrop.IDragAndDrop;
 import com.android.wm.shell.onehanded.IOneHanded;
 import com.android.wm.shell.recents.IRecentTasks;
 import com.android.wm.shell.shared.IShellTransitions;
+import com.android.wm.shell.shared.desktopmode.DesktopState;
 import com.android.wm.shell.splitscreen.ISplitScreen;
 import com.android.wm.shell.startingsurface.IStartingWindow;
 
@@ -578,6 +579,14 @@ public class TouchInteractionService extends Service {
         }
 
         /**
+         * Touches within this number of pixels from the bottom of the screen can get intercepted to
+         * handle gesture navigation. Passing a value less than 0 will revert to a default value.
+         */
+        public void setGesturalHeight(int gesturalHeight) {
+            executeForTouchInteractionService(tis -> tis.setGesturalHeight(gesturalHeight));
+        }
+
+        /**
          * Sets the task id where gestures should be blocked
          */
         public void setGestureBlockedTaskId(int taskId) {
@@ -739,6 +748,7 @@ public class TouchInteractionService extends Service {
     private QuickstepKeyGestureEventsManager mQuickstepKeyGestureEventsHandler;
     private DisplaysWithDecorationsRepositoryCompat mDisplaysWithDecorationsRepositoryCompat;
     private CoroutineDispatcher mCoroutineDispatcher;
+    private DesktopState mDesktopState;
 
     @Override
     public void onCreate() {
@@ -758,6 +768,7 @@ public class TouchInteractionService extends Service {
         mCoroutineDispatcher = ProductionDispatchers.INSTANCE.getMain();
         mDisplaysWithDecorationsRepositoryCompat =
                 LauncherDisplaysWithDecorationsRepositoryCompat.getINSTANCE().get(this);
+        mDesktopState = DesktopState.getInstance(this);
         mAllAppsActionManager = new AllAppsActionManager(this, UI_HELPER_EXECUTOR,
                 mQuickstepKeyGestureEventsHandler,
                 () -> mTaskbarManager.createAllAppsPendingIntent());
@@ -815,10 +826,9 @@ public class TouchInteractionService extends Service {
     private void disposeEventHandlers(String reason) {
         Log.d(TAG, "disposeEventHandlers: Reason: " + reason
                 + " instance=" + System.identityHashCode(this));
-        if (ENABLE_GESTURE_NAV_ON_CONNECTED_DISPLAYS.isTrue()) {
-            if (mInputMonitorDisplayModel == null) return;
+        if (mInputMonitorDisplayModel != null) {
             mInputMonitorDisplayModel.destroy();
-            return;
+            mInputMonitorDisplayModel = null;
         }
         if (mInputEventReceiver != null) {
             mInputEventReceiver.dispose();
@@ -956,8 +966,8 @@ public class TouchInteractionService extends Service {
                     // ever will, they should be taken care of.
                     SystemUiProxy.INSTANCE.get(this).setLastSystemUiStateFlags(systemUiStateFlags);
                     mOverviewComponentObserver.setHomeDisabled(deviceState.isHomeDisabled());
-                    taskAnimationManager.onSystemUiFlagsChanged(lastSysUIFlags, systemUiStateFlags);
                 }
+                taskAnimationManager.onSystemUiFlagsChanged(lastSysUIFlags, systemUiStateFlags);
             }
         } else if (enableTaskbarForDirectBoot() && deviceState != null) {
             mTaskbarManager.onSystemUiFlagsChanged(deviceState.getSysuiStateFlags(), displayId);
@@ -1159,7 +1169,8 @@ public class TouchInteractionService extends Service {
                         mSwipeUpProxyProvider,
                         mOverviewCommandHelper,
                         event,
-                        rotationTouchHelper);
+                        rotationTouchHelper,
+                        mDesktopState);
                 mUncheckedConsumer = mConsumer;
             } else if ((deviceState.isFullyGesturalNavMode() || isTrackpadMultiFingerSwipe(event))
                     && deviceState.canTriggerAssistantAction(event)) {
@@ -1225,7 +1236,7 @@ public class TouchInteractionService extends Service {
         }
 
         boolean cancelGesture = mGestureState.getContainerInterface() != null
-                && mGestureState.getContainerInterface().shouldCancelCurrentGesture();
+                && mGestureState.getContainerInterface().shouldCancelCurrentGesture(displayId);
         boolean cleanUpConsumer = (action == ACTION_UP || action == ACTION_CANCEL || cancelGesture)
                 && mConsumer != null
                 && !mConsumer.getActiveConsumerInHierarchy().isConsumerDetachedFromGesture();
@@ -1366,15 +1377,20 @@ public class TouchInteractionService extends Service {
             // Since navBar gestural height are different between portrait and landscape,
             // can handle orientation changes and refresh navigation gestural region through
             // onOneHandedModeChanged()
-            int newGesturalHeight = ResourceUtils.getNavbarSize(
-                    ResourceUtils.NAVBAR_BOTTOM_GESTURE_SIZE,
-                    getApplicationContext().getResources());
-            mDeviceStateRepository.forEach(/* createIfAbsent= */ true, deviceState ->
-                    deviceState.onOneHandedModeChanged(newGesturalHeight));
+            setGesturalHeight(RESET_TO_DEFAULT_GESTURAL_HEIGHT);
             return;
         }
 
         ActivityPreloadUtil.preloadOverviewForTIS(this, false /* fromInit */);
+    }
+
+    /**
+     * Touches within this number of pixels from the bottom of the screen can get intercepted to
+     * handle gesture navigation. Passing a value less than 0 will revert to a default value.
+     */
+    public void setGesturalHeight(int newGesturalHeight) {
+        mDeviceStateRepository.forEach(/* createIfAbsent= */ true, deviceState ->
+                deviceState.setGesturalHeight(newGesturalHeight));
     }
 
     private static boolean isTablet(Configuration config) {
@@ -1439,6 +1455,7 @@ public class TouchInteractionService extends Service {
         SystemUiProxy.INSTANCE.get(this).dump(pw);
         DeviceConfigWrapper.get().dump("   ", pw);
         TopTaskTracker.INSTANCE.get(this).dump(pw);
+        mAllAppsActionManager.dump(pw);
     }
 
     private @Nullable AbsSwipeUpHandler<?, ?, ?> createLauncherSwipeHandler(

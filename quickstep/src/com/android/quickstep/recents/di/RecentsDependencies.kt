@@ -16,6 +16,7 @@
 
 package com.android.quickstep.recents.di
 
+import android.app.KeyguardManager
 import android.content.Context
 import android.util.Log
 import android.view.WindowManagerGlobal
@@ -27,13 +28,16 @@ import com.android.quickstep.recents.data.RecentTasksRepository
 import com.android.quickstep.recents.data.TaskVisualsChangedDelegate
 import com.android.quickstep.recents.data.TaskVisualsChangedDelegateImpl
 import com.android.quickstep.recents.data.TasksRepository
+import com.android.quickstep.recents.data.UserLockedRepository
+import com.android.quickstep.recents.data.UserLockedStateRepository
+import com.android.quickstep.recents.domain.usecase.GetObscuredDesktopTaskIdsUseCase
 import com.android.quickstep.recents.domain.usecase.GetRemainingAppTimerDurationUseCase
 import com.android.quickstep.recents.domain.usecase.GetSysUiStatusNavFlagsUseCase
 import com.android.quickstep.recents.domain.usecase.GetTaskUseCase
 import com.android.quickstep.recents.domain.usecase.GetThumbnailPositionUseCase
+import com.android.quickstep.recents.domain.usecase.IsPointerConnectedUseCase
 import com.android.quickstep.recents.domain.usecase.IsThumbnailValidUseCase
 import com.android.quickstep.recents.domain.usecase.OrganizeDesktopTasksUseCase
-import com.android.quickstep.recents.domain.usecase.RemoveTaskAndRebalanceLayoutUseCase
 import com.android.quickstep.recents.viewmodel.RecentsViewData
 import com.android.systemui.shared.recents.utilities.PreviewPositionHelper.PreviewPositionHelperFactory
 import kotlinx.coroutines.CoroutineName
@@ -74,6 +78,9 @@ private constructor(appContext: Context, dispatcherProvider: DispatcherProvider)
                     recentsModel.thumbnailCache.highResLoadingState,
                 )
             set(TaskVisualsChangedDelegate::class.java.simpleName, taskVisualsChangedDelegate)
+            val keyguardManager = appContext.getSystemService(KeyguardManager::class.java)
+            val userLockedRepository = UserLockedRepository(keyguardManager)
+            set(UserLockedStateRepository::class.java.simpleName, userLockedRepository)
 
             // Create RecentsTaskRepository singleton
             val recentTasksRepository: RecentTasksRepository =
@@ -82,6 +89,7 @@ private constructor(appContext: Context, dispatcherProvider: DispatcherProvider)
                         this,
                         thumbnailCache,
                         iconCache,
+                        userLockedRepository,
                         taskVisualsChangedDelegate,
                         recentsCoroutineScope,
                         dispatcherProvider,
@@ -207,6 +215,7 @@ private constructor(appContext: Context, dispatcherProvider: DispatcherProvider)
                     GetTaskUseCase(
                         tasksRepository = inject(scopeId),
                         getRemainingAppTimerDurationUseCase = inject(scopeId),
+                        userLockedStateRepository = inject(scopeId),
                     )
                 GetSysUiStatusNavFlagsUseCase::class.java -> GetSysUiStatusNavFlagsUseCase()
                 GetThumbnailPositionUseCase::class.java ->
@@ -216,8 +225,7 @@ private constructor(appContext: Context, dispatcherProvider: DispatcherProvider)
                         previewPositionHelperFactory = PreviewPositionHelperFactory(),
                     )
                 OrganizeDesktopTasksUseCase::class.java -> OrganizeDesktopTasksUseCase()
-                RemoveTaskAndRebalanceLayoutUseCase::class.java ->
-                    RemoveTaskAndRebalanceLayoutUseCase()
+                GetObscuredDesktopTaskIdsUseCase::class.java -> GetObscuredDesktopTaskIdsUseCase()
                 DesktopTileBackgroundDataSource::class.java ->
                     DesktopTileBackgroundDataSource(
                         WindowManagerGlobal.getWindowManagerService(),
@@ -225,6 +233,8 @@ private constructor(appContext: Context, dispatcherProvider: DispatcherProvider)
                     )
                 DesktopTileBackgroundRepository::class.java ->
                     DesktopTileBackgroundRepository(inject(scopeId))
+                IsPointerConnectedUseCase::class.java ->
+                    IsPointerConnectedUseCase(pointerRepository = inject(scopeId))
                 else -> {
                     log("Factory for ${modelClass.simpleName} not defined!", Log.ERROR)
                     error("Factory for ${modelClass.simpleName} not defined!")
@@ -325,12 +335,6 @@ private constructor(appContext: Context, dispatcherProvider: DispatcherProvider)
             }
     }
 }
-
-inline fun <reified T> RecentsDependencies.Companion.inject(
-    scope: Any = "",
-    vararg extras: Pair<String, Any>,
-    noinline factory: ((extras: RecentsDependenciesExtras) -> T)? = null,
-): Lazy<T> = lazy { get(scope, RecentsDependenciesExtras(extras), factory) }
 
 inline fun <reified T> RecentsDependencies.Companion.get(
     scope: Any = "",

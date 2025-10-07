@@ -20,14 +20,12 @@ import android.app.blob.BlobStoreManager
 import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.os.ParcelFileDescriptor.MODE_READ_WRITE
-import android.provider.Settings.Secure
 import android.util.SparseArray
 import android.view.View
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.Launcher
-import com.android.launcher3.LauncherAppState
 import com.android.launcher3.LauncherModel
 import com.android.launcher3.LauncherSettings.Settings
 import com.android.launcher3.LauncherSettings.Settings.LAYOUT_PROVIDER_KEY
@@ -47,7 +45,6 @@ import com.android.launcher3.util.TestUtil.runOnExecutorSync
 import java.io.File
 import java.io.FileWriter
 import java.security.MessageDigest
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -58,7 +55,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Answers
 import org.mockito.Mock
-import org.mockito.MockitoAnnotations
+import org.mockito.junit.MockitoJUnit
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argThat
@@ -77,6 +74,7 @@ import org.mockito.kotlin.whenever
 @RunWith(AndroidJUnit4::class)
 class AsyncBindingTest {
 
+    @get:Rule val mockitoRule = MockitoJUnit.rule()
     @get:Rule val context = SandboxApplication().withModelDependency()
 
     @Mock private lateinit var itemInflater: ItemInflater<*>
@@ -90,12 +88,10 @@ class AsyncBindingTest {
     private val inflationLooper = SparseArray<Looper>()
 
     private val model: LauncherModel
-        get() = LauncherAppState.getInstance(context).model
+        get() = context.appComponent.testableModelState.model
 
     @Before
     fun setUp() {
-        MockitoAnnotations.initMocks(this)
-
         doAnswer { i ->
                 inflationLooper[(i.arguments[0] as ItemInfo).id] = Looper.myLooper()
                 View(context)
@@ -127,13 +123,6 @@ class AsyncBindingTest {
         callbacks =
             spy(ModelCallbacks(launcher).apply { pagesToBindSynchronously = IntSet.wrap(0) })
         TestUtil.grantWriteSecurePermission()
-    }
-
-    @After
-    fun tearDown() {
-        runOnExecutorSync(MODEL_EXECUTOR) {
-            Secure.putString(context.getContentResolver(), LAYOUT_PROVIDER_KEY, "")
-        }
     }
 
     @Test
@@ -206,8 +195,7 @@ class AsyncBindingTest {
             .whenever(blobManager)
             .openBlob(any())
 
-        Secure.putString(
-            context.getContentResolver(),
+        context.appComponent.settingsCache.applyLocalSecureStringOverride(
             LAYOUT_PROVIDER_KEY,
             Settings.createBlobProviderKey(
                 MessageDigest.getInstance("SHA-256").digest(byteArrayOf(1, 1, 1))

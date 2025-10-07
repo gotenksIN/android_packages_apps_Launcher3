@@ -17,6 +17,8 @@
 package com.android.launcher3.widgetpicker.ui.components.bottomsheet
 
 import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -26,6 +28,7 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.only
@@ -37,22 +40,38 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
+import com.android.launcher3.widgetpicker.R
+import com.android.launcher3.widgetpicker.shared.model.CloseBehavior
+import com.android.launcher3.widgetpicker.ui.components.accessibility.LocalAccessibilityState
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.TitledBottomSheetDimens.contentWindowInsets
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.TitledBottomSheetDimens.headerBottomMargin
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.TitledBottomSheetDimens.sheetInnerHorizontalPadding
@@ -60,9 +79,8 @@ import com.android.launcher3.widgetpicker.ui.components.bottomsheet.TitledBottom
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.TitledBottomSheetDimens.sheetShape
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.TitledBottomSheetDimens.sheetWindowInsets
 import com.android.launcher3.widgetpicker.ui.theme.WidgetPickerTheme
-import com.android.launcher3.widgetpicker.ui.windowsizeclass.WindowInfo
-import com.android.launcher3.widgetpicker.ui.windowsizeclass.calculateWindowInfo
-import com.android.launcher3.widgetpicker.ui.windowsizeclass.isExtraTall
+import kotlin.math.abs
+import kotlinx.coroutines.launch
 
 /**
  * A bottom sheet with title and description on the top. Intended to serve as a common container
@@ -70,11 +88,15 @@ import com.android.launcher3.widgetpicker.ui.windowsizeclass.isExtraTall
  *
  * @param modifier modifier to be applies to the bottom sheet container.
  * @param title A top level title for the bottom sheet. If title is absent, top header isn't shown.
- * @param description an optional short (1-2 line) description that can be shown below the title.
+ * @param description an optional short (1-2 line - max 80 char) description that can be shown below
+ *   the title. At max font+display size it might overflow to 3 lines.
  * @param heightStyle indicates how much vertical space should the bottom sheet take; see
  *   [ModalBottomSheetHeightStyle].
  * @param showDragHandle whether to show drag handle; e.g. if the content doesn't need scrolling set
  *   this to false.
+ * @param enableSwipeUpToDismiss whether to handle swipe up from bottom of sheet to close it.
+ *   Setting this to true doesn't exclude the gesture nav stealing the touches automatically, the
+ *   host need to ensure it has disabled gesture nav when passing true here.
  * @param onDismissSheet callback to be invoked when the bottom sheet is closed
  * @param content the content to be displayed below the [title] and [description]
  */
@@ -85,12 +107,15 @@ fun TitledBottomSheet(
     title: String?,
     description: String?,
     heightStyle: ModalBottomSheetHeightStyle,
-    showDragHandle: Boolean = true,
+    closeBehavior: CloseBehavior = CloseBehavior.DRAG_HANDLE,
+    enableSwipeUpToDismiss: Boolean = false,
+    onSheetOpen: () -> Unit,
     onDismissSheet: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
-    val windowInfo = LocalConfiguration.current.calculateWindowInfo()
+    val accessibilityState = LocalAccessibilityState.current
+    val closeSheetLabel = stringResource(R.string.widget_picker_collapse_sheet_label)
 
     BoxWithConstraints(modifier = modifier.windowInsetsPadding(sheetWindowInsets)) {
         val animSpec: AnimationSpec<Float> = MaterialTheme.motionScheme.slowSpatialSpec()
@@ -100,54 +125,160 @@ fun TitledBottomSheet(
 
         Surface(
             modifier =
-                Modifier.semantics { isTraversalGroup = true }
+                Modifier.semantics {
+                        isTraversalGroup = true
+                        customActions =
+                            listOf(
+                                CustomAccessibilityAction(label = closeSheetLabel) {
+                                    onDismissSheet()
+                                    true
+                                }
+                            )
+                    }
                     .fillMaxSize()
-                    .imePadding()
                     .dismissibleBottomSheet(
                         sheetState = sheetState,
+                        onSheetOpen = onSheetOpen,
                         onDismissSheet = onDismissSheet,
                         maxHeight = with(density) { maxHeight.toPx() },
+                        enableNestedScrolling = !accessibilityState.isEnabled,
                     ),
             color = WidgetPickerTheme.colors.sheetBackground,
             shape = sheetShape,
             content = {
                 Column(
                     modifier =
-                        Modifier.windowInsetsPadding(contentWindowInsets)
-                            .sheetContentHeight(heightStyle, windowInfo, maxHeight)
+                        Modifier.imePadding()
+                            .windowInsetsPadding(contentWindowInsets)
+                            .sheetContentHeight(heightStyle, maxHeight)
                             .padding(horizontal = sheetInnerHorizontalPadding)
-                            .padding(top = sheetInnerTopPadding.takeIf { !showDragHandle } ?: 0.dp)
+                            .padding(
+                                top =
+                                    sheetInnerTopPadding.takeIf {
+                                        closeBehavior != CloseBehavior.DRAG_HANDLE
+                                    } ?: 0.dp
+                            )
                             .dismissableBottomSheetContent(sheetState)
                 ) {
-                    DecorativeDragHandle(
-                        modifier =
-                            Modifier.align(alignment = Alignment.CenterHorizontally)
-                                .padding(top = sheetInnerTopPadding, bottom = headerBottomMargin)
-                    )
-                    title?.let { Header(title = title, description = description) }
+                    if (closeBehavior == CloseBehavior.DRAG_HANDLE) {
+                        DecorativeDragHandle(
+                            modifier =
+                                Modifier.align(alignment = Alignment.CenterHorizontally)
+                                    .padding(
+                                        top = sheetInnerTopPadding,
+                                        bottom = headerBottomMargin,
+                                    )
+                        )
+                    }
+                    title?.let {
+                        Header(
+                            title = title,
+                            description = description,
+                            closeBehavior = closeBehavior,
+                            onDismissSheet = onDismissSheet,
+                        )
+                    }
                     content()
                 }
             },
         )
+
+        if (enableSwipeUpToDismiss) {
+            val scope = rememberCoroutineScope()
+
+            SwipeUpToDismissHandler(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                contentHeight = maxHeight,
+                onProgress = { scope.launch { sheetState.backProgress.snapTo(it) } },
+                onCancel = { scope.launch { sheetState.settleProgress() } },
+                onClose = { scope.launch { sheetState.collapse() } },
+            )
+        }
     }
 }
 
 @Composable
-private fun Header(title: String, description: String?) {
-    Column(modifier = Modifier.padding(bottom = headerBottomMargin).fillMaxWidth()) {
-        Text(
-            modifier = Modifier.wrapContentHeight().fillMaxWidth(),
-            maxLines = 1,
-            text = title,
-            textAlign = TextAlign.Center,
-            style = WidgetPickerTheme.typography.sheetTitle,
-            color = WidgetPickerTheme.colors.sheetTitle,
-        )
+private fun SwipeUpToDismissHandler(
+    modifier: Modifier,
+    contentHeight: Dp,
+    onProgress: (Float) -> Unit,
+    onCancel: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val density = LocalDensity.current
+
+    var currentDragDistanceY by remember { mutableFloatStateOf(0f) }
+    val targetDistanceY = remember { with(density) { contentHeight.toPx() / 2 } }
+    // Distance user should have swiped up when releasing the drag that should lead to closing the
+    // sheet.
+    val swipeUpDistanceToClosePx = remember {
+        with(density) { SwipeUpToDismissHandlerDimens.swipeUpDistanceToClose.toPx() }
+    }
+
+    Box(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(SwipeUpToDismissHandlerDimens.gestureBoxHeight)
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = { currentDragDistanceY = it.y },
+                        onDragCancel = { onCancel() },
+                        onDragEnd = {
+                            if (currentDragDistanceY < -swipeUpDistanceToClosePx) {
+                                onClose()
+                            } else {
+                                onCancel()
+                            }
+                        },
+                    ) { _, dragAmount ->
+                        currentDragDistanceY += dragAmount.y
+                        onProgress(abs(currentDragDistanceY / targetDistanceY).coerceIn(0f, 1f))
+                    }
+                }
+    )
+}
+
+@Composable
+private fun Header(
+    title: String,
+    description: String?,
+    closeBehavior: CloseBehavior,
+    onDismissSheet: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(bottom = headerBottomMargin).fillMaxWidth(),
+    ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                modifier = Modifier.align(Alignment.Center),
+                maxLines = 1,
+                text = title,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                style = WidgetPickerTheme.typography.sheetTitle,
+                color = WidgetPickerTheme.colors.sheetTitle,
+            )
+            if (closeBehavior == CloseBehavior.CLOSE_BUTTON) {
+                IconButton(
+                    onClick = onDismissSheet,
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription =
+                            stringResource(R.string.widget_picker_collapse_sheet_label),
+                        tint = WidgetPickerTheme.colors.sheetTitle,
+                    )
+                }
+            }
+        }
         description?.let {
             Text(
-                modifier = Modifier.wrapContentHeight().fillMaxWidth(),
-                maxLines = 2,
                 text = it,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
                 style = WidgetPickerTheme.typography.sheetDescription,
                 color = WidgetPickerTheme.colors.sheetDescription,
@@ -159,7 +290,6 @@ private fun Header(title: String, description: String?) {
 @Composable
 private fun Modifier.sheetContentHeight(
     style: ModalBottomSheetHeightStyle,
-    windowInfo: WindowInfo,
     maxHeight: Dp,
 ): Modifier {
     val heightModifier =
@@ -169,7 +299,7 @@ private fun Modifier.sheetContentHeight(
             ModalBottomSheetHeightStyle.WRAP_CONTENT -> this.wrapContentHeight()
         }
 
-    return if (windowInfo.isExtraTall()) {
+    return if (maxHeight > 1200.dp) {
         // Cap the height to max 2/3 of total window height; so the bottom sheet doesn't feel too
         // huge.
         heightModifier.heightIn(max = 2 * maxHeight / 3)
@@ -180,18 +310,16 @@ private fun Modifier.sheetContentHeight(
 
 @Composable
 private fun DecorativeDragHandle(modifier: Modifier) {
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.outline,
-        shape = MaterialTheme.shapes.medium,
-    ) {
-        Box(
-            Modifier.size(
-                width = DragHandleDimens.dragHandleWidth,
-                height = DragHandleDimens.dragHandleHeight,
-            )
-        )
-    }
+    Box(
+        modifier =
+            modifier
+                .clip(MaterialTheme.shapes.medium)
+                .background(MaterialTheme.colorScheme.outline)
+                .size(
+                    width = DragHandleDimens.dragHandleWidth,
+                    height = DragHandleDimens.dragHandleHeight,
+                )
+    )
 }
 
 /**
@@ -218,6 +346,11 @@ private object DragHandleDimens {
     val dragHandleWidth = 32.dp
 }
 
+private object SwipeUpToDismissHandlerDimens {
+    val gestureBoxHeight = 20.dp
+    val swipeUpDistanceToClose = 28.dp
+}
+
 private object TitledBottomSheetDimens {
     val sheetInnerTopPadding = 16.dp
     val sheetInnerHorizontalPadding = 10.dp
@@ -226,16 +359,16 @@ private object TitledBottomSheetDimens {
     val sheetShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
 
     val sheetWindowInsets: WindowInsets
-        @Composable get() = WindowInsets.statusBars.union(WindowInsets.displayCutout)
+        @Composable
+        get() =
+            WindowInsets.statusBars.union(
+                WindowInsets.displayCutout.only(
+                    sides = WindowInsetsSides.Horizontal + WindowInsetsSides.Top
+                )
+            )
 
     val contentWindowInsets: WindowInsets
         @Composable
         get() =
             WindowInsets.safeDrawing.only(sides = WindowInsetsSides.Bottom + WindowInsetsSides.Top)
-}
-
-/** Default values for the [TitledBottomSheet] component. */
-object TitledBottomSheetDefaults {
-    /** Max animation duration for the bottom sheet to fully expand. */
-    const val SLIDE_IN_ANIMATION_DURATION: Long = 400L
 }

@@ -29,6 +29,7 @@ import android.content.Context;
 import android.graphics.Rect;
 import android.view.RemoteAnimationTarget;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
@@ -129,7 +130,7 @@ public final class LauncherActivityInterface extends
         QuickstepLauncher launcher = factory.initBackgroundStateUI();
         // Since all apps is not visible, we can safely reset the scroll position.
         // This ensures then the next swipe up to all-apps starts from scroll 0.
-        launcher.getAppsView().reset(false /* animate */);
+        launcher.getAppsView().reset(false /* animate */, true /* clearScrim */);
         return factory;
     }
 
@@ -212,7 +213,7 @@ public final class LauncherActivityInterface extends
         if (launcher == null) {
             return false;
         }
-        if (DesktopState.fromContext(launcher.asContext()).getShouldShowHomeBehindDesktop()
+        if (DesktopState.getInstance(launcher.asContext()).getShouldShowHomeBehindDesktop()
                 && !launcher.hasWindowFocus()) {
             // Home is always shown behind desktop, but it is currently not the top task, so treat
             // it as if it is not visible.
@@ -333,19 +334,13 @@ public final class LauncherActivityInterface extends
     }
 
     @Override
-    public LauncherState stateFromGestureEndTarget(GestureEndTarget endTarget) {
-        switch (endTarget) {
-            case RECENTS:
-                return OVERVIEW;
-            case NEW_TASK:
-            case LAST_TASK:
-                return BACKGROUND_APP;
-            case ALL_APPS:
-                return ALL_APPS;
-            case HOME:
-            default:
-                return NORMAL;
-        }
+    public LauncherState stateFromGestureEndTarget(@NonNull GestureEndTarget endTarget) {
+        return switch (endTarget) {
+            case RECENTS -> OVERVIEW;
+            case NEW_TASK, LAST_TASK -> BACKGROUND_APP;
+            case ALL_APPS -> ALL_APPS;
+            default -> NORMAL;
+        };
     }
 
     @Override

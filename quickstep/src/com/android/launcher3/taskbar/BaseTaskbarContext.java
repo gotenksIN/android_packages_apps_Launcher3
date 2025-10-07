@@ -22,11 +22,13 @@ import android.graphics.Point;
 import android.os.UserHandle;
 import android.view.LayoutInflater;
 
+import com.android.launcher3.LifecycleTracker;
+import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.popup.SystemShortcut;
+import com.android.launcher3.taskbar.bubbles.BubbleActivityStarter;
 import com.android.launcher3.util.BaseContext;
 import com.android.launcher3.util.NavigationMode;
 import com.android.launcher3.util.Themes;
-import com.android.quickstep.SystemUiProxy;
 
 // TODO(b/218912746): Share more behavior to avoid all apps context depending directly on taskbar.
 /** Base for common behavior between taskbar window contexts. */
@@ -117,16 +119,25 @@ public abstract class BaseTaskbarContext extends BaseContext
         return mLayoutInflater;
     }
 
+    public void onDestroy() {
+        // Since TaskbarDragLayer is removed from view hierarchy AFTER onDestroy() and it holds ref
+        // to TaskbarActivityContext, we add 1s delay to check leaks in order to avoid false
+        // positive leak alarms.
+        for (LifecycleTracker tracker: LauncherComponentProvider.get(this).getLifecycleTrackers()) {
+            tracker.trackLifecycleOnDestroy(this, 1000L);
+        }
+    }
+
     @Override
     public void showShortcutBubble(ShortcutInfo info) {
         if (info == null) return;
-        SystemUiProxy.INSTANCE.get(this).showShortcutBubble(info);
+        BubbleActivityStarter.INSTANCE.get(this).showShortcutBubble(info);
     }
 
     @Override
     public void showAppBubble(Intent intent, UserHandle user) {
         if (intent == null || intent.getPackage() == null) return;
-        SystemUiProxy.INSTANCE.get(this).showAppBubble(intent, user);
+        BubbleActivityStarter.INSTANCE.get(this).showAppBubble(intent, user);
     }
 
     /** Callback invoked when a drag is initiated within this context. */

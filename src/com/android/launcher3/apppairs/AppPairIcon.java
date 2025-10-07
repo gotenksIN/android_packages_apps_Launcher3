@@ -154,6 +154,13 @@ public class AppPairIcon extends FrameLayout implements DraggableView, Reorderab
         return icon;
     }
 
+    /** Updates icon based on new info. */
+    public void updateInfo(AppPairInfo info) {
+        mInfo = info;
+        mIconGraphic.init(this, mContainer);
+        updateTitleAndA11yTitle();
+    }
+
     /**
      * Updates the title and a11y title of the app pair. Called on creation and when packages
      * change, to reflect app name changes or user language changes.
@@ -168,7 +175,7 @@ public class AppPairIcon extends FrameLayout implements DraggableView, Reorderab
      */
     public void updateTitleAndTextView() {
         CharSequence newTitle = getInfo().generateTitle(getContext());
-        mAppPairName.setText(newTitle);
+        mAppPairName.applyLabel(newTitle);
     }
 
     /**
@@ -288,17 +295,6 @@ public class AppPairIcon extends FrameLayout implements DraggableView, Reorderab
                         hovered ? HOVER_SCALE_MAX : HOVER_SCALE_DEFAULT)
                 .setDuration(HOVER_SCALE_DURATION)
                 .start();
-    }
-
-    @Nullable
-    @Override
-    public PopupController getPopupController() {
-        return mPopupController;
-    }
-
-    @Override
-    public void setPopupController(@NonNull PopupController popupController) {
-        mPopupController = popupController;
     }
 
     @NonNull

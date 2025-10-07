@@ -40,6 +40,7 @@ import android.text.TextUtils;
 import android.util.SparseIntArray;
 import android.view.ContextThemeWrapper;
 import android.view.Display;
+import android.view.Gravity;
 import android.view.SurfaceControlViewHost;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
@@ -165,7 +166,8 @@ public class PreviewSurfaceRenderer {
                 context.createDisplayContext(display),
                 gridName,
                 widgetHostId,
-                layoutXml);
+                layoutXml,
+                mWorkspacePageId);
 
         mViewRoot = new FrameLayout(mPreviewContext);
         mAppComponent = (PreviewAppComponent) LauncherComponentProvider.get(mPreviewContext);
@@ -310,20 +312,21 @@ public class PreviewSurfaceRenderer {
 
         final SparseIntArray wallpaperColorResources;
 
+        LocalColorExtractor localColorExtractor = mAppComponent.getLocalColorExtractor();
         if (Flags.newCustomizationPickerUi() && mPreviewColorOverride != null) {
-            LocalColorExtractor.newInstance(context)
+            localColorExtractor
                     .applyColorsOverride(context, mPreviewColorOverride);
             wallpaperColorResources = mPreviewColorOverride;
         } else if (mWallpaperColors != null) {
-            LocalColorExtractor.newInstance(context)
+            localColorExtractor
                     .applyColorsOverride(context, mWallpaperColors);
-            wallpaperColorResources = LocalColorExtractor.newInstance(context)
+            wallpaperColorResources = localColorExtractor
                     .generateColorsOverride(mWallpaperColors);
         } else {
             WallpaperColors wallpaperColors =
                     WallpaperManager.getInstance(context).getWallpaperColors(FLAG_SYSTEM);
             wallpaperColorResources = wallpaperColors == null ? null
-                    : LocalColorExtractor.newInstance(context)
+                    : localColorExtractor
                             .generateColorsOverride(wallpaperColors);
         }
 
@@ -344,15 +347,11 @@ public class PreviewSurfaceRenderer {
     }
 
     private void setContentRoot(View view) {
-        view.setPivotX(0);
-        view.setPivotY(0);
         // This aspect scales the view to fit in the surface and centers it
         final float scale = Math.min(mWidth / (float) view.getMeasuredWidth(),
                 mHeight / (float) view.getMeasuredHeight());
         view.setScaleX(scale);
         view.setScaleY(scale);
-        view.setTranslationX((mWidth - scale * view.getWidth()) / 2);
-        view.setTranslationY((mHeight - scale * view.getHeight()) / 2);
 
         if (!Flags.newCustomizationPickerUi()) {
             view.setAlpha(mSkipAnimations ? 1 : 0);
@@ -368,7 +367,9 @@ public class PreviewSurfaceRenderer {
             return;
         }
 
-        view.setLayoutParams(new LayoutParams(view.getMeasuredWidth(), view.getMeasuredHeight()));
+        LayoutParams lp = new LayoutParams(view.getMeasuredWidth(), view.getMeasuredHeight());
+        lp.gravity = Gravity.CENTER;
+        view.setLayoutParams(lp);
         if (mViewRoot.getChildCount() == 0) {
             mViewRoot.addView(view);
             mViewRoot.animate().alpha(1)

@@ -26,11 +26,13 @@ import static com.android.internal.jank.Cuj.CUJ_LAUNCHER_LAUNCH_APP_PAIR_FROM_WO
 import static com.android.launcher3.Flags.enableExpressiveDismissTaskMotion;
 import static com.android.launcher3.Flags.enableOverviewBackgroundWallpaperBlur;
 import static com.android.launcher3.Flags.enableUnfoldStateAnimation;
+import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherConstants.SavedInstanceKeys.PENDING_SPLIT_SELECT_INFO;
 import static com.android.launcher3.LauncherConstants.SavedInstanceKeys.RUNTIME_STATE;
 import static com.android.launcher3.LauncherSettings.Animation.DEFAULT_NO_ICON;
 import static com.android.launcher3.LauncherSettings.Animation.VIEW_BACKGROUND;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS;
+import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS_PREDICTION;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPLICATION;
@@ -43,11 +45,12 @@ import static com.android.launcher3.LauncherState.OVERVIEW;
 import static com.android.launcher3.LauncherState.OVERVIEW_MODAL_TASK;
 import static com.android.launcher3.LauncherState.OVERVIEW_SPLIT_SELECT;
 import static com.android.launcher3.Utilities.isRtl;
+import static com.android.launcher3.anim.AnimatorListeners.forEndCallback;
 import static com.android.launcher3.compat.AccessibilityManagerCompat.sendCustomAccessibilityEvent;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_APP_LAUNCH_TAP;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_SPLIT_SELECTION_EXIT_HOME;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_SPLIT_SELECTION_EXIT_INTERRUPTED;
-import static com.android.launcher3.popup.PinToTaskbarShortcut.PIN_ITEM_FROM_LAUNCHER;
+import static com.android.launcher3.taskbar.PinToTaskbarShortcut.PIN_ITEM_FROM_LAUNCHER;
 import static com.android.launcher3.popup.QuickstepSystemShortcut.getSplitSelectShortcutByPosition;
 import static com.android.launcher3.popup.SystemShortcut.APP_INFO;
 import static com.android.launcher3.popup.SystemShortcut.BUBBLE_SHORTCUT;
@@ -99,6 +102,7 @@ import android.view.View;
 import android.widget.AnalogClock;
 import android.widget.TextClock;
 import android.window.BackEvent;
+import android.window.DesktopExperienceFlags;
 import android.window.OnBackAnimationCallback;
 import android.window.OnBackInvokedDispatcher;
 import android.window.RemoteTransition;
@@ -111,6 +115,7 @@ import androidx.annotation.RequiresApi;
 
 import com.android.app.viewcapture.ViewCaptureFactory;
 import com.android.launcher3.AbstractFloatingView;
+import com.android.launcher3.BuildConfig;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Flags;
 import com.android.launcher3.GestureNavContract;
@@ -142,11 +147,16 @@ import com.android.launcher3.popup.SystemShortcut;
 import com.android.launcher3.proxy.ProxyActivityStarter;
 import com.android.launcher3.statehandlers.DepthController;
 import com.android.launcher3.statehandlers.DesktopVisibilityController;
+import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.AtomicAnimationFactory;
 import com.android.launcher3.statemanager.StateManager.StateHandler;
 import com.android.launcher3.taskbar.LauncherTaskbarUIController;
 import com.android.launcher3.taskbar.TaskbarManager;
 import com.android.launcher3.taskbar.TaskbarUIController;
+import com.android.launcher3.taskbar.TaskbarUiState;
+import com.android.launcher3.taskbar.TaskbarUiStateMonitor;
+import com.android.launcher3.taskbar.bubbles.BubbleActivityStarter;
+import com.android.launcher3.taskbar.bubbles.BubbleBarController;
 import com.android.launcher3.testing.TestLogging;
 import com.android.launcher3.testing.shared.TestProtocol;
 import com.android.launcher3.uioverrides.states.QuickstepAtomicAnimationFactory;
@@ -187,7 +197,10 @@ import com.android.quickstep.RecentsModel;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.TaskUtils;
 import com.android.quickstep.TouchInteractionService.TISBinder;
+import com.android.quickstep.fallback.RecentsState;
+import com.android.quickstep.fallback.RecentsStateUtilsKt;
 import com.android.quickstep.util.ActiveGestureProtoLogProxy;
+import com.android.quickstep.util.AnimUtils;
 import com.android.quickstep.util.AsyncClockEventDelegate;
 import com.android.quickstep.util.LauncherUnfoldAnimationController;
 import com.android.quickstep.util.QuickstepOnboardingPrefs;
@@ -260,6 +273,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     private SplitWithKeyboardShortcutController mSplitWithKeyboardShortcutController;
     private SplitToWorkspaceController mSplitToWorkspaceController;
     private BubbleBarLocation mBubbleBarLocation;
+
+    private TaskbarUiState mTaskbarUiState;
 
     /**
      * If Launcher restarted while in the middle of an Overview split select, it needs this data to
@@ -343,12 +358,19 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         if (DesktopModeStatus.canEnterDesktopModeOrShowAppHandle(this)) {
             mSplitSelectStateController.initSplitFromDesktopController(this);
         }
+        if (refactorTaskbarUiState()) {
+            mSplitSelectStateController.setLauncherUiState(launcherUiState);
+        }
         mHotseatPredictionController = new HotseatPredictionController(this);
 
         mEnableWidgetDepth = SystemProperties.getBoolean("ro.launcher.depth.widget", true);
         getWorkspace().addOverlayCallback(progress ->
                 onTaskbarInAppDisplayProgressUpdate(progress, MINUS_ONE_PAGE_PROGRESS_INDEX));
         addBackAnimationCallback(mSplitSelectStateController.getSplitBackHandler());
+        if (refactorTaskbarUiState()) {
+            mTaskbarUiState = TaskbarUiStateMonitor.INSTANCE.get(this)
+                    .getTaskbarUiState(getDisplayId());
+        }
     }
 
     @Override
@@ -455,6 +477,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                 | ACTIVITY_STATE_USER_ACTIVE | ACTIVITY_STATE_TRANSITION_ACTIVE)) != 0) {
             onStateOrResumeChanging((getActivityFlags() & ACTIVITY_STATE_TRANSITION_ACTIVE) == 0);
         }
+        if (refactorTaskbarUiState()) {
+            launcherUiState.setActivityFlag(getActivityFlags());
+        }
     }
 
     @Override
@@ -488,6 +513,10 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         }
     }
 
+    public TaskbarUiState getTaskbarUiState() {
+        return mTaskbarUiState;
+    }
+
     protected void onItemClicked(View view) {
         if (!mSplitToWorkspaceController.handleSecondAppSelectionForSplit(view)) {
             super.getItemOnClickListener().onClick(view);
@@ -504,26 +533,22 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         // Order matters as it affects order of appearance in popup container
         List<SystemShortcut.Factory> shortcuts = new ArrayList(Arrays.asList(
                 APP_INFO, WellbeingModel.SHORTCUT_FACTORY, mHotseatPredictionController));
-
-        if (mTaskbarUIController != null
-                && mTaskbarUIController.canPinAppWithContextMenu()
+        if (canPinAppWithContextMenu()
                 && DisplayController.showDesktopTaskbarForFreeformDisplay(this)
-                && container == CONTAINER_ALL_APPS) {
+                && (container == CONTAINER_ALL_APPS
+                || container == CONTAINER_ALL_APPS_PREDICTION)) {
             shortcuts.add(0, PIN_ITEM_FROM_LAUNCHER);
         }
 
         shortcuts.addAll(getSplitShortcuts());
         shortcuts.add(WIDGETS);
         shortcuts.add(INSTALL);
-        if (Flags.enableLongPressRemoveShortcut()
-                && (container == CONTAINER_HOTSEAT || container == CONTAINER_DESKTOP
-                || /* Folder */ container > 0)) {
+        if (container == CONTAINER_HOTSEAT || container == CONTAINER_DESKTOP
+                || /* Folder */ container > 0) {
             shortcuts.add(REMOVE);
         }
         shortcuts.add(DONT_SUGGEST_APP);
-        if (Flags.enablePrivateSpaceInstallShortcut()) {
-            shortcuts.add(PRIVATE_PROFILE_INSTALL);
-        }
+        shortcuts.add(PRIVATE_PROFILE_INSTALL);
         if (Flags.enablePrivateSpace()) {
             shortcuts.add(UNINSTALL_APP);
         }
@@ -533,8 +558,40 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         return shortcuts.stream();
     }
 
+    private boolean canPinAppWithContextMenu() {
+        if (refactorTaskbarUiState()) {
+            final boolean ret = newCanPinAppWithContextMenu();
+            if (BuildConfig.IS_STUDIO_BUILD && ret != legacyCanPinAppWithContextMenu()) {
+                throw new IllegalStateException("canPinAppWithContextMenu() doesn't match");
+            }
+            return ret;
+        } else {
+            return legacyCanPinAppWithContextMenu();
+        }
+    }
+
+    private boolean legacyCanPinAppWithContextMenu() {
+        return mTaskbarUIController != null
+                && mTaskbarUIController.canPinAppWithContextMenu();
+    }
+
+    /** Mimic the impl of {@link TaskbarPopupController#canPinAppWithContextMenu}. */
+    private boolean newCanPinAppWithContextMenu() {
+        if (!DesktopExperienceFlags.ENABLE_PINNING_APP_WITH_CONTEXT_MENU.isTrue()) {
+            return false;
+        }
+        return DesktopVisibilityController.INSTANCE.get(this).isInDesktopMode(getDisplayId())
+                || mTaskbarUiState.getShowDesktopTaskbarForFreeformDisplayRef().getValue()
+                || (mTaskbarUiState.getShowLockedTaskbarOnHome().getValue()
+                && mTaskbarUiState.isTaskbarOnHomeRef().getValue());
+    }
+
     private List<SystemShortcut.Factory<QuickstepLauncher>> getSplitShortcuts() {
         if (!mDeviceProfile.getDeviceProperties().isTablet() || mSplitSelectStateController.isSplitSelectActive()) {
+            return Collections.emptyList();
+        }
+        if (getDisplayId() != DEFAULT_DISPLAY
+                && !DesktopExperienceFlags.ENABLE_NON_DEFAULT_DISPLAY_SPLIT_BUGFIX.isTrue()) {
             return Collections.emptyList();
         }
         RecentsView recentsView = getOverviewPanel();
@@ -593,9 +650,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         }
     }
 
-    @Override
     public void onItemPinnedFromContextMenu() {
-        super.onItemPinnedFromContextMenu();
         mHotseatPredictionController.onItemPinnedFromContextMenu();
     }
 
@@ -636,7 +691,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         }
 
         super.onDestroy();
-        mHotseatPredictionController.destroy();
         if (mViewCapture != null) mViewCapture.close();
         removeBackAnimationCallback(mSplitSelectStateController.getSplitBackHandler());
     }
@@ -697,10 +751,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     protected void setTitle(@NonNull LauncherState state) {
-        if (state.hasFlag(FLAG_SKIP_STATE_ANNOUNCEMENT)) {
-            // Prevent accessibility title update announcement
-            getWindow().getAttributes().accessibilityTitle = getString(state.getTitle());
-        }
+        // Prevent accessibility title update announcement
+        getWindow().getAttributes().accessibilityTitle = state.hasFlag(FLAG_SKIP_STATE_ANNOUNCEMENT)
+                ? getString(state.getTitle()) : null;
         super.setTitle(state);
     }
 
@@ -750,7 +803,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     }
 
     @Override
-    public AtomicAnimationFactory createAtomicAnimationFactory() {
+    public AtomicAnimationFactory<LauncherState> createAtomicAnimationFactory() {
         return new QuickstepAtomicAnimationFactory(this);
     }
 
@@ -1212,20 +1265,21 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         return mTaskbarUIController;
     }
 
-    /** Provides the translation X for the hotseat item. */
-    public int getHotseatItemTranslationX(ItemInfo itemInfo) {
-        int translationX = 0;
+    /** Offset [targetRect] to account for the hotseat translation if applicable. */
+    public void offsetBoundsXToHotseatIfApplicable(RectF targetRect, View targetView) {
+        if (!(targetView.getTag() instanceof ItemInfo itemInfo) || !itemInfo.isInHotseat()) {
+            return;
+        }
+        int dx = 0;
         if (isBubbleBarEnabled() && mBubbleBarLocation != null) {
             boolean isBubblesOnLeft = mBubbleBarLocation.isOnLeft(isRtl(getResources()));
-            translationX += mDeviceProfile
-                    .getHotseatTranslationXForNavBar(this, isBubblesOnLeft);
+            dx += mDeviceProfile.getHotseatTranslationXForNavBar(this, isBubblesOnLeft);
         }
         if (isBubbleBarEnabled()
                 && mDeviceProfile.shouldAdjustHotseatForBubbleBar(asContext(), hasBubbles())) {
-            translationX += (int) mDeviceProfile
-                    .getHotseatAdjustedTranslation(asContext(), itemInfo.cellX);
+            dx += (int) mDeviceProfile.getHotseatAdjustedTranslation(asContext(), itemInfo.cellX);
         }
-        return translationX;
+        targetRect.offset(dx, 0);
     }
 
     public SplitToWorkspaceController getSplitToWorkspaceController() {
@@ -1430,7 +1484,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public boolean shouldShowHomeBehindDesktop() {
-        return DesktopState.fromContext(this).getShouldShowHomeBehindDesktop();
+        return DesktopState.getInstance(this).getShouldShowHomeBehindDesktop();
     }
 
     @Override
@@ -1478,6 +1532,22 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                 });
     }
 
+    @Override
+    public void startHome(boolean animated, @Nullable Runnable onHomeAnimationComplete) {
+        StateManager stateManager = getStateManager();
+        animated &= stateManager.shouldAnimateStateChange();
+        if (mSplitSelectStateController.isSplitSelectActive()) {
+            AnimUtils.goToNormalStateWithSplitDismissal(stateManager, this,
+                    LAUNCHER_SPLIT_SELECTION_EXIT_HOME,
+                    mSplitSelectStateController.getSplitAnimationController(),
+                    onHomeAnimationComplete);
+        } else {
+            stateManager.goToState(NORMAL, animated,
+                    onHomeAnimationComplete != null ? forEndCallback(onHomeAnimationComplete)
+                            : null);
+        }
+    }
+
     public boolean canStartHomeSafely() {
         OverviewCommandHelper overviewCommandHelper = mTISBindHelper.getOverviewCommandHelper();
         return overviewCommandHelper == null || overviewCommandHelper.canStartHomeSafely();
@@ -1485,12 +1555,28 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public boolean isBubbleBarEnabled() {
-        return (mTaskbarUIController != null && mTaskbarUIController.isBubbleBarEnabled());
+        return (mTaskbarUIController != null && BubbleBarController.isBubbleBarEnabled());
     }
 
     @Override
     public boolean hasBubbles() {
-        return (mTaskbarUIController != null && mTaskbarUIController.hasBubbles());
+        if (refactorTaskbarUiState()) {
+            final boolean ret = newHasBubbles();
+            if (BuildConfig.IS_STUDIO_BUILD && ret != legacyHasBubbles()) {
+                throw new IllegalStateException("hasBubbles() doesn't match");
+            }
+            return ret;
+        } else {
+            return legacyHasBubbles();
+        }
+    }
+
+    private boolean newHasBubbles() {
+        return mTaskbarUiState.getHasBubblesRef().getValue();
+    }
+
+    private boolean legacyHasBubbles() {
+        return mTaskbarUIController != null && mTaskbarUIController.hasBubbles();
     }
 
     @Override
@@ -1505,13 +1591,13 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     @Override
     public void showShortcutBubble(ShortcutInfo info) {
         if (info == null) return;
-        SystemUiProxy.INSTANCE.get(this).showShortcutBubble(info);
+        BubbleActivityStarter.INSTANCE.get(this).showShortcutBubble(info);
     }
 
     @Override
     public void showAppBubble(Intent intent, UserHandle user) {
         if (intent == null || intent.getPackage() == null) return;
-        SystemUiProxy.INSTANCE.get(this).showAppBubble(intent, user);
+        BubbleActivityStarter.INSTANCE.get(this).showAppBubble(intent, user);
     }
 
     /** Sets the location of the bubble bar */
@@ -1632,5 +1718,10 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     @Override
     public SplitSelectStateController getSplitSelectStateController() {
         return mSplitSelectStateController;
+    }
+
+    @Override
+    public void goToRecentsState(RecentsState recentsState, boolean animated) {
+        getStateManager().goToState(RecentsStateUtilsKt.toLauncherState(recentsState), animated);
     }
 }

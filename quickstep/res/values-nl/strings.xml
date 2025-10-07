@@ -96,7 +96,10 @@
     <string name="allset_navigation_settings" msgid="4713404605961476027"><annotation id="link">"Navigatie-instellingen van systeem"</annotation></string>
     <string name="allset_title_expressive" msgid="474399969304146994">"Je <xliff:g id="DEVICE">%1$s</xliff:g> is \ngereed."</string>
     <string name="allset_title_expressive_fallback" msgid="2829102990606405239">"Het apparaat is \ngereed."</string>
+    <string name="allset_title_expressive_fixed" msgid="3564219469262883526">"Je bent er klaar voor."</string>
     <string name="allset_subtitle_expressive" msgid="419688197551192358">"Veel plezier met je nieuwe <xliff:g id="DEVICE">%1$s</xliff:g>."</string>
+    <string name="allset_subtitle_expressive_gesture_navigation" msgid="8931442349501593934">"Swipe omhoog om aan de slag te gaan met je <xliff:g id="DEVICE">%1$s</xliff:g>"</string>
+    <string name="allset_subtitle_expressive_button_navigation" msgid="5219509605046028014">"Tik om aan de slag te gaan met je <xliff:g id="DEVICE">%1$s</xliff:g>"</string>
     <string name="allset_navigation_settings_expressive" msgid="3745595273748356"><annotation id="link">"Kiezen hoe je wilt navigeren"</annotation></string>
     <string name="allset_hint_expressive" msgid="756856423510976261">"Omhoog swipen"</string>
     <string name="allset_button_hint_expressive" msgid="667643693410494225">"Tik op de startknop"</string>
@@ -147,6 +150,10 @@
     <string name="change_navigation_mode" msgid="9088393078736808968">"Navigatiemodus wijzigen"</string>
     <string name="taskbar_divider_a11y_title" msgid="6608690309720242080">"Scheiding voor Taakbalk"</string>
     <string name="taskbar_overflow_a11y_title" msgid="8114045167370723746">"Andere recente apps"</string>
+    <!-- no translation found for app_added_to_taskbar (1160433791917609063) -->
+    <skip />
+    <!-- no translation found for app_removed_from_taskbar (7887298201562912487) -->
+    <skip />
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Naar boven/links verplaatsen"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Naar beneden/rechts verplaatsen"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"App openen als ballon"</string>

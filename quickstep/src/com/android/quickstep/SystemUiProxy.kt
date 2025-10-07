@@ -59,6 +59,7 @@ import com.android.launcher3.Flags
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.taskbar.bubbles.BubbleActivityStarter
 import com.android.launcher3.util.DaggerSingletonObject
 import com.android.launcher3.util.Executors
 import com.android.launcher3.util.Preconditions
@@ -174,26 +175,31 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
     // TODO(141886704): Find a way to remove this
     @SystemUiStateFlags var lastSystemUiStateFlags: Long = 0
 
+    private val pendingIntentCache = mutableMapOf<Int, PendingIntent>()
+
     /**
      * This returns a pending intent that is used to start recents via Shell (which is a different
      * process). It is bare-bones, so it's expected that the component and options will be provided
      * via fill-in intent.
      */
     private fun getRecentsPendingIntent(displayId: Int) =
-        PendingIntent.getActivity(
-            context,
-            0,
-            Intent().setPackage(context.packageName),
-            PendingIntent.FLAG_MUTABLE or
-                PendingIntent.FLAG_ALLOW_UNSAFE_IMPLICIT_INTENT or
-                Intent.FILL_IN_COMPONENT,
-            ActivityOptions.makeBasic()
-                .setPendingIntentCreatorBackgroundActivityStartMode(
-                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
-                )
-                .setLaunchDisplayId(displayId)
-                .toBundle(),
-        )
+        pendingIntentCache.computeIfAbsent(displayId) {
+            PendingIntent.getActivity(
+                context,
+                0,
+                Intent().setPackage(context.packageName),
+                PendingIntent.FLAG_MUTABLE or
+                    PendingIntent.FLAG_ALLOW_UNSAFE_IMPLICIT_INTENT or
+                    Intent.FILL_IN_COMPONENT or
+                    PendingIntent.FLAG_CANCEL_CURRENT,
+                ActivityOptions.makeBasic()
+                    .setPendingIntentCreatorBackgroundActivityStartMode(
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                    )
+                    .setLaunchDisplayId(displayId)
+                    .toBundle(),
+            )
+        }
 
     val unfoldTransitionProvider: ProxyUnfoldTransitionProvider? =
         if ((Flags.enableUnfoldStateAnimation() && ResourceUnfoldTransitionConfig().isEnabled))
@@ -689,6 +695,9 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
     /**
      * Tells SysUI to show a shortcut bubble.
      *
+     * This method should NOT be used directly. Please use
+     * [BubbleActivityStarter.showShortcutBubble] instead.
+     *
      * @param info the shortcut info used to create or identify the bubble.
      * @param bubbleBarLocation the optional location of the bubble bar.
      */
@@ -700,6 +709,9 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
 
     /**
      * Tells SysUI to show a bubble of an app.
+     *
+     * This method should NOT be used directly. Please use [BubbleActivityStarter.showAppBubble]
+     * instead.
      *
      * @param intent the intent used to create the bubble.
      * @param bubbleBarLocation the optional location of the bubble bar.
@@ -925,7 +937,18 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
      */
     fun getHomeTaskOverlayContainer(): SurfaceControl? {
         executeWithErrorLog({ "Failed call getHomeTaskOverlayContainer" }) {
-            return shellTransitions?.homeTaskOverlayContainer
+            return shellTransitions?.getHomeTaskOverlayContainer()
+        }
+        return null
+    }
+
+    /**
+     * Returns a surface which can be used to attach overlays to home task or null if the task
+     * doesn't exist or sysui is not connected
+     */
+    fun getOverviewOverlayContainer(displayId: Int): SurfaceControl? {
+        executeWithErrorLog({ "Failed call getOverviewOverlayContainer" }) {
+            return shellTransitions?.getOverviewOverlayContainer(displayId)
         }
         return null
     }
@@ -1141,18 +1164,28 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
         deskId: Int,
         transition: RemoteTransition?,
         taskIdToReorderToFront: Int? = null,
+        transitionSource: DesktopModeTransitionSource,
     ) =
         executeWithErrorLog({ "Failed call activateDesk" }) {
-            desktopMode?.activateDesk(deskId, transition, taskIdToReorderToFront ?: INVALID_TASK_ID)
+            desktopMode?.activateDesk(
+                deskId,
+                transition,
+                taskIdToReorderToFront ?: INVALID_TASK_ID,
+                transitionSource,
+            )
         }
 
     /** Calls shell to remove the desk whose ID is `deskId`. */
-    fun removeDesk(deskId: Int) =
-        executeWithErrorLog({ "Failed call removeDesk" }) { desktopMode?.removeDesk(deskId) }
+    fun removeDesk(deskId: Int, transitionSource: DesktopModeTransitionSource) =
+        executeWithErrorLog({ "Failed call removeDesk" }) {
+            desktopMode?.removeDesk(deskId, transitionSource)
+        }
 
     /** Calls shell to remove all the available desks on all displays. */
-    fun removeAllDesks() =
-        executeWithErrorLog({ "Failed call removeAllDesks" }) { desktopMode?.removeAllDesks() }
+    fun removeAllDesks(transitionSource: DesktopModeTransitionSource) =
+        executeWithErrorLog({ "Failed call removeAllDesks" }) {
+            desktopMode?.removeAllDesks(transitionSource)
+        }
 
     /**
      * Call shell to show all apps active on the desktop and bring [taskIdToReorderToFront] to front
@@ -1164,12 +1197,14 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
         displayId: Int,
         transition: RemoteTransition? = null,
         taskIdToReorderToFront: Int? = null,
+        transitionSource: DesktopModeTransitionSource,
     ) =
         executeWithErrorLog({ "Failed call showDesktopApps" }) {
             desktopMode?.showDesktopApps(
                 displayId,
                 transition,
                 taskIdToReorderToFront ?: INVALID_TASK_ID,
+                transitionSource,
             )
         }
 
@@ -1202,10 +1237,13 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
         }
     }
 
-    /** Perform cleanup transactions after animation to split select is complete */
-    fun onDesktopSplitSelectAnimComplete(taskInfo: RunningTaskInfo?) =
-        executeWithErrorLog({ "Failed call onDesktopSplitSelectAnimComplete" }) {
-            desktopMode?.onDesktopSplitSelectAnimComplete(taskInfo)
+    /**
+     * Perform cleanup transactions after choosing either the second app or the floating task view's
+     * app icon in a desktop split-select transition.
+     */
+    fun onDesktopSplitSelectChoice(taskInfo: RunningTaskInfo?) =
+        executeWithErrorLog({ "Failed call onDesktopSplitSelectChoice" }) {
+            desktopMode?.onDesktopSplitSelectChoice(taskInfo)
         }
 
     /** Call shell to move a task with given `taskId` to desktop */
@@ -1229,15 +1267,15 @@ class SystemUiProxy @Inject constructor(@ApplicationContext private val context:
         }
 
     /** Call shell to remove the desktop that is on given `displayId` */
-    fun removeDefaultDeskInDisplay(displayId: Int) =
+    fun removeDefaultDeskInDisplay(displayId: Int, transitionSource: DesktopModeTransitionSource) =
         executeWithErrorLog({ "Failed call removeDefaultDeskInDisplay" }) {
-            desktopMode?.removeDefaultDeskInDisplay(displayId)
+            desktopMode?.removeDefaultDeskInDisplay(displayId, transitionSource)
         }
 
     /** Call shell to move a task with given `taskId` to external display. */
-    fun moveToExternalDisplay(taskId: Int) =
+    fun moveToExternalDisplay(taskId: Int, transitionSource: DesktopModeTransitionSource) =
         executeWithErrorLog({ "Failed call moveToExternalDisplay" }) {
-            desktopMode?.moveToExternalDisplay(taskId)
+            desktopMode?.moveToExternalDisplay(taskId, transitionSource)
         }
 
     //

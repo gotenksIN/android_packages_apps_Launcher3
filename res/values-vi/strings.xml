@@ -32,8 +32,7 @@
     <string name="recent_task_option_aspect_ratio" msgid="7008605516391096989">"Thay đổi tỷ lệ khung hình"</string>
     <string name="split_app_info_accessibility" msgid="5475288491241414932">"Thông tin ứng dụng cho %1$s"</string>
     <string name="split_app_usage_settings" msgid="7214375263347964093">"Chế độ cài đặt mức sử dụng %1$s"</string>
-    <!-- no translation found for close_task_accessibility (4765872229211282647) -->
-    <skip />
+    <string name="close_task_accessibility" msgid="4765872229211282647">"Đóng %1$s"</string>
     <string name="new_window_option_taskbar" msgid="6448780542727767211">"Cửa sổ mới"</string>
     <string name="manage_windows_option_taskbar" msgid="2294109489960654212">"Quản lý cửa sổ"</string>
     <string name="save_app_pair" msgid="5647523853662686243">"Lưu cặp ứng dụng"</string>
@@ -202,7 +201,6 @@
     <string name="all_apps_work_tab_content_description" msgid="3835637212347968316">"Thẻ ứng dụng công việc"</string>
     <string name="work_profile_toggle_label" msgid="3081029915775481146">"Hồ sơ công việc"</string>
     <string name="work_profile_edu_work_apps" msgid="7895468576497746520">"Các ứng dụng công việc được gắn huy hiệu và quản trị viên CNTT có thể nhìn thấy"</string>
-    <string name="work_profile_edu_accept" msgid="6069788082535149071">"OK"</string>
     <string name="work_apps_paused_title" msgid="3040901117349444598">"Đã tạm dừng các ứng dụng công việc"</string>
     <string name="work_apps_paused_info_body" msgid="1687828929959237477">"Bạn sẽ không nhận được thông báo từ các ứng dụng công việc"</string>
     <string name="work_apps_paused_body" msgid="261634750995824906">"Các ứng dụng công việc không thể gửi thông báo cho bạn, sử dụng pin hoặc truy cập thông tin vị trí của bạn"</string>

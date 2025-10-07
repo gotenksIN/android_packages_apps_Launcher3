@@ -66,7 +66,7 @@
     <string name="home_gesture_feedback_overview_detected" msgid="5177627157303895077">"ଆପଣ ଛାଡ଼ିବା ପୂର୍ବରୁ ବିରତ କରୁନଥିବା ସୁନିଶ୍ଚିତ କରନ୍ତୁ।"</string>
     <string name="home_gesture_feedback_wrong_swipe_direction" msgid="8328465201424027148">"ଆପଣ ସିଧା ଉପରକୁ ସ୍ୱାଇପ କରୁଥିବା ସୁନିଶ୍ଚିତ କରନ୍ତୁ"</string>
     <string name="home_gesture_feedback_complete_with_follow_up" msgid="8766981412895888417">"ଆପଣ \'ହୋମକୁ ଯାଆନ୍ତୁ\' ଜେଶ୍ଚର ସମ୍ପୂର୍ଣ୍ଣ କରିଛନ୍ତି। ତା\'ପରେ, ପଛକୁ କିପରି ଫେରିବେ ତାହା ଜାଣନ୍ତୁ।"</string>
-    <string name="home_gesture_feedback_complete_without_follow_up" msgid="2978063221383413443">"ଆପଣ \'ମୂଳପୃଷ୍ଠାକୁ ଯାଆନ୍ତୁ\' ଜେଶ୍ଚର୍ ସମ୍ପୂର୍ଣ୍ଣ କରିଛନ୍ତି।"</string>
+    <string name="home_gesture_feedback_complete_without_follow_up" msgid="2978063221383413443">"ଆପଣ \'ହୋମକୁ ଯାଆନ୍ତୁ\' ଜେଶ୍ଚର ସମ୍ପୂର୍ଣ୍ଣ କରିଛନ୍ତି"</string>
     <string name="home_gesture_intro_title" msgid="836590312858441830">"ହୋମକୁ ଯିବା ପାଇଁ ସ୍ୱାଇପ କରନ୍ତୁ"</string>
     <string name="home_gesture_intro_subtitle" msgid="2632238748497975326">"ଆପଣଙ୍କ ସ୍କ୍ରିନର ତଳୁ ଉପରକୁ ସ୍ୱାଇପ କରନ୍ତୁ। ଏହି ଜେଶ୍ଚର ସର୍ବଦା ଆପଣଙ୍କୁ ହୋମ ସ୍କ୍ରିନକୁ ନେଇଥାଏ।"</string>
     <string name="home_gesture_tutorial_title" msgid="3126834347496917376">"ହୋମକୁ ଯାଆନ୍ତୁ"</string>
@@ -96,7 +96,10 @@
     <string name="allset_navigation_settings" msgid="4713404605961476027"><annotation id="link">"ସିଷ୍ଟମ ନାଭିଗେସନ ସେଟିଂସ"</annotation></string>
     <string name="allset_title_expressive" msgid="474399969304146994">"ଆପଣଙ୍କ <xliff:g id="DEVICE">%1$s</xliff:g> \nପ୍ରସ୍ତୁତ ଅଛି!"</string>
     <string name="allset_title_expressive_fallback" msgid="2829102990606405239">"ଆପଣଙ୍କ ଡିଭାଇସ \nପ୍ରସ୍ତୁତ ଅଛି!"</string>
+    <string name="allset_title_expressive_fixed" msgid="3564219469262883526">"ଆପଣ ବ୍ୟବହାର କରିବାକୁ ପ୍ରସ୍ତୁତ!"</string>
     <string name="allset_subtitle_expressive" msgid="419688197551192358">"ଆପଣଙ୍କ ନୂଆ <xliff:g id="DEVICE">%1$s</xliff:g>ର ମଜା ନିଅନ୍ତୁ!"</string>
+    <string name="allset_subtitle_expressive_gesture_navigation" msgid="8931442349501593934">"ଆପଣଙ୍କ <xliff:g id="DEVICE">%1$s</xliff:g> ସହ ଆରମ୍ଭ କରିବାକୁ ଉପରକୁ ସ୍ୱାଇପ କରନ୍ତୁ"</string>
+    <string name="allset_subtitle_expressive_button_navigation" msgid="5219509605046028014">"ଆପଣଙ୍କ <xliff:g id="DEVICE">%1$s</xliff:g>ରେ ଆରମ୍ଭ କରିବାକୁ ଟାପ କରନ୍ତୁ"</string>
     <string name="allset_navigation_settings_expressive" msgid="3745595273748356"><annotation id="link">"କିପରି ନାଭିଗେଟ କରିବେ ତାହା ବାଛନ୍ତୁ"</annotation></string>
     <string name="allset_hint_expressive" msgid="756856423510976261">"ଉପରକୁ ସ୍ୱାଇପ କରନ୍ତୁ"</string>
     <string name="allset_button_hint_expressive" msgid="667643693410494225">"ହୋମ ବଟନରେ ଟାପ କରନ୍ତୁ"</string>
@@ -147,6 +150,10 @@
     <string name="change_navigation_mode" msgid="9088393078736808968">"ନାଭିଗେସନ ମୋଡ ପରିବର୍ତ୍ତନ କରନ୍ତୁ"</string>
     <string name="taskbar_divider_a11y_title" msgid="6608690309720242080">"ଟାସ୍କବାର ଡିଭାଇଡର"</string>
     <string name="taskbar_overflow_a11y_title" msgid="8114045167370723746">"ଅନ୍ୟ ବର୍ତ୍ତମାନର ଆପ୍ସ"</string>
+    <!-- no translation found for app_added_to_taskbar (1160433791917609063) -->
+    <skip />
+    <!-- no translation found for app_removed_from_taskbar (7887298201562912487) -->
+    <skip />
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"ଶୀର୍ଷ/ବାମକୁ ମୁଭ କରନ୍ତୁ"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"ନିମ୍ନ/ଡାହାଣକୁ ମୁଭ କରନ୍ତୁ"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"ଏକ ବବଲ ଭାବେ ଆପ ଖୋଲନ୍ତୁ"</string>

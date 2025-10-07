@@ -66,12 +66,18 @@ class DesktopRecentsTransitionController(
             )
         val transition = RemoteTransition(animRunner, appThread, "RecentsToDesktop")
         if (areMultiDesksFlagsEnabled()) {
-            systemUiProxy.activateDesk(desktopTaskView.deskId, transition, taskIdToReorderToFront)
+            systemUiProxy.activateDesk(
+                desktopTaskView.deskId,
+                transition,
+                taskIdToReorderToFront,
+                DesktopModeTransitionSource.RECENTS,
+            )
         } else {
             systemUiProxy.showDesktopApps(
                 desktopTaskView.displayId,
                 transition,
                 taskIdToReorderToFront,
+                DesktopModeTransitionSource.RECENTS,
             )
         }
     }
@@ -91,8 +97,8 @@ class DesktopRecentsTransitionController(
     }
 
     /** Move task to external display from recents view */
-    fun moveToExternalDisplay(taskId: Int) {
-        systemUiProxy.moveToExternalDisplay(taskId)
+    fun moveToExternalDisplay(taskId: Int, transitionSource: DesktopModeTransitionSource) {
+        systemUiProxy.moveToExternalDisplay(taskId, transitionSource)
     }
 
     private class RemoteDesktopLaunchTransitionRunner(

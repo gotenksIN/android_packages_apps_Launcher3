@@ -106,6 +106,7 @@ public final class TestProtocol {
     public static final String REQUEST_APP_LIST_FREEZE_FLAGS = "app-list-freeze-flags";
     public static final String REQUEST_APPS_LIST_SCROLL_Y = "apps-list-scroll-y";
     public static final String REQUEST_TASKBAR_APPS_LIST_SCROLL_Y = "taskbar-apps-list-scroll-y";
+    public static final String REQUEST_LIMIT_MAX_TASKBAR_ICON_NUMBER = "limit-max-taskbar-icon-num";
     public static final String REQUEST_WIDGETS_SCROLL_Y = "widgets-scroll-y";
     public static final String REQUEST_TARGET_INSETS = "target-insets";
     public static final String REQUEST_WINDOW_INSETS = "window-insets";
@@ -120,6 +121,8 @@ public final class TestProtocol {
     public static final String REQUEST_REINITIALIZE_DATA = "reinitialize-data";
     public static final String REQUEST_CLEAR_DATA = "clear-data";
     public static final String REQUEST_HOTSEAT_ICON_NAMES = "get-hotseat-icon-names";
+    public static final String REQUEST_SHOULD_SHOW_HOME_BEHIND_DESKTOP =
+            "should-show-home-behind-desktop";
     public static final String REQUEST_IS_TABLET = "is-tablet";
     public static final String REQUEST_IS_PREDICTIVE_BACK_SWIPE_ENABLED =
             "is-predictive-back-swipe-enabled";
@@ -157,6 +160,8 @@ public final class TestProtocol {
 
     public static final String REQUEST_GET_BUBBLE_BAR_DROP_TARGET_SIZE =
             "request-get-bubble-bar-drop-target-size";
+    public static final String REQUEST_COLLAPSE_BUBBLE_BAR =
+            "request-collapse-bubble-bar";
     public static final String REQUEST_GET_OVERVIEW_CURRENT_PAGE_INDEX =
             "get-overview-current-page-index";
     public static final String REQUEST_GET_OVERVIEW_FIRST_TASKVIEW_INDEX =
@@ -175,6 +180,9 @@ public final class TestProtocol {
 
     public static final String PERMANENT_DIAG_TAG = "TaplTarget";
     public static final String REQUEST_FLAG_ENABLE_GRID_ONLY_OVERVIEW = "enable-grid-only-overview";
+
+    public static final String REQUEST_FLAG_ENABLE_MULTIPLE_DESKTOPS = "enable-multiple-desks";
+
     public static final String REQUEST_IS_RECENTS_WINDOW_ENABLED = "recents-window-enabled";
 
     public static final String REQUEST_UNSTASH_BUBBLE_BAR_IF_STASHED =
@@ -182,8 +190,6 @@ public final class TestProtocol {
 
     public static final String REQUEST_INJECT_FAKE_TRACKPAD = "inject-fake-trackpad";
     public static final String REQUEST_EJECT_FAKE_TRACKPAD = "eject-fake-trackpad";
-
-    public static final String REQUEST_TASKBAR_PRIMARY_DISPLAY_ID = "taskbar-primary-display-id";
 
     public static final String REQUEST_DISMISS_MAGNETIC_DETACH_THRESHOLD =
             "dismiss-magnetic-detach-threshold";
@@ -193,6 +199,9 @@ public final class TestProtocol {
 
     public static final String REQUEST_TASKBAR_UNSTASHED_INPUT_AREA =
             "taskbar-unstashed-input-area";
+
+    public static final String REQUEST_IS_IN_DESKTOP_FIRST_MODE =
+            "display_is_in_desktop_first_mode";
 
     /** Logs {@link Log#d(String, String)} if {@link #sDebugTracing} is true. */
     public static void testLogD(String tag, String message) {

@@ -52,7 +52,7 @@ class DesktopSystemShortcut(
         val recentsView = mTarget.getOverviewPanel<RecentsView<*, *>>()
         recentsView.moveTaskToDesktop(
             taskContainer,
-            DesktopModeTransitionSource.APP_FROM_OVERVIEW,
+            DesktopModeTransitionSource.OVERVIEW_TASK_MENU,
         ) {
             InteractionJankMonitorWrapper.end(Cuj.CUJ_DESKTOP_MODE_ENTER_FROM_OVERVIEW_MENU)
             mTarget.statsLogManager
@@ -94,6 +94,7 @@ class DesktopSystemShortcut(
                             taskKey.numActivities,
                             taskKey.isTopActivityNoDisplay,
                             taskKey.isActivityStackTransparent,
+                            taskKey.topActivityType,
                         ) -> null
 
                         !taskContainer.task.isDockable -> null

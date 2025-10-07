@@ -27,12 +27,6 @@
         android:layout_height="match_parent"
         android:background="@color/suw_all_set_scrim"/>
 
-    <com.android.quickstep.views.WallpaperScreenshotClipView
-        android:id="@+id/wallpaper_clip_path"
-        android:visibility="gone"
-        android:layout_height="match_parent"
-        android:layout_width="match_parent" />
-
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -50,7 +44,7 @@
             android:layout_height="wrap_content"
             android:paddingTop="72dp"
             android:fitsSystemWindows="true"
-            android:paddingHorizontal="@dimen/allset_page_padding_horizontal">
+            android:paddingHorizontal="@dimen/allset_page_expressive_padding_horizontal">
 
             <TextView
                 android:id="@+id/title"
@@ -94,5 +88,11 @@
         </androidx.constraintlayout.widget.ConstraintLayout>
 
     </ScrollView>
+
+    <com.android.quickstep.views.WallpaperScreenshotClipView
+        android:id="@+id/wallpaper_clip_path"
+        android:visibility="gone"
+        android:layout_height="match_parent"
+        android:layout_width="match_parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

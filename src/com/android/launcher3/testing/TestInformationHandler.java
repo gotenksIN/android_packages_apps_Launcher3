@@ -18,7 +18,6 @@ package com.android.launcher3.testing;
 import static androidx.lifecycle.Lifecycle.State.DESTROYED;
 
 import static com.android.launcher3.Flags.enableFallbackOverviewInWindow;
-import static com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOverview;
 import static com.android.launcher3.Flags.enableLauncherOverviewInWindow;
 import static com.android.launcher3.allapps.AllAppsStore.DEFER_UPDATES_TEST;
 import static com.android.launcher3.config.FeatureFlags.ENABLE_TASKBAR_NAVBAR_UNIFICATION;
@@ -26,6 +25,7 @@ import static com.android.launcher3.config.FeatureFlags.FOLDABLE_SINGLE_PAGE;
 import static com.android.launcher3.testing.shared.TestProtocol.TEST_INFO_RESPONSE_FIELD;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.MODEL_EXECUTOR;
+import static com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOverview;
 
 import android.app.Activity;
 import android.app.Application;
@@ -56,13 +56,15 @@ import com.android.launcher3.LauncherModel;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.R;
 import com.android.launcher3.ShortcutAndWidgetContainer;
+import com.android.launcher3.Utilities;
 import com.android.launcher3.Workspace;
+import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.dragndrop.DragLayer;
 import com.android.launcher3.icons.ClockDrawableWrapper;
 import com.android.launcher3.testing.shared.TestProtocol;
 import com.android.launcher3.util.ActivityLifecycleCallbacksAdapter;
 import com.android.launcher3.util.DisplayController;
-import com.android.launcher3.util.ResourceBasedOverride;
+import com.android.launcher3.util.TaskbarModeUtil;
 import com.android.launcher3.widget.picker.WidgetsFullSheet;
 
 import java.util.ArrayList;
@@ -78,14 +80,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import javax.inject.Inject;
+
 /**
  * Class to handle requests from tests
  */
-public class TestInformationHandler implements ResourceBasedOverride {
+public class TestInformationHandler {
+
+    @Inject
+    public TestInformationHandler() {
+    }
+
 
     public static TestInformationHandler newInstance(Context context) {
-        return Overrides.getObject(TestInformationHandler.class,
-                context, R.string.test_information_handler_class);
+        return LauncherComponentProvider.get(context).getTestInformationHandler();
     }
 
     private static Collection<String> sEvents;
@@ -114,6 +122,8 @@ public class TestInformationHandler implements ResourceBasedOverride {
 
     /** Starts tracking UI surface for leaks. */
     public static void trackUiSurface(LifecycleOwner surface) {
+        if (!Utilities.isRunningInTestHarness()) return;
+
         sUiSurfaces.add(surface);
     }
 
@@ -222,10 +232,30 @@ public class TestInformationHandler implements ResourceBasedOverride {
                         ENABLE_TASKBAR_NAVBAR_UNIFICATION);
                 return response;
 
-            case TestProtocol.REQUEST_TASKBAR_SHOWN_ON_HOME:
+            case TestProtocol.REQUEST_TASKBAR_SHOWN_ON_HOME: {
+                DisplayController.Info displayInfo = DisplayController.INSTANCE.get(
+                        mContext).getInfoForDisplay(Integer.parseInt(arg));
                 response.putBoolean(TEST_INFO_RESPONSE_FIELD,
-                        DisplayController.showLockedTaskbarOnHome(mContext));
+                        displayInfo != null && displayInfo.showLockedTaskbarOnHome());
                 return response;
+            }
+
+            case TestProtocol.REQUEST_SHOULD_SHOW_HOME_BEHIND_DESKTOP: {
+                final Bundle bundle = getLauncherUIProperty(Bundle::putBoolean,
+                        launcher -> launcher.shouldShowHomeBehindDesktop());
+                if (bundle != null) return bundle;
+                response.putBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD, false);
+                return response;
+            }
+
+            case TestProtocol.REQUEST_IS_IN_DESKTOP_FIRST_MODE: {
+                DisplayController.Info displayInfo = DisplayController.INSTANCE.get(
+                        mContext).getInfoForDisplay(Integer.parseInt(arg));
+                response.putBoolean(TEST_INFO_RESPONSE_FIELD,
+                        displayInfo != null && displayInfo.isInDesktopFirstMode());
+                return response;
+            }
+
             case TestProtocol.REQUEST_NUM_ALL_APPS_COLUMNS:
                 response.putInt(TestProtocol.TEST_INFO_RESPONSE_FIELD,
                         mDeviceProfile.numShownAllAppsColumns);
@@ -233,7 +263,7 @@ public class TestInformationHandler implements ResourceBasedOverride {
 
             case TestProtocol.REQUEST_IS_TRANSIENT_TASKBAR:
                 response.putBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD,
-                        DisplayController.isTransientTaskbar(mContext));
+                        TaskbarModeUtil.INSTANCE.get(mContext).isTransient());
                 return response;
 
             case TestProtocol.REQUEST_IS_TWO_PANELS:

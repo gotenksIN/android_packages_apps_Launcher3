@@ -35,6 +35,7 @@ import com.android.launcher3.SecondaryDropTarget;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.allapps.PrivateProfileManager;
 import com.android.launcher3.model.data.ItemInfo;
+import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.util.ActivityOptionsWrapper;
@@ -394,14 +395,12 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
             mTarget.getStatsLogManager().logger()
                     .withItemInfo(mItemInfo)
                     .log(LAUNCHER_SYSTEM_SHORTCUT_DONT_SUGGEST_APP_TAP);
-            if (Flags.enableDismissPredictionUndo()) {
-                Snackbar.show(mTarget,
-                        view.getContext().getString(R.string.item_removed), R.string.undo,
-                        () -> { }, () ->
-                            mTarget.getStatsLogManager().logger()
-                                    .withItemInfo(mItemInfo)
-                                    .log(LAUNCHER_DISMISS_PREDICTION_UNDO));
-            }
+            Snackbar.show(mTarget,
+                    view.getContext().getString(R.string.item_removed), R.string.undo,
+                    () -> { }, () ->
+                        mTarget.getStatsLogManager().logger()
+                                .withItemInfo(mItemInfo)
+                                .log(LAUNCHER_DISMISS_PREDICTION_UNDO));
         }
     }
 
@@ -463,13 +462,12 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
                         && !(itemInfo instanceof WorkspaceItemInfo)) {
                     return null;
                 }
-                if (itemInfo instanceof WorkspaceItemInfo) {
+                if (itemInfo instanceof ItemInfoWithIcon itemInfoWithIcon) {
                     // Don't show bubble shortcut option for non-resizeable apps on small screens.
                     // TODO(b/411558731): isPhone just checks for smallest width < 600dp, so it
                     // basically is a check for small screens including Foldables when folded.
                     // However, the name is a bit misleading, so considering renaming.
-                    WorkspaceItemInfo wsItemInfo = (WorkspaceItemInfo) itemInfo;
-                    if (wsItemInfo.isNonResizeable()
+                    if (itemInfoWithIcon.isNonResizeable()
                             && activity.getDeviceProfile().getDeviceProperties().isPhone()) {
                         return null;
                     }
@@ -514,8 +512,8 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
                 }
             }
             // If we're here check for an intent
-            Intent intent = mItemInfo.getIntent();
-            if (intent != null) {
+            if (mItemInfo.getIntent() != null) {
+                final Intent intent = new Intent(mItemInfo.getIntent());
                 if (intent.getPackage() == null) {
                     intent.setPackage(mItemInfo.getTargetPackage());
                 }

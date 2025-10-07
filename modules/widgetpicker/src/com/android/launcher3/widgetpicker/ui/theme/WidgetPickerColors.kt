@@ -45,10 +45,18 @@ import androidx.compose.ui.graphics.Color
  *   widgets header (in left pane of two pane picker view).
  * @param featuredHeaderLeadingIcon color of the leading icon of the featured widgets header (in
  *   left pane of two pane picker view).
- * @param listHeaderTitle color of the title text of widget app headers (in left pane of two pane
- *   picker view).
- * @param listHeaderSubTitle color of the subtitle text of widget app headers (in left pane of two
- *   pane picker view).
+ * @param expandableListHeaderTitle color of the title text of widget app headers that can be
+ *   expanded.
+ * @param expandableListHeaderSubTitle color of the subtitle text of widget app headers that can be
+ *   expanded.
+ * @param unSelectedListHeaderTitle color of the title text of widget app headers (in left pane of
+ *   two pane picker view).
+ * @param unSelectedListHeaderSubTitle color of the subtitle text of widget app headers (in left
+ *   pane of two pane picker view).
+ * @param selectedListHeaderTitle color of the title text of the currently selected widget app
+ *   header (in left pane of two pane picker view).
+ * @param selectedListHeaderSubTitle color of the subtitle text of the currently selected widget app
+ *   header (in left pane of two pane picker view).
  * @param noWidgetsErrorText color of the message shown when no widgets are available or matched.
  * @param placeholderAppIcon base color of the placeholder (without alpha) shown while app icon
  *   isn't loaded yet.
@@ -79,6 +87,7 @@ import androidx.compose.ui.graphics.Color
  * @param searchBarClearButtonIcon color of close icon button shown trailing in the search bar when
  *   user has typed some text.
  * @param searchBarCursor color of the cursor in the search bar
+ * @param focusOutline default color of the focus outlines on focusable items such as buttons.
  */
 @Stable
 @Immutable
@@ -95,8 +104,12 @@ data class WidgetPickerColors(
     val unselectedListHeaderBackground: Color,
     val featuredHeaderLeadingIconBackground: Color,
     val featuredHeaderLeadingIcon: Color,
-    val listHeaderTitle: Color,
-    val listHeaderSubTitle: Color,
+    val expandableListHeaderTitle: Color,
+    val expandableListHeaderSubTitle: Color,
+    val unSelectedListHeaderTitle: Color,
+    val unSelectedListHeaderSubTitle: Color,
+    val selectedListHeaderTitle: Color,
+    val selectedListHeaderSubTitle: Color,
     // trailing indicator
     val expandCollapseIndicatorIcon: Color,
     val expandCollapseIndicatorBackground: Color,
@@ -136,6 +149,9 @@ data class WidgetPickerColors(
     val searchBarClearButtonIcon: Color,
     val searchBarBackButtonIcon: Color,
     val searchBarCursor: Color,
+
+    // Outline color
+    val focusOutline: Color,
 )
 
 /**
@@ -180,8 +196,14 @@ fun defaultWidgetPickerColors() =
         widgetsContainerBackground = MaterialTheme.colorScheme.surfaceBright,
         featuredHeaderLeadingIconBackground = MaterialTheme.colorScheme.surfaceBright,
         featuredHeaderLeadingIcon = MaterialTheme.colorScheme.primary,
-        listHeaderTitle = MaterialTheme.colorScheme.onSurface,
-        listHeaderSubTitle = MaterialTheme.colorScheme.onSurfaceVariant,
+        // Expandable list
+        expandableListHeaderTitle = MaterialTheme.colorScheme.onSurface,
+        expandableListHeaderSubTitle = MaterialTheme.colorScheme.onSurfaceVariant,
+        // Left pane list
+        unSelectedListHeaderTitle = MaterialTheme.colorScheme.onSurface,
+        unSelectedListHeaderSubTitle = MaterialTheme.colorScheme.onSurfaceVariant,
+        selectedListHeaderTitle = MaterialTheme.colorScheme.onSecondaryContainer,
+        selectedListHeaderSubTitle = MaterialTheme.colorScheme.onSurfaceVariant,
         // trailing indicator
         expandCollapseIndicatorIcon = MaterialTheme.colorScheme.onSecondaryContainer,
         expandCollapseIndicatorBackground = MaterialTheme.colorScheme.secondaryContainer,
@@ -211,4 +233,5 @@ fun defaultWidgetPickerColors() =
         searchBarBackButtonIcon = MaterialTheme.colorScheme.onSurfaceVariant,
         searchBarClearButtonIcon = MaterialTheme.colorScheme.onSurfaceVariant,
         searchBarCursor = MaterialTheme.colorScheme.primary,
+        focusOutline = MaterialTheme.colorScheme.secondary,
     )

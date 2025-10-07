@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -42,8 +43,10 @@ import java.util.Map;
 public class SamplerRule implements TestRule {
     private static final int TOO_LONG_TEST_MS = 180000;
     private static final int SAMPLE_INTERVAL_MS = 3000;
+    private static final int MAX_THREADS_WITH_SAME_NAME = 5;
+    private static boolean sTooManyThreadsAssertionThrown = false;
 
-    public static Thread startThread(Description description) {
+    private static Thread startThread(Description description) {
         Thread thread =
                 new Thread() {
                     @Override
@@ -90,17 +93,20 @@ public class SamplerRule implements TestRule {
                                     + (count++)
                                     + " @ "
                                     + new SimpleDateFormat("HH:mm:ss.SSS").format(new Date())
-                                            + "\r\n");
+                                    + "\r\n");
+
+                            final Map<Thread, StackTraceElement[]> allStackTraces =
+                                    Thread.getAllStackTraces();
+
                             for (Map.Entry<Thread, StackTraceElement[]> entry :
-                                     getAllStackTraces().entrySet()) {
+                                    allStackTraces.entrySet()) {
                                 writer.write("  Thread \"" + entry.getKey().getName()
-                                                 + "\"\r\n");
+                                        + "\"\r\n");
                                 for (StackTraceElement frame : entry.getValue()) {
                                     writer.write("    " + frame.toString() + "\r\n");
                                 }
                             }
                             writer.flush();
-
                             sleep(SAMPLE_INTERVAL_MS);
                         }
                     }
@@ -121,9 +127,40 @@ public class SamplerRule implements TestRule {
                 } finally {
                     traceThread.interrupt();
                     traceThread.join();
+
+                    if (!sTooManyThreadsAssertionThrown) {
+                        // Check for too many threads with the same name.
+                        final String tooManyThreadsError = checkTooManyThreads();
+
+                        if (tooManyThreadsError != null) {
+                            sTooManyThreadsAssertionThrown = true;
+                            throw new AssertionError(tooManyThreadsError);
+                        }
+                    }
                 }
             }
         };
+    }
+
+    /**
+     * Checks if there are more than MAX_THREADS_WITH_SAME_NAME threads with the same name.
+     * @return an error message string if the check fails, or null if it passes.
+     */
+    private String checkTooManyThreads() {
+        final Map<String, Integer> threadNameCounts = new HashMap<>();
+        for (Thread t : Thread.getAllStackTraces().keySet()) {
+            threadNameCounts.compute(t.getName(), (k, v) -> (v == null) ? 1 : v + 1);
+        }
+
+        for (Map.Entry<String, Integer> e : threadNameCounts.entrySet()) {
+            if (e.getValue() > MAX_THREADS_WITH_SAME_NAME) {
+                return "Assertion failed: More than "
+                        + MAX_THREADS_WITH_SAME_NAME
+                        + " threads with the same name '" + e.getKey()
+                        + "'. Count: " + e.getValue();
+            }
+        }
+        return null;
     }
 
     private static File artifactFile(String fileName) {

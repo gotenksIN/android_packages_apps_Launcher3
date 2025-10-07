@@ -23,17 +23,24 @@ import androidx.annotation.VisibleForTesting
 import com.android.launcher3.BubbleTextView.RunningAppState
 import com.android.launcher3.Flags
 import com.android.launcher3.Flags.enableRecentsInTaskbar
+import com.android.launcher3.Flags.enableTaskbarRecentsThemedIcons
+import com.android.launcher3.graphics.ThemeManager
+import com.android.launcher3.graphics.ThemeManager.ThemeChangeListener
+import com.android.launcher3.model.data.AppPairInfo
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.TaskItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.taskbar.TaskbarControllers.LoggableTaskbarController
 import com.android.launcher3.taskbar.TaskbarPopupController.canPinAppWithContextMenu
 import com.android.launcher3.util.CancellableTask
+import com.android.launcher3.util.Executors.MAIN_EXECUTOR
+import com.android.launcher3.util.SafeCloseable
 import com.android.quickstep.RecentsFilterState
 import com.android.quickstep.RecentsModel
 import com.android.quickstep.util.DesktopTask
 import com.android.quickstep.util.GroupTask
 import com.android.quickstep.util.SingleTask
+import com.android.quickstep.util.SplitTask
 import com.android.systemui.shared.recents.model.Task
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus
 import java.io.PrintWriter
@@ -46,6 +53,7 @@ import java.io.PrintWriter
 class TaskbarRecentAppsController(
     private val context: Context,
     private val recentsModel: RecentsModel,
+    private val themeManager: ThemeManager,
 ) : LoggableTaskbarController {
 
     var canShowRunningApps =
@@ -179,7 +187,18 @@ class TaskbarRecentAppsController(
             ) {
                 return emptySet()
             }
-            return desktopTasks.filter { !it.isVisible }.map { task -> task.key.id }.toSet()
+            val multipleDesktopsEnabled = DesktopModeStatus.enableMultipleDesktops(context)
+            // When multi-desks is enabled, the indicator only indicates whether the window is
+            // minimized or not. This means an opened window inside an inactive desk will still
+            // have long app indicator inside the taskbar.
+            return desktopTasks
+                .filter { task ->
+                    val shouldKeep =
+                        if (multipleDesktopsEnabled) task.isMinimized else !task.isVisible
+                    shouldKeep
+                }
+                .map { task -> task.key.id }
+                .toSet()
         }
 
     private val recentTasksChangedListener =
@@ -200,15 +219,26 @@ class TaskbarRecentAppsController(
     // Whether we've loaded recents tasks at least once
     private var recentTasksLoaded = false
 
+    private var iconShapeDataCloseable: SafeCloseable? = null
+    private var themeChangeListener: ThemeChangeListener? = null
+
     fun init(taskbarControllers: TaskbarControllers, previousShownTasks: List<GroupTask>) {
         controllers = taskbarControllers
         if (previousShownTasks.isNotEmpty()) {
             shownTasks = previousShownTasks
             fetchIcons()
         }
+        orderedRunningTaskIds =
+            controllers.sharedState?.recentOrderedRunningTaskIds?.filterNotNull() ?: emptyList()
         if (canShowRunningApps || canShowRecentApps) {
             recentsModel.registerRecentTasksChangedListener(recentTasksChangedListener)
             controllers.runAfterInit { reloadRecentTasksIfNeeded() }
+            if (enableTaskbarRecentsThemedIcons()) {
+                iconShapeDataCloseable =
+                    themeManager.iconShapeData.forEach(MAIN_EXECUTOR) { fetchIcons() }
+                themeChangeListener =
+                    ThemeChangeListener { fetchIcons() }.also { themeManager.addChangeListener(it) }
+            }
         }
     }
 
@@ -217,9 +247,15 @@ class TaskbarRecentAppsController(
         if (shownTasks.isNotEmpty()) {
             controllers.sharedState?.recentTasksBeforeTaskbarRecreate?.addAll(shownTasks)
         }
+        controllers.sharedState?.recentOrderedRunningTaskIds?.clear()
+        if (orderedRunningTaskIds.isNotEmpty()) {
+            controllers.sharedState?.recentOrderedRunningTaskIds?.addAll(orderedRunningTaskIds)
+        }
         recentsModel.unregisterRecentTasksChangedListener(recentTasksChangedListener)
         iconLoadRequests.forEach { it.cancel() }
         iconLoadRequests.clear()
+        iconShapeDataCloseable?.close()
+        themeChangeListener?.let { themeManager.removeChangeListener(it) }
     }
 
     /** Called to update hotseatItems, in order to de-dupe them from Recent/Running tasks later. */
@@ -283,7 +319,11 @@ class TaskbarRecentAppsController(
                 allRecentTasks = tasks
                 val oldRunningTaskdIds = runningTaskIds
                 val oldMinimizedTaskIds = minimizedTaskIds
-                desktopTasks = allRecentTasks.filterIsInstance<DesktopTask>().flatMap { it.tasks }
+                desktopTasks =
+                    allRecentTasks
+                        .filterIsInstance<DesktopTask>()
+                        .flatMap { it.tasks }
+                        .filterNot { it.key.isTopActivityTransparent }
                 val runningTasksChanged = oldRunningTaskdIds != runningTaskIds
                 val minimizedTasksChanged = oldMinimizedTaskIds != minimizedTaskIds
 
@@ -315,26 +355,29 @@ class TaskbarRecentAppsController(
             } else {
                 computeShownRecentTasks()
             }
-        val shownTasksChanged = oldShownTasks != shownTasks
-        if (!shownTasksChanged) {
-            return shownTasksChanged
-        }
+        if (oldShownTasks == shownTasks) return false
         fetchIcons()
-        return shownTasksChanged
+        return true
     }
 
     private fun fetchIcons() {
         for (groupTask in shownTasks) {
-            for (task in groupTask.tasks) {
+            for ((i, task) in groupTask.tasks.withIndex()) {
                 val cancellableTask =
-                    recentsModel.iconCache.getIconInBackground(task) {
-                        icon,
-                        contentDescription,
-                        title ->
-                        task.icon = icon
-                        task.titleDescription = contentDescription
-                        task.title = title
-                        controllers.taskbarViewController.onTaskUpdated(task)
+                    if (enableTaskbarRecentsThemedIcons()) {
+                        recentsModel.iconCache.getBitmapInfoInBackground(task) { bi, d, t ->
+                            groupTask.bitmapInfos[i] = bi
+                            task.titleDescription = d
+                            task.title = t
+                            controllers.taskbarViewController.onTaskUpdated(task)
+                        }
+                    } else {
+                        recentsModel.iconCache.getIconInBackground(task) { ic, d, t ->
+                            task.icon = ic
+                            task.titleDescription = d
+                            task.title = t
+                            controllers.taskbarViewController.onTaskUpdated(task)
+                        }
                     }
                 if (cancellableTask != null) {
                     iconLoadRequests.add(cancellableTask)
@@ -448,7 +491,15 @@ class TaskbarRecentAppsController(
                         shownHotseatItems.none {
                             groupTask.containsPackage(it.targetPackage, it.user.identifier)
                         }
-
+                    is SplitTask ->
+                        shownHotseatItems.filterIsInstance<AppPairInfo>().none {
+                            val firstPackage = it.getFirstApp().targetPackage
+                            val secondPackage = it.getSecondApp().targetPackage
+                            val userId = it.user.identifier
+                            // Dedupe even if the app order is swapped.
+                            groupTask.containsPackage(firstPackage, userId) &&
+                                groupTask.containsPackage(secondPackage, userId)
+                        }
                     else -> true
                 }
             }

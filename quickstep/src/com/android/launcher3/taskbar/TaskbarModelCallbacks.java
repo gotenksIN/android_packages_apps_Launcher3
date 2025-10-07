@@ -34,7 +34,6 @@ import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.PredictedContainerInfo;
 import com.android.launcher3.model.data.WorkspaceData;
 import com.android.launcher3.taskbar.TaskbarView.TaskbarLayoutParams;
-import com.android.launcher3.util.ComponentKey;
 import com.android.launcher3.util.ItemInfoMatcher;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.PackageUserKey;
@@ -43,7 +42,6 @@ import com.android.quickstep.util.GroupTask;
 
 import java.io.PrintWriter;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -143,14 +141,7 @@ public class TaskbarModelCallbacks implements
 
     @Override
     public View mapOverItems(@NonNull ItemOperator op) {
-        final int itemCount = mContainer.getChildCount();
-        for (int itemIdx = 0; itemIdx < itemCount; itemIdx++) {
-            View item = mContainer.getChildAt(itemIdx);
-            if (item.getTag() instanceof ItemInfo itemInfo && op.evaluate(itemInfo, item)) {
-                return item;
-            }
-        }
-        return null;
+        return mContainer.mapOverItems(mContainer, op);
     }
 
     @Override
@@ -172,8 +163,8 @@ public class TaskbarModelCallbacks implements
     }
 
     private void commitItemsToUI() {
-        ItemInfo[] hotseatItemInfos =
-                new ItemInfo[mContext.getDeviceProfile().numShownHotseatIcons];
+        int taskbarSize = mContext.getTaskbarSpecsEvaluator().getMaxPinnableCount();
+        ItemInfo[] hotseatItemInfos = new ItemInfo[taskbarSize];
         int predictionSize = mPredictedItems.size();
         int predictionNextIndex = 0;
 
@@ -204,7 +195,7 @@ public class TaskbarModelCallbacks implements
             ItemInfo[] hotseatItemInfos, List<GroupTask> recentTasks) {
         mContainer.updateItems(hotseatItemInfos, recentTasks);
         mControllers.taskbarViewController.updateIconViewsRunningStates();
-        mControllers.taskbarPopupController.setHotseatInfosList(mHotseatItems);
+        mControllers.taskbarPopupController.setTaskbarInfoList(mHotseatItems);
     }
 
     /**
@@ -226,11 +217,6 @@ public class TaskbarModelCallbacks implements
     /** Called when there's a change in running apps to update the UI. */
     public void commitRunningAppsToUI() {
         commitItemsToUI();
-    }
-
-    @Override
-    public void bindDeepShortcutMap(HashMap<ComponentKey, Integer> deepShortcutMapCopy) {
-        mControllers.taskbarPopupController.setDeepShortcutMap(deepShortcutMapCopy);
     }
 
     @UiThread

@@ -18,10 +18,12 @@ package com.android.quickstep;
 import static com.android.app.animation.Interpolators.ACCELERATE_2;
 import static com.android.app.animation.Interpolators.INSTANT;
 import static com.android.app.animation.Interpolators.LINEAR;
+import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherAnimUtils.SCRIM_COLORS;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
 import static com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOverview;
 import static com.android.quickstep.AbsSwipeUpHandler.RECENTS_ATTACH_DURATION;
+import static com.android.quickstep.GestureState.GestureEndTarget.HOME;
 import static com.android.quickstep.GestureState.GestureEndTarget.LAST_TASK;
 import static com.android.quickstep.GestureState.GestureEndTarget.RECENTS;
 import static com.android.quickstep.util.RecentsAtomicAnimationFactory.INDEX_RECENTS_ATTACHED_ALPHA_ANIM;
@@ -48,23 +50,27 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
+import com.android.launcher3.BuildConfig;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.R;
 import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.statemanager.BaseState;
 import com.android.launcher3.statemanager.StatefulContainer;
 import com.android.launcher3.taskbar.TaskbarUIController;
+import com.android.launcher3.taskbar.TaskbarUiStateMonitor;
 import com.android.launcher3.util.DisplayController;
+import com.android.launcher3.util.TaskbarModeUtil;
 import com.android.launcher3.util.WindowBounds;
 import com.android.launcher3.views.ScrimColors;
-import com.android.launcher3.views.ScrimView;
 import com.android.launcher3.views.ScrimColorsEvaluator;
+import com.android.launcher3.views.ScrimView;
 import com.android.quickstep.orientation.RecentsPagedOrientationHandler;
 import com.android.quickstep.util.AnimatorControllerWithResistance;
 import com.android.quickstep.util.ContextInitListener;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.RecentsViewContainer;
 import com.android.systemui.shared.recents.model.ThumbnailData;
+import com.android.wm.shell.shared.desktopmode.DesktopState;
 
 import java.util.HashMap;
 import java.util.List;
@@ -220,7 +226,8 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
     /**
      * Returns the expected STATE_TYPE from the provided GestureEndTarget.
      */
-    public abstract STATE_TYPE stateFromGestureEndTarget(GestureState.GestureEndTarget endTarget);
+    public abstract STATE_TYPE stateFromGestureEndTarget(
+            @NonNull GestureState.GestureEndTarget endTarget);
 
     public abstract void switchRunningTaskViewToScreenshot(HashMap<Integer,
             ThumbnailData> thumbnailDatas, Runnable runnable);
@@ -251,9 +258,28 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
     /**
      * @return Whether the gesture in progress should be cancelled.
      */
-    public boolean shouldCancelCurrentGesture() {
+    public boolean shouldCancelCurrentGesture(int displayId) {
+        if (refactorTaskbarUiState()) {
+            final boolean ret = newIsDraggingItem(displayId);
+            if (BuildConfig.IS_STUDIO_BUILD && ret != legacyIsDraggingItem()) {
+                throw new IllegalStateException("isDraggingItem() doesn't match");
+            }
+            return ret;
+        } else {
+            return legacyIsDraggingItem();
+        }
+    }
+
+    private boolean legacyIsDraggingItem() {
         TaskbarUIController uiController = getTaskbarController();
         return uiController != null && uiController.isDraggingItem();
+    }
+
+    private boolean newIsDraggingItem(int displayId) {
+        CONTAINER_TYPE container = getCreatedContainer();
+        return container != null
+                && TaskbarUiStateMonitor.INSTANCE.get(container.asContext())
+                .getTaskbarUiState(displayId).isDraggingItemRef().getValue();
     }
 
     public void runOnInitBackgroundStateUI(Runnable callback) {
@@ -302,7 +328,6 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
     public @Nullable View onSettledOnEndTarget(GestureState.GestureEndTarget endTarget) {
         TaskbarUIController taskbarUIController = getTaskbarController();
         if (taskbarUIController != null) {
-            taskbarUIController.setSystemGestureInProgress(false);
             return taskbarUIController.getRootView();
         }
         return null;
@@ -329,6 +354,13 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
             endTarget = LAST_TASK;
         }
         if (endTarget != null) {
+            // In the case where home is always shown behind desktop, ensure that we reset to
+            // Normal home state, and set `activityVisible` to false so we don't animate home
+            // because home is already showing.
+            if (DesktopState.fromContext(context).getShouldShowHomeBehindDesktop()) {
+                endTarget = HOME;
+                activityVisible = false;
+            }
             // We were on our way to this state when we got canceled, end there instead.
             startState = stateFromGestureEndTarget(endTarget);
         }
@@ -436,7 +468,8 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
     public static void getTaskDimension(Context context, DeviceProfile dp, PointF out) {
         out.x = dp.getDeviceProperties().getWidthPx();
         out.y = dp.getDeviceProperties().getHeightPx();
-        if (dp.getDeviceProperties().isTablet() && !DisplayController.isTransientTaskbar(context)) {
+        if (dp.getDeviceProperties().isTablet()
+                && !TaskbarModeUtil.INSTANCE.get(context).isTransient()) {
             out.y -= dp.getTaskbarProfile().getHeight();
         }
     }
@@ -486,11 +519,6 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
             RecentsPagedOrientationHandler orientationHandler) {
         calculateTaskSize(context, dp, outRect, orientationHandler);
         boolean isGridOnlyOverview = dp.getDeviceProperties().isTablet() && enableGridOnlyOverview();
-        int claimedSpaceBelow = isGridOnlyOverview
-                ? dp.getOverviewProfile().getActionsTopMarginPx()
-                + dp.getOverviewProfile().getActionsHeight()
-                    + dp.getTaskbarProfile().getStashedTaskbarHeight()
-                : (dp.getDeviceProperties().getHeightPx() - outRect.bottom - dp.getInsets().bottom);
         int minimumHorizontalPadding = 0;
         if (!isGridOnlyOverview) {
             float maxScale = context.getResources().getFloat(R.dimen.overview_modal_max_scale);
@@ -501,12 +529,27 @@ public abstract class BaseContainerInterface<STATE_TYPE extends BaseState<STATE_
                 context,
                 dp,
                 dp.getOverviewProfile().getTaskMarginPx(),
-                claimedSpaceBelow,
+                getModalClaimedSpaceBelow(dp, outRect, isGridOnlyOverview),
                 minimumHorizontalPadding,
                 1f /*maxScale*/,
                 Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM,
                 outRect,
                 orientationHandler);
+    }
+
+    private static int getModalClaimedSpaceBelow(DeviceProfile dp, Rect outRect,
+            boolean isGridOnlyOverview) {
+        if (isGridOnlyOverview) {
+            int modalTaskbarHeight = dp.getTaskbarProfile().isTransientTaskbar()
+                    ? dp.getTaskbarProfile().getStashedTaskbarHeight()
+                    : dp.getTaskbarProfile().getHeight();
+            return dp.getOverviewProfile().getActionsTopMarginPx()
+                    + dp.getOverviewProfile().getActionsHeight()
+                    + modalTaskbarHeight
+                    + dp.getOverviewProfile().getActionsTopMarginPx();
+        } else {
+            return dp.getDeviceProperties().getHeightPx() - outRect.bottom - dp.getInsets().bottom;
+        }
     }
 
     protected void onInitBackgroundStateUI() {

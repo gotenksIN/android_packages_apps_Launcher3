@@ -16,6 +16,7 @@
 
 package com.android.launcher3.taskbar.rules
 
+import android.companion.datatransfer.continuity.TaskContinuityManager
 import android.content.Context
 import android.content.ContextWrapper
 import android.hardware.display.DisplayManager
@@ -35,6 +36,7 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
 /**
@@ -51,6 +53,8 @@ private constructor(
 ) : ContextWrapper(base), TestRule {
 
     val settingsCacheSandbox = SettingsCacheSandbox()
+    val windowManagerSpy = base.spyService(WindowManager::class.java)
+    val taskContinuityManagerMock: TaskContinuityManager = mock<TaskContinuityManager>()
 
     private val sandboxSpyServicesRule =
         object : ExternalResource() {
@@ -58,6 +62,11 @@ private constructor(
                 // Filter out DEFAULT_DISPLAY in case code accesses displays property. The primary
                 // virtual display has a different ID.
                 val dm = base.spyService(DisplayManager::class.java)
+                base.mockService(
+                    Context.TASK_CONTINUITY_SERVICE,
+                    TaskContinuityManager::class.java,
+                    taskContinuityManagerMock,
+                )
                 whenever(dm.displays).thenAnswer { i ->
                     @Suppress("UNCHECKED_CAST")
                     val displays = i.callRealMethod() as? Array<Display> ?: emptyArray<Display>()
@@ -66,8 +75,7 @@ private constructor(
 
                 // Have displays appear as if they support Taskbar.
                 if (!DesktopExperienceFlags.ENABLE_SYS_DECORS_CALLBACKS_VIA_WM.isTrue) {
-                    val wm = base.spyService(WindowManager::class.java)
-                    whenever(wm.shouldShowSystemDecors(any())).thenReturn(true)
+                    whenever(windowManagerSpy.shouldShowSystemDecors(any())).thenReturn(true)
                 }
             }
         }

@@ -32,7 +32,7 @@
     <string name="recent_task_option_aspect_ratio" msgid="7008605516391096989">"Kuvasuhte muutmine"</string>
     <string name="split_app_info_accessibility" msgid="5475288491241414932">"Rakenduse teave: %1$s"</string>
     <string name="split_app_usage_settings" msgid="7214375263347964093">"Kasutuse seaded: %1$s"</string>
-    <string name="close_task_accessibility" msgid="4765872229211282647">"Ülesande %1$s sulgemine"</string>
+    <string name="close_task_accessibility" msgid="4765872229211282647">"Üksuse %1$s sulgemine"</string>
     <string name="new_window_option_taskbar" msgid="6448780542727767211">"Uus aken"</string>
     <string name="manage_windows_option_taskbar" msgid="2294109489960654212">"Akende haldamine"</string>
     <string name="save_app_pair" msgid="5647523853662686243">"Salvesta rakendusepaar"</string>
@@ -65,7 +65,7 @@
     <string name="widgets_full_sheet_search_bar_hint" msgid="8484659090860596457">"Otsing"</string>
     <string name="widgets_full_sheet_cancel_button_description" msgid="5766167035728653605">"Kustuta otsingukastis olev tekst"</string>
     <string name="no_widgets_available" msgid="4337693382501046170">"Vidinad ja otseteed pole saadaval"</string>
-    <string name="no_search_results" msgid="3787956167293097509">"Ei leitud ühtegi vidinat ega otseteed"</string>
+    <string name="no_search_results" msgid="3787956167293097509">"Ei leitud ühtegi vidinat ega otseteed."</string>
     <string name="widgets_full_sheet_personal_tab" msgid="2743540105607120182">"Isiklikud"</string>
     <string name="widgets_full_sheet_work_tab" msgid="3767150027110633765">"Töö"</string>
     <string name="widget_category_conversations" msgid="8894438636213590446">"Vestlused"</string>
@@ -201,7 +201,6 @@
     <string name="all_apps_work_tab_content_description" msgid="3835637212347968316">"Vahekaart töörakendused"</string>
     <string name="work_profile_toggle_label" msgid="3081029915775481146">"Tööprofiil"</string>
     <string name="work_profile_edu_work_apps" msgid="7895468576497746520">"Töörakendustel on märk ja need on teie IT-administraatorile nähtavad"</string>
-    <string name="work_profile_edu_accept" msgid="6069788082535149071">"Selge"</string>
     <string name="work_apps_paused_title" msgid="3040901117349444598">"Töörakendused on peatatud"</string>
     <string name="work_apps_paused_info_body" msgid="1687828929959237477">"Te ei saa oma töörakendustelt märguandeid"</string>
     <string name="work_apps_paused_body" msgid="261634750995824906">"Töörakendused ei saa teile märguandeid saata, akut kasutada ega teie asukohale juurde pääseda"</string>

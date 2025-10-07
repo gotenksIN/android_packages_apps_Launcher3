@@ -72,6 +72,16 @@ flag {
 }
 
 flag {
+  name: "enable_taskbar_icon_container"
+  namespace: "launcher"
+  description: "Enables code path that uses TaskbarIconsContainer"
+  bug: "437189890"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
     name: "enable_tablet_two_pane_picker_v2"
     namespace: "launcher"
     description: "Enables full width two pane widget picker for tablets in landscape and portrait"
@@ -90,13 +100,6 @@ flag {
     namespace: "launcher"
     description: "Enables support for archived apps in Launcher3, such as empty progress bar etc."
     bug: "210590852"
-}
-
-flag {
-    name: "enable_private_space_install_shortcut"
-    namespace: "launcher"
-    description: "Enables long-press shortcut to install a copy of an app to Private space"
-    bug: "316118005"
 }
 
 flag {
@@ -122,13 +125,6 @@ flag {
 }
 
 flag {
-    name: "enable_generated_previews"
-    namespace: "launcher"
-    description: "Enables support for RemoteViews previews in the widget picker."
-    bug: "306546610"
-}
-
-flag {
   name: "enable_categorized_widget_suggestions"
   namespace: "launcher"
   description: "Enables widget suggestions in widget picker to be displayed in categories"
@@ -151,20 +147,6 @@ flag {
     metadata {
       purpose: PURPOSE_BUGFIX
     }
-}
-
-flag {
-    name: "enable_scaling_reveal_home_animation"
-    namespace: "launcher"
-    description: "Enables the Home gesture animation"
-    bug: "308801666"
-}
-
-flag {
-    name: "enable_widget_tap_to_add"
-    namespace: "launcher"
-    description: "Enables an add button in the widget picker"
-    bug: "323886237"
 }
 
 flag {
@@ -197,13 +179,6 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
-}
-
-flag {
-    name: "enable_container_return_animations"
-    namespace: "launcher"
-    description: "Enables the container return animation mirroring launches."
-    bug: "341017746"
 }
 
 flag {
@@ -300,13 +275,6 @@ flag {
 }
 
 flag {
-    name: "enable_dismiss_prediction_undo"
-    namespace: "launcher"
-    description: "Show an 'Undo' snackbar when users dismiss a predicted hotseat item"
-    bug: "270394476"
-}
-
-flag {
     name: "enable_all_apps_button_in_hotseat"
     namespace: "launcher"
     description: "Enables displaying the all apps button in the hotseat."
@@ -394,28 +362,6 @@ flag {
 }
 
 flag {
-  name: "external_data_access"
-  namespace: "launcher"
-  description: "For LauncherProvider bug fixes and new static permissions as part of the cross oem backup / restore effort."
-  bug: "395145453"
-  is_fixed_read_only: true
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
-  name: "gsf_res"
-  namespace: "launcher"
-  description: "Adds refresh for font family. Needs to be fixed to be used in resources."
-  bug: "395145453"
-  is_fixed_read_only: true
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
   name: "restore_archived_shortcuts"
   namespace: "launcher"
   description: "Makes sure pre-archived pinned shortcuts also get restored"
@@ -498,16 +444,6 @@ flag {
 }
 
 flag {
-  name: "enable_gesture_nav_horizontal_touch_slop"
-  namespace: "launcher"
-  description: "Enables horizontal touch slop checking in non-vertical fling navigation gestures"
-  bug: "394364217"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
   name: "sync_app_launch_with_taskbar_stash"
   namespace: "launcher"
   description: "Syncs the two animations (app launch, taskbar stash) so they play at the same time."
@@ -545,6 +481,13 @@ flag {
 }
 
 flag {
+  name: "refactor_taskbar_ui_state"
+  namespace: "launcher"
+  description: "Refactor taskbar ui states into TaskbarUiState class."
+  bug: "404636836"
+}
+
+flag {
   name: "home_button_uses_keycode_home"
   namespace: "launcher"
   description: "Sends KEYCODE_HOME to framework instead of calling startActivity directly"
@@ -568,6 +511,13 @@ flag {
   name: "model_repository"
   namespace: "launcher"
   description: "Adds various data repositories for the model"
+  bug: "390572144"
+}
+
+flag {
+  name: "simplified_launcher_model_binding"
+  namespace: "launcher"
+  description: "Simplified approach to binding launcher model asynchronously"
   bug: "390572144"
 }
 
@@ -597,16 +547,6 @@ flag {
   namespace: "launcher"
   description: "Enables the new animation for the All Set page"
   bug: "424506400"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
-  name: "enable_long_press_remove_shortcut"
-  namespace: "launcher"
-  description: "Enables remove app shortcut on long press menu"
-  bug: "419289205"
   metadata {
     purpose: PURPOSE_BUGFIX
   }
@@ -651,4 +591,38 @@ flag {
     namespace: "launcher"
     description: "Enable making the first page pinned widget movable"
     bug: "427478072"
+}
+
+flag {
+    name: "show_files_on_home_screen"
+    namespace: "launcher"
+    description: "Enables file and folder items on the home screen"
+    bug: "375644352"
+}
+
+flag {
+    name: "enable_system_drag"
+    namespace: "launcher"
+    description: "Enables system-level drag-and-drop"
+    bug: "402183121"
+}
+
+flag {
+  name: "force_monochrome_app_icons_adapt_colors"
+  namespace: "launcher"
+  description: "Adapt colors for monochromatic icons, only valid if force_monochrome_app_icons is enabled"
+  bug: "418850749"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "enable_custom_height_for_all_apps_on_cd"
+  namespace: "launcher"
+  description: "Enables custom height for all apps on CD"
+  bug: "416220478"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }

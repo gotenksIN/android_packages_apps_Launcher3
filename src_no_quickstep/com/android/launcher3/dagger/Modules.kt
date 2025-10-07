@@ -16,12 +16,17 @@
 
 package com.android.launcher3.dagger
 
+import com.android.launcher3.dragndrop.SystemDragController
+import com.android.launcher3.dragndrop.SystemDragControllerStub
+import com.android.launcher3.homescreenfiles.HomeScreenFilesNoOpProvider
+import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider
 import com.android.launcher3.util.window.RefreshRateTracker
 import com.android.launcher3.util.window.RefreshRateTracker.RefreshRateTrackerImpl
 import com.android.launcher3.widget.LauncherWidgetHolder.WidgetHolderFactory
 import com.android.launcher3.widget.LauncherWidgetHolder.WidgetHolderFactoryImpl
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 
 private object Modules {}
 
@@ -44,6 +49,13 @@ abstract class StaticObjectModule {
     @Binds abstract fun bindRefreshRateTracker(tracker: RefreshRateTrackerImpl): RefreshRateTracker
 }
 
+@Module
+object SystemDragModule {
+    @Provides
+    @LauncherAppSingleton
+    fun provideSystemDragController(): SystemDragController = SystemDragControllerStub()
+}
+
 // Module containing bindings for the final derivative app
 @Module abstract class AppModule {}
 
@@ -54,4 +66,10 @@ abstract class StaticObjectModule {
 
 @Module abstract class LauncherConcurrencyModule {}
 
-@Module class DesktopStateModule {}
+/** A dagger module responsible for managing files on the home screen. */
+@Module
+object HomeScreenFilesModule {
+    @Provides
+    @LauncherAppSingleton
+    fun provideHomeScreenFilesProvider(): HomeScreenFilesProvider = HomeScreenFilesNoOpProvider()
+}

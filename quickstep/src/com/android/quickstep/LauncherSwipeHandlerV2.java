@@ -17,11 +17,10 @@ package com.android.quickstep;
 
 import static com.android.app.animation.Interpolators.EXAGGERATED_EASE;
 import static com.android.app.animation.Interpolators.LINEAR;
-import static com.android.launcher3.Flags.enableScalingRevealHomeAnimation;
 import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.Utilities.mapBoundToRange;
 import static com.android.launcher3.views.FloatingIconView.SHAPE_PROGRESS_DURATION;
-import static com.android.launcher3.views.FloatingIconView.getFloatingIconView;
+import static com.android.quickstep.util.FloatingIconViewHelper.getFloatingIconView;
 
 import android.animation.AnimatorSet;
 import android.content.Context;
@@ -51,7 +50,6 @@ import com.android.launcher3.views.FloatingView;
 import com.android.launcher3.widget.LauncherAppWidgetHostView;
 import com.android.quickstep.util.RectFSpringAnim;
 import com.android.quickstep.util.ScalingWorkspaceRevealAnim;
-import com.android.quickstep.util.StaggeredWorkspaceAnim;
 import com.android.quickstep.util.TaskViewSimulator;
 import com.android.quickstep.views.FloatingWidgetView;
 import com.android.quickstep.views.RecentsView;
@@ -166,14 +164,10 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
             @NonNull
             @Override
             public RectF getWindowTargetRect() {
-                if (enableScalingRevealHomeAnimation()) {
-                    if (mTargetRect == null) {
-                        mTargetRect = new RectF(iconLocation);
-                    }
-                    return mTargetRect;
-                } else {
-                    return iconLocation;
+                if (mTargetRect == null) {
+                    mTargetRect = new RectF(iconLocation);
                 }
+                return mTargetRect;
             }
 
             @Override
@@ -256,14 +250,10 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
 
             @Override
             public RectF getWindowTargetRect() {
-                if (enableScalingRevealHomeAnimation()) {
-                    if (mTargetRect == null) {
-                        mTargetRect = new RectF(backgroundLocation);
-                    }
-                    return mTargetRect;
-                } else {
-                    return backgroundLocation;
+                if (mTargetRect == null) {
+                    mTargetRect = new RectF(backgroundLocation);
                 }
+                return mTargetRect;
             }
 
             @Override
@@ -378,13 +368,7 @@ public class LauncherSwipeHandlerV2 extends AbsSwipeUpHandler<
 
         @Override
         public void playAtomicAnimation(float velocity) {
-            if (enableScalingRevealHomeAnimation()) {
-                playScalingRevealAnimation();
-            } else {
-                new StaggeredWorkspaceAnim(mContainer, velocity, true /* animateOverviewScrim */,
-                        getViewIgnoredInWorkspaceRevealAnimation())
-                        .start();
-            }
+            playScalingRevealAnimation();
         }
 
         /**

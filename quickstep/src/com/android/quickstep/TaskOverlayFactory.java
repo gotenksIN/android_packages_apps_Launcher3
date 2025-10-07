@@ -67,24 +67,31 @@ public class TaskOverlayFactory {
     public TaskOverlayFactory() {
     }
 
+    /**
+     * Returns menu options associated with TaskContainer.
+     */
     public static List<SystemShortcut> getEnabledShortcuts(TaskView taskView,
-            TaskContainer taskContainer) {
-        final ArrayList<SystemShortcut> shortcuts = new ArrayList<>();
+            @Nullable TaskContainer taskContainer) {
         final RecentsViewContainer container = containerFromContext(taskView.getContext());
-        for (TaskShortcutFactory menuOption : MENU_OPTIONS) {
-            if (taskView instanceof GroupedTaskView && !menuOption.showForGroupedTask()) {
-                continue;
-            }
-            if (taskView instanceof DesktopTaskView && !menuOption.showForDesktopTask()) {
-                continue;
-            }
+        final ArrayList<SystemShortcut> shortcuts = new ArrayList<>();
+        if (taskContainer != null) {
+            for (TaskShortcutFactory menuOption : PER_TASK_MENU_OPTIONS) {
+                if (taskView instanceof GroupedTaskView && !menuOption.showForGroupedTask()) {
+                    continue;
+                }
+                if (taskView instanceof DesktopTaskView && !menuOption.showForDesktopTask()) {
+                    continue;
+                }
 
-            List<SystemShortcut> menuShortcuts = menuOption.getShortcuts(container, taskContainer);
-            if (menuShortcuts == null) {
-                continue;
+                List<SystemShortcut> menuShortcuts = menuOption.getShortcuts(container,
+                        taskContainer);
+                if (menuShortcuts == null) {
+                    continue;
+                }
+                shortcuts.addAll(menuShortcuts);
             }
-            shortcuts.addAll(menuShortcuts);
         }
+        shortcuts.addAll(TaskViewShortFactory.Companion.getEnabledShortcuts(taskView));
         return shortcuts;
     }
 
@@ -114,7 +121,7 @@ public class TaskOverlayFactory {
     public void clearAllActiveState() { }
 
     /** Note that these will be shown in order from top to bottom, if available for the task. */
-    private static final TaskShortcutFactory[] MENU_OPTIONS = new TaskShortcutFactory[]{
+    private static final TaskShortcutFactory[] PER_TASK_MENU_OPTIONS = new TaskShortcutFactory[]{
             TaskShortcutFactory.APP_INFO,
             TaskShortcutFactory.SPLIT_SELECT,
             TaskShortcutFactory.PIN,
@@ -127,7 +134,6 @@ public class TaskOverlayFactory {
             TaskShortcutFactory.SAVE_APP_PAIR,
             TaskShortcutFactory.SCREENSHOT,
             TaskShortcutFactory.MODAL,
-            TaskShortcutFactory.REMOVE_TASK,
     };
 
     /**
@@ -234,7 +240,7 @@ public class TaskOverlayFactory {
             // Task has already been dismissed
             if (recentsView == null) return;
             recentsView.switchToScreenshot(
-                    () -> recentsView.finishRecentsAnimation(true /* toRecents */,
+                    () -> recentsView.finishRecentsAnimation(true /* toHome */,
                             false /* shouldPip */, callback));
         }
 
@@ -385,8 +391,10 @@ public class TaskOverlayFactory {
         /** Called when the snapshot has updated its full screen drawing parameters. */
         public void setFullscreenParams(FullscreenDrawParams fullscreenParams) {}
 
-        /** Sets visibility for the overlay associated elements. */
-        public void setVisibility(int visibility) {}
+        /** Returns the suggest view if it exists. */
+        public @Nullable View getSuggestView() {
+            return null;
+        }
 
         /** See {@link View#addChildrenForAccessibility(ArrayList)} */
         public void addChildForAccessibility(ArrayList<View> outChildren) {}

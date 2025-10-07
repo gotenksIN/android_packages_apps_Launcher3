@@ -27,6 +27,7 @@ import android.view.View
 import android.view.View.LAYOUT_DIRECTION_LTR
 import android.view.View.LAYOUT_DIRECTION_RTL
 import androidx.core.view.children
+import androidx.core.view.isEmpty
 import androidx.core.view.isInvisible
 import androidx.dynamicanimation.animation.FloatPropertyCompat
 import androidx.dynamicanimation.animation.SpringAnimation
@@ -42,6 +43,7 @@ import com.android.launcher3.Utilities.getPivotsForScalingRectToRect
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.statehandlers.DesktopVisibilityController.Companion.INACTIVE_DESK_ID
 import com.android.launcher3.statemanager.BaseState
+import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.IntArray
 import com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOverview
 import com.android.launcher3.util.OverviewReleaseFlags.enableOverviewIconMenu
@@ -62,7 +64,6 @@ import com.android.systemui.shared.recents.model.Task
 import com.android.systemui.shared.recents.model.ThumbnailData
 import com.android.wm.shell.shared.GroupedTaskInfo
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus.enableMultipleDesktops
-import java.util.concurrent.CopyOnWriteArrayList
 import java.util.function.BiConsumer
 import kotlin.math.min
 import kotlin.reflect.KMutableProperty1
@@ -74,26 +75,18 @@ import kotlin.reflect.KMutableProperty1
 class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisibilityListener {
     val taskViews = TaskViewsIterable(recentsView)
 
-    /** Callback to be invoked when a new desk is added. */
-    interface OnDeskAddedListener {
-        /**
-         * Called when a new desk is added.
-         *
-         * @param desktopTaskView The [DesktopTaskView] of the new desk.
-         */
-        fun onDeskAdded(desktopTaskView: DesktopTaskView)
-    }
-
-    private val onDeskAddedListeners = CopyOnWriteArrayList<OnDeskAddedListener>()
+    private val displayController = DisplayController.INSTANCE[recentsView.context]
 
     var keyboardFocusTask: KeyboardFocusTask = KeyboardFocusTask.Unfocused
 
     /** Takes a screenshot of all [taskView] and return map of taskId to the screenshot */
     fun screenshotTasks(taskView: TaskView): Map<Int, ThumbnailData> {
         val recentsAnimationController = recentsView.recentsAnimationController ?: return emptyMap()
-        return taskView.taskContainers.associate {
-            it.task.key.id to recentsAnimationController.screenshotTask(it.task.key.id)
-        }
+        return taskView.taskContainers
+            .associate {
+                it.task.key.id to recentsAnimationController.screenshotTask(it.task.key.id)
+            }
+            .filter { it.value.thumbnail != null }
     }
 
     /**
@@ -131,7 +124,7 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
     }
 
     /** Counts [TaskView]s that are [DesktopTaskView] instances. */
-    private fun getDesktopTaskViewCount(): Int = taskViews.count { it is DesktopTaskView }
+    fun getDesktopTaskViewCount(): Int = taskViews.count { it is DesktopTaskView }
 
     /** Counts [TaskView]s that are not [DesktopTaskView] instances. */
     fun getNonDesktopTaskViewCount(): Int = taskViews.count { it !is DesktopTaskView }
@@ -196,6 +189,24 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
     fun getFirstNonDesktopTaskView(): TaskView? = taskViews.firstOrNull { it !is DesktopTaskView }
 
     fun getLastDesktopTaskView(): TaskView? = taskViews.lastOrNull { it is DesktopTaskView }
+
+    /** Returns true if it is in desktop-first mode. Otherwise, returns false. */
+    fun isInDesktopFirstMode() =
+        displayController
+            .getInfoForDisplay(recentsView.mContainer.displayId)
+            ?.isInDesktopFirstMode == true
+
+    /**
+     * Returns false if it is the last desktop on desktop-first when multi-desk enabled. Otherwise,
+     * returns true.
+     */
+    fun canRemoveTaskView(taskView: TaskView): Boolean {
+        if (!areMultiDesksFlagsEnabled() || !isInDesktopFirstMode()) {
+            return true
+        }
+
+        return taskView !is DesktopTaskView || getDesktopTaskViewCount() > 1
+    }
 
     /**
      * Returns the [TaskView] that should be the current page during task binding, in the following
@@ -284,7 +295,10 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
             .start()
     }
 
-    private fun animateDesktopTaskViewSpringIn(desktopTaskView: DesktopTaskView) {
+    private fun animateDesktopTaskViewSpringIn(
+        desktopTaskView: DesktopTaskView,
+        fadeInAddDesktopButton: Boolean,
+    ) {
         val taskDismissFloatProperty =
             FloatPropertyCompat.createFloatPropertyCompat(
                 desktopTaskView.primaryDismissTranslationProperty
@@ -318,6 +332,11 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
 
             SpringAnimation(desktopTaskView, taskDismissFloatProperty)
                 .setSpring(SpringForce(0f).setDampingRatio(dampingRatio).setStiffness(stiffness))
+                .addEndListener { _, _, _, _ ->
+                    if (fadeInAddDesktopButton) {
+                        addDeskButton?.setContentVisibility(toVisible = true, animate = true)
+                    }
+                }
                 .start()
         }
     }
@@ -333,8 +352,18 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
                 Log.e(TAG, "A task view for this desk has already been added.")
                 return
             }
-
             val currentPageChild = getChildAt(currentPage)
+
+            val wasEmpty = isEmpty()
+            if (wasEmpty) {
+                // Add ClearAllButton and AddDesktopButton if they are not present.
+                addDeskButton?.let {
+                    it.setContentVisibility(toVisible = false, animate = false)
+                    addView(it)
+                }
+                addView(clearAllButton)
+            }
+
             // Compute [mCurrentPageScrollDiff] to be used for adjusting the scroll to guarantee
             // the existing tasks remain in their previous position after creating the desktop.
             val primaryScroll = pagedOrientationHandler.getPrimaryScroll(this)
@@ -356,12 +385,10 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
             updateTaskSize()
             updateChildTaskOrientations()
             updateScrollSynchronously()
-            animateDesktopTaskViewSpringIn(desktopTaskView)
+            animateDesktopTaskViewSpringIn(desktopTaskView, fadeInAddDesktopButton = wasEmpty)
 
             // Set Current Page based on the stored View.
             currentPageChild?.let { setCurrentPage(indexOfChild(it)) }
-
-            onDeskAddedListeners.forEach { it.onDeskAdded(desktopTaskView) }
         }
     }
 
@@ -758,30 +785,11 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
         when (val keyboardFocusTask = keyboardFocusTask) {
             is KeyboardFocusTask.Unfocused -> null
             is KeyboardFocusTask.CurrentPageTaskView -> recentsView.currentPageTaskView
-            is KeyboardFocusTask.TaskViewWithIds -> recentsView.getTaskViewByTaskIds(
-                keyboardFocusTask.taskIds.toIntArray())
+            is KeyboardFocusTask.TaskViewWithIds ->
+                recentsView.getTaskViewByTaskIds(keyboardFocusTask.taskIds.toIntArray())
         }
 
-    fun isKeyboardTaskFocusPending() =
-        keyboardFocusTask !is KeyboardFocusTask.Unfocused
-
-    /**
-     * Adds a listener to be notified when a new desk is added.
-     *
-     * @param onDeskAddedListener The listener to add.
-     */
-    fun addOnDeskAddedListener(onDeskAddedListener: OnDeskAddedListener) {
-        onDeskAddedListeners += onDeskAddedListener
-    }
-
-    /**
-     * Removes a listener that was previously added to be notified when a new desk is added.
-     *
-     * @param onDeskAddedListener The listener to remove.
-     */
-    fun removeOnDeskAddedListener(onDeskAddedListener: OnDeskAddedListener) {
-        onDeskAddedListeners -= onDeskAddedListener
-    }
+    fun isKeyboardTaskFocusPending() = keyboardFocusTask !is KeyboardFocusTask.Unfocused
 
     fun getAlternatePageWithSameScroll(page: Int): Int {
         val pageScroll = recentsView.getScrollForPage(page)

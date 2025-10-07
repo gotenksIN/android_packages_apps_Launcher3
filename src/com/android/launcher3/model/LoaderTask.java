@@ -38,10 +38,10 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.LauncherActivityInfo;
 import android.content.pm.LauncherApps;
-import android.content.pm.PackageInstaller;
 import android.content.pm.PackageInstaller.SessionInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ShortcutInfo;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Trace;
 import android.os.UserHandle;
@@ -61,10 +61,11 @@ import com.android.launcher3.LauncherModel;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger;
-import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.folder.FolderNameInfos;
 import com.android.launcher3.folder.FolderNameProvider;
+import com.android.launcher3.homescreenfiles.HomeScreenFile;
+import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider;
 import com.android.launcher3.icons.CacheableShortcutCachingLogic;
 import com.android.launcher3.icons.CacheableShortcutInfo;
 import com.android.launcher3.icons.IconCache;
@@ -84,6 +85,7 @@ import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pm.InstallSessionHelper;
 import com.android.launcher3.pm.PackageInstallInfo;
 import com.android.launcher3.pm.UserCache;
+import com.android.launcher3.provider.LauncherDbUtils;
 import com.android.launcher3.shortcuts.ShortcutKey;
 import com.android.launcher3.shortcuts.ShortcutRequest;
 import com.android.launcher3.shortcuts.ShortcutRequest.QueryResult;
@@ -96,6 +98,7 @@ import com.android.launcher3.util.PackageManagerHelper;
 import com.android.launcher3.util.PackageUserKey;
 import com.android.launcher3.util.TraceHelper;
 import com.android.launcher3.widget.WidgetInflater;
+import com.android.launcher3.widget.util.WidgetSizeHandler;
 
 import dagger.assisted.Assisted;
 import dagger.assisted.AssistedFactory;
@@ -137,6 +140,7 @@ public class LoaderTask implements Runnable {
     private final LoaderCursorFactory mLoaderCursorFactory;
     private final LoaderParams mParams;
     private final Provider<Set<ItemInfo>> mExtraItemsProvider;
+    private final WidgetSizeHandler mWidgetSizeHandler;
 
     private final ModelDelegate mModelDelegate;
     private boolean mIsRestoreFromBackup;
@@ -166,6 +170,8 @@ public class LoaderTask implements Runnable {
     private String mDbName;
     private final Provider<FolderNameProvider> mFolderNameProviderFactory;
     private final Provider<LauncherRestoreEventLogger> mRestoreEventLoggerProvider;
+    private final WorkspaceItemSpaceFinder mWorkspaceItemSpaceFinder;
+    private final kotlin.Lazy<Map<Uri, HomeScreenFile>> mHomeScreenFilesQueryResult;
 
     @AssistedInject
     protected LoaderTask(
@@ -185,7 +191,10 @@ public class LoaderTask implements Runnable {
             @Assisted UserManagerState userManagerState,
             Provider<LauncherRestoreEventLogger> restoreEventLoggerFactory,
             @Named("MODEL_ITEMS") Provider<Set<ItemInfo>> extraItemsProvider,
-            LoaderParams params) {
+            WidgetSizeHandler widgetSizeHandler,
+            LoaderParams params,
+            WorkspaceItemSpaceFinder workspaceItemSpaceFinder,
+            HomeScreenFilesProvider homeScreenFilesProvider) {
         mContext = context;
         mIDP = idp;
         mModel = model;
@@ -206,7 +215,10 @@ public class LoaderTask implements Runnable {
         mFolderNameProviderFactory = folderNameProviderFactory;
         mRestoreEventLoggerProvider = restoreEventLoggerFactory;
         mExtraItemsProvider = extraItemsProvider;
+        mWidgetSizeHandler = widgetSizeHandler;
         mParams = params;
+        mWorkspaceItemSpaceFinder = workspaceItemSpaceFinder;
+        mHomeScreenFilesQueryResult = homeScreenFilesProvider.query();
     }
 
     protected synchronized void waitForIdle() {
@@ -339,10 +351,6 @@ public class LoaderTask implements Runnable {
         logASplit("loadDeepShortcuts finished");
 
         verifyNotStopped();
-        mLauncherBinder.bindDeepShortcuts();
-        logASplit("bindDeepShortcuts finished");
-
-        verifyNotStopped();
         logASplit("saving deep shortcuts in icon cache");
         updateHandler.updateIcons(
                 convertShortcutsToCacheableShortcuts(allDeepShortcuts, allActivityList),
@@ -461,7 +469,8 @@ public class LoaderTask implements Runnable {
 
             mShortcutKeyToPinnedShortcuts = new HashMap<>();
             final LoaderCursor c = mLoaderCursorFactory.createLoaderCursor(
-                    dbController.query(null, selection, null, null),
+                    dbController.query(null, selection, null,
+                            LauncherDbUtils.getLoaderCursorQuerySortOrder(mContext)),
                     mUserManagerState,
                     mIsRestoreFromBackup ? restoreEventLogger : null);
             final Bundle extras = c.getExtras();
@@ -476,7 +485,8 @@ public class LoaderTask implements Runnable {
                         mUserCache, mUserManagerState, mLauncherApps, mPendingPackages,
                         mShortcutKeyToPinnedShortcuts, mContext, mIDP, mIconCache,
                         mIsSafeModeEnabled, installingPkgs, isSdCardReady, widgetInflater,
-                        mPmHelper, mWorkspaceIconRequestInfos, unlockedUsers, allDeepShortcuts);
+                        mPmHelper, mWorkspaceIconRequestInfos, unlockedUsers, allDeepShortcuts,
+                        mWidgetSizeHandler, mWorkspaceItemSpaceFinder, mHomeScreenFilesQueryResult);
 
                 if (mStopped) {
                     Log.w(TAG, "loadWorkspaceImpl: Loader stopped, skipping item processing");
@@ -499,7 +509,7 @@ public class LoaderTask implements Runnable {
                 return;
             }
 
-            mBgDataModel.stringCache.loadStrings(mContext);
+            mBgDataModel.updateStringCache(mContext);
             mBgDataModel.dataLoadComplete(
                     itemProcessor.finalizeData(mModelDelegate, mModel.getModelDbController()));
         }
@@ -656,24 +666,6 @@ public class LoaderTask implements Runnable {
             allActivityList.addAll(apps);
         }
 
-        if (FeatureFlags.PROMISE_APPS_IN_ALL_APPS.get()) {
-            // get all active sessions and add them to the all apps list
-            for (PackageInstaller.SessionInfo info :
-                    mSessionHelper.getAllVerifiedSessions()) {
-                AppInfo promiseAppInfo = mBgAllAppsList.addPromiseApp(
-                        mContext,
-                        PackageInstallInfo.fromInstallingState(info),
-                        false);
-
-                if (promiseAppInfo != null) {
-                    allAppsItemRequestInfos.add(new IconRequestInfo<>(
-                            promiseAppInfo,
-                            /* launcherActivityInfo= */ null,
-                            promiseAppInfo.getMatchingLookupFlag().withThemeIcon(false)));
-                }
-            }
-        }
-
         Trace.beginSection("LoadAllAppsIconsInBulk");
 
         try {
@@ -760,7 +752,6 @@ public class LoaderTask implements Runnable {
 
     private List<ShortcutInfo> loadDeepShortcuts() {
         List<ShortcutInfo> allShortcuts = new ArrayList<>();
-        mBgDataModel.deepShortcutMap.clear();
 
         if (mBgAllAppsList.hasShortcutHostPermission()) {
             for (UserHandle user : mUserCache.getUserProfiles()) {
@@ -768,7 +759,7 @@ public class LoaderTask implements Runnable {
                     List<ShortcutInfo> shortcuts = new ShortcutRequest(mContext, user)
                             .query(ShortcutRequest.ALL);
                     allShortcuts.addAll(shortcuts);
-                    mBgDataModel.updateDeepShortcutCounts(null, user, shortcuts);
+                    mBgDataModel.updateDeepShortcutCounts(shortcuts);
                 }
             }
         }

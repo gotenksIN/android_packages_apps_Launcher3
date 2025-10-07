@@ -25,7 +25,9 @@ import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_Q
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING_OCCLUDED;
 
+import android.annotation.AnyThread;
 import android.annotation.BinderThread;
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
 import android.graphics.Point;
@@ -64,7 +66,7 @@ import java.util.concurrent.Executors;
  *
  * <p>For details around the behavior of the bubble bar, see {@link BubbleBarView}.
  */
-public class BubbleBarController extends IBubblesListener.Stub {
+public class BubbleBarController {
 
     private static final String TAG = "BubbleBarController";
     private static final boolean DEBUG = false;
@@ -113,6 +115,7 @@ public class BubbleBarController extends IBubblesListener.Stub {
     private static final Executor BUBBLE_STATE_EXECUTOR = Executors.newSingleThreadExecutor(
             new SimpleThreadFactory("BubbleStateUpdates-", THREAD_PRIORITY_BACKGROUND));
     private final SystemUiProxy mSystemUiProxy;
+    private final BubbleBarListener mListener;
 
     private BubbleBarItem mSelectedBubble;
 
@@ -120,8 +123,6 @@ public class BubbleBarController extends IBubblesListener.Stub {
     private BubbleBarViewController mBubbleBarViewController;
     private BubbleStashController mBubbleStashController;
     private Optional<BubbleStashedHandleViewController> mBubbleStashedHandleViewController;
-    private BubblePinController mBubblePinController;
-    private DragToBubbleController mDragToBubbleController;
     private BubbleCreator mBubbleCreator;
     private BubbleBarLocationListener mBubbleBarLocationListener;
 
@@ -174,14 +175,17 @@ public class BubbleBarController extends IBubblesListener.Stub {
         mContext = context;
         mBarView = bubbleView; // Need the view for inflating bubble views.
 
+        mListener = new BubbleBarListener(this);
         mSystemUiProxy = SystemUiProxy.INSTANCE.get(context);
     }
 
     public void onDestroy() {
+        mListener.clear();
         mSystemUiProxy.setBubblesListener(null);
         // Saves bubble bar state
         mSharedState.bubbleBarExpanded = mBubbleBarViewController.isExpanded();
         mSharedState.bubbleBarStashed = mBubbleStashController.isStashed();
+        mSharedState.bubbleBarHasOverflow = mBubbleBarViewController.isOverflowAdded();
         mSharedState.selectedBubbleKey = mSelectedBubble != null ? mSelectedBubble.getKey() : null;
         BubbleInfo[] bubbleInfoItems = new BubbleInfo[mBubbles.size()];
         mBubbles.values().forEach(bubbleBarBubble -> {
@@ -207,9 +211,7 @@ public class BubbleBarController extends IBubblesListener.Stub {
         mBubbleBarViewController = bubbleControllers.bubbleBarViewController;
         mBubbleStashController = bubbleControllers.bubbleStashController;
         mBubbleStashedHandleViewController = bubbleControllers.bubbleStashedHandleViewController;
-        mBubblePinController = bubbleControllers.bubblePinController;
         mBubbleCreator = bubbleControllers.bubbleCreator;
-        mDragToBubbleController = bubbleControllers.dragToBubbleController;
         mBubbleBarLocationListener = bubbleBarLocationListener;
 
         bubbleControllers.runAfterInit(() -> {
@@ -225,7 +227,7 @@ public class BubbleBarController extends IBubblesListener.Stub {
             mBubbleBarLocationListener.onBubbleBarLocationUpdated(
                     mBubbleBarViewController.getBubbleBarLocation());
             if (sBubbleBarEnabled) {
-                mSystemUiProxy.setBubblesListener(this);
+                mSystemUiProxy.setBubblesListener(mListener);
                 mSystemUiProxy.setHasBubbleBar(true);
             }
         });
@@ -266,8 +268,7 @@ public class BubbleBarController extends IBubblesListener.Stub {
     //
 
     @BinderThread
-    @Override
-    public void onBubbleStateChange(Bundle bundle) {
+    private void onBubbleStateChange(Bundle bundle) {
         bundle.setClassLoader(BubbleBarUpdate.class.getClassLoader());
         BubbleBarUpdate update = bundle.getParcelable("update", BubbleBarUpdate.class);
         BubbleBarViewUpdate viewUpdate = new BubbleBarViewUpdate(update);
@@ -319,6 +320,9 @@ public class BubbleBarController extends IBubblesListener.Stub {
         }
         restoreSuppressed(sharedState.suppressedBubbleInfoItems);
         if (hasSavedBubbles) {
+            if (sharedState.bubbleBarHasOverflow) {
+                mBubbleBarViewController.showOverflow(true);
+            }
             setSelectedBubbleInternal(mBubbles.get(sharedState.selectedBubbleKey));
             if (sharedState.bubbleBarExpanded) {
                 // We don't want state restore to have side effects which update the Shell state.
@@ -379,7 +383,11 @@ public class BubbleBarController extends IBubblesListener.Stub {
             // clear restored state
             mBubbleBarViewController.removeAllBubbles();
             mBubbles.clear();
-            mBubbleBarViewController.showOverflow(update.showOverflow);
+            // During the initial sync, Shell's update might not have the correct overflow
+            // state yet. Trust our restored state in this case to prevent the overflow
+            // button from disappearing on rotation.
+            mBubbleBarViewController.showOverflow(
+                    mSharedState.bubbleBarHasOverflow || update.showOverflow);
         }
 
         if (update.addedBubble != null) {
@@ -552,9 +560,6 @@ public class BubbleBarController extends IBubblesListener.Stub {
                 updateBubbleBarLocationInternal(update.bubbleBarLocation);
             }
         }
-        if (update.expandedViewDropTargetSize != null) {
-            mBubblePinController.setDropTargetSize(update.expandedViewDropTargetSize);
-        }
     }
 
     /**
@@ -622,9 +627,7 @@ public class BubbleBarController extends IBubblesListener.Stub {
         mBubbleBarLocationListener.onBubbleBarLocationUpdated(location);
     }
 
-    @Override
     public void animateBubbleBarLocation(BubbleBarLocation bubbleBarLocation) {
-        //TODO(b/411505605) need to add arg whether bubble bar should be set to showing drop target
         MAIN_EXECUTOR.execute(
                 () -> {
                     mBubbleBarViewController.animateBubbleBarLocation(bubbleBarLocation);
@@ -632,15 +635,7 @@ public class BubbleBarController extends IBubblesListener.Stub {
                 });
     }
 
-    //TODO(b/411505605) remove this code
-    @Override
-    public void showBubbleBarPillowAt(@Nullable BubbleBarLocation location) {
-        MAIN_EXECUTOR.execute(
-                () -> mDragToBubbleController.showShellBubbleBarDropTargetAt(location));
-    }
-
-    @Override
-    public void showBubbleBarDropTargetAt(@Nullable BubbleBarLocation location) {
+    private void showBubbleBarDropTargetAt(@Nullable BubbleBarLocation location) {
         MAIN_EXECUTOR.execute(() -> mBubbleBarViewController.showBubbleBarDropTargetAt(location));
     }
 
@@ -681,5 +676,57 @@ public class BubbleBarController extends IBubblesListener.Stub {
 
         /** Called when {@link BubbleBarLocation} is updated permanently. */
         void onBubbleBarLocationUpdated(BubbleBarLocation location);
+    }
+
+    /**
+     * {@link IBubblesListener.Stub} that wraps {@link BubbleBarController} as host obj and
+     * allow clearing it so that:
+     * 1. Launcher process doesn't accumulate expensive {@link #mContext} objects which cannot be
+     * GCed until remote process runs GC to clear the binder objects. This will reduce the high
+     * water mark memory usage for client process.
+     * 2. Leak canary doesn't raise false positive alarms.
+     */
+    private static class BubbleBarListener extends IBubblesListener.Stub {
+
+        private @Nullable BubbleBarController mController;
+
+        BubbleBarListener(@NonNull BubbleBarController controller) {
+            mController = controller;
+        }
+
+        @BinderThread
+        @Override
+        public void onBubbleStateChange(Bundle bundle) {
+            BubbleBarController controller = mController;
+            if (controller != null) {
+                controller.onBubbleStateChange(bundle);
+            }
+        }
+
+        @Override
+        public void animateBubbleBarLocation(BubbleBarLocation bubbleBarLocation) {
+            BubbleBarController controller = mController;
+            if (controller != null) {
+                controller.animateBubbleBarLocation(bubbleBarLocation);
+            }
+        }
+
+        @Override
+        public void showBubbleBarDropTargetAt(@Nullable BubbleBarLocation location) {
+            BubbleBarController controller = mController;
+            if (controller != null) {
+                controller.showBubbleBarDropTargetAt(location);
+            }
+        }
+
+        /**
+         * Since the lifecycle of this binder obj depends on remote process's GC, calling this
+         * method will allow Launcher process GC {@link mController} earlier, and also avoid false
+         * positive leak signal from leak canary.
+         */
+        @AnyThread
+        private void clear() {
+            mController = null;
+        }
     }
 }

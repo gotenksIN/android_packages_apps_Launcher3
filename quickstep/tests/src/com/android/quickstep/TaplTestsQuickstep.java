@@ -77,6 +77,7 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
         super.setUp();
         executeOnOverview(recentsView ->
                 recentsView.getPagedViewOrientedState().forceAllowRotationForTesting(true));
+        clearAllRecentTasks();
     }
 
     @After
@@ -273,6 +274,7 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     @Test
     @NavigationModeSwitch
     @PortraitLandscape
+    @ScreenRecordRule.ScreenRecord  // b/415877373
     public void testQuickSwitchFromApp() throws Exception {
         startTestActivity(2);
         startTestActivity(3);
@@ -360,11 +362,13 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
         // Debug if we need to goHome to prevent wrong previous state b/315525621
         mLauncher.goHome();
         mLauncher.getWorkspace().switchToAllApps().pressBackToWorkspace();
-        waitForState("Launcher internal state didn't switch to Home", LauncherState.NORMAL);
+        waitForLauncherCondition("Launcher internal state didn't switch to Home", launcher ->
+                launcher.getStateManager().getCurrentStableState() == LauncherState.NORMAL);
 
         startAppFast(CALCULATOR_APP_PACKAGE);
         mLauncher.getLaunchedAppState().pressBackToWorkspace();
-        waitForState("Launcher internal state didn't switch to Home", LauncherState.NORMAL);
+        waitForLauncherCondition("Launcher internal state didn't switch to Home", launcher ->
+                launcher.getStateManager().getCurrentStableState() == LauncherState.NORMAL);
     }
 
     @Test
@@ -483,7 +487,6 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     public void testDismissBottomRow() throws Exception {
         assumeTrue("Ignoring test because device is not a tablet",
             mLauncher.isTablet());
-        clearAllRecentTasks();
         startTestAppsWithCheck();
 
         Overview overview = mLauncher.goHome().switchToOverview();
@@ -506,17 +509,16 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     public void testDismissLastGridRow() throws Exception {
         assumeTrue("Ignoring test because device is not a tablet",
             mLauncher.isTablet());
-        clearAllRecentTasks();
         startTestAppsWithCheck();
         startTestActivity(3);
         startTestActivity(4);
+        Overview overview = mLauncher.goHome().switchToOverview();
+        assertIsInState("Launcher internal state didn't switch to Overview",
+                LauncherState.OVERVIEW);
         executeOnOverview(recentsView -> assertNotEquals(
                 "Grid overview should have unequal row counts",
                 recentsView.getTopRowTaskCountForTablet(),
                 recentsView.getBottomRowTaskCountForTablet()));
-        Overview overview = mLauncher.goHome().switchToOverview();
-        assertIsInState("Launcher internal state didn't switch to Overview",
-                LauncherState.OVERVIEW);
 
         overview.flingForwardUntilClearAllVisible();
         assertTrue("Clear All not visible.", overview.isClearAllVisible());
@@ -546,7 +548,6 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     public void gridRebalancesOffScreenAfterDismissingMultipleApps() throws Exception {
         assumeTrue("Ignoring test because device is not a tablet",
             mLauncher.isTablet());
-        clearAllRecentTasks();
         // Launch enough apps so some are offscreen.
         for (int i = 2; i <= 12; i++) {
             startTestActivity(i);
@@ -579,7 +580,6 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     public void gridDoesNotRebalanceOnScreenAfterDismissingMultipleApps() throws Exception {
         assumeTrue("Ignoring test because device is not a tablet",
             mLauncher.isTablet());
-        clearAllRecentTasks();
         // Launch 6 apps so 3 are in each row.
         int appsInBothRowsCount = 6;
         int appsInEachRowCount = appsInBothRowsCount / 2;
@@ -644,11 +644,6 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     private void assertIsInState(
             @NonNull String failureMessage, @NonNull LauncherState expectedState) {
         assertTrue(failureMessage, isInState(() -> expectedState));
-    }
-
-    private void waitForState(
-            @NonNull String failureMessage, @NonNull LauncherState expectedState) {
-        waitForState(failureMessage, () -> expectedState);
     }
 
     private void expectLaunchedAppState() {

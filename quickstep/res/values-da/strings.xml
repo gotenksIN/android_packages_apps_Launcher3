@@ -96,7 +96,10 @@
     <string name="allset_navigation_settings" msgid="4713404605961476027"><annotation id="link">"Indstillinger for systemnavigation"</annotation></string>
     <string name="allset_title_expressive" msgid="474399969304146994">"Så er din <xliff:g id="DEVICE">%1$s</xliff:g> \nklar!"</string>
     <string name="allset_title_expressive_fallback" msgid="2829102990606405239">"Så er din enhed \nklar!"</string>
+    <string name="allset_title_expressive_fixed" msgid="3564219469262883526">"Du er klar til at gå i gang."</string>
     <string name="allset_subtitle_expressive" msgid="419688197551192358">"God fornøjelse med din nye <xliff:g id="DEVICE">%1$s</xliff:g>!"</string>
+    <string name="allset_subtitle_expressive_gesture_navigation" msgid="8931442349501593934">"Stryg opad for at komme godt i gang med din <xliff:g id="DEVICE">%1$s</xliff:g>"</string>
+    <string name="allset_subtitle_expressive_button_navigation" msgid="5219509605046028014">"Tryk for at komme godt i gang med din <xliff:g id="DEVICE">%1$s</xliff:g>"</string>
     <string name="allset_navigation_settings_expressive" msgid="3745595273748356"><annotation id="link">"Vælg, hvordan du vil navigere"</annotation></string>
     <string name="allset_hint_expressive" msgid="756856423510976261">"Stryg opad"</string>
     <string name="allset_button_hint_expressive" msgid="667643693410494225">"Tryk på knappen Hjem"</string>
@@ -147,6 +150,10 @@
     <string name="change_navigation_mode" msgid="9088393078736808968">"Skift navigationstilstand"</string>
     <string name="taskbar_divider_a11y_title" msgid="6608690309720242080">"Opdeling af proceslinjen"</string>
     <string name="taskbar_overflow_a11y_title" msgid="8114045167370723746">"Andre seneste apps"</string>
+    <!-- no translation found for app_added_to_taskbar (1160433791917609063) -->
+    <skip />
+    <!-- no translation found for app_removed_from_taskbar (7887298201562912487) -->
+    <skip />
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Flyt til toppen eller venstre side"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Flyt til bunden eller højre side"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"Åbn appen som en boble"</string>

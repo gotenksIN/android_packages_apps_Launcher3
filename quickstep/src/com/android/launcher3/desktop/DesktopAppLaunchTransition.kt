@@ -43,6 +43,7 @@ import java.util.concurrent.Executor
 class DesktopAppLaunchTransition
 @JvmOverloads
 constructor(
+    // If context needs to become a property, it has to be application context to avoid memory leak.
     context: Context,
     private val launchType: AppLaunchType,
     @Cuj.CujType private val cujType: Int,
@@ -51,7 +52,13 @@ constructor(
 ) : RemoteTransitionStub() {
 
     private val animatorHelper: DesktopAppLaunchAnimatorHelper =
-        DesktopAppLaunchAnimatorHelper(context, launchType, cujType, transactionSupplier)
+        DesktopAppLaunchAnimatorHelper(
+            // We need to pass application to avoid leak of activity.
+            context.applicationContext,
+            launchType,
+            cujType,
+            transactionSupplier,
+        )
 
     enum class AppLaunchType(
         val boundsAnimationParams: WindowAnimator.BoundsAnimationParams,
@@ -72,8 +79,11 @@ constructor(
             transitionFinishedCallback.onTransitionFinished(/* wct= */ null, /* sct= */ null)
         }
         mainExecutor.execute {
-            runAnimators(info, safeTransitionFinishedCallback)
+            getLaunchChange(info)?.let { launchChange ->
+                transaction.reparent(launchChange.leash, info.rootLeash)
+            }
             transaction.apply()
+            runAnimators(info, safeTransitionFinishedCallback)
         }
     }
 
@@ -92,6 +102,11 @@ constructor(
         }
         animators.forEach { it.start() }
     }
+
+    private fun getLaunchChange(info: TransitionInfo): TransitionInfo.Change? =
+        info.changes.firstOrNull { change ->
+            change.mode in LAUNCH_CHANGE_MODES && change.taskInfo?.isFreeform == true
+        }
 
     companion object {
         const val TAG = "DesktopAppLaunchTransition"

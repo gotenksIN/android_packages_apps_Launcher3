@@ -1,0 +1,74 @@
+/*
+ * Copyright (C) 2025 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.android.launcher3.homescreenfiles
+
+import android.content.Context
+import android.net.Uri
+import android.provider.MediaStore
+import androidx.core.database.getStringOrNull
+import java.io.File
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutorService
+
+/** MediaStore-based implementation of [HomeScreenFilesProvider]. */
+class HomeScreenFilesMediaStoreProvider(
+    private val context: Context,
+    private val executorService: ExecutorService,
+) : HomeScreenFilesProvider {
+    /** Returns all file items presented in [HOME_SCREEN_FOLDER_RELATIVE_PATH]. */
+    override fun query(): Lazy<Map<Uri, HomeScreenFile>> {
+        val uri = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        val projection =
+            arrayOf(
+                MediaStore.Files.FileColumns._ID,
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.MIME_TYPE,
+                MediaStore.Files.FileColumns.DATA,
+            )
+        val selection = "${MediaStore.Files.FileColumns.RELATIVE_PATH} = ?"
+        val selectionArgs = arrayOf(HOME_SCREEN_FOLDER_RELATIVE_PATH)
+        val query: Callable<Map<Uri, HomeScreenFile>> = Callable {
+            val result = mutableMapOf<Uri, HomeScreenFile>()
+            context.contentResolver
+                .query(uri, projection, selection, selectionArgs, null, null)
+                ?.use {
+                    val idColumnIndex = it.getColumnIndex(MediaStore.Files.FileColumns._ID)
+                    val displayNameColumnIndex =
+                        it.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                    val mimeTypeColumnIndex =
+                        it.getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE)
+                    val dataColumnIndex = it.getColumnIndex(MediaStore.Files.FileColumns.DATA)
+
+                    while (it.moveToNext()) {
+                        val id = it.getLong(idColumnIndex)
+                        val uri = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL, id)
+                        val displayName = it.getString(displayNameColumnIndex)
+                        val mimeType = it.getStringOrNull(mimeTypeColumnIndex)
+                        val isDirectory = File(it.getString(dataColumnIndex)).isDirectory
+                        result[uri] = HomeScreenFile(displayName, mimeType, isDirectory)
+                    }
+                }
+            return@Callable result
+        }
+        val future = executorService.submit(query)
+        return lazy { future.get() }
+    }
+
+    companion object {
+        private const val HOME_SCREEN_FOLDER_RELATIVE_PATH = "Home screen/"
+    }
+}

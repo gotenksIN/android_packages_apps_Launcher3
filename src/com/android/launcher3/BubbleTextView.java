@@ -24,7 +24,6 @@ import static com.android.launcher3.BubbleTextView.RunningAppState.MINIMIZED;
 import static com.android.launcher3.BubbleTextView.RunningAppState.RUNNING;
 import static com.android.launcher3.Flags.enableContrastTiles;
 import static com.android.launcher3.Flags.enableScalabilityForDesktopExperience;
-import static com.android.launcher3.allapps.AlphabeticalAppsList.PRIVATE_SPACE_PACKAGE;
 import static com.android.launcher3.graphics.PreloadIconDelegate.extractPreloadDelegate;
 import static com.android.launcher3.graphics.PreloadIconDelegate.hasPendingAnimationCompleted;
 import static com.android.launcher3.graphics.PreloadIconDelegate.newPendingIcon;
@@ -84,8 +83,10 @@ import com.android.launcher3.dragndrop.DragOptions.PreDragCondition;
 import com.android.launcher3.dragndrop.DraggableView;
 import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.graphics.PreloadIconDelegate;
+import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.icons.BitmapInfo.DrawableCreationFlags;
 import com.android.launcher3.icons.DotRenderer;
+import com.android.launcher3.icons.DotRenderer.IconShapeInfo;
 import com.android.launcher3.icons.FastBitmapDrawable;
 import com.android.launcher3.icons.IconCache.ItemInfoUpdateReceiver;
 import com.android.launcher3.icons.PlaceHolderDrawableDelegate;
@@ -96,7 +97,7 @@ import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.Poppable;
 import com.android.launcher3.popup.PoppableType;
-import com.android.launcher3.popup.PopupContainerWithArrow;
+import com.android.launcher3.popup.Popup;
 import com.android.launcher3.popup.PopupController;
 import com.android.launcher3.search.StringMatcherUtility;
 import com.android.launcher3.util.CancellableTask;
@@ -111,7 +112,6 @@ import com.android.launcher3.views.FloatingIconViewCompanion;
 import java.text.NumberFormat;
 import java.util.HashMap;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
  * TextView that draws a bubble behind the text. We cannot use a LineBackgroundSpan
@@ -147,7 +147,6 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     private IntArray mBreakPointsIntArray;
     private CharSequence mLastOriginalText;
     private CharSequence mLastModifiedText;
-    private PopupController mPopupController;
 
     private static final Property<BubbleTextView, Float> DOT_SCALE_PROPERTY
             = new Property<BubbleTextView, Float>(Float.TYPE, "dotScale") {
@@ -205,11 +204,12 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
 
     @ViewDebug.ExportedProperty(category = "launcher")
     private DotInfo mDotInfo;
-    private DotRenderer mDotRenderer;
+    private final DotRenderer mDotRenderer;
     @ViewDebug.ExportedProperty(category = "launcher", deepExport = true)
-    protected DotRenderer.DrawParams mDotParams;
+    protected final DotRenderer.DrawParams mDotParams;
     private Animator mDotScaleAnim;
     private boolean mForceHideDot;
+    private boolean mIconAnimationDisabled;
 
     // These fields, related to showing running apps, are only used for Taskbar.
     private final int mRunningAppIndicatorHeight;
@@ -225,17 +225,6 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
 
     private final String mMinimizedStateDescription;
     private final String mRunningStateDescription;
-
-    @Nullable
-    @Override
-    public PopupController getPopupController() {
-        return mPopupController;
-    }
-
-    @Override
-    public void setPopupController(@NonNull PopupController popupController) {
-        mPopupController = popupController;
-    }
 
     @NonNull
     @Override
@@ -337,6 +326,18 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         mLongPressHelper = new CheckLongPressHelper(this);
 
         mDotParams = new DotRenderer.DrawParams();
+        mDotParams.setDotColor(Themes.getAttrColor(context, R.attr.notificationDotColor));
+
+        if (mDisplay == DISPLAY_ALL_APPS) {
+            mDotRenderer = mActivity.getDeviceProfile().mDotRendererAllApps;
+
+            // Do not use normalized info, as we account for normalization in iconBounds
+            mDotParams.shapeInfo = IconShapeInfo.DEFAULT;
+        } else {
+            mDotRenderer = mActivity.getDeviceProfile().mDotRendererWorkSpace;
+            mDotParams.shapeInfo = ThemeManager.INSTANCE.get(context)
+                    .getIconState().getIconShapeInfo();
+        }
 
         setEllipsize(TruncateAt.END);
         setAccessibilityDelegate(mActivity.getAccessibilityDelegate());
@@ -363,12 +364,11 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
      */
     public void reset() {
         mDotInfo = null;
-        mDotParams.dotColor = Color.TRANSPARENT;
-        mDotParams.appColor = Color.TRANSPARENT;
         cancelDotScaleAnim();
         mDotParams.scale = 0f;
         mForceHideDot = false;
         setBackground(null);
+        setIconAnimationDisabled(false);
 
         mLineIndicatorColor = Color.TRANSPARENT;
         mLineIndicatorWidth = 0;
@@ -459,8 +459,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     @UiThread
     public void applyIconAndLabel(Drawable icon, CharSequence title, CharSequence description) {
         applyCompoundDrawables(icon);
-        setText(title);
-        setContentDescription(description);
+        applyLabel(title, description, false, false);
     }
 
     public void setRunningAppState(RunningAppState runningAppState) {
@@ -539,12 +538,14 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     private void setNonPendingIcon(ItemInfoWithIcon info) {
         FastBitmapDrawable iconDrawable =
                 info.newIcon(getContext(), getIconCreationFlagsForInfo(info));
-        mDotParams.appColor = iconDrawable.getIconColor();
-        mDotParams.dotColor = Themes.getAttrColor(getContext(), R.attr.notificationDotColor);
-        if (Objects.equals(info.getTargetPackage(), PRIVATE_SPACE_PACKAGE)) {
+        if (mIconAnimationDisabled) {
             iconDrawable.setAnimationEnabled(false);
         }
         setIcon(iconDrawable);
+    }
+
+    public void setIconAnimationDisabled(boolean shouldDisableAnimation) {
+        mIconAnimationDisabled = shouldDisableAnimation;
     }
 
     /**
@@ -610,23 +611,35 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
 
     @UiThread
     public void applyLabel(ItemInfo info) {
-        CharSequence label = info.title;
+        applyLabel(info.title, info.contentDescription, Flags.useNewIconForArchivedApps()
+                && info instanceof ItemInfoWithIcon infoWithIcon
+                && infoWithIcon.isInactiveArchive(), info.isDisabled());
+    }
+
+    /**
+     * Directly sets the item label, without applying the icon.
+     */
+    @UiThread
+    public void applyLabel(CharSequence label) {
+        applyLabel(label, null, false, false);
+    }
+
+    private void applyLabel(@Nullable CharSequence label, @Nullable CharSequence contentDescription,
+            boolean isTextWithArchivingIcon, boolean isItemDisabled) {
         if (label != null) {
             mLastOriginalText = label;
             mLastModifiedText = mLastOriginalText;
             mBreakPointsIntArray = StringMatcherUtility.getListOfBreakpoints(label, MATCHER);
-            if (Flags.useNewIconForArchivedApps()
-                    && info instanceof ItemInfoWithIcon infoWithIcon
-                    && infoWithIcon.isInactiveArchive()) {
+            if (isTextWithArchivingIcon) {
                 setTextWithArchivingIcon(label);
             } else {
                 setText(label);
             }
         }
-        if (info.contentDescription != null) {
-            setContentDescription(info.isDisabled()
-                    ? getContext().getString(R.string.disabled_app_label, info.contentDescription)
-                    : info.contentDescription);
+        if (contentDescription != null) {
+            setContentDescription(isItemDisabled
+                    ? getContext().getString(R.string.disabled_app_label, contentDescription)
+                    : contentDescription);
         }
     }
 
@@ -978,11 +991,10 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
                     mAppTitleHorizontalPadding + mRoundRectPadding,
                     getPaddingBottom());
         }
-        // Only apply two line for all_apps and device search only if necessary.
+
         if (shouldUseTwoLine() && (mLastOriginalText != null)) {
             int allowedVerticalSpace = height - getPaddingTop() - getPaddingBottom()
-                    - mDeviceProfile.getAllAppsProfile().getIconSizePx()
-                    - mDeviceProfile.getAllAppsProfile().getIconDrawablePaddingPx();
+                    - (mIcon != null ? mIconSize + getCompoundDrawablePadding() : 0);
             CharSequence modifiedString = modifyTitleToSupportMultiLine(
                     MeasureSpec.getSize(widthMeasureSpec) - getCompoundPaddingLeft()
                             - getCompoundPaddingRight(),
@@ -1231,11 +1243,6 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
             mDotInfo = mActivity.getDotInfoForItem(itemInfo);
             boolean isDotted = mDotInfo != null;
             float newDotScale = isDotted ? 1f : 0;
-            if (mDisplay == DISPLAY_ALL_APPS) {
-                mDotRenderer = mActivity.getDeviceProfile().mDotRendererAllApps;
-            } else {
-                mDotRenderer = mActivity.getDeviceProfile().mDotRendererWorkSpace;
-            }
             if (wasDotted || isDotted) {
                 // Animate when a dot is first added or when it is removed.
                 if (animate && (wasDotted ^ isDotted) && isShown()) {
@@ -1479,9 +1486,9 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     /**
      * Starts a long press action and returns the corresponding pre-drag condition
      */
-    public PreDragCondition startLongPressAction() {
-        PopupContainerWithArrow popup = PopupContainerWithArrow.showForIcon(this);
-        return popup != null ? popup.createPreDragCondition(true) : null;
+    public PreDragCondition startLongPressAction(PopupController<?> popupController) {
+        Popup popup = popupController.show(this);
+        return popup != null ? popup.createPreDragCondition() : null;
     }
 
     /**

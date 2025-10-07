@@ -23,6 +23,7 @@ import android.graphics.Bitmap.createBitmap
 import android.os.Process
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT
 import com.android.launcher3.icons.BitmapInfo
+import com.android.launcher3.icons.ThemedBitmap
 import com.android.launcher3.model.data.AppPairInfo
 import com.android.launcher3.model.data.FolderInfo
 import com.android.launcher3.model.data.ItemInfo
@@ -34,6 +35,7 @@ import com.android.launcher3.taskbar.TaskbarIconType.OVERFLOW
 import com.android.launcher3.taskbar.TaskbarIconType.RECENT
 import com.android.quickstep.util.GroupTask
 import com.android.quickstep.util.SingleTask
+import com.android.quickstep.util.SplitTask
 import com.android.systemui.shared.recents.model.Task
 import com.android.systemui.shared.recents.model.Task.TaskKey
 import com.google.common.truth.FailureMetadata
@@ -79,7 +81,12 @@ object TaskbarViewTestUtil {
         item.user = user
         item.container = container
         // Create a placeholder icon so that the test  doesn't try to load a high-res icon.
-        item.bitmap = BitmapInfo.fromBitmap(createBitmap(1, 1, Bitmap.Config.ALPHA_8))
+        item.bitmap =
+            BitmapInfo(
+                icon = createBitmap(1, 1, Bitmap.Config.ALPHA_8),
+                color = 0,
+                themedBitmap = ThemedBitmap.NOT_SUPPORTED,
+            )
         return item
     }
 
@@ -104,20 +111,24 @@ object TaskbarViewTestUtil {
         return List(size) { createRecentTask(it) }
     }
 
-    fun createRecentTask(id: Int = 0): GroupTask {
-        return SingleTask(
-            Task().apply {
-                key =
-                    TaskKey(
-                        id,
-                        5,
-                        testIntent(id),
-                        testComponent(id),
-                        Process.myUserHandle().identifier,
-                        System.currentTimeMillis(),
-                    )
-            }
-        )
+    fun createRecentTask(id: Int = 0): GroupTask = SingleTask(createTask(id))
+
+    fun createSplitTask(id: Int = 0): SplitTask =
+        SplitTask(createTask(id), createTask(id + 1), splitBounds = null)
+
+    private fun createTask(id: Int): Task {
+        return Task().apply {
+            title = "Task$id"
+            key =
+                TaskKey(
+                    id,
+                    5,
+                    testIntent(id),
+                    testComponent(id),
+                    Process.myUserHandle().identifier,
+                    System.currentTimeMillis(),
+                )
+        }
     }
 }
 
@@ -132,7 +143,8 @@ class TaskbarViewSubject(failureMetadata: FailureMetadata, private val view: Tas
                 when (it) {
                     view.allAppsButtonContainer -> ALL_APPS
                     view.taskbarDividerViewContainer -> DIVIDER
-                    view.taskbarOverflowView -> OVERFLOW
+                    view.taskbarRecentsOverflowView -> OVERFLOW
+                    view.taskbarPinnedOverflowView -> OVERFLOW
                     else ->
                         when (it.tag) {
                             is ItemInfo -> HOTSEAT

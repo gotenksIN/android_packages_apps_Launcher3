@@ -43,6 +43,10 @@ fun darkWidgetPickerColors() =
             colorResource(R.color.widget_picker_expand_icon_button_background_dark),
         expandableListItemsBackground =
             colorResource(R.color.widget_picker_expandable_list_items_background_dark),
+        expandableListHeaderTitle =
+            colorResource(R.color.widget_picker_header_app_title_color_dark),
+        expandableListHeaderSubTitle =
+            colorResource(R.color.widget_picker_header_app_subtitle_color_dark),
 
         // List header
         selectedListHeaderBackground =
@@ -52,8 +56,14 @@ fun darkWidgetPickerColors() =
             colorResource(R.color.widget_picker_featured_header_icon_background_dark),
         featuredHeaderLeadingIcon =
             colorResource(R.color.widget_picker_featured_header_icon_color_dark),
-        listHeaderTitle = colorResource(R.color.widget_picker_header_app_title_color_dark),
-        listHeaderSubTitle = colorResource(R.color.widget_picker_header_app_subtitle_color_dark),
+        unSelectedListHeaderTitle =
+            colorResource(R.color.widget_picker_header_app_title_color_dark),
+        unSelectedListHeaderSubTitle =
+            colorResource(R.color.widget_picker_header_app_subtitle_color_dark),
+        selectedListHeaderTitle =
+            colorResource(R.color.widget_picker_selected_header_app_title_color_dark),
+        selectedListHeaderSubTitle =
+            colorResource(R.color.widget_picker_selected_header_app_subtitle_color_dark),
 
         // Error message
         noWidgetsErrorText = colorResource(R.color.widget_picker_no_widget_error_color_dark),
@@ -96,6 +106,7 @@ fun darkWidgetPickerColors() =
         searchBarClearButtonIcon = colorResource(R.color.widget_picker_search_text_color_dark),
         searchBarBackButtonIcon = colorResource(R.color.widget_picker_search_text_color_dark),
         searchBarCursor = colorResource(R.color.widget_picker_search_cursor_color_dark),
+        focusOutline = colorResource(R.color.widget_picker_focus_outline_color_dark),
     )
 
 /**
@@ -118,6 +129,10 @@ fun lightWidgetPickerColors() =
             colorResource(R.color.widget_picker_expand_icon_button_background_light),
         expandableListItemsBackground =
             colorResource(R.color.widget_picker_expandable_list_items_background_light),
+        expandableListHeaderTitle =
+            colorResource(R.color.widget_picker_header_app_title_color_light),
+        expandableListHeaderSubTitle =
+            colorResource(R.color.widget_picker_header_app_subtitle_color_light),
 
         // List header
         selectedListHeaderBackground =
@@ -127,8 +142,14 @@ fun lightWidgetPickerColors() =
             colorResource(R.color.widget_picker_featured_header_icon_background_light),
         featuredHeaderLeadingIcon =
             colorResource(R.color.widget_picker_featured_header_icon_color_light),
-        listHeaderTitle = colorResource(R.color.widget_picker_header_app_title_color_light),
-        listHeaderSubTitle = colorResource(R.color.widget_picker_header_app_subtitle_color_light),
+        selectedListHeaderTitle =
+            colorResource(R.color.widget_picker_selected_header_app_title_color_light),
+        selectedListHeaderSubTitle =
+            colorResource(R.color.widget_picker_selected_header_app_subtitle_color_light),
+        unSelectedListHeaderTitle =
+            colorResource(R.color.widget_picker_header_app_title_color_light),
+        unSelectedListHeaderSubTitle =
+            colorResource(R.color.widget_picker_header_app_subtitle_color_light),
 
         // Error message
         noWidgetsErrorText = colorResource(R.color.widget_picker_no_widget_error_color_light),
@@ -174,4 +195,5 @@ fun lightWidgetPickerColors() =
         searchBarClearButtonIcon = colorResource(R.color.widget_picker_search_text_color_light),
         searchBarBackButtonIcon = colorResource(R.color.widget_picker_search_text_color_light),
         searchBarCursor = colorResource(R.color.widget_picker_search_cursor_color_light),
+        focusOutline = colorResource(R.color.widget_picker_focus_outline_color_light),
     )

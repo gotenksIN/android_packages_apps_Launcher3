@@ -25,7 +25,9 @@ import android.animation.AnimatorSet;
 import android.content.Context;
 import android.graphics.Rect;
 import android.view.RemoteAnimationTarget;
+import android.view.SurfaceControl;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.app.displaylib.PerDisplayRepository;
@@ -117,6 +119,15 @@ public final class FallbackWindowInterface extends BaseWindowInterface {
         return mRecentsWindowManager;
     }
 
+    @Nullable
+    public SurfaceControl getOverviewOverlay() {
+        if (mRecentsWindowManager == null) {
+            return null;
+        }
+        return mRecentsWindowManager.getOverviewOverlay();
+    }
+
+
     @Override
     public TaskbarUIController getTaskbarController() {
         RecentsWindowManager manager = getCreatedContainer();
@@ -184,27 +195,20 @@ public final class FallbackWindowInterface extends BaseWindowInterface {
 
     @Override
     public void onLaunchTaskFailed() {
-        // TODO: probably go back to overview instead.
         RecentsWindowManager manager = getCreatedContainer();
         if (manager == null) {
             return;
         }
-        manager.<RecentsView>getOverviewPanel().startHome();
+        manager.getStateManager().goToState(DEFAULT);
     }
 
     @Override
-    public RecentsState stateFromGestureEndTarget(GestureEndTarget endTarget) {
-        switch (endTarget) {
-            case RECENTS:
-                return DEFAULT;
-            case NEW_TASK:
-            case LAST_TASK:
-                return BACKGROUND_APP;
-            case HOME:
-            case ALL_APPS:
-            default:
-                return HOME;
-        }
+    public RecentsState stateFromGestureEndTarget(@NonNull GestureEndTarget endTarget) {
+        return switch (endTarget) {
+            case RECENTS -> DEFAULT;
+            case NEW_TASK, LAST_TASK -> BACKGROUND_APP;
+            default -> HOME;
+        };
     }
 
     private void notifyRecentsOfOrientation() {

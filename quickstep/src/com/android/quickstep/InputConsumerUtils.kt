@@ -27,11 +27,11 @@ import com.android.quickstep.inputconsumers.AccessibilityInputConsumer
 import com.android.quickstep.inputconsumers.AssistantInputConsumer
 import com.android.quickstep.inputconsumers.BubbleBarInputConsumer
 import com.android.quickstep.inputconsumers.DeviceLockedInputConsumer
+import com.android.quickstep.inputconsumers.LauncherInputConsumer
+import com.android.quickstep.inputconsumers.LauncherWithoutFocusInputConsumer
 import com.android.quickstep.inputconsumers.NavHandleLongPressInputConsumer
 import com.android.quickstep.inputconsumers.OneHandedModeInputConsumer
 import com.android.quickstep.inputconsumers.OtherActivityInputConsumer
-import com.android.quickstep.inputconsumers.OverviewInputConsumer
-import com.android.quickstep.inputconsumers.OverviewWithoutFocusInputConsumer
 import com.android.quickstep.inputconsumers.ProgressDelegateInputConsumer
 import com.android.quickstep.inputconsumers.ResetGestureInputConsumer
 import com.android.quickstep.inputconsumers.ScreenPinnedInputConsumer
@@ -74,6 +74,7 @@ object InputConsumerUtils {
         overviewCommandHelper: OverviewCommandHelper,
         event: MotionEvent,
         rotationTouchHelper: RotationTouchHelper,
+        desktopState: DesktopState,
     ): InputConsumer where T : RecentsViewContainer, T : StatefulContainer<S> {
         val tac = taskbarManager.getCurrentActivityContext()
         val bubbleControllers = tac?.bubbleControllers
@@ -175,6 +176,7 @@ object InputConsumerUtils {
                     event,
                     reasonString,
                     rotationTouchHelper,
+                    desktopState,
                 )
         } else {
             reasonString =
@@ -503,6 +505,7 @@ object InputConsumerUtils {
         event: MotionEvent,
         reasonString: CompoundString,
         rotationTouchHelper: RotationTouchHelper,
+        desktopState: DesktopState,
     ): InputConsumer where T : RecentsViewContainer, T : StatefulContainer<S> {
         if (deviceState.isKeyguardShowingOccluded) {
             // This handles apps showing over the lockscreen (e.g. camera)
@@ -527,8 +530,8 @@ object InputConsumerUtils {
 
         val runningTask = gestureState.runningTask
         val containerInterface = gestureState.getContainerInterface<S, T>()
-        // Use overview input consumer for sharesheets on top of home.
-        val forceOverviewInputConsumer =
+        // Use launcher input consumer for sharesheets on top of home.
+        val forceLauncherInputConsumer =
             containerInterface.isStarted() &&
                 runningTask != null &&
                 runningTask.isRootChooseActivity
@@ -555,7 +558,7 @@ object InputConsumerUtils {
         val launcherResumedThroughShellTransition =
             containerInterface.isResumed() &&
                 !previousGestureState.isRecentsAnimationRunning &&
-                !DesktopState.fromContext(context).shouldShowHomeBehindDesktop
+                !desktopState.shouldShowHomeBehindDesktop
 
         // If a task fragment within Launcher is resumed
         val launcherChildActivityResumed =
@@ -566,7 +569,7 @@ object InputConsumerUtils {
                 containerInterface.isLauncherOverlayShowing
 
         return if (containerInterface.isInLiveTileMode()) {
-            createOverviewInputConsumer<S, T>(
+            createLauncherInputConsumer<S, T>(
                 userUnlocked,
                 taskAnimationManager,
                 taskbarManager,
@@ -576,7 +579,7 @@ object InputConsumerUtils {
                 gestureState,
                 event,
                 reasonString.append(
-                    "%sis in live tile mode, trying to use overview input consumer",
+                    "%sis in live tile mode, trying to use launcher input consumer",
                     SUBSTRING_PREFIX,
                 ),
             )
@@ -591,9 +594,9 @@ object InputConsumerUtils {
         } else if (
             previousGestureAnimatedToLauncher ||
                 launcherResumedThroughShellTransition ||
-                forceOverviewInputConsumer
+                forceLauncherInputConsumer
         ) {
-            createOverviewInputConsumer<S, T>(
+            createLauncherInputConsumer<S, T>(
                 userUnlocked,
                 taskAnimationManager,
                 taskbarManager,
@@ -610,10 +613,10 @@ object InputConsumerUtils {
                             else "%spredictive back animation is still in progress")
                         else if (launcherResumedThroughShellTransition)
                             "%slauncher resumed through a shell transition"
-                        else "%sforceOverviewInputConsumer == true",
+                        else "%sforceLauncherInputConsumer == true",
                         SUBSTRING_PREFIX,
                     )
-                    .append(", trying to use overview input consumer"),
+                    .append(", trying to use launcher input consumer"),
             )
         } else if (deviceState.isGestureBlockedTask(runningTask) || launcherChildActivityResumed) {
             getDefaultInputConsumer(
@@ -693,7 +696,7 @@ object InputConsumerUtils {
         }
     }
 
-    private fun <S : BaseState<S>, T> createOverviewInputConsumer(
+    private fun <S : BaseState<S>, T> createLauncherInputConsumer(
         userUnlocked: Boolean,
         taskAnimationManager: TaskAnimationManager,
         taskbarManager: TaskbarManager,
@@ -737,10 +740,10 @@ object InputConsumerUtils {
         )
         return if (hasWindowFocus || isPreviousGestureAnimatingToLauncher || isInLiveTileMode) {
             reasonString.append(
-                "%soverview should have focus, using OverviewInputConsumer",
+                "%soverview should have focus, using LauncherInputConsumer",
                 SUBSTRING_PREFIX,
             )
-            OverviewInputConsumer(
+            LauncherInputConsumer(
                 gestureState,
                 container,
                 inputMonitorCompat,
@@ -748,11 +751,11 @@ object InputConsumerUtils {
             )
         } else {
             reasonString.append(
-                "%soverview shouldn't have focus, using OverviewWithoutFocusInputConsumer",
+                "%soverview shouldn't have focus, using LauncherWithoutFocusInputConsumer",
                 SUBSTRING_PREFIX,
             )
             val disableHorizontalSwipe = deviceState.isInExclusionRegion(event)
-            OverviewWithoutFocusInputConsumer(
+            LauncherWithoutFocusInputConsumer(
                 container.asContext(),
                 deviceState,
                 gestureState,

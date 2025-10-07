@@ -55,7 +55,7 @@
     <string name="back_gesture_feedback_cancelled" msgid="762621530959111290">"Csúsztassa ujját a képernyő jobb vagy bal széléről a képernyő közepéig, majd emelje fel."</string>
     <string name="back_gesture_feedback_complete_with_overview_follow_up" msgid="9176400654037014471">"Megtanulta, hogyan léphet vissza jobbról csúsztatva. A következő az appok közötti váltás."</string>
     <string name="back_gesture_feedback_complete_with_follow_up" msgid="8653374779579748392">"Teljesítette a visszalépési kézmozdulatot. Most megtanulhatja, hogyan válthat az appok között."</string>
-    <string name="back_gesture_feedback_complete_without_follow_up" msgid="197189945858268342">"Teljesítette a visszalépési kézmozdulatot."</string>
+    <string name="back_gesture_feedback_complete_without_follow_up" msgid="197189945858268342">"Megtanulta a visszalépési kézmozdulatot."</string>
     <string name="back_gesture_feedback_swipe_in_nav_bar" msgid="9157480023651452969">"Ne csúsztasson túl közel a képernyő aljához."</string>
     <string name="back_gesture_tutorial_confirm_subtitle" msgid="5181305411668713250">"A vissza mozdulat érzékenysége a Beállításokban módosítható"</string>
     <string name="back_gesture_intro_title" msgid="19551256430224428">"Csúsztasson a visszalépéshez"</string>
@@ -96,7 +96,10 @@
     <string name="allset_navigation_settings" msgid="4713404605961476027"><annotation id="link">"Rendszer-navigációs beállítások"</annotation></string>
     <string name="allset_title_expressive" msgid="474399969304146994">"<xliff:g id="DEVICE">%1$s</xliff:g> eszköze \nkészen áll!"</string>
     <string name="allset_title_expressive_fallback" msgid="2829102990606405239">"Eszköze \nkészen áll!"</string>
+    <string name="allset_title_expressive_fixed" msgid="3564219469262883526">"Már készen is van!"</string>
     <string name="allset_subtitle_expressive" msgid="419688197551192358">"Élvezze új <xliff:g id="DEVICE">%1$s</xliff:g> eszközét!"</string>
+    <string name="allset_subtitle_expressive_gesture_navigation" msgid="8931442349501593934">"Csúsztasson felfelé a(z) <xliff:g id="DEVICE">%1$s</xliff:g> használatának megkezdéséhez"</string>
+    <string name="allset_subtitle_expressive_button_navigation" msgid="5219509605046028014">"Koppintson a(z) <xliff:g id="DEVICE">%1$s</xliff:g> használatának megkezdéséhez"</string>
     <string name="allset_navigation_settings_expressive" msgid="3745595273748356"><annotation id="link">"Válassza ki a navigálás módját"</annotation></string>
     <string name="allset_hint_expressive" msgid="756856423510976261">"Csúsztatás gyorsan felfelé"</string>
     <string name="allset_button_hint_expressive" msgid="667643693410494225">"Koppintson a Kezdőképernyő gombra"</string>
@@ -147,6 +150,10 @@
     <string name="change_navigation_mode" msgid="9088393078736808968">"Navigációs mód módosítása"</string>
     <string name="taskbar_divider_a11y_title" msgid="6608690309720242080">"Feladatsáv-elválasztó"</string>
     <string name="taskbar_overflow_a11y_title" msgid="8114045167370723746">"További legutóbbi alkalmazások"</string>
+    <!-- no translation found for app_added_to_taskbar (1160433791917609063) -->
+    <skip />
+    <!-- no translation found for app_removed_from_taskbar (7887298201562912487) -->
+    <skip />
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Mozgatás felülre vagy a bal oldalra"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Mozgatás alulra vagy a jobb oldalra"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"Alkalmazás megnyitása buborékként"</string>

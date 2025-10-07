@@ -90,6 +90,20 @@ public final class Widgets extends LauncherInstrumentation.VisibleContainer
         return true;
     }
 
+    public void close() {
+        final Point displaySize = mLauncher.getRealDisplaySize();
+        mLauncher.linearGesture(
+                /*startX=*/ displaySize.x / 2,
+                /*startY=*/ displaySize.y - 1,
+                /*endX=*/ displaySize.x / 2,
+                /*endY=*/ displaySize.y / 2,
+                /*steps=*/ 100,
+                /*slowDown=*/ false,
+                /*gestureScope=*/ LauncherInstrumentation.GestureScope.DONT_EXPECT_PILFER);
+        // Wait for the workspace to be visible.
+        mLauncher.getWorkspace();
+    }
+
     /**
      * Flings forward (down) and waits the fling's end.
      */
@@ -257,8 +271,9 @@ public final class Widgets extends LauncherInstrumentation.VisibleContainer
         mLauncher.assertTrue("Header not found", header != null);
 
         mLauncher.waitForIdle();
-        header.click();
-        mLauncher.waitForIdle();
+        UiObject2 headerParent = header.getParent();
+        headerParent.wait(Until.clickable(true), WAIT_TIME_MS);
+        headerParent.click();
 
         LauncherInstrumentation.log("Clicked header");
 
@@ -299,23 +314,31 @@ public final class Widgets extends LauncherInstrumentation.VisibleContainer
                 mLauncher.waitForObjectBySelector(BROWSE_WIDGETS_LIST_SELECTOR);
             } else {
                 if (isSinglePane) {
-                    // Ensure header is fully visible.
-                    mLauncher.linearGesture(
-                            startX,
-                            startY,
-                            endX,
-                            endY,
-                            SCROLL_STEPS,
-                            /* slowDown= */ true,
-                            LauncherInstrumentation.GestureScope.DONT_EXPECT_PILFER);
+                    // Ensure header is fully visible (e.g. not occluded by browse tabs) and
+                    // scroll is finished.
+                    scrollAndWait(startX, startY, endX, endY);
+                } else {
+                    // Wait for scroll to be stabilized
+                    scrollAndWait(startX, startY, endX, startY - 1);
                 }
-                mLauncher.waitForIdle();
                 // Return latest matching header.
                 return mLauncher.waitForObjectBySelector(headerSelector);
             }
         }
         LauncherInstrumentation.log("[findWidgetHeader]: exceeded scroll attempts");
         return null;
+    }
+
+    private void scrollAndWait(int startX, int startY, int endX, int endY) {
+        mLauncher.getDevice().performActionAndWait(() -> mLauncher.linearGesture(
+                        startX,
+                        startY,
+                        endX,
+                        endY,
+                        SCROLL_STEPS,
+                        /* slowDown= */ true,
+                        LauncherInstrumentation.GestureScope.DONT_EXPECT_PILFER),
+                Until.scrollFinished(Direction.DOWN), WAIT_TIME_MS);
     }
 
     private UiObject2 findWidget(String labelText, boolean isSinglePane) {

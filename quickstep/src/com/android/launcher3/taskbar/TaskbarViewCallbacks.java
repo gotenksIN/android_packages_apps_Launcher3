@@ -16,8 +16,6 @@
 
 package com.android.launcher3.taskbar;
 
-import static android.window.DesktopModeFlags.ENABLE_TASKBAR_RECENTS_LAYOUT_TRANSITION;
-
 import static com.android.launcher3.config.FeatureFlags.enableTaskbarPinning;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_TASKBAR_ALLAPPS_BUTTON_LONG_PRESS;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_TASKBAR_ALLAPPS_BUTTON_TAP;
@@ -123,7 +121,7 @@ public class TaskbarViewCallbacks {
 
     /** Callback invoked before Taskbar icons are laid out. */
     void onPreLayoutChildren() {
-        if (enableTaskbarPinning() && ENABLE_TASKBAR_RECENTS_LAYOUT_TRANSITION.isTrue()) {
+        if (enableTaskbarPinning()) {
             mControllers.taskbarViewController.updateTaskbarIconTranslationXForPinning();
         }
     }
@@ -195,12 +193,12 @@ public class TaskbarViewCallbacks {
     }
 
     private void toggleKeyboardQuickSwitchView() {
-        if (mTaskbarView.getTaskbarOverflowView() != null) {
-            mTaskbarView.getTaskbarOverflowView().setIsActive(
-                    !mTaskbarView.getTaskbarOverflowView().getIsActive());
+        if (mTaskbarView.getTaskbarRecentsOverflowView() != null) {
+            mTaskbarView.getTaskbarRecentsOverflowView().setIsActive(
+                    !mTaskbarView.getTaskbarRecentsOverflowView().getIsActive());
             mControllers.taskbarAutohideSuspendController
                     .updateFlag(FLAG_AUTOHIDE_SUSPEND_TASKBAR_OVERFLOW,
-                            mTaskbarView.getTaskbarOverflowView().getIsActive());
+                            mTaskbarView.getTaskbarRecentsOverflowView().getIsActive());
         }
         mControllers.keyboardQuickSwitchController.toggleQuickSwitchViewForTaskbar(
                 mControllers.taskbarViewController.getShownTaskIds(),
@@ -208,8 +206,8 @@ public class TaskbarViewCallbacks {
     }
 
     private void onKeyboardQuickSwitchViewClosed() {
-        if (mTaskbarView.getTaskbarOverflowView() != null) {
-            mTaskbarView.getTaskbarOverflowView().setIsActive(false);
+        if (mTaskbarView.getTaskbarRecentsOverflowView() != null) {
+            mTaskbarView.getTaskbarRecentsOverflowView().setIsActive(false);
         }
         mControllers.taskbarAutohideSuspendController.updateFlag(
                 FLAG_AUTOHIDE_SUSPEND_TASKBAR_OVERFLOW, false);

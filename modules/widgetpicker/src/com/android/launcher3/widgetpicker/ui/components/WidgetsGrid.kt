@@ -34,7 +34,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.semantics.text
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -81,11 +80,19 @@ fun WidgetsGrid(
     widgetInteractionSource: WidgetInteractionSource,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
 ) {
-    var addButtonWidgetId by remember { mutableStateOf<WidgetId?>(null) }
+    // `selectedWidgetId` indicates the currently selected widget.
+    // `hoveredWidgetPreviewId` and `hoveredWidgetDetailsId` indicate the widget that is being
+    // hovered with cursor on the preview and details sections respectively.
+    var selectedWidgetId by remember { mutableStateOf<WidgetId?>(null) }
+    var hoveredWidgetPreviewId by remember { mutableStateOf<WidgetId?>(null) }
+    var hoveredWidgetDetailsId by remember { mutableStateOf<WidgetId?>(null) }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.padding(vertical = WidgetGridDimensions.gridVerticalPadding),
+        modifier =
+            modifier
+                .semantics { isTraversalGroup = true }
+                .padding(vertical = WidgetGridDimensions.gridVerticalPadding),
     ) {
         widgetSizeGroups.forEach { group ->
             WidgetsFlowRow(
@@ -94,16 +101,23 @@ fun WidgetsGrid(
                 appIcons = appIcons,
                 previews = previews,
                 showDragShadow = showDragShadow,
-                addButtonWidgetId = addButtonWidgetId,
+                selectedWidgetId = selectedWidgetId,
+                hoveredWidgetId = hoveredWidgetPreviewId ?: hoveredWidgetDetailsId,
                 widgetInteractionSource = widgetInteractionSource,
                 onWidgetInteraction = onWidgetInteraction,
-                onAddButtonToggle = { id ->
-                    addButtonWidgetId =
-                        if (id != addButtonWidgetId) {
+                onWidgetClick = { id ->
+                    selectedWidgetId =
+                        if (id != selectedWidgetId) {
                             id
                         } else {
                             null
                         }
+                },
+                onWidgetPreviewHover = { id, isHovered ->
+                    hoveredWidgetPreviewId = if (isHovered) id else null
+                },
+                onWidgetDetailsHover = { id, isHovered ->
+                    hoveredWidgetDetailsId = if (isHovered) id else null
                 },
             )
         }
@@ -132,13 +146,16 @@ fun WidgetsGrid(
 private fun WidgetsFlowRow(
     widgetSizeGroup: WidgetSizeGroup,
     showAllWidgetDetails: Boolean,
-    addButtonWidgetId: WidgetId?,
+    selectedWidgetId: WidgetId?,
+    hoveredWidgetId: WidgetId?,
     appIcons: Map<WidgetAppId, WidgetAppIcon>,
     previews: Map<WidgetId, WidgetPreview>,
     showDragShadow: Boolean,
     widgetInteractionSource: WidgetInteractionSource,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
-    onAddButtonToggle: (WidgetId) -> Unit,
+    onWidgetClick: (WidgetId) -> Unit,
+    onWidgetPreviewHover: (WidgetId, Boolean) -> Unit,
+    onWidgetDetailsHover: (WidgetId, Boolean) -> Unit,
     cellHorizontalPadding: Dp = WidgetGridDimensions.cellHorizontalPadding,
     rowVerticalSpacing: Dp = WidgetGridDimensions.rowVerticalSpacing,
     minItemWidth: Dp = WidgetGridDimensions.minItemWidth,
@@ -153,7 +170,8 @@ private fun WidgetsFlowRow(
                 showDragShadow = showDragShadow,
                 widgetInteractionSource = widgetInteractionSource,
                 onWidgetInteraction = onWidgetInteraction,
-                onAddButtonToggle = onAddButtonToggle,
+                onClick = onWidgetClick,
+                onHoverChange = onWidgetPreviewHover,
             )
         },
         widgetDetails = {
@@ -161,10 +179,12 @@ private fun WidgetsFlowRow(
                 showAllWidgetDetails = showAllWidgetDetails,
                 widgets = items,
                 appIcons = appIcons,
-                addButtonWidgetId = addButtonWidgetId,
+                addButtonWidgetId = selectedWidgetId,
+                hoveredWidgetId = hoveredWidgetId,
                 widgetInteractionSource = widgetInteractionSource,
                 onWidgetInteraction = onWidgetInteraction,
-                onAddButtonToggle = onAddButtonToggle,
+                onClick = onWidgetClick,
+                onHoverChange = onWidgetDetailsHover,
             )
         },
         previewContainerWidthPx = widgetSizeGroup.previewContainerWidthPx,
@@ -181,9 +201,10 @@ private fun Previews(
     showDragShadow: Boolean,
     widgetInteractionSource: WidgetInteractionSource,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
-    onAddButtonToggle: (WidgetId) -> Unit,
+    onClick: (WidgetId) -> Unit,
+    onHoverChange: (WidgetId, Boolean) -> Unit,
 ) {
-    widgets.forEachIndexed { index, widgetItem ->
+    widgets.forEach { widgetItem ->
         val id = widgetItem.id
 
         val widgetPreview: WidgetPreview =
@@ -195,7 +216,6 @@ private fun Previews(
             contentAlignment = Alignment.BottomCenter,
             modifier =
                 Modifier.fillMaxSize().clearAndSetSemantics {
-                    traversalIndex = index.toFloat()
                     testTag = buildWidgetPickerTestTag(WIDGET_PREVIEW_TEST_TAG)
                 },
         ) {
@@ -207,7 +227,8 @@ private fun Previews(
                 showDragShadow = showDragShadow,
                 widgetInteractionSource = widgetInteractionSource,
                 onWidgetInteraction = onWidgetInteraction,
-                onAddButtonToggle = onAddButtonToggle,
+                onClick = onClick,
+                onHoverChange = { isHovered -> onHoverChange(id, isHovered) },
             )
         }
     }
@@ -218,10 +239,12 @@ private fun Details(
     showAllWidgetDetails: Boolean,
     widgets: List<PickableWidget>,
     addButtonWidgetId: WidgetId?,
+    hoveredWidgetId: WidgetId?,
     appIcons: Map<WidgetAppId, WidgetAppIcon>,
     widgetInteractionSource: WidgetInteractionSource,
     onWidgetInteraction: (WidgetInteractionInfo) -> Unit,
-    onAddButtonToggle: (WidgetId) -> Unit,
+    onClick: (WidgetId) -> Unit,
+    onHoverChange: (WidgetId, Boolean) -> Unit,
 ) {
     widgets.forEachIndexed { index, widgetItem ->
         val appId = widgetItem.appId
@@ -232,14 +255,16 @@ private fun Details(
         WidgetDetails(
             widget = widgetItem,
             showAllDetails = showAllWidgetDetails,
-            showAddButton = addButtonWidgetId == widgetItem.id,
+            showAddButton = addButtonWidgetId == widgetItem.id || hoveredWidgetId == widgetItem.id,
             appIcon = appIcon,
             widgetInteractionSource = widgetInteractionSource,
             onWidgetAddClick = onWidgetInteraction,
-            onAddButtonToggle = onAddButtonToggle,
+            onClick = onClick,
+            onHoverChange = { isHovered -> onHoverChange(widgetItem.id, isHovered) },
             modifier =
                 Modifier.semantics(mergeDescendants = true) {
                     traversalIndex = index.toFloat()
+                    isTraversalGroup = true
                     testTag = buildWidgetPickerTestTag(WIDGET_DETAILS_TEST_TAG)
                 },
         )
@@ -260,17 +285,22 @@ private fun WidgetsFlowRowLayout(
         contents = listOf(widgetPreviews, widgetDetails),
     ) { (widgetPreviewMeasurables, widgetDetailsMeasurables), constraints ->
         check(widgetPreviewMeasurables.size == widgetDetailsMeasurables.size)
-        val parentWidth = constraints.maxWidth
+        val parentWidthPx = constraints.maxWidth
         val rowVerticalSpacingPx = rowVerticalSpacing.roundToPx()
         val cellHorizontalPaddingPx = cellHorizontalPadding.roundToPx()
-        val minItemWidthPx = minItemWidth.roundToPx()
+        val minItemWidthPx =
+            if (widgetDetailsMeasurables.size > 1) {
+                minItemWidth.roundToPx()
+            } else {
+                parentWidthPx
+            }
 
         val (possibleItemsPerRow, availableWidthPerItem) =
             calculateItemsPerRowAndMaxWidthPerItem(
                 cellHorizontalPaddingPx = cellHorizontalPaddingPx,
                 previewContainerWidthPx = previewContainerWidthPx,
                 minItemWidthPx = minItemWidthPx,
-                parentWidth = parentWidth,
+                parentWidth = parentWidthPx,
             )
 
         // Measure and group into rows
@@ -312,7 +342,7 @@ private fun WidgetsFlowRowLayout(
                 previewPlaceableRows = previewPlaceablesRows,
                 detailsPlaceableRows = detailsPlaceableRows,
                 measuredRowDimensions = measuredRowDimensions,
-                parentWidth = parentWidth,
+                parentWidth = parentWidthPx,
                 rowVerticalSpacingPx = rowVerticalSpacingPx,
             )
         }

@@ -11,6 +11,7 @@ import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.IGNORE
 import static com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_NOT_PINNABLE;
 
 import android.animation.AnimatorSet;
+import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetProviderInfo;
 import android.graphics.Point;
 import android.graphics.Rect;
@@ -61,7 +62,7 @@ import com.android.launcher3.views.OptionsPopupView;
 import com.android.launcher3.views.OptionsPopupView.OptionItem;
 import com.android.launcher3.widget.LauncherAppWidgetHostView;
 import com.android.launcher3.widget.PendingAddWidgetInfo;
-import com.android.launcher3.widget.util.WidgetSizes;
+import com.android.launcher3.widget.util.WidgetSizeHandler;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -186,11 +187,13 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
             // Shortcuts / Notifications / Actions pop-up menu, and not start a drag as the
             // standard long press path does.
             if (host instanceof BubbleTextView) {
-                dragCondition = ((BubbleTextView) host).startLongPressAction();
+                dragCondition = ((BubbleTextView) host)
+                        .startLongPressAction(mContext.getPopupControllerForAppIcons());
             } else if (host instanceof BubbleTextHolder) {
                 BubbleTextHolder holder = (BubbleTextHolder) host;
                 dragCondition = holder.getBubbleText() == null ? null
-                        : holder.getBubbleText().startLongPressAction();
+                        : holder.getBubbleText()
+                                .startLongPressAction(mContext.getPopupControllerForAppIcons());
             }
             return dragCondition != null;
         } else if (action == MOVE) {
@@ -224,7 +227,10 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
             BubbleTextView btv = host instanceof BubbleTextView ? (BubbleTextView) host
                     : (host instanceof BubbleTextHolder
                             ? ((BubbleTextHolder) host).getBubbleText() : null);
-            return btv != null && PopupContainerWithArrow.showForIcon(btv) != null;
+
+            return btv != null
+                    && mContext.getPopupControllerForAppIcons()
+                    .show(btv) != null;
         } else if (action == CLOSE) {
             if (host instanceof AppWidgetResizeFrame) {
                 AbstractFloatingView.closeOpenViews(mContext, /* animate= */ false,
@@ -329,8 +335,7 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
         }
 
         layout.markCellsAsOccupiedForView(host);
-        WidgetSizes.updateWidgetSizeRanges(((LauncherAppWidgetHostView) host), mContext,
-                info.spanX, info.spanY);
+        WidgetSizeHandler.updateSizeRanges((AppWidgetHostView) host, info.spanX, info.spanY);
         host.requestLayout();
         mContext.getModelWriter().updateItemInDatabase(info);
         return true;

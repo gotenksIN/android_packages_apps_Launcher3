@@ -32,8 +32,7 @@
     <string name="recent_task_option_aspect_ratio" msgid="7008605516391096989">"ଚଉଡ଼ା ଓ ଉଚ୍ଚତାର ଅନୁପାତ ପରିବର୍ତ୍ତନ କରନ୍ତୁ"</string>
     <string name="split_app_info_accessibility" msgid="5475288491241414932">"%1$s ପାଇଁ ଆପ ସୂଚନା"</string>
     <string name="split_app_usage_settings" msgid="7214375263347964093">"%1$s ପାଇଁ ବ୍ୟବହାର ସେଟିଂସ"</string>
-    <!-- no translation found for close_task_accessibility (4765872229211282647) -->
-    <skip />
+    <string name="close_task_accessibility" msgid="4765872229211282647">"%1$s ବନ୍ଦ କରନ୍ତୁ"</string>
     <string name="new_window_option_taskbar" msgid="6448780542727767211">"ନୂଆ ୱିଣ୍ଡୋ"</string>
     <string name="manage_windows_option_taskbar" msgid="2294109489960654212">"ୱିଣ୍ଡୋଗୁଡ଼ିକୁ ପରିଚାଳନା କରନ୍ତୁ"</string>
     <string name="save_app_pair" msgid="5647523853662686243">"ଆପ ପେୟାର ସେଭ କରନ୍ତୁ"</string>
@@ -202,7 +201,6 @@
     <string name="all_apps_work_tab_content_description" msgid="3835637212347968316">"ୱାର୍କ ଆପ୍ସ ଟାବ"</string>
     <string name="work_profile_toggle_label" msgid="3081029915775481146">"ୱର୍କ ପ୍ରୋଫାଇଲ୍‌"</string>
     <string name="work_profile_edu_work_apps" msgid="7895468576497746520">"ୱାର୍କ ଆପ୍ସକୁ ବେଜ କରାଯାଇଛି ଏବଂ ସେଗୁଡ଼ିକ ଆପଣଙ୍କ IT ଆଡମିନଙ୍କୁ ଦେଖାଯାଉଛି"</string>
-    <string name="work_profile_edu_accept" msgid="6069788082535149071">"ବୁଝିଗଲି"</string>
     <string name="work_apps_paused_title" msgid="3040901117349444598">"ୱାର୍କ ଆପ୍ସ ବିରତ କରାଯାଇଛି"</string>
     <string name="work_apps_paused_info_body" msgid="1687828929959237477">"ଆପଣ ଆପଣଙ୍କ ୱାର୍କ ଆପ୍ସରୁ ବିଜ୍ଞପ୍ତି ପାଇବେ ନାହିଁ"</string>
     <string name="work_apps_paused_body" msgid="261634750995824906">"ଆପଣଙ୍କ ୱାର୍କ ଆପ୍ସ ଆପଣଙ୍କୁ ବିଜ୍ଞପ୍ତି ପଠାଇପାରିବ ନାହିଁ, ଆପଣଙ୍କ ବ୍ୟାଟେରୀକୁ ବ୍ୟବହାର କରିପାରିବ ନାହିଁ କିମ୍ବା ଆପଣଙ୍କର ଲୋକେସନକୁ ଆକ୍ସେସ କରିପାରିବ ନାହିଁ"</string>

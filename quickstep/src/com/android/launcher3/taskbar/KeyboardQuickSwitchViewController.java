@@ -274,7 +274,9 @@ public class KeyboardQuickSwitchViewController {
                     systemUiProxy
                             .showDesktopApps(
                                     mKeyboardQuickSwitchView.getDisplay().getDisplayId(),
-                                    slideInTransition));
+                                    slideInTransition,
+                                    /* taskIdReorderToFront */ null,
+                                    DesktopModeTransitionSource.KEYBOARD_SHORTCUT));
             return null;
         }
         // Even with a valid index, this can be null if the user tries to quick switch before the
@@ -308,29 +310,22 @@ public class KeyboardQuickSwitchViewController {
                 remoteTransition,
                 mOnDesktop,
                 DesktopTaskToFrontReason.ALT_TAB,
-                mKeyboardQuickSwitchView.getTaskAt(index));
+                mKeyboardQuickSwitchView.getTaskAt(index),
+                DesktopModeTransitionSource.KEYBOARD_SHORTCUT);
         return null;
     }
 
     private boolean tryLaunchingCombinedTask(GroupTask task, RemoteTransition slideInTransition,
             SystemUiProxy systemUiProxy) {
-        TaskbarActivityContext context = mControllers.taskbarActivityContext;
         int taskId = task.getTasks().getFirst().key.id;
 
         // All DesktopTasks, irrespective of whether desktop mode is active, are launched here as
         // the class DesktopTask is used in a special way by KQS view for showing thumbnails of
         // freeform tasks.
         if (task instanceof DesktopTask desktopTask) {
-            boolean canUnminimizeDesktopTask = context.canUnminimizeDesktopTask(taskId);
-            UI_HELPER_EXECUTOR.execute(() -> {
-                if (!mOnDesktop) {
-                    systemUiProxy.activateDesk(desktopTask.getDeskId(), slideInTransition);
-                }
-
-                systemUiProxy.showDesktopApp(taskId,
-                        canUnminimizeDesktopTask ? getUnminimizeTransition() : null,
-                        DesktopTaskToFrontReason.ALT_TAB);
-            });
+            UI_HELPER_EXECUTOR.execute(
+                    () -> systemUiProxy.activateDesk(desktopTask.getDeskId(), slideInTransition,
+                            taskId, DesktopModeTransitionSource.KEYBOARD_SHORTCUT));
             return true;
         } else if (mOnDesktop && task instanceof SingleTask) {
             // Use the special API if user wants to switch to a fullscreen app while in desktop.

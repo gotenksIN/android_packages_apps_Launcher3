@@ -17,9 +17,11 @@ package com.android.launcher3.taskbar;
 
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT;
+import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION;
 import static com.android.launcher3.model.data.AppInfo.COMPONENT_KEY_COMPARATOR;
 import static com.android.launcher3.model.data.AppInfo.PACKAGE_KEY_COMPARATOR;
 import static com.android.launcher3.util.SplitConfigurationOptions.getLogEventForPosition;
+import static com.android.window.flags.Flags.enableOverflowButtonForTaskbarPinnedItems;
 
 import android.content.Intent;
 import android.content.pm.LauncherApps;
@@ -40,14 +42,13 @@ import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherSettings;
-import com.android.launcher3.R;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
-import com.android.launcher3.notification.NotificationListener;
-import com.android.launcher3.popup.PinToTaskbarShortcut;
+import com.android.launcher3.popup.Popup;
 import com.android.launcher3.popup.PopupContainerWithArrow;
-import com.android.launcher3.popup.PopupDataProvider;
+import com.android.launcher3.popup.PopupController;
+import com.android.launcher3.popup.PopupItemDragHandler;
 import com.android.launcher3.popup.SystemShortcut;
 import com.android.launcher3.shortcuts.DeepShortcutView;
 import com.android.launcher3.splitscreen.SplitShortcut;
@@ -65,7 +66,6 @@ import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -75,7 +75,8 @@ import java.util.stream.Stream;
  * Implements interfaces required to show and allow interacting with a PopupContainerWithArrow.
  * Controls the long-press menu on Taskbar and AllApps icons.
  */
-public class TaskbarPopupController implements TaskbarControllers.LoggableTaskbarController {
+public class TaskbarPopupController implements TaskbarControllers.LoggableTaskbarController,
+        PopupController {
 
     private static final SystemShortcut.Factory<BaseTaskbarContext>
             APP_INFO = SystemShortcut.AppInfo::new;
@@ -84,39 +85,29 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
             BUBBLE = SystemShortcut.BubbleShortcut::new;
 
     private final TaskbarActivityContext mContext;
-    private final PopupDataProvider mPopupDataProvider;
 
     // Initialized in init.
     private TaskbarControllers mControllers;
     private boolean mAllowInitialSplitSelection;
     private AppInfo[] mAppInfosList = AppInfo.EMPTY_ARRAY;
     // Saves the ItemInfos in the hotseat without the predicted items.
-    private SparseArray<ItemInfo> mHotseatInfosList;
+    private SparseArray<ItemInfo> mTaskbarInfoList;
     private ManageWindowsTaskbarShortcut<BaseTaskbarContext> mManageWindowsTaskbarShortcut;
+    // Whether the popup is currently open. This is reset to false when the close animation is
+    // complete.
+    private boolean mIsPopupOpened = false;
 
 
     public TaskbarPopupController(TaskbarActivityContext context) {
         mContext = context;
-        mPopupDataProvider = new PopupDataProvider(mContext);
     }
 
     public void init(TaskbarControllers controllers) {
         mControllers = controllers;
-
-        NotificationListener.addNotificationsChangedListener(mPopupDataProvider);
     }
 
     public void onDestroy() {
-        NotificationListener.removeNotificationsChangedListener(mPopupDataProvider);
-    }
-
-    @NonNull
-    public PopupDataProvider getPopupDataProvider() {
-        return mPopupDataProvider;
-    }
-
-    public void setDeepShortcutMap(HashMap<ComponentKey, Integer> deepShortcutMapCopy) {
-        mPopupDataProvider.setDeepShortcutMap(deepShortcutMapCopy);
+        cleanUpMultiInstanceMenuReference();
     }
 
     /** Closes the multi-instance menu if it is enabled and currently open. */
@@ -136,11 +127,75 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
         mAllowInitialSplitSelection = allowInitialSplitSelection;
     }
 
-    /**
-     * Shows the notifications and deep shortcuts associated with a Taskbar {@param icon}.
-     * @return the container if shown or null.
-     */
-    public PopupContainerWithArrow<BaseTaskbarContext> showForIcon(BubbleTextView icon) {
+    public boolean isPopupOpened() {
+        return mIsPopupOpened;
+    }
+
+    // Create a Stream of all applicable system shortcuts
+    private Stream<SystemShortcut.Factory<BaseTaskbarContext>> getSystemShortcuts() {
+        // append split options to APP_INFO shortcut if not in Desktop Windowing mode, the order
+        // here will reflect in the popup
+        ArrayList<SystemShortcut.Factory<BaseTaskbarContext>> shortcuts = new ArrayList<>();
+        shortcuts.add(APP_INFO);
+        if (!mControllers.taskbarDesktopModeController
+                .isInDesktopModeAndNotInOverview(mContext.getDisplayId())) {
+            shortcuts.addAll(mControllers.uiController.getSplitMenuOptions().toList());
+        }
+        if (BubbleAnythingFlagHelper.enableCreateAnyBubble()) {
+            shortcuts.add(BUBBLE);
+        }
+
+        if (Flags.enableMultiInstanceMenuTaskbar()
+                && DesktopModeStatus.canEnterDesktopMode(mContext)
+                && !mControllers.taskbarStashController.isInOverview()) {
+            maybeCloseMultiInstanceMenu();
+            shortcuts.addAll(getMultiInstanceMenuOptions().toList());
+        }
+        return shortcuts.stream();
+    }
+
+    @Nullable
+    @VisibleForTesting
+    SystemShortcut<BaseTaskbarContext> createPinShortcut(BaseTaskbarContext target,
+            ItemInfo itemInfo, BubbleTextView originalView) {
+        // Predicted items use {@code HotseatPredictionController.PinPrediction} shortcut to pin.
+        if (itemInfo.container == CONTAINER_HOTSEAT_PREDICTION) {
+            return null;
+        }
+        if (itemInfo.container == CONTAINER_HOTSEAT) {
+            return new PinToTaskbarShortcut<>(target, itemInfo, originalView, false,
+                    mTaskbarInfoList);
+        }
+
+        if (itemInfo.isInAllApps()) {
+            // If the target ItemInfo is already pinned on taskbar. Show the unpin option instead.
+            for (int i = 0; i < mTaskbarInfoList.size(); i++) {
+                if (Objects.equals(mTaskbarInfoList.valueAt(i).getComponentKey(),
+                        itemInfo.getComponentKey())) {
+                    return new PinToTaskbarShortcut<>(target, itemInfo, originalView, false,
+                            mTaskbarInfoList);
+                }
+            }
+        }
+
+        if (mTaskbarInfoList.size()
+                < mContext.getTaskbarSpecsEvaluator().getMaxPinnableCount()) {
+            return new PinToTaskbarShortcut<>(target, itemInfo, originalView, true,
+                    mTaskbarInfoList);
+        }
+
+        return null;
+    }
+
+    @Override
+    public void dumpLogs(String prefix, PrintWriter pw) {
+        pw.println(prefix + "TaskbarPopupController:");
+    }
+
+    @Nullable
+    @Override
+    public Popup show(@NonNull View view) {
+        BubbleTextView icon = (BubbleTextView) view;
         BaseTaskbarContext context = ActivityContext.lookupContext(icon.getContext());
         if (PopupContainerWithArrow.getOpen(context) != null) {
             // There is already an items container open, so don't open this one.
@@ -167,105 +222,51 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
         }
 
         PopupContainerWithArrow<BaseTaskbarContext> container;
-        int deepShortcutCount = mPopupDataProvider.getShortcutCountForItem(itemInfo);
+        int deepShortcutCount = mContext.getActivityComponent()
+                .getPopupDataProvider().getShortcutCountForItem(itemInfo);
         // TODO(b/198438631): add support for INSTALL shortcut factory
         final ItemInfo finalInfo = itemInfo;
-        List<SystemShortcut> systemShortcuts = getSystemShortcuts()
+        List<SystemShortcut<BaseTaskbarContext>> systemShortcuts = getSystemShortcuts()
                 .map(s -> s.getShortcut(context, finalInfo, icon))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
         // TODO(b/375648361): Revisit to see if this can be implemented within getSystemShortcuts().
         if (canPinAppWithContextMenu(mContext)) {
-            SystemShortcut shortcut = createPinShortcut(context, itemInfo, icon);
+            SystemShortcut<BaseTaskbarContext> shortcut =
+                    createPinShortcut(context, itemInfo, icon);
             if (shortcut != null) {
                 systemShortcuts.add(0, shortcut);
             }
         }
 
-        container = (PopupContainerWithArrow) context.getLayoutInflater().inflate(
-                R.layout.popup_container, context.getDragLayer(), false);
-        container.populateAndShowRows(icon, itemInfo, deepShortcutCount, systemShortcuts);
-
+        container = PopupContainerWithArrow.create(context, /* originalView */ icon,
+                /* updateIconUi */ false);
         // TODO (b/198438631): configure for taskbar/context
+        icon.setTag(itemInfo);
+        container.populateAndShowRows(deepShortcutCount, systemShortcuts);
         container.setPopupItemDragHandler(new TaskbarPopupItemDragHandler());
-        mControllers.taskbarDragController.addDragListener(container);
+        context.getDragController().addDragListener(container);
         container.requestFocus();
 
         // Make focusable to receive back events
         context.onPopupVisibilityChanged(true);
         container.addOnCloseCallback(() -> {
             context.getDragLayer().post(() -> context.onPopupVisibilityChanged(false));
+            mIsPopupOpened = false;
         });
+        mIsPopupOpened = true;
 
         return container;
     }
 
-    // Create a Stream of all applicable system shortcuts
-    private Stream<SystemShortcut.Factory> getSystemShortcuts() {
-        // append split options to APP_INFO shortcut if not in Desktop Windowing mode, the order
-        // here will reflect in the popup
-        ArrayList<SystemShortcut.Factory> shortcuts = new ArrayList<>();
-        shortcuts.add(APP_INFO);
-        if (!mControllers.taskbarDesktopModeController
-                .isInDesktopModeAndNotInOverview(mContext.getDisplayId())) {
-            shortcuts.addAll(mControllers.uiController.getSplitMenuOptions().toList());
-        }
-        if (BubbleAnythingFlagHelper.enableCreateAnyBubble()) {
-            shortcuts.add(BUBBLE);
-        }
-
-        if (Flags.enableMultiInstanceMenuTaskbar()
-                && DesktopModeStatus.canEnterDesktopMode(mContext)
-                && !mControllers.taskbarStashController.isInOverview()) {
-            maybeCloseMultiInstanceMenu();
-            shortcuts.addAll(getMultiInstanceMenuOptions().toList());
-        }
-        return shortcuts.stream();
-    }
-
-    @Nullable
-    @VisibleForTesting
-    SystemShortcut createPinShortcut(BaseTaskbarContext target, ItemInfo itemInfo,
-            BubbleTextView originalView) {
-        // Predicted items use {@code HotseatPredictionController.PinPrediction} shortcut to pin.
-        if (itemInfo.isPredictedItem()) {
-            return null;
-        }
-        if (itemInfo.container == CONTAINER_HOTSEAT) {
-            return new PinToTaskbarShortcut<>(target, itemInfo, originalView, false,
-                    mHotseatInfosList);
-        }
-
-        if (itemInfo.container == CONTAINER_ALL_APPS) {
-            // If the target ItemInfo is already pinned on taskbar. Show the unpin option instead.
-            for (int i = 0; i < mHotseatInfosList.size(); i++) {
-                if (Objects.equals(mHotseatInfosList.valueAt(i).getComponentKey(),
-                        itemInfo.getComponentKey())) {
-                    return new PinToTaskbarShortcut<>(target, itemInfo, originalView, false,
-                            mHotseatInfosList);
-                }
-            }
-        }
-
-        if (mHotseatInfosList.size()
-                < mContext.getTaskbarSpecsEvaluator().getNumShownHotseatIcons()) {
-            return new PinToTaskbarShortcut<>(target, itemInfo, originalView, true,
-                    mHotseatInfosList);
-        }
-
-        return null;
-    }
-
     @Override
-    public void dumpLogs(String prefix, PrintWriter pw) {
-        pw.println(prefix + "TaskbarPopupController:");
+    public void dismiss() {
 
-        mPopupDataProvider.dump(prefix + "\t", pw);
     }
 
     private class TaskbarPopupItemDragHandler implements
-            PopupContainerWithArrow.PopupItemDragHandler {
+            PopupItemDragHandler {
 
         protected final Point mIconLastTouchPos = new Point();
 
@@ -346,8 +347,12 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
         return index < 0 ? null : mAppInfosList[index];
     }
 
-    public void setHotseatInfosList(SparseArray<ItemInfo> info) {
-        mHotseatInfosList = info;
+    public void setTaskbarInfoList(SparseArray<ItemInfo> info) {
+        mTaskbarInfoList = info;
+    }
+
+    public SparseArray<ItemInfo> getTaskbarInfoList() {
+        return mTaskbarInfoList.clone();
     }
 
     /**
@@ -402,6 +407,14 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
     protected static boolean canPinAppWithContextMenu(TaskbarActivityContext context) {
         return DesktopExperienceFlags.ENABLE_PINNING_APP_WITH_CONTEXT_MENU.isTrue()
                 && context.isTaskbarShowingDesktopTasks();
+    }
+
+    /**
+     * @return whether the taskbar can have the overflow icon to accommodate pinned apps that
+     * can't fit in taskbar.
+     */
+    public static boolean canPinAppsOverflow() {
+        return enableOverflowButtonForTaskbarPinnedItems();
     }
 
     /**

@@ -51,7 +51,7 @@ class OseWidgetManager
 @Inject
 constructor(
     @ApplicationContext private val context: Context,
-    private val oseManager: OSEManager,
+    oseManager: OSEManager,
     private val widgetHost: QsbAppWidgetHost,
     private val sizeHandler: WidgetSizeHandler,
     private val idp: InvariantDeviceProfile,
@@ -79,7 +79,6 @@ constructor(
         widgetHost.startListening()
 
         tracker.addCloseable(oseManager.oseInfo.forEach(executor, this::handleOseInfoUpdate))
-        executor.execute { handleOseInfoUpdate(oseManager.oseInfo.value) }
 
         val idpListener = OnIDPChangeListener { updateWidgetSizeAsync() }
         idp.addOnChangeListener(idpListener)
@@ -133,9 +132,8 @@ constructor(
 
     private fun updateWidgetSizeAsync() {
         val widgetId = widgetHost.getActiveWidgetId()
-        val info = providerInfo.value
-        if (info != null && widgetId != INVALID_APPWIDGET_ID) {
-            sizeHandler.updateSizeRangesAsync(widgetId, info, idp.numColumns, 1, executor)
+        if (widgetId != INVALID_APPWIDGET_ID) {
+            sizeHandler.updateSizeRangesAsync(widgetId, idp.numColumns, 1, executor)
         }
     }
 

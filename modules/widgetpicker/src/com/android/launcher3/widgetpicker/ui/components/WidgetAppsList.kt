@@ -115,6 +115,7 @@ fun WidgetAppsList(
                             widgetApp = widgetApp,
                             appIcon = appIcon,
                             title = title,
+                            accessibilityPrefix = widgetApp.accessibilityPrefix,
                             description = description,
                             widgetPreviews = widgetPreviews,
                             onWidgetAppClick = onWidgetAppClick,
@@ -181,6 +182,7 @@ private fun ExpandableWidgetAppHeader(
     widgetApp: DisplayableWidgetApp,
     appIcon: @Composable () -> Unit,
     title: String,
+    accessibilityPrefix: String?,
     description: String,
     widgetPreviews: Map<WidgetId, WidgetPreview>,
     onWidgetAppClick: (DisplayableWidgetApp) -> Unit,
@@ -208,6 +210,7 @@ private fun ExpandableWidgetAppHeader(
         expanded = expanded,
         leadingAppIcon = appIcon,
         title = title,
+        accessibilityPrefix = accessibilityPrefix,
         subTitle = description,
         expandedContent = expandedContent,
         onClick = { onWidgetAppClick(widgetApp) },
@@ -229,7 +232,7 @@ private fun DisplayableWidgetApp.widgetHeaderTitle(): String {
 @Composable
 private fun DisplayableWidgetApp.widgetHeaderDescription(style: AppHeaderDescriptionStyle): String {
     return when (style) {
-        AppHeaderDescriptionStyle.WIDGETS_COUNT -> widgetsCountString(widgetsCount)
+        AppHeaderDescriptionStyle.WIDGETS_COUNT -> widgetsCountString(widgetsCount, shortcutsCount)
 
         AppHeaderDescriptionStyle.COMBINED_WIDGETS_TITLE ->
             widgetSizeGroups.flatMap { it.widgets }.map { it.label }.joinToString { it }

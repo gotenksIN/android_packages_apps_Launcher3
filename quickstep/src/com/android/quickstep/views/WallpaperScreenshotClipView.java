@@ -26,6 +26,7 @@ import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 
 import android.animation.AnimatorSet;
 import android.animation.ValueAnimator;
+import android.app.WallpaperManager;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Canvas;
@@ -34,6 +35,7 @@ import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.util.PathParser;
 import android.view.SurfaceControl;
 import android.view.View;
@@ -59,17 +61,20 @@ import com.android.launcher3.util.CancellableTask;
  */
 public class WallpaperScreenshotClipView extends FrameLayout {
 
-    public static final int CLIP_ANIM_DURATION = 100;
+    private static final String TAG = "WSCV";
 
-    private static final float MAX_SCALE_MULTIPLIER = 1.25f;
+    // Arbitrarily large number to avoid rounding issues when tracking progress.
+    public static final int CLIP_ANIM_DURATION = 10000;
+
+    private static final float MAX_SCALE_MULTIPLIER = 1.50f;
     private static final int COLOR_ALPHA_DURATION_MS = 25;
     private static final float CLIP_TRANSLATION_MULTIPLIER = 0.55f;
-    private static final float MAX_ARROW_SCALE = 40f;
     private static final float INITIAL_ARROW_SCALE = 2.4100475221f;
 
     private ImageView mWallpaperView;
     private View mColorOverlay;
-    public boolean mScreenshotFailed = false;
+    public boolean mHasValidScreenshot = false;
+    public boolean mForceFallbackAnimation = false;
 
     private final Path mOriginalPath;
     private Path mCurrentClipPath;
@@ -222,7 +227,7 @@ public class WallpaperScreenshotClipView extends FrameLayout {
                 mCurrentClipPath.transform(mInvertScaleMatrix);
 
                 // set new scale
-                float scale = 1 + (valueAnimator.getAnimatedFraction() * MAX_ARROW_SCALE);
+                float scale = 1 + (valueAnimator.getAnimatedFraction() * mMaxArrowScale);
                 resetAndSetMatrixScale(scale);
                 mCurrentClipPath.transform(mScaleMatrix);
                 setClipPath(mCurrentClipPath);
@@ -241,38 +246,85 @@ public class WallpaperScreenshotClipView extends FrameLayout {
         color.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator valueAnimator) {
-                // We build the animator before we know whether screenshot failed, so we manually
-                // play the animation using interpolated values.
-                float interpProgress = mapToRange(valueAnimator.getAnimatedFraction(), 0, 1f, 0, 1f,
-                        mScreenshotFailed ? ACCELERATE : LINEAR);
-                float maxAlpha = mScreenshotFailed
-                        ? 1f
-                        : (1f * CLIP_ANIM_DURATION / COLOR_ALPHA_DURATION_MS);
-                float alpha = Math.min(1f, mapToRange(interpProgress, 0, 1, 0, maxAlpha, LINEAR));
-                mColorOverlay.setAlpha(1f - alpha);
+                if (!mHasValidScreenshot || mForceFallbackAnimation) {
+                    // Do nothing. The entire window will fade out instead.
+                } else {
+                    float interpProgress = mapToRange(valueAnimator.getAnimatedFraction(), 0, 1f, 0,
+                            1f, LINEAR);
+                    float maxAlpha = 1f * CLIP_ANIM_DURATION / COLOR_ALPHA_DURATION_MS;
+                    float alpha = Math.min(1f,
+                            mapToRange(interpProgress, 0, 1, 0, maxAlpha, LINEAR));
+                    mColorOverlay.setAlpha(1f - alpha);
+                }
             }
         });
         animatorSet.play(color);
     }
 
     /**
+     * Checks if the SurfaceControl is invalid (or null) and releases it if so.
+     *
+     * @return true if the control was invalid, false otherwise.
+     */
+    private boolean releaseIfInvalid(SurfaceControl control) {
+        if (control == null) {
+            return true;
+        }
+        if (!control.isValid()) {
+            control.release();
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Captures a screenshot of the wallpaper.
      */
-    public void setupWallpaperScreenshot(Window window, int displayId, View rootView,
-            int wallpaperBlurRadius) {
-        Rect captureBounds = new Rect();
-        captureBounds.set(0, 0, mWindowWidth, mWindowHeight);
+    public void tryCaptureWallpaperScreenshot(Window window, int displayId, View rootView,
+            int wallpaperBlurRadius, Runnable onEndRunnable) {
+        Log.d(TAG, "tryCaptureWallpaperScreenshot() called");
 
-        // Mirror wallpaper surfaces under new control for screenshotting.
-        window.setBackgroundBlurRadius(0);
-        SurfaceControl wallpaperMirror = WindowManagerGlobal.getInstance().mirrorWallpaperSurface(
-                displayId);
-        if (wallpaperMirror == null) {
+        if (mHasValidScreenshot) {
+            Log.d(TAG, "setupWallpaperScreenshot return: already have a screenshot");
+            onEndRunnable.run();
             return;
         }
-        SurfaceControl rootSurfaceControl =
-                rootView.getViewRootImpl().getSurfaceControl();
+        if (WallpaperManager.getInstance(mContext).getWallpaperInfo() != null) {
+            // Play fallback animation for live wallpapers.
+            Log.d(TAG, "setupWallpaperScreenshot return: wallpaperInfo is null");
+            onEndRunnable.run();
+            return;
+        }
+        WindowManagerGlobal windowManagerGlobal = WindowManagerGlobal.getInstance();
+        if (windowManagerGlobal == null) {
+            Log.d(TAG, "setupWallpaperScreenshot return: windowManagerGlobal is null");
+            onEndRunnable.run();
+            return;
+        }
+        SurfaceControl rootSurfaceControl = rootView.getViewRootImpl().getSurfaceControl();
+        if (rootSurfaceControl == null) { // We do not release if invalid.
+            Log.d(TAG, "setupWallpaperScreenshot return: rootSurfaceControl is null");
+            onEndRunnable.run();
+            return;
+        }
+        SurfaceControl wallpaperMirror = windowManagerGlobal.mirrorWallpaperSurface(
+                displayId);
+        if (releaseIfInvalid(wallpaperMirror)) {
+            Log.d(TAG, "setupWallpaperScreenshot return: wallpaperMirror=" + wallpaperMirror);
+            onEndRunnable.run();
+            return;
+        }
+
+        // It's important to set blur to 0 before trying to mirror the surface.
+        window.setBackgroundBlurRadius(0);
         SurfaceControl allSetMirror = SurfaceControl.mirrorSurface(rootSurfaceControl);
+
+        if (releaseIfInvalid(allSetMirror)) {
+            Log.d(TAG, "setupWallpaperScreenshot return: allSetMirror=" + allSetMirror);
+            onEndRunnable.run();
+            wallpaperMirror.release();
+            return;
+        }
 
         SurfaceControl rootControl = new SurfaceControl.Builder()
                 .setName("Wallpaper Screenshot Clip View")
@@ -282,7 +334,8 @@ public class WallpaperScreenshotClipView extends FrameLayout {
                 .setLayer(wallpaperMirror, -1)
                 .reparent(allSetMirror, rootControl)
                 .setLayer(allSetMirror, 0);
-
+        Rect captureBounds = new Rect();
+        captureBounds.set(0, 0, mWindowWidth, mWindowHeight);
         mCaptureTask = new CancellableTask<>(
                 () -> {
                     transaction.apply(true);
@@ -291,18 +344,26 @@ public class WallpaperScreenshotClipView extends FrameLayout {
                 MAIN_EXECUTOR,
                 (ScreenCaptureInternal.ScreenshotHardwareBuffer buffer) -> {
                     window.setBackgroundBlurRadius(wallpaperBlurRadius);
-                    if (buffer == null) {
-                        mScreenshotFailed = true;
-                    } else {
+                    if (buffer != null) {
                         mWallpaperView.setImageBitmap(buffer.asBitmap());
+                        mHasValidScreenshot = true;
                     }
+                    Log.d(TAG, "capture callback: mHasValidScreenshot=" + mHasValidScreenshot);
                 },
                 () -> {
+                    onEndRunnable.run();
                     mCaptureTask = null;
                     rootControl.release();
                     allSetMirror.release();
                     wallpaperMirror.release();
                 });
         UI_HELPER_EXECUTOR.execute(mCaptureTask);
+    }
+
+    /**
+     * @param forceFallbackAnimation True if we should play the fallback animation.
+     */
+    public void setForceFallbackAnimation(boolean forceFallbackAnimation) {
+        mForceFallbackAnimation = forceFallbackAnimation;
     }
 }
