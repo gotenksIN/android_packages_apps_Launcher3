@@ -116,6 +116,7 @@ import com.android.launcher3.folder.PreviewBackground;
 import com.android.launcher3.graphics.DragPreviewProvider;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils;
+import com.android.launcher3.homescreenfiles.HomeScreenFilesUtilsKt;
 import com.android.launcher3.icons.BitmapRenderer;
 import com.android.launcher3.icons.FastBitmapDrawable;
 import com.android.launcher3.logger.LauncherAtom;
@@ -145,7 +146,9 @@ import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.MSDLPlayerWrapper;
 import com.android.launcher3.util.OverlayEdgeEffect;
 import com.android.launcher3.util.RunnableList;
+import com.android.launcher3.util.ShortcutUtil;
 import com.android.launcher3.util.Thunk;
+import com.android.launcher3.util.ViewEx;
 import com.android.launcher3.util.WallpaperOffsetInterpolator;
 import com.android.launcher3.widget.LauncherAppWidgetHostView;
 import com.android.launcher3.widget.NavigableAppWidgetHostView;
@@ -1822,21 +1825,24 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             mDragSourceInternal = (ShortcutAndWidgetContainer) child.getParent();
         }
 
-        if (child instanceof BubbleTextView) {
-            BubbleTextView btv = (BubbleTextView) child;
-            if (!dragOptions.isAccessibleDrag) {
-                dragOptions.preDragCondition =
-                        btv.startLongPressAction(mLauncher.getPopupControllerForAppIcons());
-            }
-            if (btv.isDisplaySearchResult()) {
-                dragOptions.preDragEndScale = (float) mAllAppsIconSize / btv.getIconSize();
-            }
-        } else if (Flags.homeScreenEditImprovements() && child instanceof Poppable
-                && !dragOptions.isAccessibleDrag) {
-            Popup popup = mLauncher.getPopupControllerForHomeScreenItems()
-                    .show(child);
-            if (popup != null) {
-                dragOptions.preDragCondition = popup.createPreDragCondition();
+        if (child.getTag() instanceof ItemInfo item) {
+            if (child instanceof BubbleTextView && ShortcutUtil.supportsShortcuts(item)) {
+                BubbleTextView btv = (BubbleTextView) child;
+                if (!dragOptions.isAccessibleDrag) {
+                    dragOptions.preDragCondition =
+                            btv.startLongPressAction(mLauncher.getPopupControllerForAppIcons());
+                }
+                if (btv.isDisplaySearchResult()) {
+                    dragOptions.preDragEndScale = (float) mAllAppsIconSize / btv.getIconSize();
+                }
+            } else if ((Flags.homeScreenEditImprovements() && child instanceof Poppable
+                    && !dragOptions.isAccessibleDrag) || HomeScreenFilesUtilsKt.isFileSystemItem(
+                    item)) {
+                Popup popup = mLauncher.getPopupControllerForHomeScreenItems()
+                        .show(child);
+                if (popup != null) {
+                    dragOptions.preDragCondition = popup.createPreDragCondition();
+                }
             }
         }
 
@@ -3135,10 +3141,17 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         int height = MeasureSpec.makeMeasureSpec(unScaledSize[1], MeasureSpec.EXACTLY);
         layout.measure(width, height);
         layout.layout(0, 0, unScaledSize[0], unScaledSize[1]);
-        Bitmap b = BitmapRenderer.createHardwareBitmap(
-                unScaledSize[0], unScaledSize[1], layout::draw);
+        Drawable widgetSnapshot;
+        if (Flags.fixWidgetDragRadiusLoss()) {
+            widgetSnapshot = ViewEx.captureSnapshotAsDrawable(layout,
+                    /*debugString=*/ "NewWidgetDrop", unScaledSize[0], unScaledSize[1]);
+        } else {
+            widgetSnapshot = new FastBitmapDrawable(
+                    BitmapRenderer.createHardwareBitmap(unScaledSize[0], unScaledSize[1],
+                            layout::draw));
+        }
         layout.setVisibility(visibility);
-        return new FastBitmapDrawable(b);
+        return widgetSnapshot;
     }
 
     private void getFinalPositionForDropAnimation(int[] loc, float[] scaleXY,

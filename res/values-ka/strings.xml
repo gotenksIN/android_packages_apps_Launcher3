@@ -109,6 +109,8 @@
     <string name="unpin_from_taskbar" msgid="1025883383457627426">"ზოლიდან მოხსნა"</string>
     <string name="app_added_to_taskbar" msgid="6348755169793615171">"აპი დაემატა ამოცანათა ზოლს"</string>
     <string name="app_removed_from_taskbar" msgid="3471754847898675396">"აპი ამოიშალა ამოცანათა ზოლიდან"</string>
+    <!-- no translation found for home_screen_files_context_menu_open_in_app_label (7930552598671791537) -->
+    <skip />
     <string name="permlab_install_shortcut" msgid="5632423390354674437">"მალსახმობების დაყენება"</string>
     <string name="permdesc_install_shortcut" msgid="923466509822011139">"აპისთვის მალსახმობების დამოუკიდებლად დამატების უფლების მიცემა."</string>
     <string name="permlab_read_settings" msgid="5136500343007704955">"მთავარი ეკრანის პარამეტრებისა და მალსახმობების წაკითხვა"</string>
@@ -148,8 +150,8 @@
     <string name="allow_rotation_title" msgid="7222049633713050106">"მთავარი ეკრანის შეტრიალების დაშვება"</string>
     <string name="allow_rotation_desc" msgid="8662546029078692509">"ტელეფონის შეტრიალებისას"</string>
     <string name="compose_developer_options_section" msgid="8211460486549952595">"Jetpack Compose"</string>
-    <string name="enable_composition_tracing_title" msgid="8989606591739368424">"შემადგენლობის გამოვლენის ჩართვა"</string>
-    <string name="enable_composition_tracing_desc" msgid="7187566039216492405">"ჩართეთ შემადგენლობის გამოვლენა Perfetto-ს შესრულების მიმოხილვისას"</string>
+    <string name="enable_composition_tracing_title" msgid="8989606591739368424">"კომპოზიციის ტრასირების ჩართვა"</string>
+    <string name="enable_composition_tracing_desc" msgid="7187566039216492405">"ჩართეთ კომპოზიციის ტრასირება Perfetto-ს კვალის მიმოხილვისას"</string>
     <string name="landscape_mode_title" msgid="5138814555934843926">"პეიზაჟის რეჟიმი"</string>
     <string name="landscape_mode_desc" msgid="3085236452297838664">"დააყენეთ მთავარი ეკრანი პეიზაჟის რეჟიმში"</string>
     <string name="notification_dots_title" msgid="9062440428204120317">"შეტყობინების ნიშნულები"</string>
@@ -238,4 +240,8 @@
     <string name="four_sided_cookie_shape_title" msgid="3275212586290522151">"ოთხკუთხა ორცხობილა"</string>
     <string name="seven_sided_cookie_shape_title" msgid="4862560582029671668">"შვიდკუთხა ორცხობილა"</string>
     <string name="arch_shape_title" msgid="2213843822192871318">"თაღი"</string>
+    <!-- no translation found for create_new_folder_button_text (4037052463794735069) -->
+    <skip />
+    <!-- no translation found for default_new_folder_name (8821062664729412079) -->
+    <skip />
 </resources>
