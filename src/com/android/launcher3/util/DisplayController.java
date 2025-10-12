@@ -19,6 +19,7 @@ import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION;
 
 import static com.android.launcher3.Flags.enableScalabilityForDesktopExperience;
+import static com.android.launcher3.Flags.enableTaskbarUiThread;
 import static com.android.launcher3.InvariantDeviceProfile.TYPE_DESKTOP;
 import static com.android.launcher3.InvariantDeviceProfile.TYPE_MULTI_DISPLAY;
 import static com.android.launcher3.InvariantDeviceProfile.TYPE_PHONE;
@@ -71,7 +72,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.inject.Inject;
 
@@ -113,11 +114,12 @@ public class DisplayController {
 
     private final @ApplicationContext Context mAppContext;
 
-    // The callback in this listener updates DeviceProfile, which other listeners might depend on
-    private DisplayInfoChangeListener mPriorityListener;
+    // Will replace it with mThreadSafePerDisplayInfo.
+    @Deprecated
+    private final SparseArray<PerDisplayInfo> mPerDisplayInfo = new SparseArray<>();
 
-    private final SparseArray<PerDisplayInfo> mPerDisplayInfo =
-            new SparseArray<>();
+    private final ConcurrentHashMap<Integer, PerDisplayInfo> mThreadSafePerDisplayInfo =
+            new ConcurrentHashMap<>();
 
     // We will register broadcast receiver on main thread to ensure not missing changes on
     // TARGET_OVERLAY_PACKAGE and ACTION_OVERLAY_CHANGED.
@@ -146,7 +148,7 @@ public class DisplayController {
         mReceiver.register(packageFilter(TARGET_OVERLAY_PACKAGE, ACTION_OVERLAY_CHANGED));
 
         FileLog.i(TAG, "(CTOR) perDisplayBounds: "
-                + defaultPerDisplayInfo.mInfo.mPerDisplayBounds);
+                + defaultPerDisplayInfo.mInfo.getValue().mPerDisplayBounds);
 
         if (mWMProxy.enableOverviewOnConnectedDisplays()) {
             final DisplayManager.DisplayListener displayListener =
@@ -231,20 +233,6 @@ public class DisplayController {
         return controller.getInfo();
     }
 
-    /**
-     * Interface for listening for display changes
-     */
-    public interface DisplayInfoChangeListener {
-
-        /**
-         * Invoked when display info has changed.
-         * @param context updated context associated with the display.
-         * @param info updated display information.
-         * @param flags bitmask indicating type of change.
-         */
-        void onDisplayInfoChanged(Context context, Info info, int flags);
-    }
-
     private void onIntent(Intent intent) {
         if (mDestroyed) {
             return;
@@ -263,9 +251,9 @@ public class DisplayController {
     @UiThread
     private void onConfigurationChanged(Configuration config, int displayId) {
         Log.d(TASKBAR_NOT_DESTROYED_TAG, "DisplayController#onConfigurationChanged: " + config);
-        PerDisplayInfo perDisplayInfo = mPerDisplayInfo.get(displayId);
+        PerDisplayInfo perDisplayInfo = getPerDisplayInfoById(displayId);
         Context windowContext = perDisplayInfo.mWindowContext;
-        Info info = perDisplayInfo.mInfo;
+        Info info = perDisplayInfo.mInfo.getValue();
         if (config.densityDpi != info.densityDpi
                 || config.fontScale != info.fontScale
                 || !info.mScreenSizeDp.equals(
@@ -280,41 +268,30 @@ public class DisplayController {
         }
     }
 
-    public void setPriorityListener(DisplayInfoChangeListener listener) {
-        mPriorityListener = listener;
+    @Nullable
+    @AnyThread
+    public ListenableDiffAwareRef<Info, Integer> getListenable() {
+        return getListenable(DEFAULT_DISPLAY);
     }
 
-    public void addChangeListener(DisplayInfoChangeListener listener) {
-        addChangeListenerForDisplay(listener, DEFAULT_DISPLAY);
+    @Nullable
+    @AnyThread
+    public ListenableDiffAwareRef<Info, Integer> getListenable(int displayId) {
+        PerDisplayInfo perDisplayInfo = getPerDisplayInfoById(displayId);
+        return perDisplayInfo != null ? perDisplayInfo.mInfo : null;
     }
 
-    public void removeChangeListener(DisplayInfoChangeListener listener) {
-        removeChangeListenerForDisplay(listener, DEFAULT_DISPLAY);
-    }
-
-    public void addChangeListenerForDisplay(DisplayInfoChangeListener listener, int displayId) {
-        PerDisplayInfo perDisplayInfo = mPerDisplayInfo.get(displayId);
-        if (perDisplayInfo != null) {
-            perDisplayInfo.addListener(listener);
-        }
-    }
-
-    public void removeChangeListenerForDisplay(DisplayInfoChangeListener listener, int displayId) {
-        PerDisplayInfo perDisplayInfo = mPerDisplayInfo.get(displayId);
-        if (perDisplayInfo != null) {
-            perDisplayInfo.removeListener(listener);
-        }
-    }
-
+    @AnyThread
     public Info getInfo() {
-        return mPerDisplayInfo.get(DEFAULT_DISPLAY).mInfo;
+        return getPerDisplayInfoById(DEFAULT_DISPLAY).mInfo.getValue();
     }
 
+    @AnyThread
     public @Nullable Info getInfoForDisplay(int displayId) {
         if (mWMProxy.enableOverviewOnConnectedDisplays()) {
-            PerDisplayInfo perDisplayInfo = mPerDisplayInfo.get(displayId);
+            PerDisplayInfo perDisplayInfo = getPerDisplayInfoById(displayId);
             if (perDisplayInfo != null) {
-                return perDisplayInfo.mInfo;
+                return perDisplayInfo.mInfo.getValue();
             } else {
                 return null;
             }
@@ -382,27 +359,20 @@ public class DisplayController {
 
     @AnyThread
     public void notifyConfigChangeForDisplay(int displayId) {
-        PerDisplayInfo perDisplayInfo = mPerDisplayInfo.get(displayId);
+        PerDisplayInfo perDisplayInfo = getPerDisplayInfoById(displayId);
         if (perDisplayInfo == null) return;
-        Info oldInfo = perDisplayInfo.mInfo;
+        Info oldInfo = perDisplayInfo.mInfo.getValue();
         final Info newInfo = getNewInfo(oldInfo, perDisplayInfo.mWindowContext);
         final int flags = calculateChange(oldInfo, newInfo);
         if (flags != 0) {
-            MAIN_EXECUTOR.execute(() -> {
-                perDisplayInfo.mInfo = newInfo;
-                if (displayId == DEFAULT_DISPLAY && mPriorityListener != null) {
-                    mPriorityListener.onDisplayInfoChanged(perDisplayInfo.mWindowContext, newInfo,
-                            flags);
-                }
-                perDisplayInfo.notifyListeners(newInfo, flags);
-            });
+            perDisplayInfo.mInfo.dispatchValue(newInfo, flags);
         }
     }
 
     @VisibleForTesting
     protected PerDisplayInfo getOrCreatePerDisplayInfo(Display display) {
         int displayId = display.getDisplayId();
-        PerDisplayInfo perDisplayInfo = mPerDisplayInfo.get(displayId);
+        PerDisplayInfo perDisplayInfo = getPerDisplayInfoById(displayId);
         if (perDisplayInfo != null) {
             return perDisplayInfo;
         }
@@ -416,7 +386,7 @@ public class DisplayController {
                 mWMProxy.estimateInternalDisplayBounds(windowContext),
                 DisplayMetrics.DENSITY_DEVICE_STABLE);
         perDisplayInfo = new PerDisplayInfo(displayId, windowContext, info);
-        mPerDisplayInfo.put(displayId, perDisplayInfo);
+        putPerDisplayInfoById(displayId, perDisplayInfo);
         return perDisplayInfo;
     }
 
@@ -426,10 +396,38 @@ public class DisplayController {
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     protected void removePerDisplayInfo(int displayId) {
-        PerDisplayInfo info = mPerDisplayInfo.get(displayId);
-        if (info == null) return;
-        info.cleanup();
-        mPerDisplayInfo.remove(displayId);
+        PerDisplayInfo info = removePerDisplayInfoById(displayId);
+        if (info != null) {
+            info.cleanup();
+        }
+    }
+
+    @Nullable
+    @AnyThread
+    private PerDisplayInfo getPerDisplayInfoById(int displayId) {
+        return enableTaskbarUiThread()
+                ? mThreadSafePerDisplayInfo.get(displayId) : mPerDisplayInfo.get(displayId);
+    }
+
+    @AnyThread
+    private void putPerDisplayInfoById(int displayId, PerDisplayInfo info) {
+        if (enableTaskbarUiThread()) {
+            mThreadSafePerDisplayInfo.put(displayId, info);
+        } else {
+            mPerDisplayInfo.put(displayId, info);
+        }
+    }
+
+    @AnyThread
+    @Nullable
+    private PerDisplayInfo removePerDisplayInfoById(int displayId) {
+        if (enableTaskbarUiThread()) {
+            return mThreadSafePerDisplayInfo.remove(displayId);
+        } else {
+            PerDisplayInfo ret = mPerDisplayInfo.get(displayId);
+            mPerDisplayInfo.remove(displayId);
+            return ret;
+        }
     }
 
     public static class Info {
@@ -660,26 +658,36 @@ public class DisplayController {
      * Dumps the current state information
      */
     public void dump(PrintWriter pw) {
-        int count = mPerDisplayInfo.size();
-        for (int i = 0; i < count; ++i) {
-            int displayId = mPerDisplayInfo.keyAt(i);
-            Info info = getInfoForDisplay(displayId);
-            if (info == null) {
-                continue;
+        if (enableTaskbarUiThread()) {
+            for (int displayId: mThreadSafePerDisplayInfo.keySet()) {
+                dumpInternal(pw, displayId);
             }
-            pw.println(String.format(Locale.ENGLISH, "DisplayController.Info (displayId=%d):",
-                    displayId));
-            pw.println("  normalizedDisplayInfo=" + info.normalizedDisplayInfo);
-            pw.println("  rotation=" + info.rotation);
-            pw.println("  fontScale=" + info.fontScale);
-            pw.println("  densityDpi=" + info.densityDpi);
-            pw.println("  navigationMode=" + info.getNavigationMode().name());
-            pw.println("  isInDesktopFirstMode=" + info.isInDesktopFirstMode());
-            pw.println("  showLockedTaskbarOnHome=" + info.showLockedTaskbarOnHome());
-            pw.println("  currentSize=" + info.currentSize);
-            info.mPerDisplayBounds.forEach((key, value) -> pw.println(
-                    "  perDisplayBounds - " + key + ": " + value));
+        } else {
+            int count = mPerDisplayInfo.size();
+            for (int i = 0; i < count; ++i) {
+                int displayId = mPerDisplayInfo.keyAt(i);
+                dumpInternal(pw, displayId);
+            }
         }
+    }
+
+    private void dumpInternal(PrintWriter pw, int displayId) {
+        Info info = getInfoForDisplay(displayId);
+        if (info == null) {
+            return;
+        }
+        pw.println(String.format(Locale.ENGLISH, "DisplayController.Info (displayId=%d):",
+                displayId));
+        pw.println("  normalizedDisplayInfo=" + info.normalizedDisplayInfo);
+        pw.println("  rotation=" + info.rotation);
+        pw.println("  fontScale=" + info.fontScale);
+        pw.println("  densityDpi=" + info.densityDpi);
+        pw.println("  navigationMode=" + info.getNavigationMode().name());
+        pw.println("  isInDesktopFirstMode=" + info.isInDesktopFirstMode());
+        pw.println("  showLockedTaskbarOnHome=" + info.showLockedTaskbarOnHome());
+        pw.println("  currentSize=" + info.currentSize);
+        info.mPerDisplayBounds.forEach((key, value) -> pw.println(
+                "  perDisplayBounds - " + key + ": " + value));
     }
 
     /**
@@ -710,31 +718,14 @@ public class DisplayController {
     @VisibleForTesting
     protected class PerDisplayInfo implements ComponentCallbacks {
         final int mDisplayId;
-        final CopyOnWriteArrayList<DisplayInfoChangeListener> mListeners =
-                new CopyOnWriteArrayList<>();
+        final MutableDiffAwareRef<Info, Integer> mInfo;
         final Context mWindowContext;
-        Info mInfo;
 
         PerDisplayInfo(int displayId, Context windowContext, Info info) {
             this.mDisplayId = displayId;
             this.mWindowContext = windowContext;
-            this.mInfo = info;
+            mInfo = new MutableDiffAwareRef<>(info);
             windowContext.registerComponentCallbacks(this);
-        }
-
-        void addListener(DisplayInfoChangeListener listener) {
-            mListeners.add(listener);
-        }
-
-        void removeListener(DisplayInfoChangeListener listener) {
-            mListeners.remove(listener);
-        }
-
-        void notifyListeners(Info info, int flags) {
-            int count = mListeners.size();
-            for (int i = 0; i < count; ++i) {
-                mListeners.get(i).onDisplayInfoChanged(mWindowContext, info, flags);
-            }
         }
 
         @Override
@@ -747,7 +738,6 @@ public class DisplayController {
 
         void cleanup() {
             mWindowContext.unregisterComponentCallbacks(this);
-            mListeners.clear();
         }
     }
 

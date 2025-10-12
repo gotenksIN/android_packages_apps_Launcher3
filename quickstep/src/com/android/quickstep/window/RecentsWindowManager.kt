@@ -40,6 +40,7 @@ import android.view.SurfaceControl
 import android.view.SurfaceControl.Transaction
 import android.view.SurfaceControlViewHost
 import android.view.View
+import android.view.ViewGroup
 import android.window.BackEvent
 import android.window.DesktopExperienceFlags
 import android.window.OnBackInvokedCallback
@@ -53,6 +54,7 @@ import com.android.app.displaylib.PerDisplayRepository
 import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.BaseActivity
 import com.android.launcher3.Flags.enablePredictiveBackInOverview
+import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.LauncherAnimationRunner
 import com.android.launcher3.LauncherAnimationRunner.RemoteAnimationFactory
 import com.android.launcher3.LauncherRootView
@@ -79,8 +81,10 @@ import com.android.launcher3.util.ActivityOptionsWrapper
 import com.android.launcher3.util.DaggerSingletonObject
 import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.Executors
+import com.android.launcher3.util.Executors.MAIN_EXECUTOR
 import com.android.launcher3.util.LooperExecutor
 import com.android.launcher3.util.RunnableList
+import com.android.launcher3.util.SafeCloseable
 import com.android.launcher3.util.ScreenOnTracker
 import com.android.launcher3.util.ScreenOnTracker.ScreenOnListener
 import com.android.launcher3.util.SystemUiController
@@ -144,20 +148,20 @@ constructor(
     @Assisted private val recentsWindowTracker: RecentsWindowTracker,
     wallpaperColorHints: WallpaperColorHints,
     private val systemUiProxy: SystemUiProxy,
-    private val recentsModel: RecentsModel,
+    recentsModel: RecentsModel,
     private val screenOnTracker: ScreenOnTracker,
     private val desktopState: DesktopState,
-    private val displayController: DisplayController,
+    displayController: DisplayController,
     @Ui private val uiExecutor: LooperExecutor,
+    invariantDeviceProfile: InvariantDeviceProfile,
 ) :
-    RecentsWindowContext(windowContext, wallpaperColorHints.hints),
+    RecentsWindowContext(windowContext, wallpaperColorHints.hints, invariantDeviceProfile),
     RecentsViewContainer,
     StatefulContainer<RecentsState>,
     ComponentCallbacks {
 
     companion object {
         private const val HOME_APPEAR_DURATION: Long = 250
-        private const val RECENTS_ANIMATION_TIMEOUT = 1000L
         private const val TAG = "RecentsWindowManager"
 
         @JvmField
@@ -273,6 +277,8 @@ constructor(
 
     var activityLaunchAnimationRunner: RemoteAnimationFactory? = null
 
+    private var displayChangesSafeCloseable: SafeCloseable? = null
+
     init {
         fallbackWindowInterface.setRecentsWindowManager(this)
         if (displayId == DEFAULT_DISPLAY) {
@@ -287,18 +293,25 @@ constructor(
             splitSelectStateController.initSplitFromDesktopController(this)
         }
 
-        displayController.addChangeListenerForDisplay(this, displayId)
+        displayController.getListenable(displayId)?.let {
+            displayChangesSafeCloseable =
+                it.changes.forEach(MAIN_EXECUTOR) { _ -> onDisplayInfoChanged() }
+        }
     }
 
     fun createWindowView() {
         if (windowView != null) {
+            createSurfaceControlViewHost()
             return
         }
+        surfaceControlViewHost?.let { cleanUpSurfaceControlViewHost() }
 
         theme.applyStyle(overviewBlurStyleResId, true)
         windowView = layoutInflater.inflate(R.layout.fallback_recents_activity, null)
         windowView?.let {
             actionsView = it.findViewById(R.id.overview_actions_view)
+            val emptyRecentsMessageView =
+                it.findViewById<ViewGroup?>(R.id.empty_recents_message_view)
             recentsView =
                 it.findViewById<FallbackRecentsView<RecentsWindowManager>?>(R.id.overview_panel)
                     ?.apply {
@@ -313,6 +326,7 @@ constructor(
                                 desktopState,
                             ),
                             SurfaceTransactionApplier(rootView),
+                            emptyRecentsMessageView,
                         )
                     }
             actionsView?.apply {
@@ -327,29 +341,9 @@ constructor(
                     View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
                     View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
 
-            surfaceControlViewHost = SurfaceControlViewHost(this, display, null as IBinder?)
             windowRootView.addView(it)
-            surfaceControlViewHost?.let { scvh ->
-                scvh.setView(windowRootView, getWindowLayoutParams())
-                scvh.surfacePackage?.let { surfacePackage ->
-                    getOverviewOverlay()?.let { overviewOverlay ->
-                        Transaction()
-                            .reparent(surfacePackage.surfaceControl, overviewOverlay)
-                            .show(surfacePackage.surfaceControl)
-                            .apply(true)
-                    }
-                        ?: run {
-                            Log.e(
-                                TAG,
-                                "OverviewOverlay is null, can't reparent surface",
-                                Exception(),
-                            )
-                        }
-                }
-                    ?: run {
-                        Log.e(TAG, "SurfaceControlViewHost.SurfacePackage is null", Exception())
-                    }
-            }
+
+            createSurfaceControlViewHost()
 
             it.findOnBackInvokedDispatcher()
                 ?.registerSystemOnBackInvokedCallback(onBackInvokedCallback)
@@ -363,7 +357,8 @@ constructor(
 
     override fun destroy() {
         super.destroy()
-        displayController.removeChangeListenerForDisplay(this, displayId)
+        displayChangesSafeCloseable?.close()
+        displayChangesSafeCloseable = null
         fallbackWindowInterface.setRecentsWindowManager(null)
         tisBindHelper.onDestroy()
         Executors.MAIN_EXECUTOR.execute {
@@ -388,18 +383,55 @@ constructor(
         }
     }
 
+    private fun createSurfaceControlViewHost() {
+        if (surfaceControlViewHost != null) return
+        surfaceControlViewHost = SurfaceControlViewHost(this, display, null as IBinder?)
+        surfaceControlViewHost?.let { scvh ->
+            scvh.setView(windowRootView, getWindowLayoutParams())
+            scvh.surfacePackage?.let { surfacePackage ->
+                getOverviewOverlay()?.let { overviewOverlay ->
+                    Transaction()
+                        .reparent(surfacePackage.surfaceControl, overviewOverlay)
+                        .show(surfacePackage.surfaceControl)
+                        .apply(true)
+                }
+                    ?: run {
+                        Log.e(TAG, "OverviewOverlay is null, can't reparent surface", Exception())
+                    }
+            } ?: run { Log.e(TAG, "SurfaceControlViewHost.SurfacePackage is null", Exception()) }
+        }
+    }
+
+    private fun cleanUpSurfaceControlViewHost() {
+        surfaceControlViewHost?.let {
+            it.surfacePackage?.let { surfacePackage ->
+                Transaction().hide(surfacePackage.surfaceControl).apply(true)
+                surfacePackage.release()
+            }
+            it.release()
+        }
+        overviewOverlay = null
+        surfaceControlViewHost = null
+    }
+
+    fun onOverviewTargetChanged() {
+        hideRecentsWindow()
+
+        cleanUpSurfaceControlViewHost()
+    }
+
     override fun handleConfigurationChanged(newConfiguration: Configuration?) {
         val diff = oldConfiguration?.let { newConfiguration?.diff(it) } ?: -1
         val rotation = WindowManagerProxy.INSTANCE[this].getRotation(this)
         if ((diff and (CONFIG_ORIENTATION or CONFIG_SCREEN_SIZE)) != 0 || rotation != oldRotation) {
-            onHandleConfigurationChanged(newConfiguration)
+            onHandleConfigurationChanged()
         }
 
         oldConfiguration = newConfiguration
         oldRotation = rotation
     }
 
-    fun onHandleConfigurationChanged(configuration: Configuration?) {
+    private fun onHandleConfigurationChanged() {
         initDeviceProfile()
         AbstractFloatingView.closeOpenViews(
             this,
@@ -413,11 +445,7 @@ constructor(
         dragLayer?.recreateControllers()
     }
 
-    override fun onDisplayInfoChanged(
-        context: Context?,
-        info: DisplayController.Info?,
-        flags: Int,
-    ) {
+    private fun onDisplayInfoChanged() {
         initDeviceProfile()
         surfaceControlViewHost?.relayout(getWindowLayoutParams())
     }

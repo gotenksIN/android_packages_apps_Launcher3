@@ -19,16 +19,6 @@ flag {
 }
 
 flag {
-    name: "enable_meta_tab_toggle_in_overview"
-    namespace: "launcher_overview"
-    description: "Enables Meta-Tab toggle between Overview and recent tasks."
-    bug: "385128447"
-    metadata {
-        purpose: PURPOSE_BUGFIX
-    }
-}
-
-flag {
     name: "enable_overview_on_connected_displays"
     namespace: "launcher_overview"
     description: "Enable overview on connected displays."
@@ -88,5 +78,13 @@ flag {
     name: "enable_replace_share_target_with_sharesheet"
     namespace: "launcher_overview"
     description: "Replaces overview share target with share sheet."
+    bug: "437084247"
+}
+
+flag {
+    name: "enable_replace_sharesheet_and_empty_message_ro"
+    namespace: "launcher_overview"
+    description: "Replaces overview share target with share sheet, adds new empty recents message."
+    is_fixed_read_only: true
     bug: "437084247"
 }
