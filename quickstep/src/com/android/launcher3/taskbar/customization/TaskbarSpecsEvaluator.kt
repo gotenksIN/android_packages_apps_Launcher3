@@ -20,9 +20,6 @@ import com.android.launcher3.Utilities.dpToPx
 import com.android.launcher3.taskbar.TaskbarActivityContext
 import com.android.launcher3.taskbar.TaskbarPopupController
 
-/** The maximum number of icons that can be pinned with the taskbar overflow. */
-const val TASKBAR_OVERFLOW_PIN_LIMIT = 16
-
 /** Evaluates the taskbar specs based on the taskbar grid size and the taskbar icon size. */
 class TaskbarSpecsEvaluator(
     private val taskbarActivityContext: TaskbarActivityContext,
@@ -30,14 +27,21 @@ class TaskbarSpecsEvaluator(
     numRows: Int = taskbarActivityContext.deviceProfile.inv.numRows,
     numColumns: Int = taskbarActivityContext.deviceProfile.inv.numColumns,
 ) {
-    var taskbarIconSize: TaskbarIconSize = getIconSizeByGrid(numColumns, numRows)
+    val taskbarIconSize: TaskbarIconSize
+        get() =
+            if (taskbarActivityContext.isThreeButtonNav) TaskbarIconSpecs.defaultPersistentIconSize
+            else TaskbarIconSpecs.defaultTransientIconSize
+
     val numShownHotseatIcons
-        get() = taskbarActivityContext.deviceProfile.numShownHotseatIcons
+        get() =
+            if (TaskbarPopupController.canPinAppsOverflow())
+                taskbarActivityContext.deviceProfile.inv.numShownHotseatIcons
+            else taskbarActivityContext.deviceProfile.numShownHotseatIcons
 
     val maxPinnableCount
         get() =
             if (TaskbarPopupController.canPinAppsOverflow()) {
-                TASKBAR_OVERFLOW_PIN_LIMIT
+                taskbarActivityContext.deviceProfile.inv.numDatabaseHotseatIcons
             } else {
                 numShownHotseatIcons
             }
@@ -46,9 +50,10 @@ class TaskbarSpecsEvaluator(
     private var taskbarContainer: List<TaskbarContainer> = emptyList()
 
     val taskbarIconPadding: Int =
-        if (taskbarActivityContext.isPinnedTaskbar) {
+        if (taskbarActivityContext.isPinnedTaskbar && !taskbarActivityContext.isThreeButtonNav) {
             val sizeDifference =
-                (TaskbarIconSpecs.iconSize52dp.size - TaskbarIconSpecs.iconSize44dp.size).toFloat()
+                (TaskbarIconSpecs.defaultTransientIconSize.size
+                        - TaskbarIconSpecs.defaultPersistentIconSize.size).toFloat()
             dpToPx(sizeDifference, taskbarActivityContext) / 2
         } else {
             0
@@ -106,14 +111,16 @@ class TaskbarSpecsEvaluator(
     }
 
     // TODO(jagrutdesai) : Call this in init once the containers are ready.
-    private fun calculateTaskbarIconSize() {
+    private fun calculateTaskbarIconSize(): TaskbarIconSize {
+        var currentIconSize = taskbarIconSize
         while (
-            taskbarIconSize != TaskbarIconSpecs.minimumIconSize &&
+            currentIconSize != TaskbarIconSpecs.minimumIconSize &&
                 taskbarActivityContext.transientTaskbarBounds.width() <
                     calculateSpaceNeeded(taskbarContainer)
         ) {
-            taskbarIconSize = getIconSizeStepDown(taskbarIconSize)
+            currentIconSize = getIconSizeStepDown(taskbarIconSize)
         }
+        return currentIconSize
     }
 
     private fun calculateSpaceNeeded(containers: List<TaskbarContainer>): Int {

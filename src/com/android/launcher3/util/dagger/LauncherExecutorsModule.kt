@@ -15,15 +15,19 @@
  */
 package com.android.launcher3.util.dagger
 
+import com.android.launcher3.Flags.enableTaskbarUiThread
 import com.android.launcher3.concurrent.ExecutorsModule
 import com.android.launcher3.concurrent.annotations.Background
 import com.android.launcher3.concurrent.annotations.LightweightBackground
 import com.android.launcher3.concurrent.annotations.LightweightBackgroundPriority
+import com.android.launcher3.concurrent.annotations.TaskbarUi
 import com.android.launcher3.concurrent.annotations.ThreadPool
 import com.android.launcher3.concurrent.annotations.Ui
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.util.Executors
 import com.android.launcher3.util.LooperExecutor
+import com.android.launcher3.util.coroutines.DispatcherProvider
+import com.android.launcher3.util.coroutines.ProductionDispatchers
 import com.google.common.util.concurrent.ListeningExecutorService
 import com.google.common.util.concurrent.MoreExecutors
 import dagger.Binds
@@ -43,6 +47,13 @@ abstract class LauncherExecutorsModule {
 
     @Binds
     @LauncherAppSingleton
+    @TaskbarUi
+    abstract fun provideTaskbarUiExecutor(
+        @TaskbarUi executor: LooperExecutor
+    ): ListeningExecutorService
+
+    @Binds
+    @LauncherAppSingleton
     @LightweightBackground(LightweightBackgroundPriority.UI)
     abstract fun provideUiExecutorService(
         @LightweightBackground(LightweightBackgroundPriority.UI) executor: LooperExecutor
@@ -55,12 +66,25 @@ abstract class LauncherExecutorsModule {
         @Background executor: LooperExecutor
     ): ListeningExecutorService
 
+    @Binds
+    abstract fun provideDispatcherProviders(
+        dispatcherProvider: ProductionDispatchers
+    ): DispatcherProvider
+
     companion object {
         @Provides
         @LauncherAppSingleton
         @Ui
         fun provideUiLooperExecutor(): LooperExecutor {
             return Executors.MAIN_EXECUTOR
+        }
+
+        @Provides
+        @LauncherAppSingleton
+        @TaskbarUi
+        fun provideTaskbarUiLooperExecutor(): LooperExecutor {
+            return if (enableTaskbarUiThread()) Executors.TASKBAR_UI_THREAD as LooperExecutor
+            else Executors.MAIN_EXECUTOR
         }
 
         @Provides

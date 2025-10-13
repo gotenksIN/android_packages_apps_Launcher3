@@ -27,10 +27,17 @@ object RoboApiWrapper {
         Shadows.shadowOf(looper).runToEndOfTasks()
     }
 
+    fun yieldToMainLooper() {
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+    }
+
     /** Rule to grant shortcuts permission. No-op when running on robolectric */
     fun grantShortcutsPermissionRule(): TestRule = TestRule { statement, _ -> statement }
 
-    fun convertObjectToSpy(obj: Any) {
+    /** Rule to grant widget bind permission. No-op when running on robolectric */
+    fun grantWidgetBindPermissionRule(): TestRule = TestRule { statement, _ -> statement }
+
+    fun Any.convertToSpy() {
         Assume.assumeTrue("convertObjectToSpy is not supported in device-less tests", false)
     }
 }

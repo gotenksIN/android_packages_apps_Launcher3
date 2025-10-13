@@ -54,7 +54,6 @@ import com.android.launcher3.util.LooperExecutor;
 import com.android.launcher3.util.MutableListenableStream;
 import com.android.launcher3.util.SafeCloseable;
 import com.android.launcher3.util.coroutines.DispatcherProvider;
-import com.android.launcher3.util.coroutines.ProductionDispatchers;
 import com.android.quickstep.dagger.QuickstepBaseAppComponent;
 import com.android.quickstep.recents.data.RecentTasksDataSource;
 import com.android.quickstep.recents.data.TaskVisualsChangeNotifier;
@@ -116,7 +115,7 @@ public class RecentsModel implements RecentTasksDataSource, TaskStackChangeListe
             LockedUserState lockedUserState,
             Lazy<ThemeManager> themeManagerLazy,
             DaggerSingletonTracker tracker,
-            ProductionDispatchers dispatcherProvider,
+            DispatcherProvider dispatcherProvider,
             @Ui LooperExecutor uiExecutor,
             IconChangeTracker iconChangeTracker
             ) {
@@ -148,7 +147,7 @@ public class RecentsModel implements RecentTasksDataSource, TaskStackChangeListe
                         systemUiProxy,
                         topTaskTracker, tracker),
                 new TaskIconCache(context, RECENTS_MODEL_EXECUTOR, iconProvider, displayController,
-                        dispatcherProvider),
+                        dispatcherProvider, tracker),
                 new TaskThumbnailCache(context, RECENTS_MODEL_EXECUTOR, dispatcherProvider),
                 TaskStackChangeListeners.getInstance(),
                 lockedUserState,

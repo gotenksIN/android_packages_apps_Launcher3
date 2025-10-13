@@ -737,7 +737,6 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         closeOpenFolder(openFolder);
 
         mContent.bindItems(items);
-        mContent.setCanAnnouncePageDescriptionForFolder(true);
         centerAboutIcon();
         mItemsInvalidated = true;
         updateTextViewFocus();
@@ -904,7 +903,6 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     @Override
     protected void handleClose(boolean animate) {
         mIsOpen = false;
-        mContent.setCanAnnouncePageDescriptionForFolder(false);
 
         if (!animate && mCurrentAnimator != null && mCurrentAnimator.isRunning()) {
             mCurrentAnimator.cancel();
@@ -1007,7 +1005,8 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         if (mFolderIcon != null) {
             mFolderIcon.setVisibility(View.VISIBLE);
             mFolderIcon.setIconVisible(true);
-            mFolderIcon.mFolderName.setTextVisibility(true);
+            mFolderIcon.mFolderName.getFloatingViewTextAlpha().setValue(
+                    1f);
             if (wasAnimated) {
                 mFolderIcon.animateBgShadowAndStroke();
                 mFolderIcon.onFolderClose(mContent.getCurrentPage());
