@@ -102,6 +102,7 @@ import static com.android.launcher3.popup.SystemShortcut.WIDGETS;
 import static com.android.launcher3.states.RotationHelper.REQUEST_LOCK;
 import static com.android.launcher3.states.RotationHelper.REQUEST_NONE;
 import static com.android.launcher3.testing.shared.TestProtocol.LAUNCHER_ACTIVITY_STOPPED_MESSAGE;
+import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.ItemInfoMatcher.forFolderMatch;
 import static com.android.launcher3.util.SettingsCache.TOUCHPAD_NATURAL_SCROLLING;
 
@@ -119,7 +120,6 @@ import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.database.sqlite.SQLiteDatabase;
-import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -177,8 +177,6 @@ import com.android.launcher3.compat.AccessibilityManagerCompat;
 import com.android.launcher3.compose.ComposeFacade;
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.dagger.LauncherComponentProvider;
-import com.android.launcher3.debug.TestEventEmitter;
-import com.android.launcher3.debug.TestEventEmitter.TestEvent;
 import com.android.launcher3.dragndrop.DragLayer;
 import com.android.launcher3.dragndrop.DragView;
 import com.android.launcher3.dragndrop.LauncherDragController;
@@ -234,6 +232,7 @@ import com.android.launcher3.util.PackageUserKey;
 import com.android.launcher3.util.PendingRequestArgs;
 import com.android.launcher3.util.PluginManagerWrapper;
 import com.android.launcher3.util.RunnableList;
+import com.android.launcher3.util.SafeCloseable;
 import com.android.launcher3.util.ScreenOnTracker;
 import com.android.launcher3.util.ScreenOnTracker.ScreenOnListener;
 import com.android.launcher3.util.SettingsCache;
@@ -421,8 +420,7 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     private boolean mIsNaturalScrollingEnabled;
 
-    private final SettingsCache.OnChangeListener mNaturalScrollingChangedListener =
-            enabled -> mIsNaturalScrollingEnabled = enabled;
+    private @Nullable SafeCloseable mNaturalScrollingChangedSafeCloseable;
 
     private StartupLatencyLogger mStartupLatencyLogger;
 
@@ -525,8 +523,12 @@ public class Launcher extends StatefulActivity<LauncherState>
         getRootView().dispatchInsets();
 
         final SettingsCache settingsCache = SettingsCache.INSTANCE.get(this);
-        settingsCache.register(TOUCHPAD_NATURAL_SCROLLING, mNaturalScrollingChangedListener);
-        mIsNaturalScrollingEnabled = settingsCache.getValue(TOUCHPAD_NATURAL_SCROLLING);
+        mNaturalScrollingChangedSafeCloseable = settingsCache.getListenableRef(
+                TOUCHPAD_NATURAL_SCROLLING).forEach(
+                        MAIN_EXECUTOR, (enabled) -> {
+                            mIsNaturalScrollingEnabled = enabled;
+                            return null;
+                        });
 
         // Listen for screen turning off
         ScreenOnTracker.INSTANCE.get(this).addListener(mScreenOnListener);
@@ -549,7 +551,6 @@ public class Launcher extends StatefulActivity<LauncherState>
                     RuleController.parseRules(this, R.xml.split_configuration));
         }
         mStartupLatencyLogger.logEnd(LAUNCHER_LATENCY_STARTUP_ACTIVITY_ON_CREATE);
-        TestEventEmitter.sendEvent(TestEvent.LAUNCHER_ON_CREATE);
     }
 
     protected ModelCallbacks createModelCallbacks() {
@@ -1718,8 +1719,10 @@ public class Launcher extends StatefulActivity<LauncherState>
         super.onDestroy();
         ACTIVITY_TRACKER.onContextDestroyed(this);
 
-        SettingsCache.INSTANCE.get(this).unregister(TOUCHPAD_NATURAL_SCROLLING,
-                mNaturalScrollingChangedListener);
+        if (mNaturalScrollingChangedSafeCloseable != null) {
+            mNaturalScrollingChangedSafeCloseable.close();
+            mNaturalScrollingChangedSafeCloseable = null;
+        }
         ScreenOnTracker.INSTANCE.get(this).removeListener(mScreenOnListener);
         PluginManagerWrapper.INSTANCE.get(this).removePluginListener(this);
 
@@ -2340,9 +2343,7 @@ public class Launcher extends StatefulActivity<LauncherState>
      * <p>
      * Implementation of the method from LauncherModel.Callbacks.
      */
-    public void finishBindingItems(IntSet pagesBoundFirst) {
-        TestEventEmitter.sendEvent(TestEvent.WORKSPACE_FINISH_LOADING);
-    }
+    public void finishBindingItems(IntSet pagesBoundFirst) {}
 
     private boolean canAnimatePageChange() {
         if (mDragController.isDragging()) {

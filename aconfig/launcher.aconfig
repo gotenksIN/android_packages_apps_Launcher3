@@ -484,7 +484,7 @@ flag {
   name: "enable_expressive_folder_expansion"
   namespace: "launcher"
   description: "Enables expressive folder expansion motion"
-  bug: "348708061"
+  bug: "387543793"
   metadata {
     purpose: PURPOSE_BUGFIX
   }
@@ -530,16 +530,6 @@ flag {
     namespace: "launcher"
     description: "Enables home action corner to be reversible"
     bug: "416664984"
-}
-
-flag {
-  name: "enable_new_all_set_animation"
-  namespace: "launcher"
-  description: "Enables the new animation for the All Set page"
-  bug: "424506400"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
 }
 
 flag {
@@ -683,6 +673,13 @@ flag {
 }
 
 flag {
+  name: "tooltip_edu_combinator"
+  namespace: "launcher"
+  description: "Separate logic of education tooltip combination from presentation"
+  bug: "444693509"
+}
+
+flag {
   name: "blur_on_more_surfaces"
   namespace: "launcher"
   description: "Enable blur in more Launcher surfaces"
@@ -694,6 +691,16 @@ flag {
   namespace: "launcher"
   description: "Fixes issue that during drag and drop, radius clips were lost"
   bug: "326128683"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "orientation_enabled_desktop_grid_spec"
+  namespace: "launcher"
+  description: "Uses a desktop grid spec that specifies grid dimensions that look reasonably well when the device is used in portrait mode"
+  bug: "444244391"
   metadata {
     purpose: PURPOSE_BUGFIX
   }
