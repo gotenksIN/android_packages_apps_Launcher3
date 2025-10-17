@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-package com.android.quickstep.util
+package com.android.launcher3.homescreenfiles
 
-/** Timings for the app pair launch animation on tablets. */
-class TabletAppPairLaunchTimings : AppPairLaunchTimings(), SplitAnimationTimings {
-    override val STAGED_RECT_SLIDE_DURATION = 600
-    override fun getDuration() = SplitAnimationTimings.TABLET_APP_PAIR_LAUNCH_DURATION
+import android.os.Environment
+import javax.inject.Inject
+
+class EnvironmentWrapper @Inject constructor() {
+    fun isExternalStorageDirectoryMounted(): Boolean =
+        Environment.getExternalStorageState(Environment.getExternalStorageDirectory()) ==
+            Environment.MEDIA_MOUNTED
 }

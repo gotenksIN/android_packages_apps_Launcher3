@@ -239,12 +239,6 @@ flag {
     }
 }
 
-flag {
-    name: "work_scheduler_in_work_profile"
-    namespace: "launcher"
-    description: "Enables work scheduler view above the work pause button in work profile."
-    bug: "361589193"
-}
 
 flag {
     name: "one_grid_specs"
@@ -355,13 +349,6 @@ flag {
   namespace: "launcher"
   description: "Enable launcher icon shape customizations"
   bug: "348708061"
-}
-
-flag {
-  name: "enable_launcher_visual_refresh"
-  namespace: "launcher"
-  description: "Adds refresh for font family, app longpress menu icons, and pagination dots"
-  bug: "395145453"
 }
 
 flag {
