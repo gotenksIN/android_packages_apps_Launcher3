@@ -1,6 +1,8 @@
 package com.android.launcher3.popup;
 
 import static com.android.launcher3.AbstractFloatingView.TYPE_FOLDER;
+import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS;
+import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS_PREDICTION;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_DISMISS_PREDICTION_UNDO;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_PRIVATE_SPACE_INSTALL_SYSTEM_SHORTCUT_TAP;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_PRIVATE_SPACE_UNINSTALL_SYSTEM_SHORTCUT_TAP;
@@ -33,7 +35,9 @@ import com.android.launcher3.LauncherSettings;
 import com.android.launcher3.R;
 import com.android.launcher3.SecondaryDropTarget;
 import com.android.launcher3.Utilities;
+import com.android.launcher3.accessibility.LauncherAccessibilityDelegate;
 import com.android.launcher3.allapps.PrivateProfileManager;
+import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
@@ -48,6 +52,7 @@ import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.Snackbar;
 import com.android.launcher3.widget.WidgetsBottomSheet;
 import com.android.launcher3.widget.picker.model.data.WidgetPickerData;
+import com.android.wm.shell.shared.bubbles.logging.EntryPoint;
 
 import java.util.Arrays;
 
@@ -194,6 +199,7 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
                 return R.drawable.ic_info_no_shadow;
             }
         }
+
         /**
          * Constructor used by overview for staged split to provide custom A11y information.
          *
@@ -266,6 +272,38 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
                     ActivityContext.lookupContext(view.getContext()).getDropTargetHandler();
             dropTargetHandler.prepareToUndoDelete();
             dropTargetHandler.onDeleteComplete(mItemInfo, mOriginalView);
+        }
+    }
+
+
+    public static final Factory<ActivityContext> ADD_TO_HOME_SCREEN =
+            (activity, itemInfo, originalView) -> {
+                if (itemInfo.container != CONTAINER_ALL_APPS
+                        && itemInfo.container != CONTAINER_ALL_APPS_PREDICTION) {
+                    return null;
+                }
+                return new AddToHomeScreen<>(activity, itemInfo, originalView);
+            };
+    public static class AddToHomeScreen<T extends ActivityContext> extends SystemShortcut<T> {
+
+        public AddToHomeScreen(T target, ItemInfo itemInfo, @NonNull View originalView) {
+            super(R.drawable.ic_plus, R.string.action_add_to_workspace, target,
+                    itemInfo, originalView, false);
+        }
+
+        @Override
+        public void onClick(View view) {
+            AbstractFloatingView.closeAllOpenViews(mTarget);
+            LauncherAccessibilityDelegate launcherAccessibilityDelegate =
+                    (LauncherAccessibilityDelegate) mTarget.getAccessibilityDelegate();
+            launcherAccessibilityDelegate.addToWorkspace(mItemInfo,
+                    /*accessibility=*/ false,
+                    /*finishCallback=*/ (success) -> {
+                        mTarget.getStatsLogManager().logger()
+                                .withItemInfo(mItemInfo)
+                                .log(StatsLogManager.LauncherEvent
+                                        .LAUNCHER_TAP_TO_ADD_TO_HOME_SCREEN_FROM_ALL_APPS);
+                    });
         }
     }
 
@@ -396,11 +434,12 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
                     .withItemInfo(mItemInfo)
                     .log(LAUNCHER_SYSTEM_SHORTCUT_DONT_SUGGEST_APP_TAP);
             Snackbar.show(mTarget,
-                    view.getContext().getString(R.string.item_removed), R.string.undo,
-                    () -> { }, () ->
-                        mTarget.getStatsLogManager().logger()
-                                .withItemInfo(mItemInfo)
-                                .log(LAUNCHER_DISMISS_PREDICTION_UNDO));
+                    view.getContext().getString(R.string.item_removed),
+                    R.string.undo,
+                    () -> {},
+                    () -> mTarget.getStatsLogManager().logger()
+                            .withItemInfo(mItemInfo)
+                            .log(LAUNCHER_DISMISS_PREDICTION_UNDO));
         }
     }
 
@@ -428,7 +467,8 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
             };
 
     private static class UninstallApp<T extends ActivityContext> extends SystemShortcut<T> {
-        @NonNull ComponentName mComponentName;
+        @NonNull
+        ComponentName mComponentName;
 
         UninstallApp(T target, ItemInfo itemInfo, @NonNull View originalView,
                 @NonNull ComponentName cn) {
@@ -477,15 +517,19 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
 
     public interface BubbleActivityStarter {
         /** Tell SysUI to show the provided shortcut in a bubble. */
-        void showShortcutBubble(ShortcutInfo info);
+        void showShortcutBubble(ShortcutInfo info, EntryPoint entryPoint);
 
         /** Tell SysUI to show the provided intent in a bubble. */
-        void showAppBubble(Intent intent, UserHandle user);
+        void showAppBubble(Intent intent, UserHandle user, EntryPoint entryPoint);
     }
+
+    /** Marker interface for identifying bubbles starting from taskbar. */
+    public interface TaskbarBubbleActivityStarter extends BubbleActivityStarter {}
 
     public static class BubbleShortcut<T extends ActivityContext> extends SystemShortcut<T> {
 
         private BubbleActivityStarter mStarter;
+        private final boolean mInTaskbar;
 
         public BubbleShortcut(T target, ItemInfo itemInfo, View originalView) {
             super(R.drawable.ic_bubble_button, R.string.bubble, target,
@@ -493,6 +537,17 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
             if (target instanceof BubbleActivityStarter) {
                 mStarter = (BubbleActivityStarter) target;
             }
+            mInTaskbar = target instanceof TaskbarBubbleActivityStarter;
+        }
+
+        private EntryPoint getEntryPoint() {
+            if (mItemInfo.isInAllApps()) {
+                return EntryPoint.ALL_APPS_ICON_MENU;
+            }
+            if (mItemInfo.isInHotseat()) {
+                return mInTaskbar ? EntryPoint.TASKBAR_ICON_MENU : EntryPoint.HOTSEAT_ICON_MENU;
+            }
+            return EntryPoint.LAUNCHER_ICON_MENU;
         }
 
         @Override
@@ -507,7 +562,7 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
                 WorkspaceItemInfo workspaceItemInfo = (WorkspaceItemInfo) mItemInfo;
                 ShortcutInfo shortcutInfo = workspaceItemInfo.getDeepShortcutInfo();
                 if (shortcutInfo != null) {
-                    mStarter.showShortcutBubble(shortcutInfo);
+                    mStarter.showShortcutBubble(shortcutInfo, getEntryPoint());
                     return;
                 }
             }
@@ -517,7 +572,7 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
                 if (intent.getPackage() == null) {
                     intent.setPackage(mItemInfo.getTargetPackage());
                 }
-                mStarter.showAppBubble(intent, mItemInfo.user);
+                mStarter.showAppBubble(intent, mItemInfo.user, getEntryPoint());
             } else {
                 Log.w(TAG, "unable to bubble, no intent: " + mItemInfo);
             }

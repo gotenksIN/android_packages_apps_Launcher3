@@ -15,6 +15,7 @@
  */
 package com.android.launcher3.taskbar
 
+import android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN
 import android.content.Context
 import android.util.Log
 import android.window.DesktopExperienceFlags
@@ -146,17 +147,14 @@ class TaskbarRecentAppsController(
         }
     }
 
-    /**
-     * Returns `true` if recents has the single task (i.e., fullscreen) represented by the given
-     * [itemInfo].
-     */
-    fun hasSingleTask(itemInfo: ItemInfo?): Boolean {
-        val packageName = itemInfo?.targetPackage ?: return false
-        return allRecentTasks.any { task ->
+    /** Returns the single task (i.e., fullscreen) represented by the given [itemInfo]. */
+    fun getSingleTask(itemInfo: ItemInfo?): SingleTask? {
+        val packageName = itemInfo?.targetPackage ?: return null
+        return allRecentTasks.find { task ->
             task is SingleTask &&
                 packageName == task.task.key.packageName &&
                 task.task.key.userId == itemInfo.user.identifier
-        }
+        } as? SingleTask
     }
 
     @VisibleForTesting
@@ -224,6 +222,8 @@ class TaskbarRecentAppsController(
 
     fun init(taskbarControllers: TaskbarControllers, previousShownTasks: List<GroupTask>) {
         controllers = taskbarControllers
+        if (!controllers.taskbarActivityContext.deviceProfile.isTaskbarPresent) return
+
         if (previousShownTasks.isNotEmpty()) {
             shownTasks = previousShownTasks
             fetchIcons()
@@ -252,10 +252,14 @@ class TaskbarRecentAppsController(
             controllers.sharedState?.recentOrderedRunningTaskIds?.addAll(orderedRunningTaskIds)
         }
         recentsModel.unregisterRecentTasksChangedListener(recentTasksChangedListener)
-        iconLoadRequests.forEach { it.cancel() }
-        iconLoadRequests.clear()
+        cancelIconLoadRequests()
         iconShapeDataCloseable?.close()
         themeChangeListener?.let { themeManager.removeChangeListener(it) }
+    }
+
+    private fun cancelIconLoadRequests() {
+        for (it in iconLoadRequests) it.cancel()
+        iconLoadRequests.clear()
     }
 
     /** Called to update hotseatItems, in order to de-dupe them from Recent/Running tasks later. */
@@ -323,7 +327,11 @@ class TaskbarRecentAppsController(
                     allRecentTasks
                         .filterIsInstance<DesktopTask>()
                         .flatMap { it.tasks }
-                        .filterNot { it.key.isTopActivityTransparent }
+                        .filterNot {
+                            it.key.isTopActivityTransparent &&
+                                it.key.isActivityStackTransparent &&
+                                it.key.windowingMode == WINDOWING_MODE_FULLSCREEN
+                        }
                 val runningTasksChanged = oldRunningTaskdIds != runningTaskIds
                 val minimizedTasksChanged = oldMinimizedTaskIds != minimizedTaskIds
 
@@ -361,6 +369,10 @@ class TaskbarRecentAppsController(
     }
 
     private fun fetchIcons() {
+        if (enableRecentsInTaskbar()) {
+            cancelIconLoadRequests() // Cancel any previous requests.
+        }
+
         for (groupTask in shownTasks) {
             for ((i, task) in groupTask.tasks.withIndex()) {
                 val cancellableTask =
@@ -369,14 +381,14 @@ class TaskbarRecentAppsController(
                             groupTask.bitmapInfos[i] = bi
                             task.titleDescription = d
                             task.title = t
-                            controllers.taskbarViewController.onTaskUpdated(task)
+                            controllers.taskbarViewController.onTaskUpdated(task, groupTask)
                         }
                     } else {
                         recentsModel.iconCache.getIconInBackground(task) { ic, d, t ->
                             task.icon = ic
                             task.titleDescription = d
                             task.title = t
-                            controllers.taskbarViewController.onTaskUpdated(task)
+                            controllers.taskbarViewController.onTaskUpdated(task, groupTask)
                         }
                     }
                 if (cancellableTask != null) {

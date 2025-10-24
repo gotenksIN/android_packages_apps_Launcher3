@@ -21,7 +21,6 @@ import android.view.View
 import com.android.launcher3.BubbleTextView
 import com.android.launcher3.Launcher
 import com.android.launcher3.model.data.ItemInfo
-import com.android.launcher3.popup.PopupContainerWithArrow.Companion.getOpen
 import com.android.launcher3.util.PackageUserKey
 import com.android.launcher3.util.ShortcutUtil
 import com.android.launcher3.views.ActivityContext
@@ -35,7 +34,7 @@ class PopupControllerForAppIcon<T> : PopupController<T> where T : Context, T : A
     override fun show(view: View): Popup? {
         val icon = view as BubbleTextView
         val launcher = Launcher.getLauncher(icon.context)
-        if (getOpen(launcher) != null) {
+        if (PopupContainer.getOpen(launcher) != null) {
             // There is already an items container open, so don't open this one.
             icon.clearFocus()
             return null
@@ -48,7 +47,7 @@ class PopupControllerForAppIcon<T> : PopupController<T> where T : Context, T : A
         val deepShortcutCount = popupDataProvider.getShortcutCountForItem(item)
         val systemShortcuts =
             launcher
-                .getSupportedShortcuts(item.container)
+                .getSupportedShortcuts(item)
                 .map<SystemShortcut<Launcher>> { s ->
                     s.getShortcut(launcher, item, icon) as SystemShortcut<Launcher>?
                 }
@@ -56,9 +55,14 @@ class PopupControllerForAppIcon<T> : PopupController<T> where T : Context, T : A
                 .collect(Collectors.toList())
 
         val container =
-            PopupContainerWithArrow.create<Launcher>(context = launcher, originalView = icon)
+            PopupContainerWithArrow.create<Launcher>(
+                context = launcher,
+                originalView = icon,
+                itemInfo = item,
+            )
         container.configureForLauncher(launcher, item)
-        container.populateAndShowRows(deepShortcutCount, systemShortcuts)
+        container.populateAndShowRows(deepShortcutCount,
+            if (view.showingMinimalPopup) emptyList() else systemShortcuts)
         launcher.refreshAndBindWidgetsForPackageUser(PackageUserKey.fromItemInfo(item))
         container.requestFocus()
         return container

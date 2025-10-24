@@ -16,11 +16,14 @@
 package com.android.quickstep
 
 import android.content.Context
+import android.view.InputDevice
 import android.view.MotionEvent
 import androidx.annotation.VisibleForTesting
+import com.android.launcher3.Utilities.shouldEnableMouseInteractionChanges
 import com.android.launcher3.anim.AnimatedFloat
 import com.android.launcher3.statemanager.BaseState
 import com.android.launcher3.statemanager.StatefulContainer
+import com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar
 import com.android.launcher3.taskbar.TaskbarManager
 import com.android.launcher3.util.LockedUserState.Companion.get
 import com.android.quickstep.inputconsumers.AccessibilityInputConsumer
@@ -76,7 +79,7 @@ object InputConsumerUtils {
         rotationTouchHelper: RotationTouchHelper,
         desktopState: DesktopState,
     ): InputConsumer where T : RecentsViewContainer, T : StatefulContainer<S> {
-        val tac = taskbarManager.getCurrentActivityContext()
+        val tac = taskbarManager.getTaskbarForDisplay(event.displayId)
         val bubbleControllers = tac?.bubbleControllers
         if (bubbleControllers != null && BubbleBarInputConsumer.isEventOnBubbles(tac, event)) {
             val consumer: InputConsumer =
@@ -196,7 +199,11 @@ object InputConsumerUtils {
         if (deviceState.isGesturalNavMode || gestureState.isTrackpadGesture) {
             handleOrientationSetup(base)
         }
-        if (deviceState.isFullyGesturalNavMode || gestureState.isTrackpadGesture) {
+        if (
+            deviceState.isFullyGesturalNavMode ||
+                gestureState.isTrackpadGesture ||
+                (enableAutoStashConnectedDisplayTaskbar.isTrue && tac?.isPrimaryDisplay == false)
+        ) {
             val reasonPrefix =
                 "device is in gesture navigation mode or 3-button mode with a trackpad gesture"
             if (deviceState.canTriggerAssistantAction(event)) {
@@ -236,7 +243,6 @@ object InputConsumerUtils {
                     )
                     base =
                         TaskbarUnstashInputConsumer(
-                            context,
                             base,
                             inputMonitorCompat,
                             tac,
@@ -349,6 +355,7 @@ object InputConsumerUtils {
                         gestureState.displayId,
                         base,
                         inputMonitorCompat,
+                        deviceState,
                     )
             }
 
@@ -618,7 +625,11 @@ object InputConsumerUtils {
                     )
                     .append(", trying to use launcher input consumer"),
             )
-        } else if (deviceState.isGestureBlockedTask(runningTask) || launcherChildActivityResumed) {
+        } else if (
+            deviceState.isGestureBlockedTask(runningTask) ||
+                launcherChildActivityResumed ||
+                ignoreNonTrackpadMouseEvent(context, gestureState, event)
+        ) {
             getDefaultInputConsumer(
                 gestureState.displayId,
                 userUnlocked,
@@ -627,7 +638,9 @@ object InputConsumerUtils {
                 reasonString.append(
                     if (launcherChildActivityResumed)
                         "%sis launcher child-task, trying to use default input consumer"
-                    else "%sis gesture-blocked task, trying to use default input consumer",
+                    else if (deviceState.isGestureBlockedTask(runningTask))
+                        "%sis gesture-blocked task, trying to use default input consumer"
+                    else "%sis non trackpad mouse event, trying to use default input consumer",
                     SUBSTRING_PREFIX,
                 ),
             )
@@ -760,6 +773,7 @@ object InputConsumerUtils {
                 deviceState,
                 gestureState,
                 inputMonitorCompat,
+                taskAnimationManager,
                 disableHorizontalSwipe,
             )
         }
@@ -854,6 +868,16 @@ object InputConsumerUtils {
     ): Boolean {
         return (com.android.launcher3.Flags.ignoreThreeFingerTrackpadForNavHandleLongPress() &&
             gestureState.isThreeFingerTrackpadGesture)
+    }
+
+    private fun ignoreNonTrackpadMouseEvent(
+        context: Context,
+        gestureState: GestureState,
+        event: MotionEvent,
+    ): Boolean {
+        return shouldEnableMouseInteractionChanges(context) &&
+            !gestureState.isTrackpadGesture() &&
+            event.isFromSource(InputDevice.SOURCE_MOUSE)
     }
 
     private fun handleOrientationSetup(baseInputConsumer: InputConsumer) {

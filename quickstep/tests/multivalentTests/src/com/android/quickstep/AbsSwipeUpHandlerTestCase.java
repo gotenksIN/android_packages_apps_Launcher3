@@ -70,6 +70,7 @@ import android.view.ViewTreeObserver;
 import androidx.annotation.NonNull;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import com.android.app.displaylib.fakes.FakePerDisplayRepository;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.LauncherRootView;
 import com.android.launcher3.anim.AnimationSuccessListener;
@@ -77,11 +78,14 @@ import com.android.launcher3.dragndrop.DragLayer;
 import com.android.launcher3.statemanager.BaseState;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StatefulContainer;
+import com.android.launcher3.util.ThreadedAnimator;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.Executors;
+import com.android.launcher3.util.ImmediateAnimator;
 import com.android.launcher3.util.MSDLPlayerWrapper;
 import com.android.launcher3.util.SandboxApplication;
 import com.android.launcher3.util.SystemUiController;
+import com.android.quickstep.util.ActiveGestureLog;
 import com.android.quickstep.util.ContextInitListener;
 import com.android.quickstep.util.MotionPauseDetector;
 import com.android.quickstep.util.RecentsOrientedState;
@@ -278,8 +282,12 @@ public abstract class AbsSwipeUpHandlerTestCase<
     @Before
     public void setUpRecentsContainer() {
         DisplayController displayController = DisplayController.INSTANCE.get(mContext);
-        mTaskAnimationManager = spy(
-                new TaskAnimationManager(mContext, mDisplayId, displayController));
+        FakePerDisplayRepository<TaskAnimationManager> fakePerDisplayRepository =
+                new FakePerDisplayRepository<>();
+        TaskAnimationManager taskAnimationManager = new TaskAnimationManager(mContext, mDisplayId,
+                displayController, fakePerDisplayRepository);
+        fakePerDisplayRepository.add(mDisplayId, taskAnimationManager);
+        mTaskAnimationManager = spy(taskAnimationManager);
         RECENTS_CONTAINER recentsContainer = getRecentsContainer();
         RECENTS_VIEW recentsView = getRecentsView();
 
@@ -475,9 +483,10 @@ public abstract class AbsSwipeUpHandlerTestCase<
     @Test
     public void testHomeGesture_invalidatesHandlerAfterParallelAnim() {
         ValueAnimator parallelAnim = new ValueAnimator();
+        ThreadedAnimator threadedAnimator = new ImmediateAnimator(parallelAnim);
         parallelAnim.setRepeatCount(ValueAnimator.INFINITE);
         when(mActivityInterface.getParallelAnimationToGestureEndTarget(any(), anyLong(), any()))
-                .thenReturn(parallelAnim);
+                .thenReturn(threadedAnimator);
         SWIPE_HANDLER handler = createSwipeUpHandlerForGesture(GestureState.GestureEndTarget.HOME);
         runOnMainSync(() -> {
             parallelAnim.start();
@@ -709,11 +718,14 @@ public abstract class AbsSwipeUpHandlerTestCase<
         ArgumentCaptor<Runnable> finishCallback = ArgumentCaptor.forClass(Runnable.class);
         // Check if the 2 parameter method is called.
         verify(mRecentsAnimationController, atLeast(0)).finish(
-                anyBoolean(), finishCallback.capture());
+                anyBoolean(), finishCallback.capture(), any(ActiveGestureLog.CompoundString.class));
         if (finishCallback.getAllValues().isEmpty()) {
             // Check if the 3 parameter method is called.
             verify(mRecentsAnimationController).finish(
-                    anyBoolean(), finishCallback.capture(), anyBoolean());
+                    anyBoolean(),
+                    finishCallback.capture(),
+                    anyBoolean(),
+                    any(ActiveGestureLog.CompoundString.class));
         }
         if (finishCallback.getValue() != null) {
             finishCallback.getValue().run();

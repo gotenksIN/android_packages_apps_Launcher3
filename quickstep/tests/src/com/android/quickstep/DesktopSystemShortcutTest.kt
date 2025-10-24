@@ -22,7 +22,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.SetFlagsRule
 import android.view.Display.DEFAULT_DISPLAY
@@ -32,9 +31,7 @@ import com.android.dx.mockito.inline.extended.StaticMockitoSession
 import com.android.internal.R
 import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.AbstractFloatingViewHelper
-import com.android.launcher3.Flags
 import com.android.launcher3.Flags.enableRefactorTaskContentView
-import com.android.launcher3.Flags.enableRefactorTaskThumbnail
 import com.android.launcher3.logging.StatsLogManager
 import com.android.launcher3.logging.StatsLogManager.LauncherEvent
 import com.android.launcher3.model.data.TaskViewItemInfo
@@ -46,7 +43,6 @@ import com.android.quickstep.task.thumbnail.TaskThumbnailView
 import com.android.quickstep.views.LauncherRecentsView
 import com.android.quickstep.views.RecentsViewContainer
 import com.android.quickstep.views.TaskContainer
-import com.android.quickstep.views.TaskThumbnailViewDeprecated
 import com.android.quickstep.views.TaskView
 import com.android.quickstep.views.TaskViewIcon
 import com.android.quickstep.views.TaskViewType
@@ -318,19 +314,6 @@ class DesktopSystemShortcutTest {
         verify(statsLogger).log(LauncherEvent.LAUNCHER_SYSTEM_SHORTCUT_DESKTOP_TAP)
     }
 
-    @Test
-    @DisableFlags(Flags.FLAG_ENABLE_DESKTOP_MENU_ON_SECONDARY_DISPLAY_BUGFIX)
-    fun createDesktopTaskShortcutFactoryOnSecondaryDisplayWithoutFlag() {
-        `when`(DesktopModeStatus.canEnterDesktopMode(any())).thenReturn(true)
-        `when`(DesktopModeStatus.isDesktopModeSupportedOnDisplay(any(), any())).thenReturn(true)
-        doReturn(SECONDARY_DISPLAY).whenever(context).displayId
-
-        val taskContainer = createTaskContainer(createTask(displayId = SECONDARY_DISPLAY))
-
-        val shortcuts = factory.getShortcuts(launcher, taskContainer)
-        assertThat(shortcuts).isNull()
-    }
-
     private fun createTask(displayId: Int = DEFAULT_DISPLAY) =
         Task(
                 TaskKey(
@@ -357,11 +340,9 @@ class DesktopSystemShortcutTest {
             task,
             when {
                 enableRefactorTaskContentView() -> mock<TaskContentView>()
-                enableRefactorTaskThumbnail() -> mock<TaskThumbnailView>()
-                else -> mock<TaskThumbnailViewDeprecated>()
+                else -> mock<TaskThumbnailView>()
             },
-            if (enableRefactorTaskThumbnail()) mock<TaskThumbnailView>()
-            else mock<TaskThumbnailViewDeprecated>(),
+            mock<TaskThumbnailView>(),
             mock<TaskViewIcon>(),
             mock<TransformingTouchDelegate>(),
             SplitConfigurationOptions.STAGE_POSITION_UNDEFINED,

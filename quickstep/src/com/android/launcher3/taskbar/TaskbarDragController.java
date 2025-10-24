@@ -125,7 +125,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
     private boolean mDisallowGlobalDrag;
     private boolean mDisallowLongClick;
 
-    private TaskbarUiState mTaskbarUiState;
+    private @Nullable TaskbarUiState mTaskbarUiState;
 
     private boolean mIsTaskbarDragging;
     private @Nullable DragToBubbleController mDragToBubbleController;
@@ -139,7 +139,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
         mDragIconSize = resources.getDimensionPixelSize(R.dimen.taskbar_icon_drag_icon_size);
     }
 
-    public void init(TaskbarControllers controllers, TaskbarUiState taskbarUiState) {
+    public void init(TaskbarControllers controllers, @Nullable TaskbarUiState taskbarUiState) {
         mControllers = controllers;
         mControllers.runAfterInit(() ->
                 mControllers.bubbleControllers
@@ -185,7 +185,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
     private void updateIsDragging() {
         mIsTaskbarDragging = TaskbarDragController.super.isDragging()
                 || mIsSystemDragInProgress;
-        if (refactorTaskbarUiState()) {
+        if (refactorTaskbarUiState() && mTaskbarUiState != null) {
             mTaskbarUiState.setIsTaskbarDragging(mIsTaskbarDragging);
         }
     }
@@ -801,10 +801,10 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
         }
         float toScale = iconSize / mDragIconSize;
         float toAlpha = (target == originalView) ? 1f : 0f;
-        MultiValueUpdateListener listener = new MultiValueUpdateListener() {
-            final FloatProp mDx = new FloatProp(fromX, toPosition[0], FAST_OUT_SLOW_IN);
-            final FloatProp mDy = new FloatProp(fromY, toPosition[1], FAST_OUT_SLOW_IN);
-            final FloatProp mScale = new FloatProp(1f, toScale, FAST_OUT_SLOW_IN);
+        MultiValueUpdateListener listener = new MultiValueUpdateListener(FAST_OUT_SLOW_IN) {
+            final FloatProp mDx = new FloatProp(fromX, toPosition[0]);
+            final FloatProp mDy = new FloatProp(fromY, toPosition[1]);
+            final FloatProp mScale = new FloatProp(1f, toScale);
             final FloatProp mAlpha = new FloatProp(1f, toAlpha, Interpolators.ACCELERATE_2);
             @Override
             public void onUpdate(float percent, boolean initOnly) {

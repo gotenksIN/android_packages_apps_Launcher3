@@ -179,14 +179,20 @@ public final class TestProtocol {
     public static final String REQUEST_MOCK_SENSOR_ROTATION = "mock-sensor-rotation";
 
     public static final String PERMANENT_DIAG_TAG = "TaplTarget";
-    public static final String REQUEST_FLAG_ENABLE_GRID_ONLY_OVERVIEW = "enable-grid-only-overview";
 
     public static final String REQUEST_FLAG_ENABLE_MULTIPLE_DESKTOPS = "enable-multiple-desks";
+
+    public static final String REQUEST_GET_ACTIVE_DESK_ID = "get-active-desk-id";
+
+    public static final String REQUEST_GET_DESK_ID = "get-desk-id";
 
     public static final String REQUEST_IS_RECENTS_WINDOW_ENABLED = "recents-window-enabled";
 
     public static final String REQUEST_UNSTASH_BUBBLE_BAR_IF_STASHED =
             "unstash-bubble-bar-if-stashed";
+
+    public static final String REQUEST_REMOVE_ALL_BUBBLES =
+            "remove-all-bubbles";
 
     public static final String REQUEST_INJECT_FAKE_TRACKPAD = "inject-fake-trackpad";
     public static final String REQUEST_EJECT_FAKE_TRACKPAD = "eject-fake-trackpad";

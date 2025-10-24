@@ -38,12 +38,10 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction
 import android.widget.TextView
 import androidx.annotation.IdRes
-import androidx.annotation.VisibleForTesting
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
 import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
-import com.android.launcher3.Flags.enableCursorHoverStates
 import com.android.launcher3.Flags.enableRefactorDigitalWellbeingToast
 import com.android.launcher3.R
 import com.android.launcher3.util.KFloatProperty
@@ -74,9 +72,7 @@ import kotlin.math.max
 class TaskContentView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
     ConstraintLayout(context, attrs), ViewPool.Reusable {
 
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    var taskHeaderView: TaskHeaderView? = null
-        private set
+    private var taskHeaderView: TaskHeaderView? = null
 
     private var taskThumbnailView: TaskThumbnailView? = null
     private val useComposeTaskAppTimer
@@ -176,7 +172,7 @@ class TaskContentView @JvmOverloads constructor(context: Context, attrs: Attribu
     var isHoverable: Boolean = false
 
     init {
-        setWillNotDraw(!enableCursorHoverStates())
+        setWillNotDraw(false)
         context.obtainStyledAttributes(attrs, R.styleable.TaskContentView).use {
             focusBorderColor =
                 it.getColor(R.styleable.TaskContentView_focusBorderColor, DEFAULT_BORDER_COLOR)
@@ -403,13 +399,14 @@ class TaskContentView @JvmOverloads constructor(context: Context, attrs: Attribu
                 is Uninitialized -> return
                 is TaskAppTimerUiState.NoTimer -> state.taskDescription
                 is TaskAppTimerUiState.Timer ->
-                    timerTextHelper?.let {
+                    context.getString(
+                        R.string.task_contents_description_with_remaining_time,
+                        state.taskDescription,
                         context.getString(
-                            R.string.task_contents_description_with_remaining_time,
-                            state.taskDescription,
-                            context.getString(R.string.time_left_for_app, it.formattedDuration),
-                        )
-                    }
+                            R.string.time_left_for_app,
+                            taskAppTimerViewModel.getFormattedDuration(state.timeRemaining, context),
+                        ),
+                    )
             }
     }
 

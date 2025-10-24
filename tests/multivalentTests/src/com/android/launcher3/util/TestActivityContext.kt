@@ -46,6 +46,9 @@ constructor(
     themeResId: Int = R.style.Theme_DeviceDefault,
 ) : BaseContext(base, themeResId, destroyOnDetach = false), TestRule {
 
+    /** Store the full stacktrace so that any leak can be traced from a heap dump */
+    val creationStack = Exception("TestActivityContext Creation stack").stackTraceToString()
+
     private val myDeviceProfile: DeviceProfile by lazy {
         InvariantDeviceProfile.INSTANCE.get(base).getDeviceProfile(base).copy()
     }
@@ -67,6 +70,9 @@ constructor(
 
     /** Override required to allow spying */
     override fun getStatsLogManager() = super.getStatsLogManager()
+
+    /** Override required to allow spying */
+    override fun getAccessibilityDelegate() = super.getAccessibilityDelegate()
 
     /** Override required to allow spying */
     override fun <T : DragController<*>?> getDragController(): T = super.getDragController()

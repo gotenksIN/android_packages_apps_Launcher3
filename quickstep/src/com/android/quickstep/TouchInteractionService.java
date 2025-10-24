@@ -24,12 +24,13 @@ import static android.view.MotionEvent.ACTION_POINTER_DOWN;
 import static android.view.MotionEvent.ACTION_POINTER_UP;
 import static android.view.MotionEvent.ACTION_UP;
 
-import static com.android.launcher3.Flags.enableCursorHoverStates;
+import static com.android.launcher3.Flags.enableMetaTabToggleInOverview;
 import static com.android.launcher3.Flags.enableTaskbarForDirectBoot;
 import static com.android.launcher3.LauncherPrefs.backedUpItem;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
 import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAltTabKqsOnConnectedDisplays;
+import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar;
 import static com.android.launcher3.util.DisplayController.CHANGE_NAVIGATION_MODE;
 import static com.android.launcher3.util.DisplayController.CHANGE_NIGHT_MODE;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
@@ -65,6 +66,7 @@ import android.view.Display;
 import android.view.InputDevice;
 import android.view.InputEvent;
 import android.view.MotionEvent;
+import android.window.DesktopExperienceFlags;
 import android.window.DesktopExperienceFlags.DesktopExperienceFlag;
 
 import androidx.annotation.BinderThread;
@@ -275,7 +277,11 @@ public class TouchInteractionService extends Service {
                     TaskUtils.closeSystemWindowsAsync(CLOSE_SYSTEM_WINDOWS_REASON_RECENTS);
                     tis.mOverviewCommandHelper.addCommand(CommandType.SHOW_ALT_TAB, displayId);
                 } else {
-                    tis.mOverviewCommandHelper.addCommand(CommandType.SHOW_WITH_FOCUS, displayId);
+                    tis.mOverviewCommandHelper.addCommand(
+                            enableMetaTabToggleInOverview()
+                                    ? CommandType.TOGGLE_WITH_FOCUS
+                                    : CommandType.SHOW_WITH_FOCUS,
+                            displayId);
                 }
             });
         }
@@ -339,6 +345,7 @@ public class TouchInteractionService extends Service {
 
         @BinderThread
         public void onSystemUiStateChanged(@SystemUiStateFlags long stateFlags, int displayId) {
+            if (!enableOverviewOnConnectedDisplays() && displayId != DEFAULT_DISPLAY) return;
             MAIN_EXECUTOR.execute(() -> executeForTouchInteractionService(tis -> {
                 // Last flags is only used for the default display case.
                 RecentsAnimationDeviceState deviceState = tis.mDeviceStateRepository.get(displayId);
@@ -764,7 +771,8 @@ public class TouchInteractionService extends Service {
         mRotationTouchHelperRepository = RotationTouchHelper.REPOSITORY_INSTANCE.get(this);
         mRecentsWindowManagerRepository = RecentsWindowManager.REPOSITORY_INSTANCE.get(this);
         mSystemDecorationChangeObserver = SystemDecorationChangeObserver.getINSTANCE().get(this);
-        mQuickstepKeyGestureEventsHandler = new QuickstepKeyGestureEventsManager(this);
+        mQuickstepKeyGestureEventsHandler =
+                QuickstepKeyGestureEventsManager.getINSTANCE().get(this);
         mCoroutineDispatcher = ProductionDispatchers.INSTANCE.getMain();
         mDisplaysWithDecorationsRepositoryCompat =
                 LauncherDisplaysWithDecorationsRepositoryCompat.getINSTANCE().get(this);
@@ -773,7 +781,7 @@ public class TouchInteractionService extends Service {
                 mQuickstepKeyGestureEventsHandler,
                 () -> mTaskbarManager.createAllAppsPendingIntent());
         mTrackpadsConnected = new ActiveTrackpadList(this, () -> {
-            if (mInputMonitorCompat != null && !mTrackpadsConnected.isEmpty()) {
+            if (isInputMonitorInitialized() && !mTrackpadsConnected.isEmpty()) {
                 // Don't destroy and reinitialize input monitor due to trackpad
                 // connecting when it's already set up.
                 return;
@@ -786,7 +794,8 @@ public class TouchInteractionService extends Service {
                 mRecentsWindowManagerRepository, mDisplaysWithDecorationsRepositoryCompat,
                     mCoroutineDispatcher));
         mDesktopAppLaunchTransitionManager =
-                new DesktopAppLaunchTransitionManager(this, SystemUiProxy.INSTANCE.get(this));
+                new DesktopAppLaunchTransitionManager(this, SystemUiProxy.INSTANCE.get(this),
+                        DisplayController.INSTANCE.get(this));
         mDesktopAppLaunchTransitionManager.registerTransitions();
         mInputConsumer = InputConsumerController.getRecentsAnimationInputConsumer();
 
@@ -860,6 +869,12 @@ public class TouchInteractionService extends Service {
         mRotationTouchHelperRepository.get(DEFAULT_DISPLAY).updateGestureTouchRegions();
     }
 
+    private boolean isInputMonitorInitialized() {
+        return ENABLE_GESTURE_NAV_ON_CONNECTED_DISPLAYS.isTrue()
+                ? mInputMonitorDisplayModel != null
+                : mInputMonitorCompat != null;
+    }
+
     /**
      * Called when the navigation mode changes, guaranteed to be after the device state has updated.
      */
@@ -902,6 +917,10 @@ public class TouchInteractionService extends Service {
         mAllAppsActionManager.onUserUnlocked();
         mQuickstepKeyGestureEventsHandler.registerOverviewKeyGestureEvent(
                 createOverviewGestureHandler());
+        if (DesktopExperienceFlags.ENABLE_LAUNCHER_HANDLE_GO_HOME_KEYBOARD_SHORTCUT.isTrue()) {
+            mQuickstepKeyGestureEventsHandler.registerHomeKeyGestureEvent(
+                    getOverviewCommandHelper());
+        }
     }
 
     public OverviewCommandHelper getOverviewCommandHelper() {
@@ -1065,13 +1084,21 @@ public class TouchInteractionService extends Service {
 
         NavigationMode currentNavMode = deviceState.getMode();
         NavigationMode gestureStartNavMode = mGestureStartNavMode.get(displayId);
+
+        // On CD, only consume input event if flag is on and taskbar is stashed.
+        TaskbarActivityContext tac = mTaskbarManager.getTaskbarForDisplay(displayId);
+        boolean shouldConnectedDisplayConsumeEvent =
+                displayId != DEFAULT_DISPLAY
+                && enableAutoStashConnectedDisplayTaskbar.isTrue()
+                && tac != null && tac.isTaskbarStashed();
         if (gestureStartNavMode != null && gestureStartNavMode != currentNavMode) {
             ActiveGestureProtoLogProxy.logOnInputEventNavModeSwitched(
                     displayId, gestureStartNavMode.name(), currentNavMode.name());
             event.setAction(ACTION_CANCEL);
         } else if (deviceState.isButtonNavMode()
                 && !deviceState.supportsAssistantGestureInButtonNav()
-                && !isTrackpadMotionEvent(event)) {
+                && !isTrackpadMotionEvent(event)
+                && !shouldConnectedDisplayConsumeEvent) {
             ActiveGestureProtoLogProxy.logOnInputEventThreeButtonNav(displayId);
             return;
         }
@@ -1079,8 +1106,7 @@ public class TouchInteractionService extends Service {
         final int action = event.getActionMasked();
         // Note this will create a new consumer every mouse click, as after ACTION_UP from the click
         // an ACTION_HOVER_ENTER will fire as well.
-        boolean isHoverActionWithoutConsumer = enableCursorHoverStates()
-                && isHoverActionWithoutConsumer(event);
+        boolean isHoverActionWithoutConsumer = isHoverActionWithoutConsumer(event);
 
         TaskAnimationManager taskAnimationManager = mTaskAnimationManagerRepository.get(displayId);
         if (taskAnimationManager == null) {
@@ -1116,7 +1142,6 @@ public class TouchInteractionService extends Service {
 
             boolean isOneHandedModeActive = deviceState.isOneHandedModeActive();
             boolean isInSwipeUpTouchRegion = rotationTouchHelper.isInSwipeUpTouchRegion(event);
-            TaskbarActivityContext tac = mTaskbarManager.getCurrentActivityContext();
             BubbleControllers bubbleControllers = tac != null ? tac.getBubbleControllers() : null;
             boolean isOnBubbles = bubbleControllers != null
                     && BubbleBarInputConsumer.isEventOnBubbles(tac, event);

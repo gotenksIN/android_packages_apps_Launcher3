@@ -26,6 +26,7 @@ import android.view.WindowManagerGlobal
 import com.android.app.displaylib.DefaultDisplayOnlyInstanceRepositoryImpl
 import com.android.app.displaylib.DisplayLibBackground
 import com.android.app.displaylib.DisplayLibComponent
+import com.android.app.displaylib.DisplayLibHandlerThreadBackground
 import com.android.app.displaylib.DisplayRepository
 import com.android.app.displaylib.DisplaysWithDecorationsRepository
 import com.android.app.displaylib.DisplaysWithDecorationsRepositoryCompat
@@ -33,6 +34,7 @@ import com.android.app.displaylib.PerDisplayInstanceRepositoryImpl
 import com.android.app.displaylib.PerDisplayRepository
 import com.android.app.displaylib.SingleInstanceRepositoryImpl
 import com.android.app.displaylib.createDisplayLibComponent
+import com.android.launcher3.concurrent.annotations.BackgroundContext
 import com.android.launcher3.util.coroutines.DispatcherProvider
 import com.android.quickstep.FallbackWindowInterface
 import com.android.quickstep.RecentsAnimationDeviceState
@@ -41,10 +43,12 @@ import com.android.quickstep.TaskAnimationManager
 import com.android.quickstep.window.RecentsWindowFlags.enableOverviewOnConnectedDisplays
 import com.android.quickstep.window.RecentsWindowManager
 import com.android.quickstep.window.RecentsWindowManagerInstanceProvider
+import com.android.quickstep.window.RecentsWindowTracker
 import com.android.systemui.dagger.qualifiers.Background
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 
 @Module(includes = [BasePerDisplayModule::class, PerDisplayRepositoriesModule::class])
@@ -54,7 +58,13 @@ interface PerDisplayModule
 interface BasePerDisplayModule {
     @Binds
     @DisplayLibBackground
-    abstract fun bindDisplayLibBackground(@Background bgScope: CoroutineScope): CoroutineScope
+    fun bindDisplayLibBackground(@Background bgScope: CoroutineScope): CoroutineScope
+
+    @Binds
+    @DisplayLibHandlerThreadBackground
+    fun bindDisplayLibHandlerThreadBackground(
+        @BackgroundContext bgContext: CoroutineContext
+    ): CoroutineContext
 }
 
 @Module
@@ -94,9 +104,9 @@ object PerDisplayRepositoriesModule {
         return if (enableOverviewOnConnectedDisplays()) {
             repositoryFactory.create("TaskAnimationManagerRepo", instanceFactory::create)
         } else {
-            SingleInstanceRepositoryImpl(
+            DefaultDisplayOnlyInstanceRepositoryImpl(
                 "TaskAnimationManager",
-                instanceFactory.create(DEFAULT_DISPLAY),
+                instanceFactory::create,
             )
         }
     }
@@ -126,15 +136,21 @@ object PerDisplayRepositoriesModule {
     @Provides
     @LauncherAppSingleton
     fun provideFallbackWindowInterfaceRepo(
-        repositoryFactory: PerDisplayInstanceRepositoryImpl.Factory<FallbackWindowInterface>
+        repositoryFactory: PerDisplayInstanceRepositoryImpl.Factory<FallbackWindowInterface>,
+        recentsWindowTrackerRepository: PerDisplayRepository<RecentsWindowTracker>,
     ): PerDisplayRepository<FallbackWindowInterface> {
         return if (enableOverviewOnConnectedDisplays()) {
             repositoryFactory.create(
                 "FallbackWindowInterfaceRepo",
-                { _ -> FallbackWindowInterface() },
+                { displayId ->
+                    recentsWindowTrackerRepository[displayId]?.let { FallbackWindowInterface(it) }
+                },
             )
         } else {
-            SingleInstanceRepositoryImpl("FallbackWindowInterfaceRepo", FallbackWindowInterface())
+            SingleInstanceRepositoryImpl(
+                "FallbackWindowInterfaceRepo",
+                FallbackWindowInterface(recentsWindowTrackerRepository[DEFAULT_DISPLAY]!!),
+            )
         }
     }
 
@@ -148,6 +164,21 @@ object PerDisplayRepositoriesModule {
             repositoryFactory.create("RecentsWindowManagerRepo", instanceProvider)
         } else {
             DefaultDisplayOnlyInstanceRepositoryImpl("RecentsWindowManagerRepo", instanceProvider)
+        }
+    }
+
+    @Provides
+    @LauncherAppSingleton
+    fun provideRecentsWindowTrackerRepo(
+        repositoryFactory: PerDisplayInstanceRepositoryImpl.Factory<RecentsWindowTracker>
+    ): PerDisplayRepository<RecentsWindowTracker> {
+        return if (enableOverviewOnConnectedDisplays()) {
+            repositoryFactory.create("RecentsWindowTrackerRepo", { _ -> RecentsWindowTracker() })
+        } else {
+            DefaultDisplayOnlyInstanceRepositoryImpl(
+                "RecentsWindowTrackerRepo",
+                { _ -> RecentsWindowTracker() },
+            )
         }
     }
 

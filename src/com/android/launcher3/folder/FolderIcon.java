@@ -16,7 +16,6 @@
 
 package com.android.launcher3.folder;
 
-import static com.android.launcher3.Flags.enableCursorHoverStates;
 import static com.android.launcher3.folder.ClippedFolderIconLayoutRule.ICON_OVERLAP_FACTOR;
 import static com.android.launcher3.folder.ClippedFolderIconLayoutRule.MAX_NUM_ITEMS_IN_PREVIEW;
 import static com.android.launcher3.folder.FolderGridOrganizer.createFolderGridOrganizer;
@@ -221,8 +220,8 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         icon.mActivity = activity;
         icon.mDotRenderer = grid.mDotRendererWorkSpace;
 
-        icon.setContentDescription(icon.getAccessiblityTitle(folderInfo.title));
         icon.updateDotInfo();
+        icon.setContentDescription(icon.getAccessiblityTitle(folderInfo.title));
 
         icon.setAccessibilityDelegate(activity.getAccessibilityDelegate());
 
@@ -779,19 +778,22 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         }
         int size = mInfo.getContents().size();
         if (size < MAX_NUM_ITEMS_IN_PREVIEW) {
-            return getContext().getString(R.string.folder_name_format_exact, title, size);
+            return getContext().getString(hasDot()
+                    ? R.string.folder_name_format_exact_with_dot
+                    : R.string.folder_name_format_exact,
+                    title, size);
         } else {
-            return getContext().getString(R.string.folder_name_format_overflow, title,
-                    MAX_NUM_ITEMS_IN_PREVIEW);
+            return getContext().getString(hasDot()
+                    ? R.string.folder_name_format_overflow_with_dot
+                    : R.string.folder_name_format_overflow,
+                    title, MAX_NUM_ITEMS_IN_PREVIEW);
         }
     }
 
     @Override
     public void onHoverChanged(boolean hovered) {
         super.onHoverChanged(hovered);
-        if (enableCursorHoverStates()) {
-            mBackground.setHovered(hovered);
-        }
+        mBackground.setHovered(hovered);
     }
 
     @NonNull

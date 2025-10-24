@@ -28,12 +28,14 @@ import com.android.launcher3.LauncherConstants
 import com.android.launcher3.R
 import com.android.launcher3.SecondaryDropTarget
 import com.android.launcher3.Utilities
+import com.android.launcher3.accessibility.LauncherAccessibilityDelegate
 import com.android.launcher3.allapps.PrivateProfileManager
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.logging.StatsLogManager.LauncherEvent
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.popup.SystemShortcut.BubbleActivityStarter
+import com.android.launcher3.popup.SystemShortcut.TaskbarBubbleActivityStarter
 import com.android.launcher3.util.ActivityOptionsWrapper
 import com.android.launcher3.util.ApiWrapper
 import com.android.launcher3.util.PackageManagerHelper
@@ -42,6 +44,7 @@ import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.views.Snackbar
 import com.android.launcher3.widget.LauncherAppWidgetHostView
 import com.android.launcher3.widget.WidgetsBottomSheet
+import com.android.wm.shell.shared.bubbles.logging.EntryPoint
 import javax.inject.Inject
 
 @LauncherAppSingleton
@@ -60,6 +63,30 @@ class PopupDataSource @Inject constructor() {
             iconResId = R.drawable.ic_remove_no_shadow,
             labelResId = R.string.remove_drop_target_label,
             popupAction = handleRemove,
+            category = PopupCategory.SYSTEM_SHORTCUT_FIXED,
+        )
+
+    private val handleAddToHomeScreenFromAllApps =
+        { activityContext: ActivityContext, itemInfo: ItemInfo, view: View ->
+            AbstractFloatingView.closeAllOpenViews(activityContext)
+            val launcherAccessibilityDelegate =
+                activityContext.accessibilityDelegate as LauncherAccessibilityDelegate
+            launcherAccessibilityDelegate.addToWorkspace(itemInfo, /* accessibility= */ false)
+            /*finishCallback=*/ {
+                activityContext.statsLogManager
+                    .logger()
+                    .withItemInfo(itemInfo)
+                    .log(LauncherEvent.LAUNCHER_TAP_TO_ADD_TO_HOME_SCREEN_FROM_ALL_APPS)
+            }
+            Unit
+        }
+
+    // Popup data for add to home screen from all apps shortcut.
+    val addToHomeScreenFromAllAppsPopupData =
+        PopupData(
+            iconResId = R.drawable.ic_plus,
+            labelResId = R.string.action_add_to_workspace,
+            popupAction = handleAddToHomeScreenFromAllApps,
             category = PopupCategory.SYSTEM_SHORTCUT_FIXED,
         )
 
@@ -256,7 +283,7 @@ class PopupDataSource @Inject constructor() {
 
     // Handles action when tapping bubble shortcut.
     private val handleBubbleShortcut =
-        { activityContext: ActivityContext, itemInfo: ItemInfo, view: View ->
+        { activityContext: ActivityContext, itemInfo: ItemInfo, _: View ->
             val starter: BubbleActivityStarter = activityContext as BubbleActivityStarter
 
             dismissTaskMenuView(activityContext)
@@ -264,12 +291,23 @@ class PopupDataSource @Inject constructor() {
         }
 
     private fun showBubbleShortcut(starter: BubbleActivityStarter, itemInfo: ItemInfo) {
+        fun ItemInfo.getEntryPoint() =
+            when {
+                isInAllApps -> EntryPoint.ALL_APPS_ICON_MENU
+                isInHotseat ->
+                    if (starter is TaskbarBubbleActivityStarter) {
+                        EntryPoint.TASKBAR_ICON_MENU
+                    } else {
+                        EntryPoint.HOTSEAT_ICON_MENU
+                    }
+                else -> EntryPoint.LAUNCHER_ICON_MENU
+            }
+
         // TODO: handle GroupTask (single) items so that recent items in taskbar work
         if (itemInfo is WorkspaceItemInfo) {
-            val workspaceItemInfo = itemInfo
-            val shortcutInfo = workspaceItemInfo.deepShortcutInfo
+            val shortcutInfo = itemInfo.deepShortcutInfo
             if (shortcutInfo != null) {
-                starter.showShortcutBubble(shortcutInfo)
+                starter.showShortcutBubble(shortcutInfo, itemInfo.getEntryPoint())
                 return
             }
         }
@@ -280,7 +318,7 @@ class PopupDataSource @Inject constructor() {
             if (intent.getPackage() == null) {
                 intent.setPackage(itemInfo.getTargetPackage())
             }
-            starter.showAppBubble(intent, itemInfo.user)
+            starter.showAppBubble(intent, itemInfo.user, itemInfo.getEntryPoint())
         } else {
             Log.w(TAG, "unable to bubble, no intent: $itemInfo")
         }

@@ -23,13 +23,6 @@ flag {
 }
 
 flag {
-    name: "enable_cursor_hover_states"
-    namespace: "launcher"
-    description: "Enables cursor hover states for certain elements."
-    bug: "243191650"
-}
-
-flag {
     name: "enable_responsive_workspace"
     namespace: "launcher"
     description: "Enables new workspace grid calculations method."
@@ -396,16 +389,6 @@ flag {
 }
 
 flag {
-  name: "expressive_theme_in_taskbar_and_navigation"
-  namespace: "launcher"
-  description: "Enables the expressive theme and GSF font styles for Taskbar and Gesture Navigation"
-  bug: "394613212"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
   name: "enable_strict_mode"
   namespace: "launcher"
   description: "Enable Strict Mode for the Launcher app"
@@ -508,6 +491,13 @@ flag {
 }
 
 flag {
+  name: "enable_folder_refactor"
+  namespace: "launcher"
+  description: "Enables significant refactoring for Launcher folders"
+  bug: "387543793"
+}
+
+flag {
   name: "model_repository"
   namespace: "launcher"
   description: "Adds various data repositories for the model"
@@ -580,6 +570,13 @@ flag {
 }
 
 flag {
+  name: "enable_taskbar_drag_and_drop"
+  namespace: "launcher"
+  description: "Enable dragging and dropping app icons on the taskbar."
+  bug: "442605300"
+}
+
+flag {
     name: "first_page_pinned_widget_removal_toggle"
     namespace: "launcher"
     description: "Enable first page pinned widget removal toggle"
@@ -622,7 +619,41 @@ flag {
   namespace: "launcher"
   description: "Enables custom height for all apps on CD"
   bug: "416220478"
+   metadata {
+       purpose: PURPOSE_BUGFIX
+     }
+ }
+
+flag {
+  name: "enable_auto_stash_connected_display_taskbar"
+  namespace: "launcher"
+  description: "Enables auto stashing of connected display taskbar when in full or split screen"
+  bug: "394486228"
   metadata {
     purpose: PURPOSE_BUGFIX
   }
+}
+
+flag {
+    name: "expandable_long_press_menu"
+    namespace: "launcher"
+    description: "Enables expandable long press menu"
+    bug: "444003708"
+}
+
+flag {
+  name: "enable_app_widget_picker_refactor"
+  namespace: "launcher"
+  description: "Migrates the small widget pickers to compose"
+  bug: "436344835"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "enable_cursor_driven_workflows"
+  namespace: "launcher"
+  description: "Enables mouse based workflows for interacting with launcher"
+  bug: "388897603"
 }

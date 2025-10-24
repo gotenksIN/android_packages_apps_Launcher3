@@ -220,8 +220,8 @@ constructor(
         val PIN_ITEM_FROM_LAUNCHER: Factory<QuickstepLauncher> =
             Factory { context, itemInfo, originalView ->
                 val taskbarInfoList =
-                    context.taskbarUIController
-                        ?.mControllers
+                    context.taskbarInteractor
+                        ?.getControllers()
                         ?.taskbarPopupController
                         ?.taskbarInfoList ?: return@Factory null
 
@@ -262,16 +262,12 @@ constructor(
          * Returns the maximum number of items that can be pinned to the taskbar, or -1 if the
          * context is not supported or the [TaskbarSpecsEvaluator] is not available.
          */
-        private fun getMaxPinnableCount(context: ActivityContext): Int {
-            val specEvaluator =
-                when (context) {
-                    is TaskbarActivityContext -> context.taskbarSpecsEvaluator
-                    is TaskbarOverlayContext -> context.specsEvaluator
-                    is QuickstepLauncher -> context.taskbarUIController?.taskbarSpecsEvaluator
-                    else -> null
-                }
-
-            return specEvaluator?.maxPinnableCount ?: -1
-        }
+        private fun getMaxPinnableCount(context: ActivityContext) =
+            when (context) {
+                is TaskbarActivityContext -> context.taskbarSpecsEvaluator?.maxPinnableCount ?: -1
+                is TaskbarOverlayContext -> context.specsEvaluator?.maxPinnableCount ?: -1
+                is QuickstepLauncher -> context.taskbarInteractor?.getMaxPinnableCount() ?: -1
+                else -> -1
+            }
     }
 }

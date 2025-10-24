@@ -16,8 +16,9 @@
 
 package com.android.quickstep.logging;
 
+import static com.android.launcher3.graphics.ThemeManager.ICON_FACTORY_DAGGER_KEY;
 import static com.android.launcher3.graphics.ThemeManager.PREF_ICON_SHAPE;
-import static com.android.launcher3.graphics.ThemeManager.THEMED_ICONS;
+import static com.android.launcher3.graphics.theme.ThemePreference.MONO_THEME_VALUE;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_HOME_SCREEN_SUGGESTIONS_DISABLED;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_HOME_SCREEN_SUGGESTIONS_ENABLED;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_ICON_SHAPE_ARCH;
@@ -54,6 +55,11 @@ import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.dagger.LauncherAppSingleton;
+import com.android.launcher3.graphics.ThemeManager;
+import com.android.launcher3.graphics.ThemeManager.ThemeChangeListener;
+import com.android.launcher3.graphics.theme.IconThemeFactory;
+import com.android.launcher3.graphics.theme.ThemePreference;
+import com.android.launcher3.graphics.theme.ThemePreference.ThemeValue;
 import com.android.launcher3.logging.InstanceId;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.logging.StatsLogManager.LauncherEvent;
@@ -71,9 +77,11 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 
 /**
  * Utility class to log launcher settings changes
@@ -96,6 +104,9 @@ public class SettingsChangeLogger implements
     private final StatsLogManager mStatsLogManager;
     private final LauncherPrefs mLauncherPrefs;
 
+    private final ThemePreference mThemePreference;
+    private final Map<String, IconThemeFactory> mThemeFactoryMap;
+
     @NonNull
     private NavigationMode mNavMode;
     private LauncherEvent mNotificationDotsEvent;
@@ -108,11 +119,16 @@ public class SettingsChangeLogger implements
             DisplayController displayController,
             SettingsCache settingsCache,
             LauncherPrefs launcherPrefs,
-            StatsLogManager.StatsLogManagerFactory factory) {
+            StatsLogManager.StatsLogManagerFactory factory,
+            ThemePreference themePreference,
+            @Named(ICON_FACTORY_DAGGER_KEY) Map<String, IconThemeFactory> themeFactoryMap,
+            ThemeManager themeManager) {
         mContext = context;
         mLauncherPrefs = launcherPrefs;
         mStatsLogManager = factory.create(context);
         mLoggablePrefs = loadPrefKeys(context);
+        mThemePreference = themePreference;
+        mThemeFactoryMap = themeFactoryMap;
 
         displayController.addChangeListener(this);
         mNavMode = displayController.getInfo().getNavigationMode();
@@ -127,9 +143,11 @@ public class SettingsChangeLogger implements
 
         settingsCache.register(NOTIFICATION_BADGING_URI, mListener);
         onNotificationDotsChanged(settingsCache.getValue(NOTIFICATION_BADGING_URI));
-        tracker.addCloseable(() -> {
-            settingsCache.unregister(NOTIFICATION_BADGING_URI, mListener);
-        });
+        tracker.addCloseable(() -> settingsCache.unregister(NOTIFICATION_BADGING_URI, mListener));
+
+        ThemeChangeListener themeChangeListener = () -> logThemeEvent(mStatsLogManager.logger());
+        themeManager.addChangeListener(themeChangeListener);
+        tracker.addCloseable(() -> themeManager.removeChangeListener(themeChangeListener));
     }
 
     private static ArrayMap<String, LoggablePref> loadPrefKeys(Context context) {
@@ -220,9 +238,10 @@ public class SettingsChangeLogger implements
         logHomeScreenSuggestionEvent(logger);
         Optional.ofNullable(new DeviceGridState(mContext).getWorkspaceSizeEvent()).ifPresent(
                 logger::log);
+        logThemeEvent(logger);
 
-        SharedPreferences prefs = mLauncherPrefs.getBackedUpPrefs();
-        logger.log(LauncherPrefs.get(mContext).get(THEMED_ICONS)
+        logger.log(
+                MONO_THEME_VALUE.equals(mThemePreference.getValue())
                 ? LAUNCHER_THEMED_ICON_ENABLED
                 : LAUNCHER_THEMED_ICON_DISABLED);
 
@@ -239,8 +258,21 @@ public class SettingsChangeLogger implements
             ).ifPresent(logger::log);
         }
 
+        SharedPreferences prefs = mLauncherPrefs.getBackedUpPrefs();
         mLoggablePrefs.forEach((key, lp) -> logger.log(() ->
                 prefs.getBoolean(key, lp.defaultValue) ? lp.eventIdOn : lp.eventIdOff));
+    }
+
+    private void logThemeEvent(StatsLogger logger) {
+        ThemeValue themeValue = mThemePreference.getValue();
+        IconThemeFactory factory = themeValue != null
+                ? mThemeFactoryMap.get(themeValue.getFactoryId())
+                : null;
+        if (factory != null) {
+            factory.logThemeEvent(themeValue.getThemeId(), logger);
+        } else {
+            logger.log(LAUNCHER_THEMED_ICON_DISABLED);
+        }
     }
 
     @VisibleForTesting

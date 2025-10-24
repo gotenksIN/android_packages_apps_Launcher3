@@ -17,6 +17,7 @@
 package com.android.launcher3.taskbar
 
 import android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM
+import android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -31,6 +32,7 @@ import android.view.Display.DEFAULT_DISPLAY
 import androidx.test.annotation.UiThreadTest
 import com.android.internal.R
 import com.android.launcher3.BubbleTextView.RunningAppState
+import com.android.launcher3.DeviceProfile
 import com.android.launcher3.Flags
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION
@@ -65,7 +67,6 @@ import org.junit.runner.Description
 import org.junit.runner.RunWith
 import org.mockito.ArgumentCaptor
 import org.mockito.Mock
-import org.mockito.junit.MockitoJUnit
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
@@ -79,7 +80,6 @@ import org.mockito.kotlin.whenever
 @EnableFlags(Flags.FLAG_ENABLE_MULTI_INSTANCE_MENU_TASKBAR)
 class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
 
-    @get:Rule val mockitoRule = MockitoJUnit.rule()
     @get:Rule val setFlagsRule = SetFlagsRule()
     @get:Rule
     val disableControllerForCertainTestsWatcher =
@@ -97,6 +97,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
     @Mock private lateinit var mockThemeManager: ThemeManager
     @Mock private lateinit var mockContext: Context
     @Mock private lateinit var mockResources: Resources
+    @Mock private lateinit var mockDeviceProfile: DeviceProfile
 
     private var taskListChangeId: Int = 1
 
@@ -119,6 +120,8 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
         // Set desktop mode supported
         whenever(mockContext.getResources()).thenReturn(mockResources)
         whenever(mockResources.getBoolean(R.bool.config_isDesktopModeSupported)).thenReturn(true)
+        whenever(taskbarActivityContext.deviceProfile).thenReturn(mockDeviceProfile)
+        mockDeviceProfile.isTaskbarPresent = true
 
         whenever(mockRecentsModel.iconCache).thenReturn(mockIconCache)
         whenever(mockRecentsModel.unregisterRecentTasksChangedListener(any())).then {
@@ -1247,7 +1250,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
             runningTasks = emptyList(),
             recentTaskPackages = listOf(RECENT_PACKAGE_1),
         )
-        assertThat(recentAppsController.hasSingleTask(ItemInfo())).isFalse()
+        assertThat(recentAppsController.getSingleTask(ItemInfo())).isNull()
     }
 
     @Test
@@ -1258,7 +1261,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
             recentTaskPackages = emptyList(),
         )
         val itemInfo = createItemInfo(RECENT_PACKAGE_1)
-        assertThat(recentAppsController.hasSingleTask(itemInfo)).isFalse()
+        assertThat(recentAppsController.getSingleTask(itemInfo)).isNull()
     }
 
     @Test
@@ -1269,7 +1272,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
             recentTaskPackages = listOf(RECENT_PACKAGE_1),
         )
         val itemInfo = createItemInfo(RECENT_PACKAGE_2)
-        assertThat(recentAppsController.hasSingleTask(itemInfo)).isFalse()
+        assertThat(recentAppsController.getSingleTask(itemInfo)).isNull()
     }
 
     @Test
@@ -1280,7 +1283,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
             recentTaskPackages = listOf(RECENT_PACKAGE_1, RECENT_PACKAGE_2),
         )
         val itemInfo = createItemInfo(RECENT_PACKAGE_1)
-        assertThat(recentAppsController.hasSingleTask(itemInfo)).isTrue()
+        assertThat(recentAppsController.getSingleTask(itemInfo)).isNotNull()
     }
 
     @Test
@@ -1292,7 +1295,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
         )
         // RECENT_PACKAGE_1 is created with myUserHandle in createRecentTasksFromPackageNames
         val itemInfo = createItemInfo(RECENT_PACKAGE_1, USER_HANDLE_1)
-        assertThat(recentAppsController.hasSingleTask(itemInfo)).isFalse()
+        assertThat(recentAppsController.getSingleTask(itemInfo)).isNull()
     }
 
     @Test
@@ -1300,6 +1303,8 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
         setInDesktopMode(true)
         val transparentTask = createTask(id = 1, "transparentPackage")
         transparentTask.key.isTopActivityTransparent = true
+        transparentTask.key.isActivityStackTransparent = true
+        transparentTask.key.windowingMode = WINDOWING_MODE_FULLSCREEN
         val regularTask = createTask(id = 2, RUNNING_APP_PACKAGE_1)
 
         prepareHotseatAndRunningAndRecentApps(

@@ -15,14 +15,13 @@
  */
 package com.android.launcher3.taskbar;
 
-import static android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
 import static android.window.DesktopModeFlags.ENABLE_TASKBAR_OVERFLOW;
 
 import static com.android.launcher3.BubbleTextView.DISPLAY_TASKBAR;
-import static com.android.launcher3.Flags.enableCursorHoverStates;
 import static com.android.launcher3.Flags.enableLauncherIconShapes;
 import static com.android.launcher3.Flags.enableRecentsInTaskbar;
 import static com.android.launcher3.Flags.enableTaskbarRecentsThemedIcons;
+import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APP_PAIR;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FOLDER;
 import static com.android.launcher3.config.FeatureFlags.enableTaskbarPinning;
@@ -72,6 +71,7 @@ import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.taskbar.customization.TaskbarAllAppsButtonContainer;
 import com.android.launcher3.taskbar.customization.TaskbarDividerContainer;
 import com.android.launcher3.taskbar.customization.TaskbarIconsContainer;
+import com.android.launcher3.taskbar.handoff.HandoffSuggestion;
 import com.android.launcher3.util.LauncherBindableItemsContainer.ItemOperator;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
@@ -85,6 +85,7 @@ import com.android.wm.shell.shared.bubbles.BubbleBarLocation;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -96,14 +97,16 @@ import java.util.Set;
 public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconParent, Insettable,
         DeviceProfile.OnDeviceProfileChangeListener {
     private static final Rect sTmpRect = new Rect();
-
-    private final int[] mTempOutLocation = new int[2];
     private final Rect mIconLayoutBounds;
     private final int mIconTouchSize;
     private final int mItemMarginLeftRight;
     private final int mItemPadding;
     private final int mFolderLeaveBehindColor;
+    private final int[] mFirstIconViewLocation = new int[2];
+    private final int[] mLastIconViewLocation = new int[2];
     private final boolean mIsRtl;
+
+    private final TaskbarUiState mTaskbarUiState;
 
     private final TaskbarActivityContext mActivityContext;
     @Nullable private BubbleBarLocation mBubbleBarLocation = null;
@@ -188,6 +191,11 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         mIconLayoutBounds = mActivityContext.getTransientTaskbarBounds();
         Resources resources = getResources();
         mIsRtl = Utilities.isRtl(resources);
+        mTaskbarUiState = TaskbarUiStateMonitor.INSTANCE.get(context)
+                .getTaskbarUiState(context.getDisplayId());
+        if (refactorTaskbarUiState()) {
+            mTaskbarUiState.setTaskbarViewIsShown(isShown());
+        }
         mTransientTaskbarMinWidth = resources.getDimension(R.dimen.transient_taskbar_min_width);
 
         onDeviceProfileChanged(mActivityContext.getDeviceProfile());
@@ -369,29 +377,6 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         mShouldTryStartAlign = mActivityContext.shouldStartAlignTaskbar();
     }
 
-    private void announceTaskbarShown() {
-        BubbleBarLocation bubbleBarLocation = mControllerCallbacks.getBubbleBarLocationIfVisible();
-        if (bubbleBarLocation == null) {
-            announceForAccessibility(mContext.getString(R.string.taskbar_a11y_shown_title));
-        } else if (bubbleBarLocation.isOnLeft(isLayoutRtl())) {
-            announceForAccessibility(
-                    mContext.getString(R.string.taskbar_a11y_shown_with_bubbles_left_title));
-        } else {
-            announceForAccessibility(
-                    mContext.getString(R.string.taskbar_a11y_shown_with_bubbles_right_title));
-        }
-    }
-
-    protected void announceAccessibilityChanges() {
-        // Only announce taskbar window shown. Window disappearing is generally not announce.
-        // This also aligns with talkback guidelines and unnecessary announcement to users.
-        if (isVisibleToUser()) {
-            announceTaskbarShown();
-        }
-        ActivityContext.lookupContext(getContext()).getDragLayer()
-                .sendAccessibilityEvent(TYPE_WINDOW_CONTENT_CHANGED);
-    }
-
     /**
      * Returns the icon touch size.
      */
@@ -409,12 +394,18 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         mAllAppsButtonContainer.setUpCallbacks(callbacks);
         if (mTaskbarRecentsOverflowView != null) {
             mTaskbarRecentsOverflowView.setOnClickListener(
-                    mControllerCallbacks.getOverflowOnClickListener());
+                    mControllerCallbacks.getRecentsOverflowOnClickListener());
             mTaskbarRecentsOverflowView.setOnLongClickListener(
-                    mControllerCallbacks.getOverflowOnLongClickListener());
-            if (enableCursorHoverStates()) {
-                setHoverListenerForIcon(mTaskbarRecentsOverflowView);
-            }
+                    mControllerCallbacks.getRecentsOverflowOnLongClickListener());
+            setHoverListenerForIcon(mTaskbarRecentsOverflowView);
+        }
+
+        if (mTaskbarPinnedOverflowView != null) {
+            mTaskbarPinnedOverflowView.setOnClickListener(
+                    mControllerCallbacks.getPinnedOverflowOnClickListener());
+            mTaskbarPinnedOverflowView.setOnLongClickListener(
+                    mControllerCallbacks.getPinnedOverflowOnLongClickListener());
+            setHoverListenerForIcon(mTaskbarPinnedOverflowView);
         }
 
         if (ENABLE_TASKBAR_OVERFLOW.isTrue()) {
@@ -450,8 +441,12 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         view.setTag(null);
     }
 
-    /** Inflates/binds the hotseat items and recent tasks to the view. */
-    protected void updateItems(ItemInfo[] hotseatItemInfos, List<GroupTask> recentTasks) {
+    /** Inflates/binds the hotseat items, recent tasks, and handoff suggestions to the view. */
+    protected void updateItems(
+        ItemInfo[] hotseatItemInfos,
+        List<GroupTask> recentTasks,
+        List<HandoffSuggestion> handoffSuggestions) {
+
         if (mActivityContext.isDestroyed()) return;
         // Filter out unsupported items.
         hotseatItemInfos = Arrays.stream(hotseatItemInfos)
@@ -483,6 +478,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
 
         // Update left section.
         if (mIsRtl) {
+            updateHandoffSuggestions(handoffSuggestions);
             updateRecents(recentTasks.reversed(), hotseatItemLength);
         } else {
             updateHotseatItems(hotseatItemInfos);
@@ -499,6 +495,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             updateHotseatItems(hotseatItemInfos);
         } else {
             updateRecents(recentTasks, hotseatItemLength);
+            updateHandoffSuggestions(handoffSuggestions);
         }
 
         // Recents divider takes priority.
@@ -658,6 +655,12 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             mTaskbarPinnedOverflowView.clearItems();
         }
 
+        // if there are ignore icons and make sure we are not removing more icons than we have.
+        // mainly problem for tests.
+        if (onTaskbarEndIdx - mIgnoreTaskbarIconCount >= 0) {
+            onTaskbarEndIdx -= mIgnoreTaskbarIconCount;
+        }
+
         for (ItemInfo hotseatItemInfo : Arrays.asList(hotseatItemInfos).subList(onTaskbarStartIdx,
                 onTaskbarEndIdx)) {
             // Replace any Hotseat views with the appropriate type if it's not already that type.
@@ -753,9 +756,8 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
                 }
             }
             setClickAndLongClickListenersForIcon(hotseatView);
-            if (enableCursorHoverStates()) {
-                setHoverListenerForIcon(hotseatView);
-            }
+            setHoverListenerForIcon(hotseatView);
+
             mNextHotseatIndex++;
             if (!hasHotseatContainer) {
                 mNextViewIndex = mNextHotseatIndex;
@@ -779,7 +781,11 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
     }
 
     private boolean isOverflowViewShowing() {
-        return mTaskbarPinnedOverflowView != null && indexOfChild(mTaskbarPinnedOverflowView) != -1;
+        if (mTaskbarPinnedOverflowView == null) return false;
+        if (mHotseatIconsContainer != null) {
+            return mHotseatIconsContainer.indexOfChild(mTaskbarPinnedOverflowView) != -1;
+        }
+        return indexOfChild(mTaskbarPinnedOverflowView) != -1;
     }
 
     private void maybeAddPinOverflowView() {
@@ -845,7 +851,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             final List<GroupTask> overflownRecents = recentTasks.subList(startIndex, endIndex);
             mTaskbarRecentsOverflowView.setItems(
                     overflownRecents.stream().map(
-                            t -> new TaskWrapper(((SingleTask) t).getTask())).toList());
+                            t -> new TaskWrapper(mActivityContext, ((SingleTask) t))).toList());
             overflownRecentsSet = new ArraySet<>(overflownRecents);
         } else {
             overflownRecentsSet = Collections.emptySet();
@@ -913,9 +919,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
                 applyGroupTaskToBubbleTextView(btv, task);
             }
             setClickAndLongClickListenersForIcon(recentIcon);
-            if (enableCursorHoverStates()) {
-                setHoverListenerForIcon(recentIcon);
-            }
+            setHoverListenerForIcon(recentIcon);
             mNextViewIndex++;
         }
 
@@ -932,6 +936,42 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
 
         mPrevRecentTasks = recentTasksSet;
         mPrevOverflowTasks = overflownRecentsSet;
+    }
+
+    private void updateHandoffSuggestions(List<HandoffSuggestion> handoffSuggestions) {
+        Set<HandoffSuggestion> tasksToAdd = new HashSet<>(handoffSuggestions);
+        while (isNextViewInSection(HandoffSuggestion.class)) {
+            View view = getChildAt(mNextViewIndex);
+            if (tasksToAdd.contains(view.getTag())) {
+                tasksToAdd.remove(view.getTag());
+                mNextViewIndex++;
+            } else {
+                removeAndRecycle(getChildAt(mNextViewIndex));
+            }
+        }
+
+        for (HandoffSuggestion handoffSuggestion : tasksToAdd) {
+            View recentIcon = inflate(R.layout.taskbar_app_icon);
+            LayoutParams lp = new TaskbarLayoutParams(mIconTouchSize, mIconTouchSize);
+            recentIcon.setPadding(mItemPadding, mItemPadding, mItemPadding, mItemPadding);
+            addView(recentIcon, mNextViewIndex++, lp);
+            applyHandoffSuggestionToBubbleTextView((BubbleTextView) recentIcon, handoffSuggestion);
+        }
+    }
+
+    public void applyHandoffSuggestionToBubbleTextView(
+        BubbleTextView bubbleTextView,
+        HandoffSuggestion handoffSuggestion) {
+
+        HandoffSuggestion.Metadata metadata = handoffSuggestion.getMetadata();
+        if (metadata != null) {
+            bubbleTextView.applyIconAndLabel(
+                metadata.getIcon(),
+                metadata.getLabel(),
+                metadata.getLabel());
+        }
+
+        bubbleTextView.setTag(handoffSuggestion);
     }
 
     private boolean isNextViewInSection(Class<?> tagClass) {
@@ -1039,14 +1079,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         }
         Rect iconsBounds = getTransientTaskbarIconLayoutBoundsInParent();
 
-        int translateXFromIgnoredIcons =
-                mIgnoreTaskbarIconCount * (mIconTouchSize + mItemMarginLeftRight);
-        // If bubble bar or right translate in opposite direction.
-        if (!location.isOnLeft(isLayoutRtl())) {
-            translateXFromIgnoredIcons *= -1;
-        }
-        return getTaskBarIconsEndForBubbleBarLocation(location) - iconsBounds.right
-                + translateXFromIgnoredIcons;
+        return getTaskBarIconsEndForBubbleBarLocation(location) - iconsBounds.right;
     }
 
     @Override
@@ -1121,16 +1154,6 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             iconEnd += mAllAppsButtonTranslationOffset;
         }
 
-        if (mActivityContext.isThreeButtonNav()) {
-            boolean navbarOnLeft = mBubbleBarLocation != null && !mBubbleBarLocation.isOnLeft(
-                    layoutRtl);
-            if (navbarOnLeft && layoutRtl) {
-                iconEnd -= (mIconTouchSize + mItemMarginLeftRight) * mIgnoreTaskbarIconCount;
-            } else if (!navbarOnLeft && !layoutRtl) {
-                iconEnd += (mIconTouchSize + mItemMarginLeftRight) * mIgnoreTaskbarIconCount;
-            }
-        }
-
         mControllerCallbacks.onPreLayoutChildren();
 
         int count = getChildCount();
@@ -1197,9 +1220,8 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
      * touch bounds.
      */
     public boolean isEventOverAnyItem(MotionEvent ev) {
-        getLocationOnScreen(mTempOutLocation);
-        int xInOurCoordinates = (int) ev.getRawX() - mTempOutLocation[0];
-        int yInOurCoordinates = (int) ev.getRawY() - mTempOutLocation[1];
+        int xInOurCoordinates = (int) ev.getRawX();
+        int yInOurCoordinates = (int) ev.getRawY();
         return isShown() && getTaskbarIconsActualBounds().contains(xInOurCoordinates,
                 yInOurCoordinates);
     }
@@ -1208,19 +1230,27 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
      * Returns the current visual taskbar icons bounds (unlike `mIconLayoutBounds` which contains
      * bounds for transient mode only).
      */
-    private Rect getTaskbarIconsActualBounds() {
+    Rect getTaskbarIconsActualBounds() {
         View[] iconViews = getIconViews();
         if (iconViews.length == 0) {
             return new Rect();
         }
+        iconViews[0].getLocationOnScreen(mFirstIconViewLocation);
+        iconViews[iconViews.length - 1].getLocationOnScreen(mLastIconViewLocation);
 
-        int[] firstIconViewLocation = new int[2];
-        int[] lastIconViewLocation = new int[2];
-        iconViews[0].getLocationOnScreen(firstIconViewLocation);
-        iconViews[iconViews.length - 1].getLocationOnScreen(lastIconViewLocation);
+        return new Rect(
+                mFirstIconViewLocation[0],
+                mFirstIconViewLocation[1],
+                mLastIconViewLocation[0] + mIconTouchSize,
+                mLastIconViewLocation[1] + mIconTouchSize);
+    }
 
-        return new Rect(firstIconViewLocation[0], 0, lastIconViewLocation[0] + mIconTouchSize,
-                getHeight());
+    @Override
+    public void onVisibilityAggregated(boolean isVisible) {
+        super.onVisibilityAggregated(isVisible);
+        if (refactorTaskbarUiState()) {
+            mTaskbarUiState.setTaskbarViewIsShown(isShown());
+        }
     }
 
     /**
@@ -1347,7 +1377,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
     }
 
     /**
-     * Returns the taskbar overflow view in the taskbar.
+     * Returns the taskbar recent tasks overflow view in the taskbar.
      */
     @Nullable
     public TaskbarOverflowView getTaskbarRecentsOverflowView() {

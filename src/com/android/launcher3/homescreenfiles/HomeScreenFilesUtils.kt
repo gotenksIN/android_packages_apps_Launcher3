@@ -16,16 +16,46 @@
 
 package com.android.launcher3.homescreenfiles
 
-import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Environment
+import android.provider.DocumentsContract.Document.MIME_TYPE_DIR
 import com.android.launcher3.Flags.showFilesOnHomeScreen
+import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FILE_SYSTEM_FILE
+import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FILE_SYSTEM_FOLDER
 
 /** Other utility methods related to managing files on the home screen. */
 class HomeScreenFilesUtils {
     companion object {
         /** Returns `true` if the feature to show files on the home screen is enabled. */
-        fun isFeatureEnabled(context: Context): Boolean {
-            // TODO(b/424465906): also check `R.bool.desktop_form_factor`.
-            return showFilesOnHomeScreen()
+        val isFeatureEnabled: Boolean by lazy {
+            showFilesOnHomeScreen() && Environment.isExternalStorageManager()
         }
+
+        /** Returns the appropriate item type for the given [homeScreenFile]. */
+        fun buildItemType(homeScreenFile: HomeScreenFile) =
+            if (homeScreenFile.isDirectory) {
+                ITEM_TYPE_FILE_SYSTEM_FOLDER
+            } else {
+                ITEM_TYPE_FILE_SYSTEM_FILE
+            }
+
+        /**
+         * Creates an [Intent] to open [homeScreenFile] in the app associated with its MIME type.
+         */
+        @JvmOverloads
+        fun buildLaunchIntent(uri: Uri, homeScreenFile: HomeScreenFile? = null) =
+            Intent(Intent.ACTION_VIEW).apply {
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                setDataAndType(
+                    uri,
+                    if (homeScreenFile?.isDirectory == true) MIME_TYPE_DIR
+                    else homeScreenFile?.mimeType,
+                )
+            }
     }
 }

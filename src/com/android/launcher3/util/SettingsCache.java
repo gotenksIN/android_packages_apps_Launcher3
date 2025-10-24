@@ -18,8 +18,6 @@ package com.android.launcher3.util;
 
 import static android.provider.Settings.System.ACCELEROMETER_ROTATION;
 
-import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
-
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.ContentObserver;
@@ -28,18 +26,20 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
 import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.dagger.LauncherAppSingleton;
 import com.android.launcher3.dagger.LauncherBaseAppComponent;
+import com.android.launcher3.concurrent.annotations.LightweightBackground;
+import static com.android.launcher3.concurrent.annotations.LightweightBackgroundPriority.UI;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 import javax.inject.Inject;
@@ -86,8 +86,6 @@ public class SettingsCache extends ContentObserver {
         return new CopyOnWriteArrayList<>();
     };
 
-    private final Map<String, String> mSecureStringOverrides = new ConcurrentHashMap<>();
-
     /**
      * Caches the last seen value for registered keys.
      */
@@ -96,6 +94,7 @@ public class SettingsCache extends ContentObserver {
             new ConcurrentHashMap<>();
     private final Set<Uri> mUrisEnabledByDefault;
     protected final ContentResolver mResolver;
+    private final Executor mLightweightBackgroundExecutor;
 
     /**
      * Singleton instance
@@ -106,12 +105,15 @@ public class SettingsCache extends ContentObserver {
     @Inject
     SettingsCache(@ApplicationContext Context context,
             @Named("SETTINGS_ENABLED_BY_DEFAULT") Set<Uri> urisEnabledByDefault,
-            DaggerSingletonTracker tracker) {
+            DaggerSingletonTracker tracker,
+            @LightweightBackground(priority = UI) Executor lightweightBackgroundExecutor) {
         super(new Handler(Looper.getMainLooper()));
         mResolver = context.getContentResolver();
         mUrisEnabledByDefault = urisEnabledByDefault;
+        mLightweightBackgroundExecutor = lightweightBackgroundExecutor;
         tracker.addCloseable(() ->
-                UI_HELPER_EXECUTOR.execute(() -> mResolver.unregisterContentObserver(this)));
+                mLightweightBackgroundExecutor.execute(
+                        () -> mResolver.unregisterContentObserver(this)));
     }
 
     @Override
@@ -142,7 +144,8 @@ public class SettingsCache extends ContentObserver {
     }
 
     private void registerUriAsync(Uri uri) {
-        UI_HELPER_EXECUTOR.execute(() -> mResolver.registerContentObserver(uri, false, this));
+        mLightweightBackgroundExecutor.execute(
+                () -> mResolver.registerContentObserver(uri, false, this));
     }
 
     /**
@@ -180,23 +183,6 @@ public class SettingsCache extends ContentObserver {
         if (listenersToRemoveFrom != null) {
             listenersToRemoveFrom.remove(listener);
         }
-    }
-
-    /**
-     * Wrapper around {@link Settings.Secure#getString}
-     */
-    @Nullable
-    public String getSecureString(String key) {
-        return mSecureStringOverrides.getOrDefault(key, Settings.Secure.getString(mResolver, key));
-    }
-
-    /**
-     * Temporarily overrides the value of {@link #getSecureString} and returns a callback to
-     * clear the override
-     */
-    public SafeCloseable applyLocalSecureStringOverride(String key, String value) {
-        mSecureStringOverrides.put(key, value);
-        return () -> mSecureStringOverrides.remove(key);
     }
 
     public interface OnChangeListener {

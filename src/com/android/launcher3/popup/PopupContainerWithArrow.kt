@@ -36,10 +36,7 @@ import com.android.launcher3.Flags
 import com.android.launcher3.Launcher
 import com.android.launcher3.R
 import com.android.launcher3.Utilities
-import com.android.launcher3.accessibility.LauncherAccessibilityDelegate
-import com.android.launcher3.accessibility.ShortcutMenuAccessibilityDelegate
 import com.android.launcher3.dragndrop.DragController
-import com.android.launcher3.dragndrop.DragOptions
 import com.android.launcher3.dragndrop.DragOptions.PreDragCondition
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.ItemInfoWithIcon
@@ -60,13 +57,15 @@ import kotlin.math.max
 class PopupContainerWithArrow<T>
 private constructor(
     context: Context?,
-    private val originalView: View,
+    originalView: View,
+    itemInfo: ItemInfo,
     private val updateIconUi: Boolean,
-) : ArrowPopup<T>(context), DragSource, DragController.DragListener, Popup where
-T : Context,
-T : ActivityContext {
+) :
+    PopupContainer<T>(context, originalView, itemInfo),
+    DragSource,
+    DragController.DragListener,
+    Popup where T : Context, T : ActivityContext {
 
-    private val popupDelegate: PopupDelegate = PopupDelegateImpl(originalView, this)
     private val deepShortcuts: MutableList<DeepShortcutView> = ArrayList()
     private val interceptTouchDown = PointF()
     private val shortcutHeight: Float =
@@ -79,13 +78,9 @@ T : ActivityContext {
 
     private var containerWidth: Int = resources.getDimensionPixelSize(R.dimen.bg_popup_item_width)
     private var deepShortcutContainer: ViewGroup? = null
-    private var accessibilityDelegate: LauncherAccessibilityDelegate? = null
     private var currentHeight = 0f
 
-    val originalIcon = originalView as? BubbleTextView
-
-    var systemShortcutContainer: ViewGroup? = null
-        private set
+    val originalIcon = originalView as BubbleTextView
 
     var itemDragHandler: PopupItemDragHandler? = null
         private set
@@ -94,10 +89,6 @@ T : ActivityContext {
 
     override fun getAccessibilityInitialFocusView(): View {
         return systemShortcutContainer?.getChildAt(0) ?: super.getAccessibilityInitialFocusView()
-    }
-
-    override fun getAccessibilityDelegate(): LauncherAccessibilityDelegate? {
-        return accessibilityDelegate
     }
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
@@ -109,16 +100,8 @@ T : ActivityContext {
             Utilities.squaredTouchSlop(context))
     }
 
-    override fun isOfType(type: Int): Boolean {
-        return popupDelegate.isOfType(type)
-    }
-
     fun setPopupItemDragHandler(popupItemDragHandler: PopupItemDragHandler?) {
         itemDragHandler = popupItemDragHandler
-    }
-
-    override fun onControllerInterceptTouchEvent(ev: MotionEvent): Boolean {
-        return popupDelegate.onControllerInterceptTouchEvent(ev)
     }
 
     fun configureForLauncher(launcher: Launcher, itemInfo: ItemInfo) {
@@ -132,7 +115,6 @@ T : ActivityContext {
         ) {
             itemDragHandler = LauncherPopupItemDragHandler(launcher, this)
         }
-        accessibilityDelegate = ShortcutMenuAccessibilityDelegate(launcher)
         launcher.dragController.addDragListener(this)
     }
 
@@ -144,7 +126,7 @@ T : ActivityContext {
      * @param systemShortcuts List of SystemShortcuts to add to container
      */
     fun populateAndShowRows(deepShortcutCount: Int, systemShortcuts: List<SystemShortcut<*>>) {
-        populateAndShowRows(originalView.tag as ItemInfo, deepShortcutCount, systemShortcuts)
+        populateAndShowRows(itemInfo, deepShortcutCount, systemShortcuts)
     }
 
     /**
@@ -155,7 +137,7 @@ T : ActivityContext {
      * @param deepShortcutCount Number of DeepShortcutView instances to add to container
      * @param systemShortcuts List of SystemShortcuts to add to container
      */
-    fun populateAndShowRows(
+    private fun populateAndShowRows(
         itemInfo: ItemInfo,
         deepShortcutCount: Int,
         systemShortcuts: List<SystemShortcut<*>>,
@@ -178,7 +160,7 @@ T : ActivityContext {
     /** Animates and loads shortcuts on background thread for this popup container */
     private fun loadAppShortcuts(originalItemInfo: ItemInfo) {
         accessibilityPaneTitle = context.getString(R.string.action_deep_shortcut)
-        originalIcon?.forceHideDot = true
+        originalIcon.forceHideDot = true
         // All views are added. Animate layout from now on.
         layoutTransition = LayoutTransition()
         // Load the shortcuts on a background thread and update the container as it animates.
@@ -337,7 +319,8 @@ T : ActivityContext {
     }
 
     override fun getTargetObjectLocation(outPos: Rect) {
-        popupDelegate.getTargetObjectLocation(outPos)
+        super.getTargetObjectLocation(outPos)
+        outPos.bottom = outPos.top + (originalIcon.icon?.bounds?.height() ?: originalView.height)
     }
 
     private fun updateHiddenShortcuts() {
@@ -401,7 +384,7 @@ T : ActivityContext {
     override fun createPreDragCondition(): PreDragCondition {
         return object : PreDragCondition {
             override fun shouldStartDrag(distanceDragged: Double): Boolean {
-                return popupDelegate.shouldStartDrag(distanceDragged)
+                return distanceDragged > startDragThreshold
             }
 
             override fun onPreDragStart(dragObject: DragObject) {
@@ -410,11 +393,11 @@ T : ActivityContext {
                 }
                 if (mIsAboveIcon) {
                     // Hide only the icon, keep the text visible.
-                    originalIcon?.setIconVisible(false)
-                    originalIcon?.visibility = VISIBLE
+                    originalIcon.setIconVisible(false)
+                    originalIcon.visibility = VISIBLE
                 } else {
                     // Hide both the icon and text.
-                    originalIcon?.visibility = INVISIBLE
+                    originalIcon.visibility = INVISIBLE
                 }
             }
 
@@ -422,47 +405,37 @@ T : ActivityContext {
                 if (!updateIconUi) {
                     return
                 }
-                originalIcon?.setIconVisible(true)
+                originalIcon.setIconVisible(true)
                 if (dragStarted) {
                     // Make sure we keep the original icon hidden while it is being dragged.
-                    originalIcon?.visibility = INVISIBLE
+                    originalIcon.visibility = INVISIBLE
                 } else {
                     // TODO: add WW logging if want to add logging for long press on popup
                     //  container.
                     //  mLauncher.getUserEventDispatcher().logDeepShortcutsOpen(mOriginalIcon);
                     if (!mIsAboveIcon) {
                         // Show the icon but keep the text hidden.
-                        originalIcon?.visibility = VISIBLE
-                        originalIcon?.setTextVisibility(false)
+                        originalIcon.visibility = VISIBLE
+                        originalIcon.setTextVisibility(false)
                     }
                 }
             }
         }
     }
 
-    override fun onDropCompleted(target: View, d: DragObject, success: Boolean) {}
-
-    override fun onDragStart(dragObject: DragObject, options: DragOptions) {
-        popupDelegate.onDragStart()
-    }
-
-    override fun onDragEnd() {
-        popupDelegate.onDragEnd()
-    }
-
     override fun onCreateCloseAnimation(anim: AnimatorSet) {
         // Animate original icon's text back in.
-        anim.play(originalIcon?.createTextAlphaAnimator(true /* fadeIn */))
-        originalIcon?.forceHideDot = false
+        anim.play(originalIcon.createTextAlphaAnimator(true /* fadeIn */))
+        originalIcon.forceHideDot = false
     }
 
     override fun closeComplete() {
         super.closeComplete()
         mActivityContext?.getDragController<DragController<*>>()?.removeDragListener(this)
         val openPopup = getOpen<T>(mActivityContext)
-        if (openPopup == null || openPopup.originalIcon !== originalIcon) {
-            originalIcon?.setTextVisibility(originalIcon?.shouldTextBeVisible() ?: false)
-            originalIcon?.forceHideDot = false
+        if (openPopup == null || openPopup.originalView !== originalIcon) {
+            originalIcon.setTextVisibility(originalIcon.shouldTextBeVisible())
+            originalIcon.forceHideDot = false
         }
     }
 
@@ -493,7 +466,8 @@ T : ActivityContext {
             val deepShortcutCount =
                 activityContext.activityComponent.popupDataProvider.getShortcutCountForItem(item)
 
-            val container = create<Launcher>(context = icon.context, originalView = icon)
+            val container =
+                create<Launcher>(context = icon.context, originalView = icon, itemInfo = item)
             container.populateAndShowRows(deepShortcutCount, emptyList())
             container.requestFocus()
         }
@@ -544,29 +518,6 @@ T : ActivityContext {
                 .collect(Collectors.toList())
         }
 
-        /** Returns a PopupContainerWithArrow which is already open or null */
-        @JvmStatic
-        fun <T> getOpen(context: T): PopupContainerWithArrow<*>? where
-        T : Context?,
-        T : ActivityContext? {
-            return getOpenView(context, TYPE_ACTION_POPUP)
-        }
-
-        /** Dismisses the popup if it is no longer valid */
-        @JvmStatic
-        fun <T> dismissInvalidPopup(activity: T) where T : Context?, T : ActivityContext? {
-            val popup = getOpen(activity)
-            val originalIcon = popup?.originalIcon
-            val originalIconTag = originalIcon?.tag as? ItemInfo
-            if (
-                originalIcon != null &&
-                    (!originalIcon.isAttachedToWindow ||
-                        !ShortcutUtil.supportsShortcuts(originalIconTag))
-            ) {
-                popup.animateClose()
-            }
-        }
-
         /**
          * Creates a new instance of [PopupContainerWithArrow].
          *
@@ -579,9 +530,11 @@ T : ActivityContext {
         fun <T> create(
             context: Context,
             originalView: View,
+            itemInfo: ItemInfo,
             updateIconUi: Boolean = true,
         ): PopupContainerWithArrow<T> where T : Context, T : ActivityContext {
-            val container = PopupContainerWithArrow<T>(context, originalView, updateIconUi)
+            val container =
+                PopupContainerWithArrow<T>(context, originalView, itemInfo, updateIconUi)
             container.id = R.id.popup_container
             container.clipChildren = false
             container.clipToPadding = false

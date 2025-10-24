@@ -21,6 +21,7 @@ import android.util.Log;
 import android.util.Pair;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewParent;
 import android.view.accessibility.AccessibilityEvent;
 
 import androidx.annotation.Nullable;
@@ -34,6 +35,7 @@ import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherSettings;
 import com.android.launcher3.PendingAddItemInfo;
 import com.android.launcher3.R;
+import com.android.launcher3.ShortcutAndWidgetContainer;
 import com.android.launcher3.Workspace;
 import com.android.launcher3.celllayout.CellLayoutLayoutParams;
 import com.android.launcher3.dragndrop.DragOptions;
@@ -50,7 +52,7 @@ import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemFactory;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.ArrowPopup;
-import com.android.launcher3.popup.PopupContainerWithArrow;
+import com.android.launcher3.popup.PopupContainer;
 import com.android.launcher3.shortcuts.DeepShortcutView;
 import com.android.launcher3.touch.ItemLongClickListener;
 import com.android.launcher3.util.IntArray;
@@ -170,9 +172,10 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
         if (host == null || !(host.getTag() instanceof  ItemInfo)) {
             return Collections.emptyList();
         }
-        PopupContainerWithArrow container = PopupContainerWithArrow.getOpen(launcher);
+        PopupContainer<?> container = PopupContainer.getOpen(launcher);
         LauncherAccessibilityDelegate delegate = container != null
-                ? container.getAccessibilityDelegate() : launcher.getAccessibilityDelegate();
+                ? (LauncherAccessibilityDelegate) container.getAccessibilityDelegate()
+                : launcher.getAccessibilityDelegate();
         List<LauncherAction> result = new ArrayList<>();
         delegate.getSupportedActions(host, (ItemInfo) host.getTag(), result);
         return result;
@@ -259,11 +262,15 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
             return actions;
         }
 
+        ViewParent contentParent = host.getParent() instanceof DragView dragView
+                ? dragView.getContentViewParent()
+                : host.getParent();
         CellLayout layout;
-        if (host.getParent() instanceof DragView) {
-            layout = (CellLayout) ((DragView) host.getParent()).getContentViewParent().getParent();
+        if (contentParent instanceof ShortcutAndWidgetContainer
+                && contentParent.getParent() instanceof CellLayout cl) {
+            layout = cl;
         } else {
-            layout = (CellLayout) host.getParent().getParent();
+            return actions;
         }
         if ((providerInfo.resizeMode & AppWidgetProviderInfo.RESIZE_HORIZONTAL) != 0) {
             if (layout.isRegionVacant(info.cellX + info.spanX, info.cellY, 1, info.spanY) ||

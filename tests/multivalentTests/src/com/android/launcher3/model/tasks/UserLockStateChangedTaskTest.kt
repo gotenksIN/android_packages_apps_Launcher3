@@ -26,7 +26,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.launcher3.Flags
 import com.android.launcher3.model.TestableModelState
-import com.android.launcher3.model.tasks.ModelRepoTestEx.trackUpdate
+import com.android.launcher3.model.tasks.ModelRepoTestEx.trackUpdateAndChanges
 import com.android.launcher3.model.tasks.ModelRepoTestEx.verifyAndGetItemsUpdated
 import com.android.launcher3.model.tasks.ModelRepoTestEx.verifyDelete
 import com.android.launcher3.util.Executors.MODEL_EXECUTOR
@@ -36,6 +36,7 @@ import com.android.launcher3.util.LauncherModelHelper.TEST_ACTIVITY
 import com.android.launcher3.util.LauncherModelHelper.TEST_PACKAGE
 import com.android.launcher3.util.LayoutResource
 import com.android.launcher3.util.ModelTestExtensions.countPersistedModelItems
+import com.android.launcher3.util.RoboApiWrapper
 import com.android.launcher3.util.SandboxApplication
 import com.android.launcher3.util.TestUtil
 import org.junit.Assert.assertEquals
@@ -58,6 +59,7 @@ class UserLockStateChangedTaskTest {
     @get:Rule val context = SandboxApplication().withModelDependency()
     @get:Rule var layout = LayoutResource(context)
     @get:Rule val mockito = MockitoJUnit.rule()
+    @get:Rule val shortcutAccessRule = RoboApiWrapper.grantShortcutsPermissionRule()
 
     private val user = myUserHandle()
     private val modelState: TestableModelState
@@ -99,7 +101,7 @@ class UserLockStateChangedTaskTest {
     @EnableFlags(Flags.FLAG_MODEL_REPOSITORY)
     fun `items updated on user enabled`() {
         TestUtil.runOnExecutorSync(MODEL_EXECUTOR) {
-            val workspaceUpdate = modelState.homeRepo.workspaceState.trackUpdate()
+            val workspaceUpdate = modelState.homeRepo.workspaceState.trackUpdateAndChanges()
             executeTask(true)
             workspaceUpdate.verifyAndGetItemsUpdated()
         }
@@ -109,7 +111,7 @@ class UserLockStateChangedTaskTest {
     @EnableFlags(Flags.FLAG_MODEL_REPOSITORY)
     fun `items removed on user enabled and shortcut missing`() {
         TestUtil.runOnExecutorSync(MODEL_EXECUTOR) {
-            val workspaceUpdate = modelState.homeRepo.workspaceState.trackUpdate()
+            val workspaceUpdate = modelState.homeRepo.workspaceState.trackUpdateAndChanges()
             executeTask(isUserUnlocked = true, hasShortcuts = false)
             workspaceUpdate.verifyDelete()
         }
@@ -119,7 +121,7 @@ class UserLockStateChangedTaskTest {
     @EnableFlags(Flags.FLAG_MODEL_REPOSITORY)
     fun `items updated on user disabled`() {
         TestUtil.runOnExecutorSync(MODEL_EXECUTOR) {
-            val workspaceUpdate = modelState.homeRepo.workspaceState.trackUpdate()
+            val workspaceUpdate = modelState.homeRepo.workspaceState.trackUpdateAndChanges()
             executeTask(false)
             workspaceUpdate.verifyAndGetItemsUpdated()
         }

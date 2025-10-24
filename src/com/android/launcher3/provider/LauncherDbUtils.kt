@@ -24,7 +24,6 @@ import android.graphics.BitmapFactory
 import android.graphics.drawable.Icon
 import android.os.PersistableBundle
 import android.os.Process
-import android.os.UserManager
 import android.text.TextUtils
 import androidx.annotation.WorkerThread
 import com.android.launcher3.LauncherSettings
@@ -43,10 +42,10 @@ import com.android.launcher3.LauncherSettings.Favorites._ID
 import com.android.launcher3.Utilities
 import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils
+import com.android.launcher3.icons.GraphicsUtils
 import com.android.launcher3.icons.GraphicsUtils.flattenBitmap
 import com.android.launcher3.icons.IconCache
 import com.android.launcher3.logging.FileLog
-import com.android.launcher3.model.UserManagerState
 import com.android.launcher3.pm.PinRequestHelper
 import com.android.launcher3.pm.UserCache
 import com.android.launcher3.shortcuts.ShortcutKey
@@ -169,10 +168,7 @@ object LauncherDbUtils {
     @JvmStatic
     fun migrateLegacyShortcuts(context: Context, db: SQLiteDatabase) {
         val c = db.query(TABLE_NAME, null, "itemType = 1", null, null, null, null)
-        val ums = UserManagerState()
-        ums.run {
-            init(UserCache.INSTANCE[context], context.getSystemService(UserManager::class.java))
-        }
+        val ums = UserCache.INSTANCE[context].userManagerState
         val lc = context.appComponent.loaderCursorFactory.createLoaderCursor(c, ums, null)
         val deletedShortcuts = IntSet()
 
@@ -261,7 +257,7 @@ object LauncherDbUtils {
 
     @JvmStatic
     @WorkerThread
-    fun updateBackupIcons(context: Context, db: SQLiteDatabase) {
+    fun updateBackupIcons(context: Context, db: SQLiteDatabase, useDefaultShape: Boolean) {
         val cursor =
             db.query(
                 TABLE_NAME,
@@ -275,10 +271,7 @@ object LauncherDbUtils {
                 null,
                 null,
             )
-        val userManagerState = UserManagerState()
-        userManagerState.run {
-            init(UserCache.INSTANCE[context], context.getSystemService(UserManager::class.java))
-        }
+        val userManagerState = UserCache.INSTANCE[context].userManagerState
         val loaderCursor =
             context.appComponent.loaderCursorFactory.createLoaderCursor(
                 cursor,
@@ -298,7 +291,14 @@ object LauncherDbUtils {
                     if (itemInfo == null) continue
                     val update =
                         ContentValues().apply {
-                            put(Favorites.ICON, flattenBitmap(itemInfo.bitmap.icon))
+                            put(
+                                Favorites.ICON,
+                                if (useDefaultShape) {
+                                    GraphicsUtils.createDefaultFlatBitmap(itemInfo.bitmap)
+                                } else {
+                                    flattenBitmap(itemInfo.bitmap.icon)
+                                },
+                            )
                         }
                     db.update(TABLE_NAME, update, "_id = ?", arrayOf(loaderCursor.id.toString()))
                 }
@@ -329,8 +329,8 @@ object LauncherDbUtils {
      * processing regular items.
      */
     @JvmStatic
-    fun getLoaderCursorQuerySortOrder(context: Context): String? {
-        if (HomeScreenFilesUtils.isFeatureEnabled(context)) {
+    fun getLoaderCursorQuerySortOrder(): String? {
+        if (HomeScreenFilesUtils.isFeatureEnabled) {
             val inClause =
                 intArrayOf(ITEM_TYPE_FILE_SYSTEM_FILE, ITEM_TYPE_FILE_SYSTEM_FOLDER).joinToString()
             return "CASE WHEN $ITEM_TYPE IN ($inClause) THEN 1 ELSE 0 END, $_ID"

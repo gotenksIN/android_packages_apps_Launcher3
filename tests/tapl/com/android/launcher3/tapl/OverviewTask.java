@@ -25,6 +25,7 @@ import static com.android.launcher3.testing.shared.TestProtocol.NORMAL_STATE_ORD
 
 import android.graphics.Point;
 import android.graphics.Rect;
+import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.MotionEvent;
 
@@ -145,6 +146,14 @@ public final class OverviewTask {
      * Dismisses the task by swiping up.
      */
     public void dismiss() {
+        dismiss(this::dismissBySwipingUp);
+    }
+
+    /**
+     * Dismisses the task using the provided dismisser.
+     * @param dismisser The runnable that executes the dismiss action.
+     */
+    public void dismiss(Runnable dismisser) {
         try (LauncherInstrumentation.Closable e = mLauncher.eventsCheck();
              LauncherInstrumentation.Closable c = mLauncher.addContextLayer(
                      "want to dismiss an overview task")) {
@@ -152,7 +161,8 @@ public final class OverviewTask {
             int taskCountBeforeDismiss = mOverview.getTaskCount();
             mLauncher.assertNotEquals("Unable to find a task", 0, taskCountBeforeDismiss);
             if (taskCountBeforeDismiss == 1) {
-                dismissBySwipingUp();
+                mLauncher.runToState(dismisser, NORMAL_STATE_ORDINAL, "dismissing last task");
+                new Workspace(mLauncher);
                 return;
             }
 
@@ -163,7 +173,12 @@ public final class OverviewTask {
                     getCurrentTasksCenterXList().stream().sorted().toList();
             boolean isClearAllVisibleBeforeDismiss = mOverview.isClearAllVisible();
 
-            dismissBySwipingUp();
+            mLauncher.executeAndWaitForLauncherEvent(
+                    dismisser,
+                    event -> TestProtocol.DISMISS_ANIMATION_ENDS_MESSAGE.equals(
+                            event.getClassName()),
+                    () -> "Didn't receive a dismiss animation ends message",
+                    "dismissing task");
 
             long numNonDesktopTasks = mOverview.getCurrentTasksForTablet()
                     .stream().filter(t -> !t.isDesktop()).count();
@@ -188,6 +203,13 @@ public final class OverviewTask {
         }
     }
 
+    /**
+     * Dismisses the task by tapping on the "Clear" option in the task menu.
+     */
+    public void dismissViaMenu() {
+        dismiss(() -> tapMenu().tapClearMenuItem());
+    }
+
     private void dismissBySwipingUp() {
         verifyActiveContainer();
         // Dismiss the task via flinging it up.
@@ -203,12 +225,8 @@ public final class OverviewTask {
         int extraDismissLength = Math.max(minimumDismissLength - lengthTaskWillTravel, 0);
         // Bound touch to a max of the bottom of the task, account for extra required dismiss length
         final int startY = Math.min(centerY + extraDismissLength, taskBounds.bottom);
-        mLauncher.executeAndWaitForLauncherEvent(
-                () -> mLauncher.linearGesture(centerX, startY, centerX, 0, 10, false,
-                        LauncherInstrumentation.GestureScope.DONT_EXPECT_PILFER),
-                event -> TestProtocol.DISMISS_ANIMATION_ENDS_MESSAGE.equals(event.getClassName()),
-                () -> "Didn't receive a dismiss animation ends message: " + centerX + ", "
-                        + centerY, "swiping to dismiss");
+        mLauncher.linearGesture(centerX, startY, centerX, 0, 10, false,
+                LauncherInstrumentation.GestureScope.DONT_EXPECT_PILFER);
     }
 
     private List<Integer> getCurrentTasksCenterXList() {
@@ -256,6 +274,7 @@ public final class OverviewTask {
             verifyActiveContainer();
             final boolean isDesktopTask = mType == TaskViewType.DESKTOP;
             final boolean hasDesktopTasks = hasDesktopTasks();
+            final int deskId = isDesktopTask ? getDeskId() : -1;
 
             mLauncher.executeAndWaitForLauncherStop(
                     () -> mLauncher.clickLauncherObject(mTask),
@@ -295,6 +314,9 @@ public final class OverviewTask {
                                         LauncherInstrumentation.WAIT_TIME_MS,
                                         LauncherInstrumentation.DEFAULT_POLL_INTERVAL));
                         }
+                        mLauncher.assertEquals(
+                                "Active desk ID doesn't match opened task's desk ID",
+                                deskId, mLauncher.getActiveDeskId());
                     }
                 }
                 return new LaunchedAppState(mLauncher, isDesktopTask);
@@ -508,6 +530,18 @@ public final class OverviewTask {
 
     public boolean isDesktop() {
         return mType == TaskViewType.DESKTOP;
+    }
+
+    /**
+     * Returns the desk id of the desktop task.
+     */
+    public int getDeskId() {
+        mLauncher.assertTrue("Current task is not a desktop task.", isDesktop());
+        Bundle extras = new Bundle();
+        extras.putParcelable(TestProtocol.TEST_INFO_RESPONSE_FIELD, mTask.getVisibleBounds());
+        return mLauncher.getTestInfo(
+                TestProtocol.REQUEST_GET_DESK_ID, null, extras).getInt(
+                TestProtocol.TEST_INFO_RESPONSE_FIELD);
     }
 
     /**

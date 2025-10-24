@@ -25,6 +25,7 @@ import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPWIDGET;
+import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FILE_SYSTEM_FILE;
 import static com.android.launcher3.LauncherState.ALL_APPS;
 import static com.android.launcher3.LauncherState.EDIT_MODE;
 import static com.android.launcher3.LauncherState.FLAG_MULTI_PAGE;
@@ -33,13 +34,17 @@ import static com.android.launcher3.LauncherState.FLAG_WORKSPACE_INACCESSIBLE;
 import static com.android.launcher3.LauncherState.HINT_STATE;
 import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.LauncherState.SPRING_LOADED;
+import static com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
 import static com.android.launcher3.Utilities.qsbOnFirstScreen;
+import static com.android.launcher3.Utilities.shouldEnableMouseInteractionChanges;
 import static com.android.launcher3.anim.AnimatorListeners.forSuccessCallback;
 import static com.android.launcher3.config.FeatureFlags.FOLDABLE_SINGLE_PAGE;
 import static com.android.launcher3.logging.StatsLogManager.LAUNCHER_STATE_HOME;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_SWIPELEFT;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_SWIPERIGHT;
+
+import static java.util.Objects.requireNonNull;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -57,12 +62,15 @@ import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.SparseArray;
+import android.view.DragAndDropPermissions;
 import android.view.Gravity;
+import android.view.InputDevice;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -96,10 +104,14 @@ import com.android.launcher3.dragndrop.DragView;
 import com.android.launcher3.dragndrop.DraggableView;
 import com.android.launcher3.dragndrop.LauncherDragController;
 import com.android.launcher3.dragndrop.SpringLoadedDragController;
+import com.android.launcher3.dragndrop.SystemDragController;
+import com.android.launcher3.dragndrop.SystemDragItemInfo;
 import com.android.launcher3.folder.Folder;
 import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.folder.PreviewBackground;
 import com.android.launcher3.graphics.DragPreviewProvider;
+import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider;
+import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils;
 import com.android.launcher3.icons.BitmapRenderer;
 import com.android.launcher3.icons.FastBitmapDrawable;
 import com.android.launcher3.logger.LauncherAtom;
@@ -143,6 +155,8 @@ import com.google.android.msdl.data.model.MSDLToken;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -341,7 +355,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     public Workspace(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
         mLauncher = Launcher.getLauncher(context);
-        mLauncherUiState = mLauncher.launcherUiState;
+        mLauncherUiState = mLauncher.getLauncherUiState();
         mStateTransitionAnimation = new WorkspaceStateTransitionAnimation(mLauncher, this);
         mWallpaperManager = WallpaperManager.getInstance(context);
         mAllAppsIconSize = mLauncher.getDeviceProfile().getAllAppsProfile().getIconSizePx();
@@ -387,7 +401,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     private void setPageIndicatorInset() {
         DeviceProfile grid = mLauncher.getDeviceProfile();
 
-        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mPageIndicator.getLayoutParams();
+        View pageIndicatorContainer = (View) mPageIndicator.getParent();
+        FrameLayout.LayoutParams lp =
+                (FrameLayout.LayoutParams) pageIndicatorContainer.getLayoutParams();
 
         // Set insets for page indicator
         Rect padding = grid.mWorkspaceProfile.getWorkspacePadding();
@@ -400,7 +416,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             lp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM;
             lp.bottomMargin = grid.hotseatBarSizePx;
         }
-        mPageIndicator.setLayoutParams(lp);
+        pageIndicatorContainer.setLayoutParams(lp);
     }
 
     private void updateCellLayoutMeasures() {
@@ -621,6 +637,13 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         cl.setOnInterceptTouchListener(this);
         cl.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         super.onViewAdded(child);
+        mLauncher.updatePaginationArrowVisibilities();
+    }
+
+    @Override
+    public void onViewRemoved(View child) {
+        super.onViewRemoved(child);
+        mLauncher.updatePaginationArrowVisibilities();
     }
 
     /**
@@ -1126,7 +1149,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
      */
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
-        if (isTrackpadMultiFingerSwipe(ev)) {
+        if (isNonTrackpadMouseEvent(ev) || isTrackpadMultiFingerSwipe(ev)) {
             return false;
         }
         return super.onInterceptTouchEvent(ev);
@@ -1138,7 +1161,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
-        if (isTrackpadMultiFingerSwipe(ev)) {
+        if (isNonTrackpadMouseEvent(ev) || isTrackpadMultiFingerSwipe(ev)) {
             return false;
         }
         return super.onTouchEvent(ev);
@@ -1158,6 +1181,11 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     @Override
     public boolean onTouch(View v, MotionEvent event) {
         return shouldConsumeTouch(v);
+    }
+
+    private boolean isNonTrackpadMouseEvent(MotionEvent ev) {
+        return shouldEnableMouseInteractionChanges(getContext())
+                && !isTrackpadMotionEvent(ev) && ev.isFromSource(InputDevice.SOURCE_MOUSE);
     }
 
     private boolean shouldConsumeTouch(View v) {
@@ -1392,6 +1420,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                                             .setPageIndex(prevPage)).build())
                     .log(event);
         }
+        mLauncher.updatePaginationArrowAlphas();
     }
 
     protected void setWallpaperDimension() {
@@ -1850,6 +1879,14 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 return false;
             }
             if (!transitionStateShouldAllowDrop()) return false;
+
+            // Reject system-level drops if we cannot handle the payload.
+            if (d.dragInfo instanceof SystemDragItemInfo dragInfo
+                    && (!SystemDragController.INSTANCE.get(mLauncher).acceptDrop(dragInfo)
+                        || !HomeScreenFilesProvider.INSTANCE.get(mLauncher).canMoveToHomeScreen(
+                                dragInfo.getUriList()))) {
+                return false;
+            }
 
             mDragViewVisualCenter = d.getVisualCenter(mDragViewVisualCenter);
 
@@ -2840,6 +2877,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         final int container = mLauncher.isHotseatLayout(cellLayout)
                 ? CONTAINER_HOTSEAT
                 : CONTAINER_DESKTOP;
+        Optional<SystemDragItemInfo> systemDragItemInfo = Optional.empty();
+
         if (d.dragInfo instanceof PendingAddShortcutInfo) {
             WorkspaceItemInfo si = ((PendingAddShortcutInfo) d.dragInfo)
                     .getActivityInfo(mLauncher).createWorkspaceItemInfo();
@@ -2847,6 +2886,16 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 d.dragInfo = si;
                 si.container = container;
             }
+        } else if (d.dragInfo instanceof SystemDragItemInfo dragInfo) {
+            systemDragItemInfo = Optional.of(dragInfo);
+
+            // TODO(b/440195101): Differentiate files from folders.
+            final WorkspaceItemInfo info = new WorkspaceItemInfo();
+            info.itemType = ITEM_TYPE_FILE_SYSTEM_FILE;
+            info.intent = HomeScreenFilesUtils.Companion.buildLaunchIntent(
+                    requireNonNull(dragInfo.getUriList()).getFirst());
+
+            d.dragInfo = info;
         }
 
         ItemInfo info = d.dragInfo;
@@ -2986,6 +3035,40 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 mLauncher.getDragLayer().animateViewIntoPosition(d.dragView, view, this);
                 resetTransitionTransform();
             }
+
+            final View firstItemView = view;
+            final ItemInfo firstItemInfo = info;
+            systemDragItemInfo.ifPresent((dragInfo) -> {
+
+                // After having created the workspace item for the first URI dropped in a system-
+                // level drag-and-drop sequence, attempt to move all dropped URIs to the home screen
+                // folder in the local file system. This will result in:
+                // (1) an update to the created workspace item for the first dropped URI, and
+                // (2) the creation of new workspace items for any additionally dropped URIs.
+                List<Uri> uriList = requireNonNull(dragInfo.getUriList());
+                HomeScreenFilesProvider provider = HomeScreenFilesProvider.INSTANCE.get(mLauncher);
+                List<CompletableFuture<Boolean>> results = provider.moveToHomeScreen(uriList);
+
+                // NOTE: On failure to move the first dropped URI, we must explicitly remove its
+                // associated workspace item to keep launcher state in sync with file system state.
+                CompletableFuture<Void> unused =
+                        results.getFirst().handle((result, throwable) -> runOnUiThread(() -> {
+                            if (throwable != null || !result) {
+                                mLauncher.removeItem(firstItemView, firstItemInfo, true);
+                            }
+                        }));
+
+                // NOTE: On completion of all move attempts we can release any held URI permissions.
+                unused =
+                        CompletableFuture.allOf(results.toArray(new CompletableFuture[0])).handle(
+                                (result, throwable) -> runOnUiThread(() -> {
+                                    DragAndDropPermissions permissions = dragInfo.getPermissions();
+                                    if (permissions != null) {
+                                        permissions.release();
+                                    }
+                                }));
+            });
+
             mStatsLogManager.logger().withItemInfo(d.dragInfo).withInstanceId(d.logInstanceId)
                     .log(LauncherEvent.LAUNCHER_ITEM_DROP_COMPLETED);
         }
@@ -3417,17 +3500,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     public static View mapOverCellLayouts(CellLayout[] layouts, ItemOperator op) {
         for (CellLayout layout : layouts) {
             // TODO(b/128460496) Potential race condition where layout is not yet loaded
-            if (layout == null) continue;
-
-            ShortcutAndWidgetContainer container = layout.getShortcutsAndWidgets();
-            // map over all the shortcuts on the layout
-            final int itemCount = container.getChildCount();
-            for (int itemIdx = 0; itemIdx < itemCount; itemIdx++) {
-                View item = container.getChildAt(itemIdx);
-                if (op.evaluate((ItemInfo) item.getTag(), item)) {
-                    return item;
-                }
-            }
+            View result = layout == null ? null : layout.mapOverItems(op);
+            if (result != null) return result;
         }
         return null;
     }
@@ -3596,5 +3670,10 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 performAccessibilityActionOnViewTree(viewgroup.getChildAt(i));
             }
         }
+    }
+
+    private Void runOnUiThread(Runnable runnable) {
+        mLauncher.runOnUiThread(runnable);
+        return null;
     }
 }

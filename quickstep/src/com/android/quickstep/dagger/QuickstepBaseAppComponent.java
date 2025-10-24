@@ -43,6 +43,7 @@ import com.android.quickstep.TaskAnimationManager;
 import com.android.quickstep.TaskOverlayFactory;
 import com.android.quickstep.TopTaskTracker;
 import com.android.quickstep.actioncorner.ActionCornerHandler;
+import com.android.quickstep.input.QuickstepKeyGestureEventsManager;
 import com.android.quickstep.inputconsumers.NavHandleLongPressHandler;
 import com.android.quickstep.logging.SettingsChangeLogger;
 import com.android.quickstep.util.AsyncClockEventDelegate;
@@ -50,6 +51,7 @@ import com.android.quickstep.util.ContextualSearchHapticManager;
 import com.android.quickstep.util.ContextualSearchStateManager;
 import com.android.quickstep.views.RecentsDismissUtils;
 import com.android.quickstep.window.RecentsWindowManager;
+import com.android.quickstep.window.RecentsWindowTracker;
 
 import java.util.Set;
 
@@ -89,6 +91,8 @@ public interface QuickstepBaseAppComponent extends LauncherBaseAppComponent {
 
     PerDisplayRepository<RecentsWindowManager> getRecentsWindowManagerRepository();
 
+    PerDisplayRepository<RecentsWindowTracker> getRecentsWindowTrackerRepository();
+
     PerDisplayRepository<FallbackWindowInterface> getFallbackWindowInterfaceRepository();
 
     RecentsModel getRecentsModel();
@@ -123,4 +127,6 @@ public interface QuickstepBaseAppComponent extends LauncherBaseAppComponent {
     TaskbarFeatureEvaluator getTaskbarFeatureEvaluator();
 
     Set<LifecycleTracker> getLifecycleTrackers();
+
+    QuickstepKeyGestureEventsManager getQuickstepKeyGestureEventsManager();
 }

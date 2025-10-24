@@ -34,7 +34,7 @@ import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
 import com.android.launcher3.uioverrides.QuickstepLauncher
-import com.android.launcher3.util.Executors.MAIN_EXECUTOR
+import com.android.launcher3.util.Executors.IMMEDIATE_EXECUTOR
 import com.android.launcher3.util.LauncherMultivalentJUnit
 import com.android.launcher3.util.LauncherMultivalentJUnit.EmulatedDevices
 import com.android.launcher3.util.MutableListenableRef
@@ -132,29 +132,28 @@ class TaskbarLauncherStateControllerTest {
                 on { state } doReturn mock<LauncherState>()
             }
         val dp = taskbarUnitTestRule.activityContext.deviceProfile
+        val mockedLauncherUiState =
+            mock<LauncherUiState> {
+                on { deviceProfileRef } doReturn MutableListenableRef(dp)
+                on { isSplitSelectActiveRef } doReturn MutableListenableRef(false)
+                on { launcherStateRef } doReturn MutableListenableRef(LauncherState.NORMAL)
+                on { taskbarAlignmentChannelAlpha } doReturn MutableListenableRef(0f)
+            }
         val quickstepLauncher =
             mock<QuickstepLauncher> {
                 on { deviceProfile } doReturn dp
                 on { hotseat } doReturn mock<Hotseat>()
                 on { stateManager } doReturn launcherStateManager
-            }
-        val launcherUiState =
-            mock<LauncherUiState> {
-                on { deviceProfileRef } doReturn MutableListenableRef(dp)
-                on { isSplitSelectActiveRef } doReturn MutableListenableRef(false)
-                on { launcherStateRef } doReturn MutableListenableRef(LauncherState.NORMAL)
+                on { launcherUiState } doReturn mockedLauncherUiState
             }
         val controllers = taskbarUnitTestRule.activityContext.controllers
-        val immediateExecutor = Executor { r -> r.run() }
-        val launcherExecutor: Executor =
-            if (enableTaskbarUiThread()) MAIN_EXECUTOR else immediateExecutor
         val taskbarExecutor: Executor =
-            if (enableTaskbarUiThread()) TASKBAR_UI_THREAD else immediateExecutor
+            if (enableTaskbarUiThread()) TASKBAR_UI_THREAD else IMMEDIATE_EXECUTOR
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             taskbarLauncherStateController.init(
                 controllers,
-                LauncherInteractor(quickstepLauncher, launcherExecutor),
-                launcherUiState,
+                LauncherInteractor(quickstepLauncher),
+                mockedLauncherUiState,
                 sysUiStateFlags,
                 taskbarExecutor,
             )

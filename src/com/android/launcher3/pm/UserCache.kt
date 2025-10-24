@@ -17,24 +17,28 @@ package com.android.launcher3.pm
 
 import android.content.Context
 import android.content.Intent
-import android.os.Process
+import android.content.pm.LauncherApps
+import android.graphics.drawable.ColorDrawable
 import android.os.UserHandle
-import android.util.ArrayMap
-import androidx.annotation.AnyThread
-import androidx.annotation.VisibleForTesting
+import android.os.UserManager
+import android.os.UserManager.USER_TYPE_PROFILE_CLONE
+import android.os.UserManager.USER_TYPE_PROFILE_MANAGED
+import android.os.UserManager.USER_TYPE_PROFILE_PRIVATE
+import android.util.Log
 import androidx.annotation.WorkerThread
 import com.android.launcher3.Utilities.ATLEAST_U
+import com.android.launcher3.Utilities.ATLEAST_V
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.icons.BitmapInfo
 import com.android.launcher3.icons.UserBadgeDrawable
-import com.android.launcher3.util.ApiWrapper
 import com.android.launcher3.util.DaggerSingletonObject
 import com.android.launcher3.util.DaggerSingletonTracker
-import com.android.launcher3.util.Executors
+import com.android.launcher3.util.Executors.MODEL_EXECUTOR
 import com.android.launcher3.util.FlagOp
 import com.android.launcher3.util.SafeCloseable
 import com.android.launcher3.util.SimpleBroadcastReceiver
+import com.android.launcher3.util.SimpleBroadcastReceiver.Companion.actionsFilter
 import com.android.launcher3.util.UserIconInfo
 import java.util.function.BiConsumer
 import javax.inject.Inject
@@ -43,68 +47,109 @@ import javax.inject.Inject
 @LauncherAppSingleton
 class UserCache
 @Inject
-constructor(
-    @ApplicationContext context: Context,
-    tracker: DaggerSingletonTracker,
-    private val apiWrapper: ApiWrapper,
-) {
+constructor(@ApplicationContext private val context: Context, tracker: DaggerSingletonTracker) {
     private val userEventListeners = ArrayList<BiConsumer<UserHandle, String>>()
-    private val userChangeReceiver =
-        SimpleBroadcastReceiver(context, Executors.MODEL_EXECUTOR) { intent: Intent ->
-            this.onUsersChanged(intent)
-        }
 
-    private var userToSerialMap: Map<UserHandle, UserIconInfo> = emptyMap()
+    private val userManager = context.getSystemService(UserManager::class.java)!!
 
-    private var userToPreInstallAppMap: Map<UserHandle, List<String>> = emptyMap()
+    private var closed = false
+
+    private var _userInfoMap: UserManagerState? = null
+
+    val userManagerState: UserManagerState
+        get() = _userInfoMap ?: rebuildUserCache()
 
     init {
-        Executors.MODEL_EXECUTOR.execute { this.initAsync() }
-        tracker.addCloseable { userChangeReceiver.unregisterReceiverSafely() }
+        val userChangeReceiver =
+            SimpleBroadcastReceiver(context = context, executor = MODEL_EXECUTOR) {
+                onUsersChanged(it)
+            }
+        userChangeReceiver.register(
+            actionsFilter(
+                Intent.ACTION_MANAGED_PROFILE_AVAILABLE,
+                Intent.ACTION_MANAGED_PROFILE_UNAVAILABLE,
+                Intent.ACTION_MANAGED_PROFILE_REMOVED,
+                ACTION_PROFILE_ADDED,
+                ACTION_PROFILE_REMOVED,
+                ACTION_PROFILE_UNLOCKED,
+                ACTION_PROFILE_LOCKED,
+                ACTION_PROFILE_AVAILABLE,
+                ACTION_PROFILE_UNAVAILABLE,
+            )
+        ) {
+            rebuildUserCache()
+        }
+        tracker.addCloseable { closed = true }
+        tracker.addCloseable(userChangeReceiver)
     }
 
     @WorkerThread
-    private fun initAsync() {
-        userChangeReceiver.register(
-            Intent.ACTION_MANAGED_PROFILE_AVAILABLE,
-            Intent.ACTION_MANAGED_PROFILE_UNAVAILABLE,
-            Intent.ACTION_MANAGED_PROFILE_REMOVED,
-            ACTION_PROFILE_ADDED,
-            ACTION_PROFILE_REMOVED,
-            ACTION_PROFILE_UNLOCKED,
-            ACTION_PROFILE_LOCKED,
-            ACTION_PROFILE_AVAILABLE,
-            ACTION_PROFILE_UNAVAILABLE,
-        )
-        updateCache()
-    }
-
-    @AnyThread
     private fun onUsersChanged(intent: Intent) {
-        Executors.MODEL_EXECUTOR.execute { this.updateCache() }
+        if (closed) return
+        rebuildUserCache()
         val user = intent.getParcelableExtra<UserHandle>(Intent.EXTRA_USER) ?: return
         val action = intent.action ?: return
         userEventListeners.forEach { it.accept(user, action) }
     }
 
     @WorkerThread
-    private fun updateCache() {
-        userToSerialMap = apiWrapper.queryAllUsers()
-        userToPreInstallAppMap = fetchPreInstallApps()
+    private fun rebuildUserCache(): UserManagerState =
+        UserManagerState(
+                fetchSafe(emptyList<UserHandle>()) { userProfiles }
+                    .mapNotNull { buildCachedUserInfo(it) }
+                    .associateBy { it.iconInfo.user }
+            )
+            .also { _userInfoMap = it }
+
+    private fun buildCachedUserInfo(user: UserHandle): CachedUserInfo? {
+        if (!ATLEAST_V) {
+            return fetchSafe(null) {
+                // Simple check to check if the provided user is work profile
+                val isWork =
+                    NoopDrawable().let { it !== context.packageManager.getUserBadgedIcon(it, user) }
+                CachedUserInfo(
+                    UserIconInfo(
+                        user = user,
+                        type = if (isWork) UserIconInfo.TYPE_WORK else UserIconInfo.TYPE_MAIN,
+                        userSerial = getSerialNumberForUser(user),
+                    ),
+                    isUnlocked = isUserUnlocked(user),
+                    isQuietModeEnabled = isQuietModeEnabled(user),
+                )
+            }
+        }
+
+        val launcherApps = context.getSystemService(LauncherApps::class.java) ?: return null
+        return launcherApps.getLauncherUserInfo(user)?.let {
+            val userType: String? = it.userType
+            CachedUserInfo(
+                iconInfo =
+                    UserIconInfo(
+                        user = user,
+                        type =
+                            when (userType) {
+                                null -> UserIconInfo.TYPE_MAIN
+                                USER_TYPE_PROFILE_MANAGED -> UserIconInfo.TYPE_WORK
+                                USER_TYPE_PROFILE_CLONE -> UserIconInfo.TYPE_CLONED
+                                USER_TYPE_PROFILE_PRIVATE -> UserIconInfo.TYPE_PRIVATE
+                                else -> UserIconInfo.TYPE_MAIN
+                            },
+                        userSerial = it.userSerialNumber.toLong(),
+                    ),
+                isUnlocked = fetchSafe(false) { isUserUnlocked(user) },
+                isQuietModeEnabled = fetchSafe(false) { isQuietModeEnabled(user) },
+                preInstallApps = launcherApps.getPreInstalledSystemPackages(user).toSet(),
+            )
+        }
     }
 
-    @WorkerThread
-    private fun fetchPreInstallApps(): MutableMap<UserHandle, List<String>> {
-        val userToPreInstallApp = ArrayMap<UserHandle, List<String>>()
-        userToSerialMap.forEach { (userHandle, userIconInfo) ->
-            // Fetch only for private profile, as other profiles have no usages yet.
-            val preInstallApp =
-                if (userIconInfo.isPrivate) apiWrapper.getPreInstalledSystemPackages(userHandle)
-                else ArrayList()
-            userToPreInstallApp[userHandle] = preInstallApp
+    private inline fun <T> fetchSafe(defaultValue: T, block: UserManager.() -> T) =
+        try {
+            block.invoke(userManager)
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Security exception while fetching user property", e)
+            defaultValue
         }
-        return userToPreInstallApp
-    }
 
     /** Adds a listener for user additions and removals */
     fun addUserEventListener(listener: BiConsumer<UserHandle, String>): SafeCloseable {
@@ -116,34 +161,44 @@ constructor(
     fun getSerialNumberForUser(user: UserHandle): Long = getUserInfo(user).userSerial
 
     /** Returns the user properties for the provided user or default values */
-    fun getUserInfo(user: UserHandle): UserIconInfo =
-        userToSerialMap[user] ?: UserIconInfo(user, UserIconInfo.TYPE_MAIN)
+    fun getUserInfo(user: UserHandle) = userManagerState.getUserInfo(user)
+
+    /** Returns the user locked state */
+    fun isUserUnlocked(user: UserHandle) = userManagerState.isUserUnlocked(user)
 
     /** @see UserManager.getUserForSerialNumber */
     fun getUserForSerialNumber(serialNumber: Long): UserHandle =
-        userToSerialMap.firstNotNullOfOrNull { (user, info) ->
-            if (serialNumber == info.userSerial) user else null
-        } ?: Process.myUserHandle()
-
-    @VisibleForTesting
-    fun putToCache(userHandle: UserHandle, info: UserIconInfo) {
-        userToSerialMap += userHandle to info
-    }
-
-    @VisibleForTesting
-    fun putToPreInstallCache(userHandle: UserHandle, preInstalledApps: List<String>) {
-        userToPreInstallAppMap += userHandle to preInstalledApps
-    }
+        userManagerState.getUser(serialNumber)
 
     /** @see UserManager.getUserProfiles */
     val userProfiles: List<UserHandle>
-        get() = userToSerialMap.keys.toList()
+        get() = userManagerState.userProfiles
 
     /** Returns the pre-installed apps for a user. */
-    fun getPreInstallApps(user: UserHandle): List<String> =
-        userToPreInstallAppMap[user] ?: emptyList()
+    fun getPreInstallApps(user: UserHandle) = userManagerState.getPreInstallApps(user)
+
+    private class NoopDrawable : ColorDrawable() {
+        override fun getIntrinsicHeight() = 1
+
+        override fun getIntrinsicWidth() = 1
+    }
+
+    /** Information about a UserHandle cached in the platform */
+    data class CachedUserInfo(
+        val iconInfo: UserIconInfo,
+        val isUnlocked: Boolean,
+        val isQuietModeEnabled: Boolean,
+
+        /**
+         * List of the system packages that are installed at user creation. An empty list denotes
+         * that all system packages are installed for that user at creation.
+         */
+        val preInstallApps: Set<String> = emptySet(),
+    )
 
     companion object {
+        private const val TAG = "UserCache"
+
         @JvmField var INSTANCE = DaggerSingletonObject { it.userCache }
 
         @JvmField

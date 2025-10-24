@@ -46,7 +46,6 @@ import android.graphics.RectF;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.os.Process;
-import android.os.UserManager;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.SparseArray;
@@ -206,12 +205,10 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         mHeaderProtectionColor = Themes.getAttrColor(context, R.attr.allappsHeaderProtectionColor);
 
         mWorkManager = new WorkProfileManager(
-                mActivityContext.getSystemService(UserManager.class),
                 this,
                 mActivityContext.getStatsLogManager(),
                 UserCache.INSTANCE.get(mActivityContext));
         mPrivateProfileManager = new PrivateProfileManager(
-                mActivityContext.getSystemService(UserManager.class),
                 this,
                 mActivityContext.getStatsLogManager(),
                 UserCache.INSTANCE.get(mActivityContext));
@@ -657,7 +654,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         setUpCustomRecyclerViewPool(
                 mainRecyclerView,
                 workRecyclerView,
-                mAllAppsStore.getRecyclerViewPool());
+                mActivityContext.getActivityComponent().getSharedAppsPool());
         setupHeader();
 
         if (isSearchBarFloating()) {
@@ -686,13 +683,11 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
             @NonNull AllAppsRecyclerView mainRecyclerView,
             @Nullable AllAppsRecyclerView workRecyclerView,
             @NonNull AllAppsRecyclerViewPool recycledViewPool) {
-        final boolean hasWorkProfile = workRecyclerView != null;
-        recycledViewPool.setHasWorkProfile(hasWorkProfile);
         mainRecyclerView.setRecycledViewPool(recycledViewPool);
         if (workRecyclerView != null) {
             workRecyclerView.setRecycledViewPool(recycledViewPool);
         }
-        mainRecyclerView.updatePoolSize(hasWorkProfile);
+        mainRecyclerView.updatePoolSize();
     }
 
     private void replaceAppsRVContainer(boolean showTabs) {

@@ -31,10 +31,13 @@ import android.util.SparseArray
 import com.android.launcher3.Flags
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.LauncherSettings.Favorites
+import com.android.launcher3.Utilities.qsbOnFirstScreen
+import com.android.launcher3.WorkspaceLayoutManager
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger.RestoreError
 import com.android.launcher3.folder.Folder
 import com.android.launcher3.folder.FolderGridOrganizer.createFolderGridOrganizer
 import com.android.launcher3.homescreenfiles.HomeScreenFile
+import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils
 import com.android.launcher3.icons.CacheableShortcutInfo
 import com.android.launcher3.icons.IconCache
 import com.android.launcher3.icons.cache.CacheLookupFlag.Companion.DEFAULT_LOOKUP_FLAG
@@ -48,13 +51,14 @@ import com.android.launcher3.model.data.ItemInfoWithIcon
 import com.android.launcher3.model.data.LauncherAppWidgetInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.pm.PackageInstallInfo
-import com.android.launcher3.pm.UserCache
+import com.android.launcher3.pm.UserManagerState
 import com.android.launcher3.shortcuts.ShortcutKey
 import com.android.launcher3.shortcuts.ShortcutRequest
 import com.android.launcher3.util.ApiWrapper
 import com.android.launcher3.util.ApplicationInfoWrapper
 import com.android.launcher3.util.ContentWriter
 import com.android.launcher3.util.IntArray
+import com.android.launcher3.util.IntSet
 import com.android.launcher3.util.IntSparseArrayMap
 import com.android.launcher3.util.PackageManagerHelper
 import com.android.launcher3.util.PackageUserKey
@@ -72,7 +76,6 @@ import com.android.launcher3.widget.util.WidgetSizeHandler
 class WorkspaceItemProcessor(
     private val c: LoaderCursor,
     private val memoryLogger: LoaderMemoryLogger?,
-    private val userCache: UserCache,
     private val userManagerState: UserManagerState,
     private val launcherApps: LauncherApps,
     private val pendingPackages: MutableSet<PackageUserKey>,
@@ -388,7 +391,7 @@ class WorkspaceItemProcessor(
                 AppInfo.updateRuntimeFlagsForActivityTarget(
                     info,
                     activityInfo,
-                    userCache.getUserInfo(c.user),
+                    userManagerState.getUserInfo(c.user),
                     ApiWrapper.INSTANCE[context],
                     pmHelper,
                 )
@@ -633,34 +636,47 @@ class WorkspaceItemProcessor(
     private fun addRemainingFileSystemItems(modelDbController: ModelDbController) {
         val knownDesktopContainerItems =
             ArrayList(loadedItems.filter { it.container == Favorites.CONTAINER_DESKTOP })
-        val knownScreenIds =
-            IntArray.wrap(*knownDesktopContainerItems.map { it.screenId }.distinct().toIntArray())
+        val excludedScreens = IntSet()
 
-        for ((_, file) in homeScreenFiles.value) {
+        if (qsbOnFirstScreen()) {
+            // Reserve layout space for the search container. Note that this is not required when
+            // [Flags.FLAG_INJECTABLE_MODEL_ITEMS] is enabled as injected items will already be
+            // accounted for in [knownDesktopContainerItems].
+            knownDesktopContainerItems.add(
+                WorkspaceItemInfo().apply {
+                    cellX = 0
+                    cellY = 0
+                    container = Favorites.CONTAINER_DESKTOP
+                    screenId = WorkspaceLayoutManager.FIRST_SCREEN_ID
+                    spanX = idp.numSearchContainerColumns
+                    spanY = 1
+                }
+            )
+        }
+
+        for ((uri, file) in homeScreenFiles.value) {
             // TODO(b/424466810): ignore normally restored items.
 
             val item = WorkspaceItemInfo()
             item.id = modelDbController.generateNewItemId()
             item.title = file.displayName
             item.container = Favorites.CONTAINER_DESKTOP
-            item.itemType =
-                if (file.isDirectory) Favorites.ITEM_TYPE_FILE_SYSTEM_FOLDER
-                else Favorites.ITEM_TYPE_FILE_SYSTEM_FILE
+            item.itemType = HomeScreenFilesUtils.buildItemType(file)
+            item.intent = HomeScreenFilesUtils.buildLaunchIntent(uri, file)
 
             // TODO(b/424466144, b/424466406): add MIME-type-based icons or thumbnails.
             item.bitmap = iconCache.getDefaultIcon(item.user)
 
             val coords =
                 workspaceItemSpaceFinder.findSpaceForItem(
-                    knownScreenIds,
-                    IntArray(),
                     knownDesktopContainerItems,
                     item.spanX,
                     item.spanY,
+                    excludedScreens,
                 )
-            item.screenId = coords[0]
-            item.cellX = coords[1]
-            item.cellY = coords[2]
+            item.screenId = coords.screenId
+            item.cellX = coords.cellX
+            item.cellY = coords.cellY
 
             val writer = ContentWriter(context)
             item.onAddToDatabase(writer)
