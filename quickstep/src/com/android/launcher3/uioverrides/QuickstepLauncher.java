@@ -71,8 +71,8 @@ import static com.android.launcher3.testing.shared.TestProtocol.QUICK_SWITCH_STA
 import static com.android.launcher3.util.DisplayController.CHANGE_ACTIVE_SCREEN;
 import static com.android.launcher3.util.DisplayController.CHANGE_NAVIGATION_MODE;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
-import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.quickstep.split.SplitAnimationTimings.TABLET_HOME_TO_SPLIT;
+import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.systemui.shared.system.ActivityManagerWrapper.CLOSE_SYSTEM_WINDOWS_REASON_HOME_KEY;
 import static com.android.wm.shell.shared.split.SplitScreenConstants.SNAP_TO_2_50_50;
 
@@ -111,6 +111,7 @@ import android.window.OnBackInvokedDispatcher;
 import android.window.RemoteTransition;
 import android.window.SplashScreen;
 
+import androidx.annotation.AnyThread;
 import androidx.annotation.BinderThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -201,15 +202,15 @@ import com.android.quickstep.TaskUtils;
 import com.android.quickstep.TouchInteractionService.TISBinder;
 import com.android.quickstep.fallback.RecentsState;
 import com.android.quickstep.fallback.RecentsStateUtilsKt;
+import com.android.quickstep.split.SplitSelectStateController;
+import com.android.quickstep.split.SplitToWorkspaceController;
+import com.android.quickstep.split.SplitWithKeyboardShortcutController;
 import com.android.quickstep.util.ActiveGestureProtoLogProxy;
 import com.android.quickstep.util.AnimUtils;
 import com.android.quickstep.util.AsyncClockEventDelegate;
 import com.android.quickstep.util.LauncherUnfoldAnimationController;
 import com.android.quickstep.util.QuickstepOnboardingPrefs;
-import com.android.quickstep.split.SplitSelectStateController;
 import com.android.quickstep.util.SplitTask;
-import com.android.quickstep.split.SplitToWorkspaceController;
-import com.android.quickstep.split.SplitWithKeyboardShortcutController;
 import com.android.quickstep.util.SurfaceTransactionApplier;
 import com.android.quickstep.util.TISBindHelper;
 import com.android.quickstep.util.unfold.LauncherUnfoldTransitionController;
@@ -270,7 +271,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     private TISBindHelper mTISBindHelper;
     private @Nullable TaskbarInteractor mTaskbarInteractor;
     // Will be updated when dragging from taskbar.
-    private @Nullable UnfoldTransitionProgressProvider mUnfoldTransitionProgressProvider;
+    private @Nullable volatile UnfoldTransitionProgressProvider mUnfoldTransitionProgressProvider;
     private @Nullable LauncherUnfoldAnimationController mLauncherUnfoldAnimationController;
 
     private SplitSelectStateController mSplitSelectStateController;
@@ -495,8 +496,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public boolean isAllAppsBackgroundBlurEnabled() {
-        return mDepthController != null && mDepthController.isCrossWindowBlursEnabled()
-                && Flags.allAppsBlur();
+        return mDepthController != null && mDepthController.isCrossWindowBlursEnabled();
     }
 
     @Override
@@ -1328,6 +1328,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         return mDepthController;
     }
 
+    @AnyThread
     @Nullable
     public UnfoldTransitionProgressProvider getUnfoldTransitionProgressProvider() {
         return mUnfoldTransitionProgressProvider;
@@ -1403,8 +1404,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     }
 
     @Override
-    public void onDisplayInfoChanged(DisplayController.Info info, int flags) {
-        super.onDisplayInfoChanged(info, flags);
+    public void onDisplayInfoChanged(Context context, DisplayController.Info info, int flags) {
+        super.onDisplayInfoChanged(context, info, flags);
         // When changing screens, force moving to rest state similar to StatefulActivity.onStop, as
         // StatefulActivity isn't called consistently.
         if ((flags & CHANGE_ACTIVE_SCREEN) != 0) {

@@ -182,20 +182,6 @@ flag {
 }
 
 flag {
-    name: "all_apps_sheet_for_handheld"
-    namespace: "launcher"
-    description: "All Apps will be presented on a bottom sheet in handheld mode"
-    bug: "374186088"
-}
-
-flag {
-    name: "all_apps_blur"
-    namespace: "launcher"
-    description: "Content behind the all apps panel in Launcher will be blurred."
-    bug: "400827727"
-}
-
-flag {
     name: "blurred_home_animation"
     namespace: "launcher"
     description: "Launcher will be blurred when the user swipes to home."
@@ -203,6 +189,13 @@ flag {
     metadata {
       purpose: PURPOSE_BUGFIX
     }
+}
+
+flag {
+    name: "all_apps_surface"
+    namespace: "launcher"
+    description: "All Apps will be drawn on a separate surface to improve performance."
+    bug: "414847564"
 }
 
 flag {
@@ -304,13 +297,6 @@ flag {
     namespace: "launcher"
     description: "Shows filtered set of widgets by default and an option to show all widgets in the widget picker"
     bug: "356127021"
-}
-
-flag {
-    name: "show_taskbar_pinning_popup_from_anywhere"
-    namespace: "launcher"
-    description: "Shows the pinning popup view after long-pressing or right-clicking anywhere on the pinned taskbar"
-    bug: "297325541"
 }
 
 flag {
@@ -438,16 +424,6 @@ flag {
   namespace: "launcher"
   description: "Remove predicted apps refresh on right click"
   bug: "343650193"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
-  name: "enable_taskbar_for_direct_boot"
-  namespace: "launcher"
-  description: "Initializes parts of Taskbar before onUserUnlocked"
-  bug: "324485921"
   metadata {
     purpose: PURPOSE_BUGFIX
   }
@@ -691,4 +667,14 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
+}
+
+flag {
+    name: "enable_files_on_home_screen_decoupled_init"
+    namespace: "launcher"
+    description: "Enables decoupling of files on home screen initialization from the loader task"
+    bug: "444563784"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
 }

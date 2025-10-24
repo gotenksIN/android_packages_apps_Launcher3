@@ -24,7 +24,6 @@ import static android.view.MotionEvent.ACTION_POINTER_DOWN;
 import static android.view.MotionEvent.ACTION_POINTER_UP;
 import static android.view.MotionEvent.ACTION_UP;
 
-import static com.android.launcher3.Flags.enableTaskbarForDirectBoot;
 import static com.android.launcher3.LauncherPrefs.backedUpItem;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
@@ -545,6 +544,12 @@ public class TouchInteractionService extends Service {
             return tis.mTaskbarManager;
         }
 
+        /** Returns the primary service */
+        @VisibleForTesting
+        public TouchInteractionService getService() {
+            return mTis.get();
+        }
+
         @VisibleForTesting
         public void injectFakeTrackpadForTesting() {
             TouchInteractionService tis = mTis.get();
@@ -751,8 +756,8 @@ public class TouchInteractionService extends Service {
 
     private DesktopAppLaunchTransitionManager mDesktopAppLaunchTransitionManager;
 
-    private @Nullable SafeCloseable mNavigationModeChangeSafeClosable;
-    private @Nullable SafeCloseable mNightModeChangeSafeClosable;
+    private DisplayController.DisplayInfoChangeListener mNavigationModeChangeListener;
+    private DisplayController.DisplayInfoChangeListener mNightModeChangeListener;
 
     PerDisplayRepository<RecentsWindowManager> mRecentsWindowManagerRepository;
 
@@ -810,11 +815,11 @@ public class TouchInteractionService extends Service {
         // Call runOnUserUnlocked() before any other callbacks to ensure everything is initialized.
         LockedUserState.get(this).runOnUserUnlocked(mUserUnlockedRunnable);
         // Assume that the navigation mode changes for all displays at once.
-        mNavigationModeChangeSafeClosable =
+        mNavigationModeChangeListener =
                 mDeviceStateRepository.get(DEFAULT_DISPLAY).addDisplayInfoChangeCallback(
                         CHANGE_NAVIGATION_MODE, this::onNavigationModeChanged);
         // Assume that the night mode changes for all displays at once.
-        mNightModeChangeSafeClosable =
+        mNightModeChangeListener =
                 mDeviceStateRepository.get(DEFAULT_DISPLAY).addDisplayInfoChangeCallback(
                         CHANGE_NIGHT_MODE, this::onNightModeChanged);
         ScreenOnTracker.INSTANCE.get(this).addListener(mScreenOnListener);
@@ -996,7 +1001,7 @@ public class TouchInteractionService extends Service {
                 }
                 taskAnimationManager.onSystemUiFlagsChanged(lastSysUIFlags, systemUiStateFlags);
             }
-        } else if (enableTaskbarForDirectBoot() && deviceState != null) {
+        } else if (deviceState != null) {
             mTaskbarManager.onSystemUiFlagsChanged(deviceState.getSysuiStateFlags(), displayId);
         }
     }
@@ -1030,14 +1035,10 @@ public class TouchInteractionService extends Service {
             mDesktopAppLaunchTransitionManager.unregisterTransitions();
         }
         mDesktopAppLaunchTransitionManager = null;
-        if (mNavigationModeChangeSafeClosable != null) {
-            mNavigationModeChangeSafeClosable.close();
-            mNavigationModeChangeSafeClosable = null;
-        }
-        if (mNightModeChangeSafeClosable != null) {
-            mNightModeChangeSafeClosable.close();
-            mNightModeChangeSafeClosable = null;
-        }
+        mDeviceStateRepository.get(DEFAULT_DISPLAY).removeDisplayInfoChangeListener(
+                mNavigationModeChangeListener);
+        mDeviceStateRepository.get(DEFAULT_DISPLAY).removeDisplayInfoChangeListener(
+                mNightModeChangeListener);
         LockedUserState.get(this).removeOnUserUnlockedRunnable(mUserUnlockedRunnable);
         ScreenOnTracker.INSTANCE.get(this).removeListener(mScreenOnListener);
         if (RecentsWindowFlags.getEnableOverviewInWindow()) {
@@ -1375,7 +1376,9 @@ public class TouchInteractionService extends Service {
         }
     }
 
-    private void reset(int displayId) {
+    /** Resets any active input related to this display */
+    @VisibleForTesting
+    public void reset(int displayId) {
         mConsumer = mUncheckedConsumer = InputConsumerUtils.getDefaultInputConsumer(
                 displayId,
                 mUserUnlocked,

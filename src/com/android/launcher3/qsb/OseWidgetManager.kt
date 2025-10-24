@@ -21,6 +21,7 @@ import android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
 import android.appwidget.AppWidgetProviderInfo
 import android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX
 import android.appwidget.AppWidgetProviderInfo.WIDGET_FEATURE_CONFIGURATION_OPTIONAL
+import android.appwidget.AppWidgetProviderInfo.WIDGET_FEATURE_HIDE_FROM_PICKER
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.os.Process.myUserHandle
@@ -95,7 +96,14 @@ constructor(
     private fun handleOseInfoUpdate(info: OSEInfo) {
         // If the package is null, leave it to the current value as the OSEManager
         // may not have initialized yet
-        val providerPkg = info.pkg ?: return
+        val providerPkg =
+            if (info.pkg != null) {
+                info.pkg
+            } else {
+                // When defaultSearchPackage is disabled oseInfo pkg is null.
+                dispatchNullValues()
+                return
+            }
         val searchWidget = findSearchWidgetForPackage(context, providerPkg)
 
         val currentWidgetId = widgetHost.getBoundWidgetId()
@@ -183,9 +191,13 @@ constructor(
                         it.configure == null ||
                             ((it.widgetFeatures and WIDGET_FEATURE_CONFIGURATION_OPTIONAL) != 0)
                     }
-            return allEligibleWidgets.firstOrNull {
-                (it.widgetCategory and WIDGET_CATEGORY_SEARCHBOX) != 0
-            } ?: allEligibleWidgets.firstOrNull()
+            val allSearchBoxWidgets =
+                allEligibleWidgets.filter { (it.widgetCategory and WIDGET_CATEGORY_SEARCHBOX) != 0 }
+            return allSearchBoxWidgets.firstOrNull {
+                // If multiple search box widgets are available, choose the widget that is
+                // not hidden from the picker
+                (it.widgetFeatures and WIDGET_FEATURE_HIDE_FROM_PICKER) == 0
+            } ?: allSearchBoxWidgets.firstOrNull() ?: allEligibleWidgets.firstOrNull()
         }
     }
 }
