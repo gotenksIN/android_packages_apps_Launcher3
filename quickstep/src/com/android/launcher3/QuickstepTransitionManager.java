@@ -67,7 +67,6 @@ import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.quickstep.util.FloatingIconViewHelper.getFloatingIconView;
 import static com.android.systemui.shared.system.QuickStepContract.getWindowCornerRadius;
 import static com.android.systemui.shared.system.QuickStepContract.supportsRoundedCornersOnWindows;
-import static com.android.wm.shell.Flags.enableDynamicInsetsForAppLaunch;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -736,8 +735,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     }
 
     private boolean shouldCropToInset(RemoteAnimationTarget target) {
-        return enableDynamicInsetsForAppLaunch()
-                && mDeviceProfile.isTaskbarPresent
+        return mDeviceProfile.isTaskbarPresent
                 && mDeviceProfile.isTaskbarPresentInApps
                 && target != null && !target.willShowImeOnTarget
                 && !isTransientTaskbar();
@@ -1273,7 +1271,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
     /** Returns animator that controls depth/blur of the background during app/widget opening. */
     private Animator getBackgroundAnimator() {
-        if (Flags.allAppsBlur()) {
+        if (!Flags.allAppsSurface()) {
             // Don't animate/blur the background for this launch, regardless of the launcher state.
             // We have too many performance issues with the blur.
             return new AnimatorSet();

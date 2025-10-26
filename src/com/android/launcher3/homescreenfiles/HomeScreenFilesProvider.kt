@@ -39,6 +39,13 @@ data class HomeScreenFile(
 
 /** An interface for managing file items to be shown on the home screen. */
 interface HomeScreenFilesProvider {
+
+    /** A stream of updates to file items shown on the home screen. */
+    val updates: ListenableStream<HomeScreenFilesUpdate>
+
+    /** Resolves when the home screen files provider is ready to service calls. */
+    fun onReady(): CompletableFuture<Void>
+
     /** Returns whether a new folder can be created. */
     fun canCreateNewFolder(): Boolean
 
@@ -62,11 +69,17 @@ interface HomeScreenFilesProvider {
      */
     fun moveToHomeScreen(uriList: List<Uri>): List<CompletableFuture<Boolean>>
 
-    /** Moves a single file or folder to trash. */
-    fun moveToTrash(uri: Uri)
+    /**
+     * Deletes a single file or folder.
+     *
+     * @param uri The URI of the item to be deleted.
+     * @param permanent If `true`, the item is deleted permanently and cannot be restored. If
+     *   `false`, the item is moved to trash and can be restored later.
+     */
+    fun delete(uri: Uri, permanent: Boolean)
 
     /** Returns all eligible file items to be shown on the home screen. */
-    fun query(): Lazy<Map<Uri, HomeScreenFile>>
+    fun query(): CompletableFuture<Map<Uri, HomeScreenFile>>
 
     /**
      * Information about a change to a file item shown on the home screen.

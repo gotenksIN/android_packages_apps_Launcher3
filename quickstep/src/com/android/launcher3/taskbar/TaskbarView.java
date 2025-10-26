@@ -32,7 +32,6 @@ import static com.android.launcher3.icons.IconNormalizer.ICON_VISIBLE_AREA_FACTO
 
 import android.animation.Animator;
 import android.animation.AnimatorSet;
-import android.animation.LayoutTransition;
 import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.content.res.Resources;
@@ -107,8 +106,11 @@ import java.util.Set;
  * Hosts the Taskbar content such as Hotseat and Recent Apps. Drawn on top of other apps.
  */
 public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconParent, Insettable,
-        DeviceProfile.OnDeviceProfileChangeListener {
+        DeviceProfile.OnDeviceProfileChangeListener,
+        TaskbarViewDragDropController.PinnedAppsContainerDelegate {
     private static final Rect sTmpRect = new Rect();
+    private final int mUnpinnedHitRectBuffer;
+    private final int mPinnedHitRectBuffer;
     private final Rect mIconLayoutBounds;
     private final int mIconTouchSize;
     private final int mItemMarginLeftRight;
@@ -208,6 +210,11 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         mIsRtl = Utilities.isRtl(resources);
         mTaskbarUiState = TaskbarUiStateMonitor.INSTANCE.get(context)
                 .getTaskbarUiState(context.getDisplayId());
+        mUnpinnedHitRectBuffer = resources.getDimensionPixelSize(
+            R.dimen.taskbar_unpinned_hit_rect_buffer);
+        mPinnedHitRectBuffer = resources.getDimensionPixelSize(
+            R.dimen.taskbar_pinned_hit_rect_buffer);
+
         if (refactorTaskbarUiState()) {
             mTaskbarUiState.setTaskbarViewIsShown(isShown());
         }
@@ -437,10 +444,8 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
                     supportsPinningPopup ? mControllerCallbacks : null);
         }
 
-        if (Flags.showTaskbarPinningPopupFromAnywhere()) {
-            setOnTouchListener(
-                    supportsPinningPopup ? mControllerCallbacks.getTaskbarTouchListener() : null);
-        }
+        setOnTouchListener(
+                supportsPinningPopup ? mControllerCallbacks.getTaskbarTouchListener() : null);
     }
 
     private void removeAndRecycle(View view) {
@@ -1446,14 +1451,6 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         return iconLayoutBoundsWidth;
     }
 
-    @Override
-    public void setLayoutTransition(LayoutTransition transition) {
-        super.setLayoutTransition(transition);
-        if (mHotseatIconsContainer != null) {
-            mHotseatIconsContainer.setLayoutTransition(transition);
-        }
-    }
-
     /**
      * Returns the app icons currently shown in the taskbar. The returned list does not include qsb,
      * but it includes all apps button and icon divider views.
@@ -1637,6 +1634,84 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
     @Override
     protected boolean checkLayoutParams(ViewGroup.LayoutParams p) {
         return p instanceof TaskbarLayoutParams;
+    }
+
+    @Override
+    public void getHitRectForPinRelativeToDragLayer(Rect outRect) {
+        // If mHotseatIconsContainer is set, use its bounds directly.
+        if (mHotseatIconsContainer != null) {
+            mActivityContext.getDragLayer().getDescendantRectRelativeToSelf(
+                    mHotseatIconsContainer, outRect);
+            outRect.inset(-mPinnedHitRectBuffer, 0);
+            return;
+        }
+
+        // Otherwise use the area between all apps button and divider.
+        mActivityContext.getDragLayer().getDescendantRectRelativeToSelf(this, outRect);
+        int taskbarLeftInDragLayer = outRect.left;
+        View[] iconViews = getIconViews();
+
+        if (mIsRtl) {
+            // RTL: Pinned section is on the right.
+            outRect.right = taskbarLeftInDragLayer + mAllAppsButtonContainer.getRight()
+                    - mAllAppsButtonTranslationOffset;
+
+            if (mAddedDividerForRecents && mTaskbarDividerContainer != null) {
+                outRect.left += mTaskbarDividerContainer.getRight();
+            } else {
+                // If there's no divider, iconViews contains pinned apps only.
+                outRect.left = iconViews.length > 0
+                        ? taskbarLeftInDragLayer + iconViews[0].getLeft()
+                        : outRect.right;
+            }
+        } else {
+            outRect.left += mAllAppsButtonTranslationOffset + mAllAppsButtonContainer.getLeft();
+
+            if (mAddedDividerForRecents && mTaskbarDividerContainer != null) {
+                outRect.right = taskbarLeftInDragLayer + mTaskbarDividerContainer.getLeft();
+            } else {
+                outRect.right = iconViews.length > 0
+                        ? taskbarLeftInDragLayer + iconViews[iconViews.length - 1].getRight()
+                        : outRect.left;
+            }
+        }
+
+        // Adding a padding to the left and right bound for dropping leftmost/rightmost to reorder.
+        outRect.left -= mPinnedHitRectBuffer;
+        outRect.right += mPinnedHitRectBuffer;
+    }
+
+    @Override
+    public void getHitRectForUnpinRelativeToDragLayer(Rect outRect) {
+        // Use the recent apps (unpin) area as the bounds.
+        mActivityContext.getDragLayer().getDescendantRectRelativeToSelf(this, outRect);
+        int taskbarLeftInDragLayer = outRect.left;
+
+        if (mIsRtl) {
+            // Unpin area is from the start of the taskbar to the divider.
+            if (mAddedDividerForRecents && mTaskbarDividerContainer != null) {
+                outRect.right = taskbarLeftInDragLayer + mTaskbarDividerContainer.getLeft();
+            } else {
+                // No recent apps. Create a buffer area to the left of the pinned icons.
+                outRect.right = taskbarLeftInDragLayer + mUnpinnedHitRectBuffer;
+            }
+        } else {
+            View[] iconViews = getIconViews();
+            int iconsEnd = taskbarLeftInDragLayer
+                    + (iconViews.length > 0
+                            ? iconViews[iconViews.length - 1].getRight()
+                            : 0);
+
+            if (mAddedDividerForRecents && mTaskbarDividerContainer != null) {
+                // Use the area between Divider and right end of the last icon as the bound.
+                outRect.left += mTaskbarDividerContainer.getRight();
+                outRect.right = iconsEnd;
+            } else {
+                // No recent apps. Create a buffer area to the left of the pinned icons.
+                outRect.left = iconsEnd;
+                outRect.right = outRect.left + mUnpinnedHitRectBuffer;
+            }
+        }
     }
 
     public static class TaskbarLayoutParams extends FrameLayout.LayoutParams {
