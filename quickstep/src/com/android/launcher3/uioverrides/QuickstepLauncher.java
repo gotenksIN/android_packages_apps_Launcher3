@@ -150,8 +150,8 @@ import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.PredictedContainerInfo;
 import com.android.launcher3.popup.SystemShortcut;
 import com.android.launcher3.proxy.ProxyActivityStarter;
-import com.android.launcher3.statehandlers.DepthController;
 import com.android.launcher3.statehandlers.DesktopVisibilityController;
+import com.android.launcher3.statehandlers.LauncherDepthController;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.AtomicAnimationFactory;
 import com.android.launcher3.statemanager.StateManager.StateHandler;
@@ -178,6 +178,7 @@ import com.android.launcher3.uioverrides.touchcontrollers.TwoButtonNavbarTouchCo
 import com.android.launcher3.util.ActivityOptionsWrapper;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.IntSet;
+import com.android.launcher3.util.ListenableRef;
 import com.android.launcher3.util.NavigationMode;
 import com.android.launcher3.util.ObjectWrapper;
 import com.android.launcher3.util.OverviewCommandHelperProtoLogProxy;
@@ -190,6 +191,7 @@ import com.android.launcher3.util.SplitConfigurationOptions.SplitSelectSource;
 import com.android.launcher3.util.StableViewInfo;
 import com.android.launcher3.util.StartActivityParams;
 import com.android.launcher3.util.TouchController;
+import com.android.launcher3.util.WindowBlurState;
 import com.android.launcher3.views.FloatingIconView;
 import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.LauncherActivityInterface;
@@ -250,7 +252,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
@@ -264,7 +265,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     private PredictedContainerInfo mAllAppsPredictions;
     private HotseatPredictionController mHotseatPredictionController;
-    private DepthController mDepthController;
+    private LauncherDepthController mDepthController;
     private QuickstepTransitionManager mAppTransitionManager;
 
     private OverviewActionsView<?> mActionsView;
@@ -302,8 +303,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     private final OverviewChangeListener mOverviewChangeListener = this::onOverviewTargetChanged;
 
-    private boolean mOverviewBlurEnabled;
-
     private final TaskViewRecentsTouchContext mTaskViewRecentsTouchContext =
             new TaskViewRecentsTouchContext() {
                 @Override
@@ -323,12 +322,24 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                 }
             };
 
+    private void setupBlurState() {
+        ListenableRef<Boolean> blurState = WindowBlurState.getInstance(this);
+        boolean blurEnabled = blurState.getValue();
+
+        // Recreate launcher if the blur enabled state changes
+        closeOnDestroy(blurState.forEach(getUiExecutor(), v -> {
+            if (v != blurEnabled) mWallpaperThemeManager.recreateToUpdateTheme();
+            return null;
+        }));
+        mDepthController = new LauncherDepthController(this, blurEnabled);
+        getTheme().applyStyle(blurEnabled ? R.style.OverviewBlurStyle
+                : R.style.OverviewBlurFallbackStyle, true);
+    }
+
     @Override
     protected void setupViews() {
         getAppWidgetHolder().setOnViewCreationCallback(new QuickstepInteractionHandler(this));
-        mDepthController = new DepthController(this);
-        mOverviewBlurEnabled = isOverviewBackgroundBlurEnabled();
-        getTheme().applyStyle(getOverviewBlurStyleResId(), true);
+        setupBlurState();
         super.setupViews();
         SurfaceTransactionApplier surfaceTransactionApplier = new SurfaceTransactionApplier(
                 getRootView());
@@ -494,23 +505,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         super.showAllAppsFromIntent(alreadyOnHome);
     }
 
-    @Override
-    public boolean isAllAppsBackgroundBlurEnabled() {
-        return mDepthController != null && mDepthController.isCrossWindowBlursEnabled();
-    }
-
-    @Override
-    public boolean isOverviewBackgroundBlurEnabled() {
-        return mDepthController != null && mDepthController.isCrossWindowBlursEnabled();
-    }
-
-    /** Apply the blur or blur fallback style to the current theme. */
-    public void updateBlurStyle() {
-        if (isOverviewBackgroundBlurEnabled() != mOverviewBlurEnabled) {
-            mWallpaperThemeManager.recreateToUpdateTheme();
-        }
-    }
-
     public TaskbarUiState getTaskbarUiState() {
         return mTaskbarUiState;
     }
@@ -664,12 +658,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     public void onItemPinnedFromContextMenu() {
         super.onItemPinnedFromContextMenu();
         mHotseatPredictionController.onItemPinnedFromContextMenu();
-    }
-
-    @Override
-    public void bindWorkspaceComponentsRemoved(Predicate<ItemInfo> matcher) {
-        super.bindWorkspaceComponentsRemoved(matcher);
-        mHotseatPredictionController.onModelItemsRemoved(matcher);
     }
 
     @Override
@@ -1324,7 +1312,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         out.add(new RecentsViewStateController(this));
     }
 
-    public DepthController getDepthController() {
+    public LauncherDepthController getDepthController() {
         return mDepthController;
     }
 
@@ -1715,12 +1703,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     @Override
     public void returnToHomescreen() {
         getStateManager().goToState(LauncherState.NORMAL);
-    }
-
-    @Override
-    public int getOverviewBlurStyleResId() {
-        return isOverviewBackgroundBlurEnabled() ? R.style.OverviewBlurStyle
-                : R.style.OverviewBlurFallbackStyle;
     }
 
     @Override

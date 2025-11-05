@@ -14,11 +14,17 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.testing;
+package com.android.launcher3.util
 
-public final class BuildConfig {
-    public static final boolean DEBUG = Boolean.parseBoolean("true");
+import android.content.Context
+import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 
-    // Field from default config.
-    public static final boolean IS_STUDIO_BUILD = false;
+/** Class to keep track of cross window blur enabled state */
+object WindowBlurState {
+
+    /** Name for dagger injection */
+    const val WINDOW_BLUR_STATE = "window_blur_state"
+
+    @JvmStatic
+    fun getInstance(ctx: Context): ListenableRef<Boolean> = ctx.appComponent.windowBlurState
 }

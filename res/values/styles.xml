@@ -184,8 +184,6 @@
 
     <!-- Theme overrides in All Apps when blur is enabled. -->
     <style name="AllAppsBlurStyle" />
-    <!-- Theme overrides in All Apps when blur is available but currently disabled. -->
-    <style name="AllAppsBlurFallbackStyle" />
 
     <style name="HomeSettings.Theme" parent="@android:style/Theme.DeviceDefault.Settings">
         <item name="android:navigationBarColor">?android:colorPrimaryDark</item>
@@ -211,6 +209,12 @@
         <item name="android:colorEdgeEffect">?attr/workspaceTextColor</item>
         <item name="android:textColorPrimary">?attr/workspaceTextColor</item>
         <item name="android:textColorSecondary">?attr/workspaceTextColor</item>
+    </style>
+
+    <style name="QsbWidgetText">
+        <item name="android:fontFamily">variable-title-medium</item>
+        <item name="android:textColor">@color/materialColorOnSurfaceVariant</item>
+        <item name="android:textAppearance">?android:textAppearanceMedium</item>
     </style>
 
     <!-- Theme for the widget container. -->

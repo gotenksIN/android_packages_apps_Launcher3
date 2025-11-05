@@ -20,6 +20,8 @@ import com.android.launcher3.dragndrop.SystemDragController
 import com.android.launcher3.dragndrop.SystemDragControllerStub
 import com.android.launcher3.homescreenfiles.HomeScreenFilesNoOpProvider
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider
+import com.android.launcher3.util.MutableListenableRef
+import com.android.launcher3.util.WindowBlurState.WINDOW_BLUR_STATE
 import com.android.launcher3.util.window.RefreshRateTracker
 import com.android.launcher3.util.window.RefreshRateTracker.RefreshRateTrackerImpl
 import com.android.launcher3.widget.LauncherWidgetHolder.WidgetHolderFactory
@@ -27,14 +29,15 @@ import com.android.launcher3.widget.LauncherWidgetHolder.WidgetHolderFactoryImpl
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
+import javax.inject.Named
 
-private object Modules {}
+private object Modules
 
-@Module abstract class WindowManagerProxyModule {}
+@Module abstract class WindowManagerProxyModule
 
-@Module abstract class ActivityContextModule {}
+@Module abstract class ActivityContextModule
 
-@Module abstract class ApiWrapperModule {}
+@Module abstract class ApiWrapperModule
 
 @Module
 abstract class WidgetModule {
@@ -42,7 +45,7 @@ abstract class WidgetModule {
     abstract fun bindWidgetHolderFactory(factor: WidgetHolderFactoryImpl): WidgetHolderFactory
 }
 
-@Module abstract class PluginManagerWrapperModule {}
+@Module abstract class PluginManagerWrapperModule
 
 @Module
 abstract class StaticObjectModule {
@@ -57,12 +60,22 @@ object SystemDragModule {
 }
 
 // Module containing bindings for the final derivative app
-@Module abstract class AppModule {}
+@Module
+object AppModule {
+
+    @Provides
+    @JvmStatic
+    @LauncherAppSingleton
+    @Named(WINDOW_BLUR_STATE)
+    fun provideWindowBlurState() = MutableListenableRef<Boolean>(false).asListenable()
+}
+
+@Module abstract class ProductionAppModule
 
 // Module containing bindings of [ActivityContext] for the final derivative app
-@Module abstract class AppActivityContextModule {}
+@Module abstract class AppActivityContextModule
 
-@Module abstract class PerDisplayModule {}
+@Module abstract class PerDisplayModule
 
 @Module abstract class LauncherConcurrencyModule {}
 
@@ -74,4 +87,4 @@ object HomeScreenFilesModule {
     fun provideHomeScreenFilesProvider(): HomeScreenFilesProvider = HomeScreenFilesNoOpProvider()
 }
 
-@Module object DesktopModule {}
+@Module object DesktopModule
