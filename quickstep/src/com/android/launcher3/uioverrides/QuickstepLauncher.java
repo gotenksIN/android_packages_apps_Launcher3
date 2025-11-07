@@ -586,9 +586,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
             return false;
         }
         return DesktopVisibilityController.INSTANCE.get(this).isInDesktopMode(getDisplayId())
-                || mTaskbarUiState.getShowDesktopTaskbarForFreeformDisplayRef().getValue()
-                || (mTaskbarUiState.getShowLockedTaskbarOnHome().getValue()
-                && mTaskbarUiState.isTaskbarOnHomeRef().getValue());
+                || mTaskbarUiState.getShowDesktopTaskbarForFreeformDisplay()
+                || (mTaskbarUiState.getShowLockedTaskbarOnHome()
+                && mTaskbarUiState.isTaskbarOnHome());
     }
 
     private List<SystemShortcut.Factory<QuickstepLauncher>> getSplitShortcuts() {
@@ -1116,7 +1116,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     private void onTaskbarInAppDisplayProgressUpdate(float progress, int flag) {
         TaskbarManager taskbarManager = mTISBindHelper.getTaskbarManager();
         if (taskbarManager == null
-                || taskbarManager.getCurrentActivityContext() == null
+                || !taskbarManager.hasCurrentActivityContext()
                 || mTaskbarInteractor == null) {
             return;
         }
@@ -1312,6 +1312,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         out.add(new RecentsViewStateController(this));
     }
 
+    @Override
     public LauncherDepthController getDepthController() {
         return mDepthController;
     }
@@ -1573,7 +1574,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     }
 
     private boolean newHasBubbles() {
-        return mTaskbarUiState.getHasBubblesRef().getValue();
+        return mTaskbarUiState.getHasBubbles();
     }
 
     private boolean legacyHasBubbles() {
