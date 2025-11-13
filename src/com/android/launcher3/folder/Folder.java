@@ -1028,7 +1028,8 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         mContent.setCurrentPage(0);
 
         if (Flags.enableExpressiveFolderExpansion()) {
-            FolderAnimationSpringBuilderManager.resetLauncherUi(mLauncherDelegate);
+            FolderAnimationSpringBuilderManager.resetLauncherScale(mLauncherDelegate);
+            FolderAnimationSpringBuilderManager.resetScrimAndZoom(mLauncherDelegate);
         }
     }
 
@@ -1857,8 +1858,13 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
             int count = canvas.save();
             canvas.clipPath(mClipPath);
             mBackground.draw(canvas);
-            canvas.restoreToCount(count);
-            super.dispatchDraw(canvas);
+            if (Flags.enableExpressiveFolderExpansion()) {
+                super.dispatchDraw(canvas);
+                canvas.restoreToCount(count);
+            } else {
+                canvas.restoreToCount(count);
+                super.dispatchDraw(canvas);
+            }
         } else {
             mBackground.draw(canvas);
             super.dispatchDraw(canvas);

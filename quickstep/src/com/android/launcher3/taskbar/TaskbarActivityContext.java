@@ -559,9 +559,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             deviceProfile.mWorkspaceProfile = deviceProfile
                     .mWorkspaceProfile
                     .changeIconSize(deviceProfile.getTaskbarProfile().getIconSize());
-
-            // Update icon size
-            deviceProfile.updateIconSize(1f, this);
         };
         mDeviceProfile = originDeviceProfile.toBuilder()
                 .withDimensionsOverride(overrideProvider).build();
@@ -2136,8 +2133,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             }
         }
         // Always launch in freeform if in external display.
-        return (DesktopExperienceFlags.ENABLE_FREEFORM_DISPLAY_LAUNCH_PARAMS.isTrue()
-                && isExternalDisplay(displayId)) || isTaskbarShowingDesktopTasks();
+        return isExternalDisplay(displayId) || isTaskbarShowingDesktopTasks();
     }
 
     private void launchDesktopApp(Intent intent, ItemInfo info, int displayId) {
