@@ -42,8 +42,6 @@ interface TaskbarManager : DisplayDecorationListener {
 
     fun setRecentsViewContainer(recentsViewContainer: RecentsViewContainer)
 
-    fun recreateTaskbars()
-
     fun onSystemUiFlagsChanged(@SystemUiStateFlags systemUiStateFlags: Long, displayId: Int)
 
     fun onLongPressHomeEnabled(assistantLongPressEnabled: Boolean)
@@ -80,8 +78,7 @@ interface TaskbarManager : DisplayDecorationListener {
 
     fun toggleTaskbarStash()
 
-    // TODO(b/404636836): Ensure calling API on StashedHandleViewController on taskbar ui thread
-    fun getStashedHandleViewController(): StashedHandleViewController?
+    fun getStashedHandleViewController(): StashedHandleViewControllerProxy?
 
     fun getPrimaryDisplayUiControllerStream(): ListenableStream<TaskbarUIController>
 
@@ -98,6 +95,8 @@ interface TaskbarManager : DisplayDecorationListener {
     fun debugPrimaryTaskbar(debugReason: String, verbose: Boolean)
 
     @VisibleForTesting fun getCurrentActivityContext(): TaskbarActivityContext?
+
+    @VisibleForTesting fun recreateTaskbars()
 
     @VisibleForTesting fun removeAllSystemUiBubbles()
 

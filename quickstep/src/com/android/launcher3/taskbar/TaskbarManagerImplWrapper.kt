@@ -56,10 +56,6 @@ class TaskbarManagerImplWrapper(private val impl: TaskbarManagerImpl) : TaskbarM
         TASKBAR_UI_THREAD.execute { impl.setRecentsViewContainerInteractor(recentsViewContainer) }
     }
 
-    override fun recreateTaskbars() {
-        TASKBAR_UI_THREAD.execute(impl::recreateTaskbars)
-    }
-
     override fun onSystemUiFlagsChanged(systemUiStateFlags: Long, displayId: Int) {
         TASKBAR_UI_THREAD.execute { impl.onSystemUiFlagsChanged(systemUiStateFlags, displayId) }
     }
@@ -150,8 +146,10 @@ class TaskbarManagerImplWrapper(private val impl: TaskbarManagerImpl) : TaskbarM
         TASKBAR_UI_THREAD.execute { impl.currentActivityContext?.toggleTaskbarStash() }
     }
 
-    override fun getStashedHandleViewController(): StashedHandleViewController? {
-        return impl.currentActivityContext?.controllers?.stashedHandleViewController
+    override fun getStashedHandleViewController(): StashedHandleViewControllerProxy? {
+        return impl.currentActivityContext?.controllers?.stashedHandleViewController?.let {
+            StashedHandleViewControllerProxy(it)
+        }
     }
 
     override fun getPrimaryDisplayUiControllerStream(): ListenableStream<TaskbarUIController> =
@@ -190,6 +188,11 @@ class TaskbarManagerImplWrapper(private val impl: TaskbarManagerImpl) : TaskbarM
     }
 
     @VisibleForTesting
+    override fun recreateTaskbars() {
+        TASKBAR_UI_THREAD.execute(impl::recreateTaskbars)
+    }
+
+    @VisibleForTesting
     override fun removeAllSystemUiBubbles() {
         SystemUiProxy.INSTANCE[impl.currentActivityContext].removeAllBubbles()
     }
@@ -211,12 +214,12 @@ class TaskbarManagerImplWrapper(private val impl: TaskbarManagerImpl) : TaskbarM
 
     @VisibleForTesting
     override fun removeAllBubbles() {
-        return TASKBAR_UI_THREAD.execute { impl.currentActivityContext!!.removeAllBubbles() }
+        TASKBAR_UI_THREAD.execute { impl.currentActivityContext!!.removeAllBubbles() }
     }
 
     @VisibleForTesting
     override fun unstashTaskbarIfStashed() {
-        return TASKBAR_UI_THREAD.execute { impl.currentActivityContext!!.unstashTaskbarIfStashed() }
+        TASKBAR_UI_THREAD.execute { impl.currentActivityContext!!.unstashTaskbarIfStashed() }
     }
 
     @VisibleForTesting
