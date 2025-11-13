@@ -918,9 +918,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             return;
         }
         final Resources res = getResources();
-        mTaskbarUiState.setUnstashAreaSizePx(
+        mTaskbarUiState.setTaskbarUnstashAreaSizePx(
                 res.getDimensionPixelSize(R.dimen.taskbar_unstash_input_area));
-        mTaskbarUiState.setActionCornerPaddingPx(
+        mTaskbarUiState.setTaskbarActionCornerPaddingPx(
                 res.getDimensionPixelSize(R.dimen.transient_taskbar_action_corner_padding));
         if (mDeviceProfile != null) {
             mTaskbarUiState.setTaskbarNavThreshold(
@@ -2111,9 +2111,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     }
 
     private boolean shouldLaunchInDesktop(int displayId, ItemInfo info) {
-        if (!DesktopModeFlags.ENABLE_DESKTOP_APP_LAUNCH_TRANSITIONS_BUGFIX.isTrue()) {
-            return false;
-        }
         final SingleTask singleTask = mControllers.taskbarRecentAppsController.getSingleTask(info);
         final Task nonDesktopTask = enableDesktopFirstSplitscreenRefocusBugfix()
                 ? mControllers.taskbarRecentAppsController.getNonDesktopTask(info)
