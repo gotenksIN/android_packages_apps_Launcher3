@@ -69,6 +69,7 @@ import com.android.launcher3.anim.PendingAnimation
 import com.android.launcher3.compat.AccessibilityManagerCompat
 import com.android.launcher3.concurrent.annotations.Ui
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.dagger.PerDisplayComponent
 import com.android.launcher3.dagger.WindowContext
 import com.android.launcher3.desktop.DesktopRecentsTransitionController
 import com.android.launcher3.model.data.ItemInfo
@@ -115,6 +116,7 @@ import com.android.quickstep.fallback.RecentsState.Companion.DEFAULT
 import com.android.quickstep.fallback.RecentsState.Companion.MODAL_TASK
 import com.android.quickstep.fallback.RecentsState.Companion.OVERVIEW_SPLIT_SELECT
 import com.android.quickstep.fallback.toLauncherStateOrdinal
+import com.android.quickstep.recents.di.RecentsComponent
 import com.android.quickstep.split.SplitSelectStateController
 import com.android.quickstep.util.QuickstepProtoLogGroup
 import com.android.quickstep.util.RecentsAtomicAnimationFactory
@@ -129,9 +131,6 @@ import com.android.systemui.animation.back.FlingOnBackAnimationCallback
 import com.android.systemui.shared.recents.model.ThumbnailData
 import com.android.window.flags.Flags.useInputReportedFocusForAccessibility
 import com.android.wm.shell.shared.desktopmode.DesktopState
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedFactory
-import dagger.assisted.AssistedInject
 import javax.inject.Inject
 
 /**
@@ -144,11 +143,11 @@ import javax.inject.Inject
  * [QuickstepProtoLogGroup.Constants.DEBUG_RECENTS_WINDOW]
  */
 class RecentsWindowManager
-@AssistedInject
+@Inject
 constructor(
-    @Assisted windowContext: Context,
-    @Assisted private val fallbackWindowInterface: FallbackWindowInterface,
-    @Assisted private val recentsWindowTracker: RecentsWindowTracker,
+    @WindowContext windowContext: Context,
+    private val fallbackWindowInterface: FallbackWindowInterface,
+    private val recentsWindowTracker: RecentsWindowTracker,
     wallpaperColorHints: WallpaperColorHints,
     private val systemUiProxy: SystemUiProxy,
     recentsModel: RecentsModel,
@@ -157,6 +156,7 @@ constructor(
     displayController: DisplayController,
     @Ui private val uiExecutor: LooperExecutor,
     invariantDeviceProfile: InvariantDeviceProfile,
+    recentsComponentFactory: RecentsComponent.Factory,
 ) :
     RecentsWindowContext(windowContext, wallpaperColorHints.hints, invariantDeviceProfile),
     RecentsViewContainer,
@@ -174,6 +174,7 @@ constructor(
             )
     }
 
+    private val recentsComponent = recentsComponentFactory.build(this)
     private var recentsView: FallbackRecentsView<RecentsWindowManager>? = null
     private var surfaceControlViewHost: SurfaceControlViewHost? = null
     private var layoutInflater: LayoutInflater = LayoutInflater.from(this).cloneInContext(this)
@@ -276,7 +277,10 @@ constructor(
                 // requested after posting on the requested view in OverviewCommandHelper. We
                 // therefore also need to post this request onto the recents view.
                 // (see OverviewCommandHelper#updateRecentsViewFocus)
-                recentsView?.post { requestInputFocus(/* focused= */ true) }
+                if (!useInputReportedFocusForAccessibility()) {
+                    return
+                }
+                recentsView?.post { requestInputFocus(focused = true) }
             }
 
             override fun onRecentsAnimationCanceled(thumbnailDatas: HashMap<Int, ThumbnailData>) {
@@ -461,7 +465,7 @@ constructor(
             AbstractFloatingView.closeAllOpenViews(this, /* animate= */ false)
             recentsView?.viewRootImpl?.touchModeChanged(true)
             windowRootView.visibility = View.GONE
-            requestInputFocus(/* focused= */ false)
+            requestInputFocus(focused = false)
             AccessibilityManagerCompat.sendTestProtocolEventToTest(
                 this,
                 LAUNCHER_ACTIVITY_STOPPED_MESSAGE,
@@ -527,10 +531,11 @@ constructor(
         return homeOverlay
     }
 
-    fun requestInputFocus(focused: Boolean) {
-        if (useInputReportedFocusForAccessibility()) {
-            surfaceControlViewHost?.requestInputFocus(focused)
+    private fun requestInputFocus(focused: Boolean) {
+        if (!useInputReportedFocusForAccessibility()) {
+            return
         }
+        surfaceControlViewHost?.requestInputFocus(focused)
     }
 
     override fun onConfigurationChanged(newConfiguration: Configuration) {
@@ -808,6 +813,8 @@ constructor(
         stateManager.goToState(recentsState, animated, listener)
     }
 
+    override fun getRecentsComponent() = recentsComponent
+
     override fun getRootView(): View = windowRootView
 
     override fun getDragLayer(): BaseDragLayer<RecentsWindowManager>? = dragLayer
@@ -871,35 +878,15 @@ constructor(
 
     override fun createAtomicAnimationFactory(): AtomicAnimationFactory<RecentsState> =
         RecentsAtomicAnimationFactory(this)
-
-    @AssistedFactory
-    interface Factory {
-        /** Creates a new instance of [RecentsWindowManager] for a given [context]. */
-        fun create(
-            @WindowContext context: Context,
-            fallbackWindowInterface: FallbackWindowInterface,
-            recentsWindowTracker: RecentsWindowTracker,
-        ): RecentsWindowManager
-    }
 }
 
 @LauncherAppSingleton
 class RecentsWindowManagerInstanceProvider
 @Inject
-constructor(
-    private val factory: RecentsWindowManager.Factory,
-    @WindowContext private val windowContextRepository: PerDisplayRepository<Context>,
-    private val fallbackWindowInterfaceRepository: PerDisplayRepository<FallbackWindowInterface>,
-    private val recentsWindowTrackerRepository: PerDisplayRepository<RecentsWindowTracker>,
-) : PerDisplayInstanceProviderWithTeardown<RecentsWindowManager> {
+constructor(private val perDisplayComponentRepository: PerDisplayRepository<PerDisplayComponent>) :
+    PerDisplayInstanceProviderWithTeardown<RecentsWindowManager> {
     override fun createInstance(displayId: Int) =
-        windowContextRepository[displayId]?.let { windowContext ->
-            fallbackWindowInterfaceRepository[displayId]?.let { fallbackWindowInterface ->
-                recentsWindowTrackerRepository[displayId]?.let { recentsWindowTracker ->
-                    factory.create(windowContext, fallbackWindowInterface, recentsWindowTracker)
-                }
-            }
-        }
+        perDisplayComponentRepository[displayId]?.getRecentsWindowManagerLazy()?.get()
 
     override fun destroyInstance(instance: RecentsWindowManager) {
         instance.destroy()

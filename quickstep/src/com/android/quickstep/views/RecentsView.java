@@ -187,7 +187,6 @@ import com.android.quickstep.RecentsModel;
 import com.android.quickstep.RemoteAnimationTargets;
 import com.android.quickstep.RemoteTargetGluer;
 import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle;
-import com.android.quickstep.RotationTouchHelper;
 import com.android.quickstep.SplitSelectionListener;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.TaskOverlayFactory;
@@ -825,10 +824,8 @@ public abstract class RecentsView<
 
     RecentsViewModel mRecentsViewModel;
     private final RecentsViewModelHelper mHelper;
-    protected final RecentsViewUtils mUtils = LauncherComponentProvider.get(
-            getContext()).getRecentsViewUtilsFactory().create(this);
-    protected final RecentsDismissUtils mDismissUtils = LauncherComponentProvider.get(
-            getContext()).getRecentsDismissUtilsFactory().create(this);
+    protected final RecentsViewUtils mUtils;
+    protected final RecentsDismissUtils mDismissUtils;
 
     private final Matrix mTmpMatrix = new Matrix();
 
@@ -847,12 +844,11 @@ public abstract class RecentsView<
         final int rotation = mContainer.getDisplay().getRotation();
         mOrientationState.setRecentsRotation(rotation);
 
-        mRecentsComponent =
-                LauncherComponentProvider.get(mContext)
-                .getRecentsComponentFactory()
-                .build(mContainer);
+        mRecentsComponent = mContainer.getRecentsComponent();
         mRecentsViewModel = mRecentsComponent.getRecentsViewModel();
         mHelper = mRecentsComponent.getRecentsViewModelHelper();
+        mUtils = mRecentsComponent.getRecentsViewUtilsFactory().create(this);
+        mDismissUtils = mRecentsComponent.getRecentsDismissUtilsFactory().create(this);
 
         mScrollHapticMinGapMillis = getResources()
                 .getInteger(R.integer.recentsScrollHapticMinGapMillis);
@@ -1306,6 +1302,9 @@ public abstract class RecentsView<
                 }
             });
             if (mUtils.isTaskLaunchingInFreeFromWindow(taskId, apps)) {
+                Log.d(TAG,
+                        "launchSideTaskInLiveTileMode - return to desktop due to freeform task "
+                                + "launching");
                 returnToDesktop();
             }
         } else {
@@ -3634,12 +3633,7 @@ public abstract class RecentsView<
     }
 
     public void reapplyActiveRotation() {
-        RotationTouchHelper rotationTouchHelper = RotationTouchHelper.REPOSITORY_INSTANCE.get(
-                getContext()).get(mContainer.getDisplayId());
-        if (rotationTouchHelper != null) {
-            setLayoutRotation(rotationTouchHelper.getCurrentActiveRotation(),
-                    rotationTouchHelper.getDisplayRotation());
-        }
+        mUtils.reapplyActiveRotation();
     }
 
     public void setLayoutRotation(int touchRotation, int displayRotation) {

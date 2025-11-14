@@ -14,9 +14,18 @@
  * limitations under the License.
  */
 
-package com.android.quickstep.recents.di
+@file:JvmName("UserTypeExt")
 
-import javax.inject.Qualifier
+package com.android.launcher3.taskbar.bubbles.utils
 
-/** Qualifier for the current display id. */
-@MustBeDocumented @Retention(AnnotationRetention.RUNTIME) @Qualifier annotation class DisplayId
+import com.android.launcher3.util.UserIconInfo
+import com.android.wm.shell.shared.bubbles.UserType
+
+/** Converts a [UserType] to a [UserIconInfo.UserType]. */
+fun UserType.toUserIconInfoType(): Int =
+    when (this) {
+        UserType.MAIN -> UserIconInfo.TYPE_MAIN
+        UserType.CLONED -> UserIconInfo.TYPE_CLONED
+        UserType.WORK -> UserIconInfo.TYPE_WORK
+        UserType.PRIVATE -> UserIconInfo.TYPE_PRIVATE
+    }

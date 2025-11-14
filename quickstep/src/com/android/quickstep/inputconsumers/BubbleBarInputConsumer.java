@@ -18,7 +18,7 @@ package com.android.quickstep.inputconsumers;
 
 import static android.view.MotionEvent.INVALID_POINTER_ID;
 
-import static com.android.launcher3.util.Executors.TASKBAR_UI_THREAD;
+import static com.android.launcher3.Flags.refactorTaskbarUiState;
 
 import android.content.Context;
 import android.graphics.PointF;
@@ -26,14 +26,9 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
 
-import androidx.annotation.Nullable;
-
-import com.android.launcher3.taskbar.NavbarButtonsViewController;
-import com.android.launcher3.taskbar.TaskbarActivityContext;
-import com.android.launcher3.taskbar.bubbles.BubbleBarSwipeController;
-import com.android.launcher3.taskbar.bubbles.BubbleBarViewController;
-import com.android.launcher3.taskbar.bubbles.BubbleControllers;
-import com.android.launcher3.taskbar.bubbles.stashing.BubbleStashController;
+import com.android.launcher3.BuildConfig;
+import com.android.launcher3.taskbar.TaskbarApiProxy;
+import com.android.launcher3.taskbar.TaskbarUiState;
 import com.android.launcher3.testing.TestLogging;
 import com.android.launcher3.testing.shared.TestProtocol;
 import com.android.quickstep.InputConsumer;
@@ -48,10 +43,8 @@ public class BubbleBarInputConsumer implements InputConsumer {
 
     private static final String TAG = "BubbleBarInputConsumer";
 
-    private final BubbleStashController mBubbleStashController;
-    private final BubbleBarViewController mBubbleBarViewController;
-    @Nullable
-    private final BubbleBarSwipeController mBubbleBarSwipeController;
+    private final TaskbarApiProxy mTaskbarApiProxy;
+    private final TaskbarUiState mTaskbarUiState;
     private final InputMonitorCompat mInputMonitorCompat;
 
     private volatile boolean mPilfered;
@@ -70,13 +63,12 @@ public class BubbleBarInputConsumer implements InputConsumer {
 
     public BubbleBarInputConsumer(
             Context context,
+            TaskbarApiProxy taskbarApiProxy,
             int displayId,
-            BubbleControllers bubbleControllers,
             InputMonitorCompat inputMonitorCompat) {
+        mTaskbarApiProxy = taskbarApiProxy;
+        mTaskbarUiState = taskbarApiProxy.getTaskbarUiState();
         mDisplayId = displayId;
-        mBubbleStashController = bubbleControllers.bubbleStashController;
-        mBubbleBarViewController = bubbleControllers.bubbleBarViewController;
-        mBubbleBarSwipeController = bubbleControllers.bubbleBarSwipeController.orElse(null);
 
         mInputMonitorCompat = inputMonitorCompat;
         mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
@@ -102,13 +94,11 @@ public class BubbleBarInputConsumer implements InputConsumer {
                 mActivePointerId = ev.getPointerId(0);
                 mDownPos.set(ev.getX(), ev.getY());
                 mLastPos.set(mDownPos);
-                mStashedOrCollapsedOnDown = mBubbleStashController.isStashed() || isCollapsed();
+                mStashedOrCollapsedOnDown = isBubbleStashed() || isCollapsed();
                 Log.d(TAG,
                         "ACTION_DOWN stashedOrCollapsed=" + mStashedOrCollapsedOnDown + " downPos="
                                 + mDownPos);
-                if (mBubbleBarSwipeController != null) {
-                    TASKBAR_UI_THREAD.execute(mBubbleBarSwipeController::start);
-                }
+                mTaskbarApiProxy.startBubbleBarSwipeController();
                 break;
             case MotionEvent.ACTION_MOVE:
                 int pointerIndex = ev.findPointerIndex(mActivePointerId);
@@ -126,23 +116,19 @@ public class BubbleBarInputConsumer implements InputConsumer {
                         Log.d(TAG, "ACTION_MOVE passed touch slop pos=" + mLastPos);
                     }
                 }
-                if (mBubbleBarSwipeController != null) {
-                    TASKBAR_UI_THREAD.execute(() -> {
-                        mBubbleBarSwipeController.swipeTo(dY);
-                        if (!mPilfered && mBubbleBarSwipeController.isSwipeGesture()) {
-                            Log.d(TAG, "ACTION_MOVE swipe gesture, pilfering");
-                            mPilfered = true;
-                            // Bubbles is handling the swipe so make sure no one else gets it.
-                            TestLogging.recordEvent(TestProtocol.SEQUENCE_PILFER, "pilferPointers");
-                            mInputMonitorCompat.pilferPointers();
-                        }
-                    });
-                }
+                mTaskbarApiProxy.swipeBubbleBarTo(dY, () -> {
+                    if (!mPilfered && mTaskbarApiProxy.isBubbleBarSwipeGesture()) {
+                        Log.d(TAG, "ACTION_MOVE swipe gesture, pilfering");
+                        mPilfered = true;
+                        // Bubbles is handling the swipe so make sure no one else gets it.
+                        TestLogging.recordEvent(TestProtocol.SEQUENCE_PILFER, "pilferPointers");
+                        mInputMonitorCompat.pilferPointers();
+                    }
+                });
                 break;
             case MotionEvent.ACTION_UP:
                 long tapTime = System.currentTimeMillis() - mDownTime;
-                boolean swipeUpOnBubbleHandle = mBubbleBarSwipeController != null
-                        && mBubbleBarSwipeController.isSwipeGesture();
+                boolean swipeUpOnBubbleHandle = mTaskbarApiProxy.isBubbleBarSwipeGesture();
                 // Anything less than a long-press is a tap
                 boolean isWithinTapTime = tapTime <= mTimeForLongPress;
                 Log.d(TAG, "ACTION_UP swipeUp=" + swipeUpOnBubbleHandle + " isInTapTime="
@@ -153,8 +139,8 @@ public class BubbleBarInputConsumer implements InputConsumer {
                         && mStashedOrCollapsedOnDown) {
                     Log.d(TAG, "ACTION_UP showing bubble bar");
                     // Taps on the handle / collapsed state should open the bar
-                    TASKBAR_UI_THREAD.execute(() -> mBubbleStashController.showBubbleBar(
-                            /* expandBubbles= */ true, /* bubbleBarGesture= */ true));
+                    mTaskbarApiProxy.showBubbleBar(
+                            /* expandBubbles= */ true, /* bubbleBarGesture= */ true);
                 } else {
                     Log.d(TAG, "ACTION_UP nothing to do");
                 }
@@ -170,45 +156,90 @@ public class BubbleBarInputConsumer implements InputConsumer {
 
     private void cleanupAfterMotionEvent() {
         Log.d(TAG, "cleaning up passedSlop=" + mPassedTouchSlop + " pilfered=" + mPilfered);
-        if (mBubbleBarSwipeController != null) {
-            TASKBAR_UI_THREAD.execute(mBubbleBarSwipeController::finish);
-        }
+        mTaskbarApiProxy.finishBubbleBarSwipeController();
         mPassedTouchSlop = false;
         mPilfered = false;
         mDownTime = 0;
     }
 
     private boolean isCollapsed() {
-        return mBubbleStashController.isBubbleBarVisible()
-                && !mBubbleBarViewController.isExpanded();
+        return isBubbleBarVisible() && !isBubbleBarExpanded();
     }
 
     /**
      * Returns whether the event is occurring on a visible bubble bar or the bar handle.
      */
-    public static boolean isEventOnBubbles(TaskbarActivityContext tac, MotionEvent ev) {
-        if (tac == null || !tac.isBubbleBarEnabled()) {
+    public static boolean isEventOnBubbles(TaskbarApiProxy taskbarApiProxy, MotionEvent ev) {
+        if (taskbarApiProxy == null || !taskbarApiProxy.isBubbleBarEnabled()) {
             return false;
         }
-        BubbleControllers controllers = tac.getBubbleControllers();
-        if (controllers == null || !controllers.bubbleBarViewController.hasBubbles()) {
+        TaskbarUiState taskbarUiState = taskbarApiProxy.getTaskbarUiState();
+        if (!taskbarUiState.getHasBubbles()) {
             return false;
         }
-        if (controllers.bubbleStashController.isStashed()
-                && controllers.bubbleStashedHandleViewController.isPresent()) {
-            return controllers.bubbleStashedHandleViewController.get().isEventOverHandle(ev);
-        } else if (controllers.bubbleBarViewController.isBubbleBarVisible()) {
+        if (taskbarUiState.isBubbleStashed()
+                && taskbarApiProxy.isBubbleStashedHandleViewControllerPresent()) {
+            return taskbarUiState.isEventOverBubbleBarStashedHandle(ev);
+        } else if (taskbarUiState.isBubbleBarViewVisible()) {
             if (Flags.bugRotationButtonCoverBubble()) {
-                NavbarButtonsViewController navbarButtonsViewController =
-                        tac.getNavBarButtonsViewController();
-                boolean isBlockedByRotationButton = navbarButtonsViewController != null
-                        && navbarButtonsViewController.isEventOverAnyItem(ev);
-                return !isBlockedByRotationButton
-                        && controllers.bubbleBarViewController.isEventOverBubbleBar(ev);
+                return !taskbarUiState.isEventOnNavbar(ev)
+                        && taskbarUiState.isEventOverBubbleBarView(ev);
             } else {
-                return controllers.bubbleBarViewController.isEventOverBubbleBar(ev);
+                return taskbarUiState.isEventOverBubbleBarView(ev);
             }
         }
         return false;
+    }
+
+    private boolean isBubbleStashed() {
+        if (refactorTaskbarUiState()) {
+            boolean ret = mTaskbarUiState.isBubbleStashed();
+            if (BuildConfig.IS_STUDIO_BUILD && ret != legacyIsBubbleStashed()) {
+                throw new IllegalStateException("isBubbleStashed() doesn't match ret=" + ret);
+            }
+            return ret;
+        } else {
+            return legacyIsBubbleStashed();
+        }
+    }
+
+    @Deprecated
+    private boolean legacyIsBubbleStashed() {
+        return mTaskbarApiProxy.isBubbleBarStashed();
+    }
+
+    private boolean isBubbleBarVisible() {
+        if (refactorTaskbarUiState()) {
+            boolean ret = mTaskbarUiState.getHasBubbles() && !mTaskbarUiState.isBubbleStashed();
+            if (BuildConfig.IS_STUDIO_BUILD && ret != legacyIsBubbleBarViewVisible()) {
+                throw new IllegalStateException("isBubbleBarViewVisible() doesn't match ret="
+                        + ret);
+            }
+            return ret;
+        } else {
+            return legacyIsBubbleBarViewVisible();
+        }
+    }
+
+    @Deprecated
+    private boolean legacyIsBubbleBarViewVisible() {
+        return mTaskbarApiProxy.isBubbleBarVisible();
+    }
+
+    private boolean isBubbleBarExpanded() {
+        if (refactorTaskbarUiState()) {
+            boolean ret = mTaskbarUiState.isBubbleBarExpanded();
+            if (BuildConfig.IS_STUDIO_BUILD && ret != legacyIsBubbleBarExpanded()) {
+                throw new IllegalStateException("isBubbleBarExpanded() doesn't match ret=" + ret);
+            }
+            return ret;
+        } else {
+            return legacyIsBubbleBarExpanded();
+        }
+    }
+
+    @Deprecated
+    private boolean legacyIsBubbleBarExpanded() {
+        return mTaskbarApiProxy.isBubbleBarExpanded();
     }
 }

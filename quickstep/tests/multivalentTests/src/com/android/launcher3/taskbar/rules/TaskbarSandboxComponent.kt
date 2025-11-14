@@ -29,14 +29,15 @@ import com.android.launcher3.dagger.AppModule
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.BasePerDisplayModule
 import com.android.launcher3.dagger.DesktopModule
-import com.android.launcher3.dagger.DisplayContext
 import com.android.launcher3.dagger.HomeScreenFilesModule
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.dagger.LauncherModelModule
+import com.android.launcher3.dagger.PerDisplayComponent
 import com.android.launcher3.dagger.SettingsModule
 import com.android.launcher3.dagger.StaticObjectModule
 import com.android.launcher3.dagger.SystemDragModule
+import com.android.launcher3.dagger.TaskOverlayModule
 import com.android.launcher3.dagger.WidgetModule
 import com.android.launcher3.dagger.WindowContext
 import com.android.launcher3.statehandlers.DesktopVisibilityController
@@ -49,7 +50,6 @@ import com.android.launcher3.util.SettingsCache
 import com.android.launcher3.util.TaskbarModeUtil
 import com.android.launcher3.util.dagger.LauncherExecutorsModule
 import com.android.launcher3.util.window.WindowManagerProxy
-import com.android.quickstep.FallbackWindowInterface
 import com.android.quickstep.RecentsAnimationDeviceState
 import com.android.quickstep.RotationTouchHelper
 import com.android.quickstep.SystemUiProxy
@@ -101,6 +101,7 @@ interface TaskbarSandboxComponent : LauncherAppComponent {
             DesktopModule::class,
             SettingsModule::class,
             SystemDragModule::class,
+            TaskOverlayModule::class,
         ]
 )
 interface AllTaskbarSandboxModules
@@ -243,10 +244,6 @@ object TaskbarPerDisplayReposModule {
 
     @Provides
     @LauncherAppSingleton
-    fun provideFallbackWindowInterfaceRepo(): PerDisplayRepository<FallbackWindowInterface> = mock()
-
-    @Provides
-    @LauncherAppSingleton
     fun provideRecentsWindowManagerRepo(): PerDisplayRepository<RecentsWindowManager> = mock()
 
     @Provides
@@ -255,11 +252,10 @@ object TaskbarPerDisplayReposModule {
 
     @Provides
     @LauncherAppSingleton
-    @DisplayContext
-    fun provideDisplayContext(): PerDisplayRepository<Context> = mock()
+    @WindowContext
+    fun provideWindowContext(): PerDisplayRepository<Context> = mock()
 
     @Provides
     @LauncherAppSingleton
-    @WindowContext
-    fun provideWindowContext(): PerDisplayRepository<Context> = mock()
+    fun providePerDisplayComponentRepository(): PerDisplayRepository<PerDisplayComponent> = mock()
 }

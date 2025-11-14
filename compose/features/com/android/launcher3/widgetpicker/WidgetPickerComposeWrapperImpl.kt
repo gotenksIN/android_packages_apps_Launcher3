@@ -64,6 +64,8 @@ import com.android.launcher3.widgetpicker.theme.LauncherWidgetPickerTheme
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionSource
 import com.android.launcher3.widgetpicker.ui.WidgetPickerEventListeners
+import com.android.launcher3.widgetpicker.ui.components.WidgetPickerHostStateProvider
+import java.lang.Runnable
 import javax.inject.Inject
 import javax.inject.Provider
 import kotlin.coroutines.CoroutineContext
@@ -97,6 +99,7 @@ constructor(
             fullWidgetsCatalog.Content(
                 eventListeners = eventListeners,
                 cuiReporter = eventsReporter,
+                hostStateProvider = activity.buildWidgetPickerHostStateProvider(),
             )
         }
     }
@@ -126,6 +129,7 @@ constructor(
                 widgetAppId = widgetAppId,
                 eventListeners = eventListeners,
                 cuiReporter = uiEventsReporter,
+                hostStateProvider = activity.buildWidgetPickerHostStateProvider(),
             )
         }
     }
@@ -288,6 +292,34 @@ constructor(
             "WidgetPickerActivity.OnWidgetInteraction"
         private const val NO_WIDGET_APP_CATEGORY = -1
 
+        private fun BaseActivity.buildWidgetPickerHostStateProvider() =
+            object : WidgetPickerHostStateProvider {
+                val listeners: MutableList<(Boolean) -> Unit> = mutableListOf()
+                var activityObserver: Runnable? = null
+
+                override fun observeIsTopResumed(listener: (Boolean) -> Unit) {
+                    if (activityObserver == null) {
+                        activityObserver =
+                            object : Runnable {
+                                override fun run() {
+                                    listeners.forEach { it(isTopResumedActivity()) }
+                                }
+                            }
+                        addTopResumedChangedCallback(activityObserver)
+                    }
+                    listeners.add(listener)
+                }
+
+                override fun stopObservingIsTopResumed(listener: (Boolean) -> Unit) {
+                    listeners.remove(listener)
+
+                    if (listeners.isEmpty() && activityObserver != null) {
+                        removeTopResumedChangedCallback(activityObserver)
+                        activityObserver = null
+                    }
+                }
+            }
+
         private fun Activity.buildEventListeners(
             widgetPickerConfig: WidgetPickerConfig,
             apiWrapper: ApiWrapper,
@@ -295,6 +327,12 @@ constructor(
             pinItemAddHandler: PinItemAddHandler?,
         ) =
             object : WidgetPickerEventListeners {
+                override fun onSheetProgress(progress: Float) {
+                    if (this@buildEventListeners is WidgetPickerProgressHandler) {
+                        this@buildEventListeners.onProgress(progress)
+                    }
+                }
+
                 override fun onClose() {
                     Log.d(TAG, "Closing widget picker")
                     finish()
@@ -447,4 +485,16 @@ constructor(
                 WidgetInteractionSource.PIN_WIDGET_PICKER -> Favorites.CONTAINER_PIN_WIDGETS
             }
     }
+}
+
+/**
+ * Interface for activities to perform an operation (e.g. background scrim animation) on while
+ * widget picker opens / closes.
+ */
+interface WidgetPickerProgressHandler {
+    /**
+     * Callback during opening / closing of widget picker. Progress is between 0-1 where 0 is fully
+     * closed and 1 is fully open.
+     */
+    fun onProgress(progress: Float) {} // NO-op
 }

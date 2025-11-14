@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.dagger;
+package com.android.launcher3.taskbar
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
+import com.android.launcher3.util.Executors.TASKBAR_UI_THREAD
 
-import javax.inject.Qualifier;
+/** Wrap [StashedHandleViewController] and dispatch API calls to [TASKBAR_UI_THREAD]. */
+class StashedHandleViewControllerProxy(private val delegate: StashedHandleViewController) {
 
-/**
- * Qualifier for per display context created using [createDisplayContext].
- */
-@Documented
-@Retention(RetentionPolicy.RUNTIME)
-@Qualifier
-public @interface DisplayContext {
+    fun setTranslationYForSwipe(transY: Float) {
+        TASKBAR_UI_THREAD.execute { delegate.setTranslationYForSwipe(transY) }
+    }
+
+    fun setStashedHandleAlpha(alphaIndex: Int, alpha: Float) {
+        TASKBAR_UI_THREAD.execute { delegate.stashedHandleAlpha.get(alphaIndex).setValue(alpha) }
+    }
 }
