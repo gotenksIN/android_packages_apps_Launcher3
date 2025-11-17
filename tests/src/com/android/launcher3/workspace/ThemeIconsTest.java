@@ -16,6 +16,7 @@
 package com.android.launcher3.workspace;
 
 import static com.android.launcher3.AbstractFloatingView.TYPE_ACTION_POPUP;
+import static com.android.launcher3.Utilities.findViewByPredicate;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.TestConstants.AppNames.TEST_APP_NAME;
 
@@ -38,10 +39,10 @@ import com.android.launcher3.allapps.AllAppsRecyclerView;
 import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.icons.mono.ThemedIconDelegate;
 import com.android.launcher3.popup.ArrowPopup;
+import com.android.launcher3.testutil.FavoriteItemsTransaction;
 import com.android.launcher3.util.BaseLauncherActivityTest;
 import com.android.launcher3.util.Executors;
 import com.android.launcher3.util.TestUtil;
-import com.android.launcher3.util.workspace.FavoriteItemsTransaction;
 
 import org.junit.Test;
 
@@ -66,7 +67,7 @@ public class ThemeIconsTest extends BaseLauncherActivityTest<Launcher> {
         scrollToAppIcon(APP_NAME);
         BubbleTextView btv = getLauncherActivity().getFromLauncher(
                 l -> verifyIconTheme(APP_NAME, l.getAppsView(), false));
-        addToWorkspace(btv);
+        getLauncherTestInteractions().addToWorkspace(btv);
         getLauncherActivity().executeOnLauncher(
                 l -> verifyIconTheme(APP_NAME, l.getWorkspace(), false)
         );
@@ -90,7 +91,7 @@ public class ThemeIconsTest extends BaseLauncherActivityTest<Launcher> {
                                 instanceof ArrowPopup ap)
                         ? findBtv(SHORTCUT_NAME, ap) : null
         );
-        addToWorkspace(menuItem);
+        getLauncherTestInteractions().addToWorkspace(menuItem);
         getLauncherActivity().executeOnLauncher(
                 l -> verifyIconTheme(SHORTCUT_NAME, l.getWorkspace(), false));
     }
@@ -107,7 +108,7 @@ public class ThemeIconsTest extends BaseLauncherActivityTest<Launcher> {
                 l -> verifyIconTheme(APP_NAME, l.getAppsView(), false)
         );
 
-        addToWorkspace(btv);
+        getLauncherTestInteractions().addToWorkspace(btv);
         getLauncherActivity().executeOnLauncher(
                 l -> verifyIconTheme(APP_NAME, l.getWorkspace(), true));
     }
@@ -129,7 +130,7 @@ public class ThemeIconsTest extends BaseLauncherActivityTest<Launcher> {
                                 instanceof ArrowPopup ap)
                         ? findBtv(SHORTCUT_NAME, ap) : null
         );
-        addToWorkspace(menuItem);
+        getLauncherTestInteractions().addToWorkspace(menuItem);
         getLauncherActivity().executeOnLauncher(
                 l -> verifyIconTheme(SHORTCUT_NAME, l.getWorkspace(), true));
     }
@@ -142,7 +143,7 @@ public class ThemeIconsTest extends BaseLauncherActivityTest<Launcher> {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        return (BubbleTextView) searchView(parent, v ->
+        return findViewByPredicate(parent, v ->
                 v instanceof BubbleTextView btv
                         && btv.getContentDescription() != null
                         && title.equals(btv.getContentDescription().toString()));
@@ -171,7 +172,7 @@ public class ThemeIconsTest extends BaseLauncherActivityTest<Launcher> {
 
     private void switchToAllApps() {
         getLauncherActivity().goToState(LauncherState.ALL_APPS);
-        freezeAllApps();
+        getLauncherTestInteractions().freezeAllApps();
     }
 
     private void scrollToAppIcon(String appName) {

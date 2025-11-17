@@ -17,6 +17,7 @@ package com.android.launcher3.widget;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
+import static com.android.launcher3.Utilities.findViewByPredicate;
 import static com.android.launcher3.util.LauncherBindableItemsContainer.ItemOperator;
 
 import static org.junit.Assert.assertEquals;
@@ -40,14 +41,14 @@ import com.android.launcher3.Launcher;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.testcomponent.WidgetConfigActivity;
+import com.android.launcher3.testutil.FavoriteItemsTransaction;
+import com.android.launcher3.testutil.Wait;
 import com.android.launcher3.util.BaseLauncherActivityTest;
 import com.android.launcher3.util.BlockingBroadcastReceiver;
 import com.android.launcher3.util.PackageUserKey;
-import com.android.launcher3.util.Wait;
+import com.android.launcher3.util.WidgetUtils;
 import com.android.launcher3.util.rule.ShellCommandRule;
 import com.android.launcher3.util.ui.PortraitLandscapeRunner.PortraitLandscape;
-import com.android.launcher3.util.ui.TestViewHelpers;
-import com.android.launcher3.util.workspace.FavoriteItemsTransaction;
 import com.android.launcher3.widget.picker.WidgetsFullSheet;
 import com.android.launcher3.widget.picker.WidgetsListAdapter;
 import com.android.launcher3.widget.picker.WidgetsRecyclerView;
@@ -77,7 +78,7 @@ public class AddConfigWidgetTest extends BaseLauncherActivityTest<Launcher> {
 
     @Before
     public void setUp() throws Exception {
-        mWidgetInfo = TestViewHelpers.findWidgetProvider(true /* hasConfigureScreen */);
+        mWidgetInfo = WidgetUtils.findWidgetProvider(true /* hasConfigureScreen */);
         mAppWidgetManager = AppWidgetManager.getInstance(targetContext());
     }
 
@@ -125,14 +126,14 @@ public class AddConfigWidgetTest extends BaseLauncherActivityTest<Launcher> {
 
         View widgetView = getLauncherActivity()
                 .getOnceNotNull("Widget not found",
-                        l -> searchView(
+                        l -> findViewByPredicate(
                                 l.getDragLayer(),
                                 v -> v instanceof WidgetCell
                                         && v.getTag() instanceof PendingAddWidgetInfo pawi
                                         && mWidgetInfo.provider.equals(pawi.componentName)
                         )
         );
-        addWidgetToWorkspace(widgetView);
+        getLauncherTestInteractions().addWidgetToWorkspace(widgetView);
 
         // Widget id for which the config activity was opened
         mWidgetId = monitor.getWidgetId();

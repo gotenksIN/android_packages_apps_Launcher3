@@ -47,7 +47,6 @@ import com.android.launcher3.statehandlers.DesktopVisibilityController.Companion
 import com.android.launcher3.statemanager.BaseState
 import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.IntArray
-import com.android.launcher3.util.OverviewReleaseFlags.enableOverviewIconMenu
 import com.android.launcher3.util.window.WindowManagerProxy.DesktopVisibilityListener
 import com.android.quickstep.GestureState
 import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle
@@ -61,12 +60,12 @@ import com.android.quickstep.views.RecentsView.RECENTS_GRID_PROGRESS
 import com.android.quickstep.views.RecentsView.RUNNING_TASK_ATTACH_ALPHA
 import com.android.quickstep.views.RecentsView.TAG
 import com.android.quickstep.views.RecentsView.TASK_THUMBNAIL_SPLASH_ALPHA
-import com.android.quickstep.views.TaskView.Companion.FLAG_UPDATE_ALL
 import com.android.systemui.shared.recents.model.Task
 import com.android.systemui.shared.recents.model.ThumbnailData
 import com.android.wm.shell.shared.GroupedTaskInfo
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus.enableMultipleDesktops
 import java.util.function.BiConsumer
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.reflect.KMutableProperty1
 
@@ -139,6 +138,45 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
 
     /** Returns a list of all non-large TaskViews [TaskView]s */
     fun getSmallTaskViews(): List<TaskView> = taskViews.filter { !it.isLargeTile }
+
+    fun getVisibleTaskIds(): List<Int> {
+        val visibleTaskViews: Iterable<TaskView> =
+            if (recentsView.showAsGrid()) {
+                val pagedOrientationHandler = recentsView.pagedOrientationHandler
+                val screenStart = pagedOrientationHandler.getPrimaryScroll(recentsView)
+                val pageOrientedSize = pagedOrientationHandler.getMeasuredSize(recentsView)
+                // Use +/- 1 task column as visible area for preloading.
+                val extraWidth =
+                    recentsView.lastComputedGridTaskSize.width() + recentsView.pageSpacing
+                val visibleStart = screenStart - extraWidth
+                val visibleEnd = screenStart + pageOrientedSize + extraWidth
+
+                taskViews.filter { taskView ->
+                    recentsView.isTaskViewWithinBounds(
+                        taskView,
+                        visibleStart,
+                        visibleEnd,
+                        recentsView.mTaskViewsDismissPrimaryTranslations.getOrDefault(taskView, 0),
+                    )
+                }
+            } else {
+                val centerPageIndex: Int = recentsView.pageNearestToCenterOfScreen
+                // 2 tasks either side of the central task
+                val lowerIndex = max(0, centerPageIndex - 2)
+                val upperIndex = centerPageIndex + 2
+
+                recentsView.children
+                    .drop(lowerIndex)
+                    .take(upperIndex - lowerIndex + 1)
+                    .filterIsInstance<TaskView>()
+                    .toList()
+            }
+
+        return visibleTaskViews
+            .flatMap { taskView -> taskView.taskContainers }
+            .map { taskContainer -> taskContainer.task.key.id }
+            .toList()
+    }
 
     /** Returns all the TaskViews in the top row, without the focused task */
     fun getTopRowTaskViews(): List<TaskView> =
@@ -599,20 +637,13 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
     private fun getTaskMenu(): TaskMenuView? =
         getTopOpenViewWithType(recentsView.mContainer, TYPE_TASK_MENU) as? TaskMenuView
 
-    fun taskMenuIsOpen(): Boolean {
-        if (enableOverviewIconMenu()) {
-            return getTaskMenu()?.isOpen == true
-        }
-        return false
-    }
+    fun taskMenuIsOpen() = getTaskMenu()?.isOpen == true
 
     fun updateChildTaskOrientations() {
         with(recentsView) {
             taskViews.forEach { it.setOrientationState(mOrientationState) }
-            if (enableOverviewIconMenu()) {
-                children.forEach {
-                    it.layoutDirection = if (isRtl) LAYOUT_DIRECTION_LTR else LAYOUT_DIRECTION_RTL
-                }
+            children.forEach {
+                it.layoutDirection = if (isRtl) LAYOUT_DIRECTION_LTR else LAYOUT_DIRECTION_RTL
             }
 
             // Return when it's not fake landscape
@@ -806,7 +837,7 @@ class RecentsViewUtils(private val recentsView: RecentsView<*, *>) : DesktopVisi
             animatorSet.play(ObjectAnimator.ofFloat(this, DESKTOP_CAROUSEL_DETACH_PROGRESS, 0f))
 
             // Reload visible tasks according to new [mCurrentGestureEndTarget] value.
-            loadVisibleTaskData(FLAG_UPDATE_ALL)
+            loadVisibleTaskData()
         }
     }
 

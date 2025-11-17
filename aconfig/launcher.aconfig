@@ -196,6 +196,16 @@ flag {
 }
 
 flag {
+    name: "blurred_home_animation"
+    namespace: "launcher"
+    description: "Launcher will be blurred when the user swipes to home."
+    bug: "441691917"
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "enable_multi_instance_menu_taskbar"
     namespace: "launcher"
     description: "Menu in Taskbar with options to launch and manage multiple instances of the same app"
@@ -605,6 +615,13 @@ flag {
 }
 
 flag {
+    name: "enable_system_drag_to_other_apps"
+    namespace: "launcher"
+    description: "Enables system-level drag-and-drop to other apps"
+    bug: "402183121"
+}
+
+flag {
   name: "force_monochrome_app_icons_adapt_colors"
   namespace: "launcher"
   description: "Adapt colors for monochromatic icons, only valid if force_monochrome_app_icons is enabled"
@@ -656,4 +673,14 @@ flag {
   namespace: "launcher"
   description: "Enables mouse based workflows for interacting with launcher"
   bug: "388897603"
+}
+
+flag {
+  name: "migrate_browser_icon_on_setup"
+  namespace: "launcher"
+  description: "Migrates browser icon to user choice during user setup"
+  bug: "446663428"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }
