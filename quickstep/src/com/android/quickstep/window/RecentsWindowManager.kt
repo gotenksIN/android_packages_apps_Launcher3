@@ -42,6 +42,7 @@ import android.view.SurfaceControl.Transaction
 import android.view.SurfaceControlViewHost
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewStub
 import android.window.BackEvent
 import android.window.DesktopExperienceFlags
 import android.window.OnBackInvokedCallback
@@ -107,7 +108,7 @@ import com.android.quickstep.SystemUiProxy
 import com.android.quickstep.TaskViewUtils
 import com.android.quickstep.dagger.QuickstepBaseAppComponent
 import com.android.quickstep.fallback.FallbackRecentsStateController
-import com.android.quickstep.fallback.FallbackRecentsView
+import com.android.quickstep.fallback.FallbackWindowRecentsView
 import com.android.quickstep.fallback.RecentsDragLayer
 import com.android.quickstep.fallback.RecentsState
 import com.android.quickstep.fallback.RecentsState.Companion.BACKGROUND_APP
@@ -175,7 +176,7 @@ constructor(
     }
 
     private val recentsComponent = recentsComponentFactory.build(this)
-    private var recentsView: FallbackRecentsView<RecentsWindowManager>? = null
+    private var recentsView: FallbackWindowRecentsView? = null
     private var surfaceControlViewHost: SurfaceControlViewHost? = null
     private var layoutInflater: LayoutInflater = LayoutInflater.from(this).cloneInContext(this)
     private var stateManager: StateManager<RecentsState, RecentsWindowManager> =
@@ -254,12 +255,14 @@ constructor(
     private val homeVisibilityState = systemUiProxy.homeVisibilityState
     private val homeVisibilityListener =
         object : HomeVisibilityState.VisibilityChangeListener {
-            override fun onHomeVisibilityChanged(isVisible: Boolean) {
-                if (isShowing() && !isVisible && isInState(DEFAULT)) {
-                    // handling state where we end recents animation by swiping livetile away
-                    // TODO: animate this switch.
-                    hideRecentsWindow()
+            override fun onHomeVisibilityChanged(isHomeVisible: Boolean) {
+                if (fallbackWindowInterface.isInLiveTileMode || isHomeVisible) {
+                    return
                 }
+                // If there is a running recents animation (i.e. live tile mode) when the home
+                // task disappears, we should let recents animation callbacks
+                // (i.e. onTasksAppeared) reset the state manager.
+                stateManager.moveToRestState(/* isAnimated= */ true)
             }
         }
 
@@ -284,11 +287,13 @@ constructor(
             }
 
             override fun onRecentsAnimationCanceled(thumbnailDatas: HashMap<Int, ThumbnailData>) {
-                recentAnimationStopped()
+                super.onRecentsAnimationCanceled(thumbnailDatas)
+                onRecentAnimationStopped()
             }
 
             override fun onRecentsAnimationFinished(controller: RecentsAnimationController) {
-                recentAnimationStopped()
+                super.onRecentsAnimationFinished(controller)
+                onRecentAnimationStopped()
             }
         }
 
@@ -338,7 +343,9 @@ constructor(
             val emptyRecentsMessageView =
                 it.findViewById<ViewGroup?>(R.id.empty_recents_message_view)
             recentsView =
-                it.findViewById<FallbackRecentsView<RecentsWindowManager>?>(R.id.overview_panel)
+                (it.findViewById<ViewStub>(R.id.overview_panel)
+                        .apply { layoutResource = R.layout.fallback_window_recents_view }
+                        .inflate() as? FallbackWindowRecentsView)
                     ?.apply {
                         init(
                             actionsView,
@@ -736,7 +743,7 @@ constructor(
 
     private fun isShowing() = windowView?.parent != null && windowRootView.isVisible
 
-    private fun recentAnimationStopped() {
+    private fun onRecentAnimationStopped() {
         if (isInState(BACKGROUND_APP)) {
             hideRecentsWindow()
         }
@@ -773,16 +780,20 @@ constructor(
     override fun onStateSetEnd(state: RecentsState) {
         super.onStateSetEnd(state)
         RecentsWindowProtoLogProxy.logOnStateSetEnd(state.toString())
-        if (!state.isRecentsViewVisible()) {
-            hideRecentsWindow()
-        }
+        state.applyRecentsWindowVisibility()
         AccessibilityManagerCompat.sendStateEventToTest(baseContext, state.toLauncherStateOrdinal())
     }
 
     override fun onRepeatStateSetAborted(state: RecentsState) {
         super.onRepeatStateSetAborted(state)
         RecentsWindowProtoLogProxy.logOnRepeatStateSetAborted(state.toString())
-        if (!state.isRecentsViewVisible()) {
+        state.applyRecentsWindowVisibility()
+    }
+
+    private fun RecentsState.applyRecentsWindowVisibility() {
+        if (isRecentsViewVisible()) {
+            showRecentsWindow()
+        } else {
             hideRecentsWindow()
         }
     }
