@@ -43,12 +43,14 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Trace;
+import android.util.Log;
 import android.view.Display;
 import android.view.RemoteAnimationAdapter;
 import android.view.RemoteAnimationTarget;
 import android.view.SurfaceControl.Transaction;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewStub;
 import android.window.RemoteTransition;
 import android.window.SplashScreen;
 
@@ -86,8 +88,8 @@ import com.android.launcher3.util.SystemUiController;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.BaseDragLayer;
 import com.android.launcher3.views.ScrimView;
+import com.android.quickstep.fallback.FallbackActivityRecentsView;
 import com.android.quickstep.fallback.FallbackRecentsStateController;
-import com.android.quickstep.fallback.FallbackRecentsView;
 import com.android.quickstep.fallback.RecentsDragLayer;
 import com.android.quickstep.fallback.RecentsState;
 import com.android.quickstep.recents.di.RecentsComponent;
@@ -124,7 +126,7 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
 
     private RecentsDragLayer mDragLayer;
     private ScrimView mScrimView;
-    private FallbackRecentsView mFallbackRecentsView;
+    private FallbackActivityRecentsView mFallbackRecentsView;
     private OverviewActionsView<?> mActionsView;
     private TISBindHelper mTISBindHelper;
     private @Nullable TaskbarInteractor mTaskbarInteractor;
@@ -140,6 +142,10 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
     private DesktopRecentsTransitionController mDesktopRecentsTransitionController;
 
     private RecentsComponent mRecentsComponent;
+
+    // Tracks whether the current state should have RecentsView visible.
+    private boolean mIsInRecentsViewVisibleState = false;
+
 
     /**
      * Init drag layer and overview panel views.
@@ -158,7 +164,9 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
         LauncherRootView rootView = getRootView();
         mDragLayer = rootView.findViewById(R.id.drag_layer);
         mScrimView = rootView.findViewById(R.id.scrim_view);
-        mFallbackRecentsView = rootView.findViewById(R.id.overview_panel);
+        ViewStub recentsViewStub = rootView.findViewById(R.id.overview_panel);
+        recentsViewStub.setLayoutResource(R.layout.fallback_activity_recents_view);
+        mFallbackRecentsView = (FallbackActivityRecentsView) recentsViewStub.inflate();
         mActionsView = rootView.findViewById(R.id.overview_actions_view);
         ViewGroup emptyRecentsMessageView = rootView.findViewById(R.id.empty_recents_message_view);
 
@@ -179,7 +187,7 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
         mTISBindHelper = new TISBindHelper(this, this::onTISConnected);
     }
 
-    private void onTISConnected(TouchInteractionHandler.TISBinder binder) {
+    private void onTISConnected(TISBinder binder) {
         TaskbarManager taskbarManager = binder.getTaskbarManager();
         if (taskbarManager != null) {
             taskbarManager.setActivity(this);
@@ -269,7 +277,7 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
     }
 
     @Override
-    public FallbackRecentsView getOverviewPanel() {
+    public FallbackActivityRecentsView getOverviewPanel() {
         return mFallbackRecentsView;
     }
 
@@ -458,6 +466,12 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
             AccessibilityManagerCompat.sendStateEventToTest(getBaseContext(),
                     OVERVIEW_STATE_ORDINAL);
         }
+
+        if (mIsInRecentsViewVisibleState && !state.isRecentsViewVisible() && !isFinishing()) {
+            Log.d(TAG, "onStateSetEnd - moveTaskToBack as Recents should no longer be visible");
+            moveTaskToBack(/*nonRoot=*/true);
+        }
+        mIsInRecentsViewVisibleState = state.isRecentsViewVisible();
     }
 
     @Override
