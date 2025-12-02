@@ -22,7 +22,6 @@ import static android.window.DesktopModeFlags.ENABLE_TASKBAR_OVERFLOW;
 
 import static com.android.launcher3.BubbleTextView.DISPLAY_TASKBAR;
 import static com.android.launcher3.Flags.enableLauncherIconShapes;
-import static com.android.launcher3.Flags.enableRecentsInTaskbar;
 import static com.android.launcher3.Flags.enableTaskbarRecentsThemedIcons;
 import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY;
@@ -32,6 +31,7 @@ import static com.android.launcher3.Utilities.dpToPx;
 import static com.android.launcher3.config.FeatureFlags.enableTaskbarPinning;
 import static com.android.launcher3.icons.BitmapInfo.FLAG_THEMED;
 import static com.android.launcher3.icons.IconNormalizer.ICON_VISIBLE_AREA_FACTOR;
+import static com.android.systemui.shared.Flags.enableRecentsInTaskbar;
 
 import android.animation.Animator;
 import android.animation.AnimatorSet;
@@ -268,13 +268,15 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         // Needed to draw folder leave-behind when opening one.
         setWillNotDraw(false);
 
-        mAllAppsButtonContainer = new TaskbarAllAppsButtonContainer(context);
+        mAllAppsButtonContainer = (TaskbarAllAppsButtonContainer) inflate(
+                R.layout.taskbar_all_apps_button_container);
         mAllAppsButtonTranslationOffset = (int) getResources().getDimension(
                 mAllAppsButtonContainer.getAllAppsButtonTranslationXOffset(
                         mActivityContext.isTransientTaskbar()));
 
         if (enableTaskbarPinning() || enableRecentsInTaskbar()) {
-            mTaskbarDividerContainer = new TaskbarDividerContainer(context);
+            mTaskbarDividerContainer = (TaskbarDividerContainer) inflate(
+                    R.layout.taskbar_divider_button_container);
         }
 
         if (ENABLE_TASKBAR_OVERFLOW.isTrue()) {
@@ -1906,15 +1908,6 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         mActivityContext.getDragLayer().getDescendantRectRelativeToSelf(overflowIcon,
                 overflowIconRect);
         return overflowIconRect.contains(Math.round(point[0]), Math.round(point[1]));
-    }
-
-    @Override
-    public void openOverflowContainer() {
-        TaskbarOverflowView overflowIcon = getTaskbarPinnedOverflowView();
-        if (overflowIcon == null) {
-            return;
-        }
-        mControllerCallbacks.openOverflownContainer(overflowIcon);
     }
 
     public static class TaskbarLayoutParams extends FrameLayout.LayoutParams {
