@@ -182,20 +182,6 @@ flag {
 }
 
 flag {
-    name: "all_apps_sheet_for_handheld"
-    namespace: "launcher"
-    description: "All Apps will be presented on a bottom sheet in handheld mode"
-    bug: "374186088"
-}
-
-flag {
-    name: "all_apps_blur"
-    namespace: "launcher"
-    description: "Content behind the all apps panel in Launcher will be blurred."
-    bug: "400827727"
-}
-
-flag {
     name: "blurred_home_animation"
     namespace: "launcher"
     description: "Launcher will be blurred when the user swipes to home."
@@ -203,6 +189,13 @@ flag {
     metadata {
       purpose: PURPOSE_BUGFIX
     }
+}
+
+flag {
+    name: "all_apps_surface"
+    namespace: "launcher"
+    description: "All Apps will be drawn on a separate surface to improve performance."
+    bug: "414847564"
 }
 
 flag {
@@ -239,12 +232,6 @@ flag {
     }
 }
 
-flag {
-    name: "work_scheduler_in_work_profile"
-    namespace: "launcher"
-    description: "Enables work scheduler view above the work pause button in work profile."
-    bug: "361589193"
-}
 
 flag {
     name: "one_grid_specs"
@@ -313,13 +300,6 @@ flag {
 }
 
 flag {
-    name: "show_taskbar_pinning_popup_from_anywhere"
-    namespace: "launcher"
-    description: "Shows the pinning popup view after long-pressing or right-clicking anywhere on the pinned taskbar"
-    bug: "297325541"
-}
-
-flag {
     name: "enable_launcher_overview_in_window"
     namespace: "lse_desktop_experience"
     description: "Enables launcher recents opening inside of a window instead of being hosted in launcher activity."
@@ -355,13 +335,6 @@ flag {
   namespace: "launcher"
   description: "Enable launcher icon shape customizations"
   bug: "348708061"
-}
-
-flag {
-  name: "enable_launcher_visual_refresh"
-  namespace: "launcher"
-  description: "Adds refresh for font family, app longpress menu icons, and pagination dots"
-  bug: "395145453"
 }
 
 flag {
@@ -457,16 +430,6 @@ flag {
 }
 
 flag {
-  name: "enable_taskbar_for_direct_boot"
-  namespace: "launcher"
-  description: "Initializes parts of Taskbar before onUserUnlocked"
-  bug: "324485921"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
   name: "enable_taskbar_ui_thread"
   namespace: "launcher"
   description: "Enable per-window thread for taskbar"
@@ -481,20 +444,10 @@ flag {
 }
 
 flag {
-  name: "home_button_uses_keycode_home"
-  namespace: "launcher"
-  description: "Sends KEYCODE_HOME to framework instead of calling startActivity directly"
-  bug: "381339822"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
   name: "enable_expressive_folder_expansion"
   namespace: "launcher"
   description: "Enables expressive folder expansion motion"
-  bug: "348708061"
+  bug: "387543793"
   metadata {
     purpose: PURPOSE_BUGFIX
   }
@@ -518,7 +471,7 @@ flag {
   name: "simplified_launcher_model_binding"
   namespace: "launcher"
   description: "Simplified approach to binding launcher model asynchronously"
-  bug: "390572144"
+  bug: "448982751"
 }
 
 flag {
@@ -540,16 +493,6 @@ flag {
     namespace: "launcher"
     description: "Enables home action corner to be reversible"
     bug: "416664984"
-}
-
-flag {
-  name: "enable_new_all_set_animation"
-  namespace: "launcher"
-  description: "Enables the new animation for the All Set page"
-  bug: "424506400"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
 }
 
 flag {
@@ -683,4 +626,55 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
+}
+
+flag {
+  name: "app_launch_blur"
+  namespace: "launcher"
+  description: "Enable background blur at app launch"
+  bug: "379905951"
+}
+
+flag {
+  name: "tooltip_edu_combinator"
+  namespace: "launcher"
+  description: "Separate logic of education tooltip combination from presentation"
+  bug: "444693509"
+}
+
+flag {
+  name: "blur_on_more_surfaces"
+  namespace: "launcher"
+  description: "Enable blur in more Launcher surfaces"
+  bug: "444141641"
+}
+
+flag {
+  name: "fix_widget_drag_radius_loss"
+  namespace: "launcher"
+  description: "Fixes issue that during drag and drop, radius clips were lost"
+  bug: "326128683"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "orientation_enabled_desktop_grid_spec"
+  namespace: "launcher"
+  description: "Uses a desktop grid spec that specifies grid dimensions that look reasonably well when the device is used in portrait mode"
+  bug: "444244391"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+    name: "enable_files_on_home_screen_decoupled_init"
+    namespace: "launcher"
+    description: "Enables decoupling of files on home screen initialization from the loader task"
+    bug: "444563784"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
 }

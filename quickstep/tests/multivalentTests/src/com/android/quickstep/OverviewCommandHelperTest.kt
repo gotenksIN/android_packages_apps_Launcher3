@@ -16,16 +16,19 @@
 
 package com.android.quickstep
 
+import android.animation.Animator
+import android.animation.AnimatorSet
 import android.content.Intent
-import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.SetFlagsRule
 import android.view.Display.DEFAULT_DISPLAY
+import androidx.test.annotation.UiThreadTest
 import androidx.test.filters.SmallTest
 import com.android.app.displaylib.DisplayRepository
 import com.android.app.displaylib.fakes.FakePerDisplayRepository
-import com.android.launcher3.Flags
 import com.android.launcher3.LauncherState
+import com.android.launcher3.LauncherState.OVERVIEW
+import com.android.launcher3.LauncherState.OVERVIEW_MODAL_TASK
 import com.android.launcher3.statemanager.StateManager
 import com.android.launcher3.statemanager.StatefulActivity
 import com.android.launcher3.taskbar.TaskbarInteractor
@@ -39,6 +42,7 @@ import com.android.quickstep.OverviewCommandHelper.CommandInfo
 import com.android.quickstep.OverviewCommandHelper.CommandInfo.CommandStatus
 import com.android.quickstep.OverviewCommandHelper.CommandType
 import com.android.quickstep.OverviewCommandHelper.Companion.TOGGLE_PREVIOUS_TIMEOUT_MS
+import com.android.quickstep.fallback.RecentsState
 import com.android.quickstep.views.DesktopTaskView
 import com.android.quickstep.views.KeyboardFocusTask
 import com.android.quickstep.views.RecentsView
@@ -73,6 +77,7 @@ import org.mockito.kotlin.whenever
 @SmallTest
 @RunWith(LauncherMultivalentJUnit::class)
 @OptIn(ExperimentalCoroutinesApi::class)
+@UiThreadTest
 class OverviewCommandHelperTest {
 
     @get:Rule val mSetFlagsRule: SetFlagsRule = SetFlagsRule()
@@ -97,6 +102,7 @@ class OverviewCommandHelperTest {
     private val launcher: QuickstepLauncher = mock()
     private var elapsedRealtime = 100L
     private val systemUiProxy: SystemUiProxy = mock()
+    private val overviewComponentObserver = mock<OverviewComponentObserver>()
 
     private fun setupDefaultDisplay() {
         whenever(displayRepository.displayIds).thenReturn(MutableStateFlow(setOf(DEFAULT_DISPLAY)))
@@ -112,7 +118,6 @@ class OverviewCommandHelperTest {
     fun setup() {
         setupDefaultDisplay()
 
-        val overviewComponentObserver = mock<OverviewComponentObserver>()
         whenever(overviewComponentObserver.getContainerInterface(any()))
             .thenReturn(containerInterface)
         whenever(overviewComponentObserver.getHomeIntent(any())).thenReturn(mock<Intent>())
@@ -124,6 +129,7 @@ class OverviewCommandHelperTest {
         whenever(taskbarInteractor.launchFocusedTask().get())
             .thenReturn(REQUESTED_KEYBOARD_FOCUS_TASK_IDS)
         whenever(taskbarManager.getUIControllerForDisplay(anyInt())).thenReturn(taskbarUIController)
+        whenever(stateManager.state).thenReturn(OVERVIEW)
 
         sut =
             spy(
@@ -134,9 +140,7 @@ class OverviewCommandHelperTest {
                     displayRepository = displayRepository,
                     taskbarManager = taskbarManager,
                     taskAnimationManagerRepository =
-                        FakePerDisplayRepository<TaskAnimationManager> { _ ->
-                            taskAnimationManager
-                        },
+                        FakePerDisplayRepository { _ -> taskAnimationManager },
                     elapsedRealtime = ::elapsedRealtime,
                     systemUiProxy = systemUiProxy,
                 )
@@ -579,16 +583,6 @@ class OverviewCommandHelperTest {
         }
 
     @Test
-    @DisableFlags(Flags.FLAG_HOME_BUTTON_USES_KEYCODE_HOME)
-    fun whenHomeCommandIsAdded_executeHomeAction_withKeycodeHomeDisabled() =
-        testScope.runTest {
-            val command = sut.addCommand(CommandType.HOME)!!
-            runCurrent()
-            verify(touchInteractionService).startActivity(any())
-            assertThat(command.status).isEqualTo(CommandStatus.COMPLETED)
-        }
-
-    @Test
     @EnableFlags(WindowFlags.FLAG_ENABLE_REJECT_HOME_TRANSITION)
     fun whenHomeCommandIsAdded_executeRejectHomeActionOnExternalDisplay() =
         testScope.runTest {
@@ -642,7 +636,6 @@ class OverviewCommandHelperTest {
         }
 
     @Test
-    @EnableFlags(Flags.FLAG_HOME_BUTTON_USES_KEYCODE_HOME)
     fun whenHomeCommandIsAdded_executeHomeAction_withKeycodeHomeEnabled() =
         testScope.runTest {
             sut.addCommand(CommandType.HOME)
@@ -734,6 +727,31 @@ class OverviewCommandHelperTest {
             runCurrent()
             assertThat(command.status).isEqualTo(CommandStatus.COMPLETED)
             verify(recentView).setKeyboardFocusTask(KeyboardFocusTask.Unfocused)
+        }
+
+    @Test
+    fun toggleCommand_inModalTaskMode_goToRecentsState() =
+        testScope.runTest {
+            val recentsContainerInterface: BaseActivityInterface<RecentsState, RecentsActivity> =
+                mock()
+            val recentsViewContainer = mock<RecentsActivity>()
+            whenever(recentsContainerInterface.createdContainer).thenReturn(recentsViewContainer)
+            whenever(recentsContainerInterface.getVisibleRecentsView<RecentsView<*, *>>())
+                .thenReturn(recentView)
+            whenever(overviewComponentObserver.getContainerInterface(any()))
+                .thenReturn(recentsContainerInterface)
+            whenever(stateManager.state).thenReturn(OVERVIEW_MODAL_TASK)
+
+            val commandInfo: CommandInfo = sut.addCommand(CommandType.TOGGLE)!!
+            runCurrent()
+            assertThat(commandInfo.status).isEqualTo(CommandStatus.PROCESSING)
+
+            val animationEndCallbackCaptor = argumentCaptor<Animator.AnimatorListener>()
+            verify(recentsViewContainer)
+                .goToRecentsState(any(), any(), animationEndCallbackCaptor.capture())
+            animationEndCallbackCaptor.firstValue.onAnimationEnd(AnimatorSet())
+            runCurrent()
+            assertThat(commandInfo.status).isEqualTo(CommandStatus.COMPLETED)
         }
 
     private fun setupGestureDependencies(): Pair<AbsSwipeUpHandler<*, *, *>, GestureState> {

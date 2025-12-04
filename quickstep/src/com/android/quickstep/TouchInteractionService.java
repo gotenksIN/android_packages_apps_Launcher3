@@ -24,8 +24,6 @@ import static android.view.MotionEvent.ACTION_POINTER_DOWN;
 import static android.view.MotionEvent.ACTION_POINTER_UP;
 import static android.view.MotionEvent.ACTION_UP;
 
-import static com.android.launcher3.Flags.enableMetaTabToggleInOverview;
-import static com.android.launcher3.Flags.enableTaskbarForDirectBoot;
 import static com.android.launcher3.LauncherPrefs.backedUpItem;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
@@ -49,6 +47,7 @@ import static com.android.systemui.shared.system.ActivityManagerWrapper.CLOSE_SY
 
 import android.app.ActivityManager;
 import android.app.Service;
+import android.app.contextualsearch.ContextualSearchConfig;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
@@ -277,11 +276,7 @@ public class TouchInteractionService extends Service {
                     TaskUtils.closeSystemWindowsAsync(CLOSE_SYSTEM_WINDOWS_REASON_RECENTS);
                     tis.mOverviewCommandHelper.addCommand(CommandType.SHOW_ALT_TAB, displayId);
                 } else {
-                    tis.mOverviewCommandHelper.addCommand(
-                            enableMetaTabToggleInOverview()
-                                    ? CommandType.TOGGLE_WITH_FOCUS
-                                    : CommandType.SHOW_WITH_FOCUS,
-                            displayId);
+                    tis.mOverviewCommandHelper.addCommand(CommandType.TOGGLE_WITH_FOCUS, displayId);
                 }
             });
         }
@@ -339,6 +334,16 @@ public class TouchInteractionService extends Service {
             executeForTouchInteractionService(tis -> {
                 if (!new ContextualSearchInvoker(tis).tryStartAssistOverride(invocationType)) {
                     Log.w(TAG, "Failed to invoke Assist override");
+                }
+            });
+        }
+
+        @Override
+        public void invokeContextualSearch(
+            int entryPoint, @Nullable ContextualSearchConfig config) {
+            executeForTouchInteractionService(tis -> {
+                if (!new ContextualSearchInvoker(tis).show(entryPoint, config)) {
+                    Log.w(TAG, "Failed to invoke contextual search");
                 }
             });
         }
@@ -490,6 +495,8 @@ public class TouchInteractionService extends Service {
             // sending the reply.
             MAIN_EXECUTOR.execute(() -> {
                 executeForTaskbarManager(TaskbarManager::destroy);
+                executeForTouchInteractionService(tis ->
+                        tis.mQuickstepKeyGestureEventsHandler.onDestroy());
                 try {
                     reply.sendResult(null);
                 } catch (RemoteException e) {
@@ -535,6 +542,12 @@ public class TouchInteractionService extends Service {
             TouchInteractionService tis = mTis.get();
             if (tis == null) return null;
             return tis.mTaskbarManager;
+        }
+
+        /** Returns the primary service */
+        @VisibleForTesting
+        public TouchInteractionService getService() {
+            return mTis.get();
         }
 
         @VisibleForTesting
@@ -754,7 +767,7 @@ public class TouchInteractionService extends Service {
 
     private QuickstepKeyGestureEventsManager mQuickstepKeyGestureEventsHandler;
     private DisplaysWithDecorationsRepositoryCompat mDisplaysWithDecorationsRepositoryCompat;
-    private CoroutineDispatcher mCoroutineDispatcher;
+    private CoroutineDispatcher mMainCoroutineDispatcher;
     private DesktopState mDesktopState;
 
     @Override
@@ -773,7 +786,7 @@ public class TouchInteractionService extends Service {
         mSystemDecorationChangeObserver = SystemDecorationChangeObserver.getINSTANCE().get(this);
         mQuickstepKeyGestureEventsHandler =
                 QuickstepKeyGestureEventsManager.getINSTANCE().get(this);
-        mCoroutineDispatcher = ProductionDispatchers.INSTANCE.getMain();
+        mMainCoroutineDispatcher = ProductionDispatchers.INSTANCE.get(this).getMain();
         mDisplaysWithDecorationsRepositoryCompat =
                 LauncherDisplaysWithDecorationsRepositoryCompat.getINSTANCE().get(this);
         mDesktopState = DesktopState.getInstance(this);
@@ -792,7 +805,7 @@ public class TouchInteractionService extends Service {
         mTaskbarManager = new TaskbarManagerImplWrapper(
             new TaskbarManagerImpl(this, mAllAppsActionManager, mNavCallbacks,
                 mRecentsWindowManagerRepository, mDisplaysWithDecorationsRepositoryCompat,
-                    mCoroutineDispatcher));
+                    ProductionDispatchers.INSTANCE.get(this).getTaskbarUi()));
         mDesktopAppLaunchTransitionManager =
                 new DesktopAppLaunchTransitionManager(this, SystemUiProxy.INSTANCE.get(this),
                         DisplayController.INSTANCE.get(this));
@@ -959,7 +972,7 @@ public class TouchInteractionService extends Service {
         }
         if (RecentsWindowFlags.getEnableOverviewInWindow()) {
             mRecentsWindowManagerRepository.forEach(
-                    /* createIfAbsent= */ false, RecentsWindowManager::hideRecentsWindow);
+                    /* createIfAbsent= */ false, RecentsWindowManager::onOverviewTargetChanged);
             if (isHomeAndOverviewSame) {
                 TaskStackChangeListeners.getInstance().unregisterTaskStackListener(
                         mHomeIntentStartedListener);
@@ -988,7 +1001,7 @@ public class TouchInteractionService extends Service {
                 }
                 taskAnimationManager.onSystemUiFlagsChanged(lastSysUIFlags, systemUiStateFlags);
             }
-        } else if (enableTaskbarForDirectBoot() && deviceState != null) {
+        } else if (deviceState != null) {
             mTaskbarManager.onSystemUiFlagsChanged(deviceState.getSysuiStateFlags(), displayId);
         }
     }
@@ -1008,7 +1021,6 @@ public class TouchInteractionService extends Service {
                 + " instance=" + System.identityHashCode(this));
         if (LockedUserState.get(this).isUserUnlocked()) {
             mInputConsumer.unregisterInputConsumer();
-            mQuickstepKeyGestureEventsHandler.onDestroy();
             mOverviewComponentObserver.setHomeDisabled(false);
             mOverviewComponentObserver.removeOverviewChangeListener(mOverviewChangeListener);
         }
@@ -1364,7 +1376,9 @@ public class TouchInteractionService extends Service {
         }
     }
 
-    private void reset(int displayId) {
+    /** Resets any active input related to this display */
+    @VisibleForTesting
+    public void reset(int displayId) {
         mConsumer = mUncheckedConsumer = InputConsumerUtils.getDefaultInputConsumer(
                 displayId,
                 mUserUnlocked,
@@ -1571,7 +1585,7 @@ public class TouchInteractionService extends Service {
         private InputMonitorDisplayModel(
                 Context context, SystemDecorationChangeObserver systemDecorationChangeObserver) {
             super(context, systemDecorationChangeObserver, mDisplaysWithDecorationsRepositoryCompat,
-                    mCoroutineDispatcher);
+                    mMainCoroutineDispatcher);
             initializeDisplays();
         }
 

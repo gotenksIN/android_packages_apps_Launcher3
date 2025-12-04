@@ -28,11 +28,11 @@ import com.android.launcher3.dagger.ApiWrapperModule
 import com.android.launcher3.dagger.AppModule
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.BasePerDisplayModule
+import com.android.launcher3.dagger.DesktopModule
 import com.android.launcher3.dagger.DisplayContext
 import com.android.launcher3.dagger.HomeScreenFilesModule
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
-import com.android.launcher3.dagger.LauncherConcurrencyModule
 import com.android.launcher3.dagger.LauncherModelModule
 import com.android.launcher3.dagger.SettingsModule
 import com.android.launcher3.dagger.StaticObjectModule
@@ -87,7 +87,6 @@ interface TaskbarSandboxComponent : LauncherAppComponent {
             WidgetModule::class,
             AppModule::class,
             BasePerDisplayModule::class,
-            LauncherConcurrencyModule::class,
             ExecutorsModule::class,
             LauncherExecutorsModule::class,
             FakePrefsModule::class,
@@ -99,6 +98,7 @@ interface TaskbarSandboxComponent : LauncherAppComponent {
             NoOpWidgetPickerModule::class,
             LauncherModelModule::class,
             HomeScreenFilesModule::class,
+            DesktopModule::class,
             SettingsModule::class,
             SystemDragModule::class,
         ]

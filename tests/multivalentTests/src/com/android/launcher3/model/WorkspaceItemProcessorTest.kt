@@ -22,6 +22,7 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherApps
 import android.content.pm.PackageInstaller
 import android.content.pm.ShortcutInfo
+import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Process
 import android.os.UserHandle
@@ -32,61 +33,80 @@ import android.provider.DocumentsContract
 import android.util.LongSparseArray
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.launcher3.Flags
+import com.android.launcher3.Flags.FLAG_ENABLE_SUPPORT_FOR_ARCHIVING
+import com.android.launcher3.Flags.enableFilesOnHomeScreenDecoupledInit
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.LauncherSettings.Favorites
+import com.android.launcher3.LauncherSettings.Favorites.APPWIDGET_ID
+import com.android.launcher3.LauncherSettings.Favorites.APPWIDGET_PROVIDER
+import com.android.launcher3.LauncherSettings.Favorites.APPWIDGET_SOURCE
+import com.android.launcher3.LauncherSettings.Favorites.CONTAINER
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
+import com.android.launcher3.LauncherSettings.Favorites.INTENT
+import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPLICATION
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPWIDGET
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FILE_SYSTEM_FILE
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FILE_SYSTEM_FOLDER
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FOLDER
+import com.android.launcher3.LauncherSettings.Favorites.OPTIONS
+import com.android.launcher3.LauncherSettings.Favorites.PROFILE_ID
+import com.android.launcher3.LauncherSettings.Favorites.RESTORED
+import com.android.launcher3.LauncherSettings.Favorites.SPANX
+import com.android.launcher3.LauncherSettings.Favorites.SPANY
+import com.android.launcher3.LauncherSettings.Favorites.TITLE
+import com.android.launcher3.LauncherSettings.Favorites._ID
+import com.android.launcher3.LauncherSettings.Favorites.getColumnsToTypes
 import com.android.launcher3.Utilities.EMPTY_PERSON_ARRAY
 import com.android.launcher3.Utilities.qsbOnFirstScreen
 import com.android.launcher3.WorkspaceLayoutManager
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger.RestoreError
 import com.android.launcher3.homescreenfiles.HomeScreenFile
+import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils
 import com.android.launcher3.icons.BitmapInfo
 import com.android.launcher3.icons.CacheableShortcutInfo
 import com.android.launcher3.icons.IconCache
 import com.android.launcher3.model.data.FolderInfo
 import com.android.launcher3.model.data.IconRequestInfo
-import com.android.launcher3.model.data.ItemInfo
+import com.android.launcher3.model.data.ItemInfoWithIcon
 import com.android.launcher3.model.data.LauncherAppWidgetInfo
 import com.android.launcher3.model.data.LauncherAppWidgetInfo.FLAG_UI_NOT_READY
 import com.android.launcher3.model.data.WorkspaceItemCoordinates
 import com.android.launcher3.model.data.WorkspaceItemInfo
+import com.android.launcher3.model.data.WorkspaceItemInfo.FLAG_DISABLED_FILE_SYSTEM_NOT_READY
 import com.android.launcher3.model.data.WorkspaceItemInfo.FLAG_RESTORED_ICON
 import com.android.launcher3.model.data.WorkspaceItemInfo.FLAG_RESTORE_STARTED
-import com.android.launcher3.pm.UserManagerState
 import com.android.launcher3.shortcuts.ShortcutKey
 import com.android.launcher3.util.ContentWriter
 import com.android.launcher3.util.PackageManagerHelper
 import com.android.launcher3.util.PackageUserKey
 import com.android.launcher3.util.RoboApiWrapper
 import com.android.launcher3.util.SandboxApplication
-import com.android.launcher3.util.UserIconInfo
 import com.android.launcher3.widget.LauncherAppWidgetProviderInfo
 import com.android.launcher3.widget.WidgetInflater
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Answers
-import org.mockito.ArgumentCaptor
 import org.mockito.Mock
-import org.mockito.Mockito.times
-import org.mockito.Mockito.verify
+import org.mockito.Mockito
 import org.mockito.junit.MockitoJUnit
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argThat
-import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.spy
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
@@ -97,16 +117,18 @@ class WorkspaceItemProcessorTest {
     @get:Rule val mContext = SandboxApplication().withModelDependency()
     @get:Rule val shortcutAccessRule = RoboApiWrapper.grantShortcutsPermissionRule()
 
+    private val realCursor = MatrixCursor(getColumnsToTypes(0L).keys.toTypedArray<String>())
+    private val realCursorRow = realCursor.newRow()
+
     @Mock private lateinit var mockIconRequestInfo: IconRequestInfo<WorkspaceItemInfo>
     @Mock private lateinit var mockWorkspaceInfo: WorkspaceItemInfo
     @Mock private lateinit var mockPmHelper: PackageManagerHelper
-    @Mock(answer = Answers.RETURNS_DEEP_STUBS) private lateinit var mockCursor: LoaderCursor
-    @Mock private lateinit var mockUserManagerState: UserManagerState
     @Mock private lateinit var mockWidgetInflater: WidgetInflater
     @Mock private lateinit var mockIconCache: IconCache
     @Mock private lateinit var mockWorkspaceItemSpaceFinder: WorkspaceItemSpaceFinder
+    @Mock(answer = Answers.RETURNS_SELF) private lateinit var mockContentWriter: ContentWriter
 
-    lateinit var mLauncherApps: LauncherApps
+    private lateinit var mLauncherApps: LauncherApps
     private var mIntent: Intent = Intent()
     private var mUserHandle: UserHandle = Process.myUserHandle()
     private var mIconRequestInfos: MutableList<IconRequestInfo<WorkspaceItemInfo>> = mutableListOf()
@@ -117,6 +139,7 @@ class WorkspaceItemProcessorTest {
     private var mAllDeepShortcuts: MutableList<CacheableShortcutInfo> = mutableListOf()
     private var mPendingPackages: MutableSet<PackageUserKey> = mutableSetOf()
 
+    private lateinit var mockCursor: LoaderCursor
     private lateinit var itemProcessorUnderTest: WorkspaceItemProcessor
 
     @Before
@@ -138,22 +161,15 @@ class WorkspaceItemProcessorTest {
         whenever(mockIconCache.getShortcutIcon(any(), any(), any())).then {}
         whenever(mockPmHelper.getAppLaunchIntent(mComponentName.packageName, mUserHandle))
             .thenReturn(mIntent)
-        mockCursor.apply {
-            user = mUserHandle
-            itemType = ITEM_TYPE_APPLICATION
-            id = 1
-            restoreFlag = 1
-            serialNumber = 101
-            whenever(parseIntent()).thenReturn(mIntent)
-            whenever(markRestored()).doAnswer { restoreFlag = 0 }
-            whenever(updater().put(Favorites.INTENT, mIntent.toUri(0)).commit()).thenReturn(1)
-            whenever(getAppShortcutInfo(any(), any(), any(), any())).thenReturn(mockWorkspaceInfo)
-            whenever(createIconRequestInfo(any(), any())).thenReturn(mockIconRequestInfo)
-        }
-        mockUserManagerState.apply {
-            val userIconInfo = mock<UserIconInfo>().apply { whenever(isPrivate).thenReturn(false) }
-            whenever(getUserInfo(any())).thenReturn(userIconInfo)
-        }
+
+        realCursorRow
+            .add(ITEM_TYPE, ITEM_TYPE_APPLICATION)
+            .add(_ID, 1)
+            .add(PROFILE_ID, 101)
+            .add(RESTORED, 1)
+            .add(INTENT, mIntent.toUri(0))
+
+        doReturn(1).whenever(mockContentWriter).commit()
 
         mKeyToPinnedShortcutsMap = mutableMapOf()
         mInstallingPkgs = hashMapOf()
@@ -168,9 +184,7 @@ class WorkspaceItemProcessorTest {
      * as mocks/defaults, or to recreate it after modifying the default vars.
      */
     private fun createWorkspaceItemProcessorUnderTest(
-        cursor: LoaderCursor = mockCursor,
         memoryLogger: LoaderMemoryLogger? = null,
-        userManagerState: UserManagerState = mockUserManagerState,
         launcherApps: LauncherApps = mLauncherApps,
         shortcutKeyToPinnedShortcuts: Map<ShortcutKey, ShortcutInfo> = mKeyToPinnedShortcutsMap,
         widgetInflater: WidgetInflater = mockWidgetInflater,
@@ -181,12 +195,39 @@ class WorkspaceItemProcessorTest {
         unlockedUsers: LongSparseArray<Boolean> = mUnlockedUsersArray,
         installingPkgs: HashMap<PackageUserKey, PackageInstaller.SessionInfo> = mInstallingPkgs,
         allDeepShortcuts: MutableList<CacheableShortcutInfo> = mAllDeepShortcuts,
-        homeScreenFiles: Lazy<Map<Uri, HomeScreenFile>> = lazyOf(mapOf()),
-    ) =
-        WorkspaceItemProcessor(
-            c = cursor,
+        homeScreenFiles: CompletableFuture<Map<Uri, HomeScreenFile>> =
+            CompletableFuture.completedFuture(mapOf()),
+    ): WorkspaceItemProcessor {
+        // Create the loader cursor after all the stubbing is set up as accessing the dagger graph
+        // objects initiates the creation of the full tree which starts various API calls on
+        // different threads. This can conflict with stubbing as stubbing is not thread safe
+        val ums = mContext.appComponent.userCache.userManagerState
+        mockCursor =
+            spy(
+                LoaderCursor(
+                    cursor = realCursor,
+                    userManagerState = ums,
+                    restoreEventLogger = null,
+                    context = mContext,
+                    iconCache = mockIconCache,
+                    idp = mContext.appComponent.idp,
+                    model = mContext.appComponent.testableModelState.model,
+                    pmHelper = mContext.appComponent.packageManagerHelper,
+                )
+            )
+
+        doReturn(mockWorkspaceInfo)
+            .whenever(mockCursor)
+            .getAppShortcutInfo(any(), any(), any(), any())
+        doReturn(mockIconRequestInfo).whenever(mockCursor).createIconRequestInfo(any(), any())
+        doReturn(mockContentWriter).whenever(mockCursor).updater()
+
+        mockCursor.moveToNext()
+
+        return WorkspaceItemProcessor(
+            c = mockCursor,
             memoryLogger = memoryLogger,
-            userManagerState = userManagerState,
+            userManagerState = ums,
             launcherApps = launcherApps,
             context = mContext,
             widgetInflater = widgetInflater,
@@ -199,32 +240,18 @@ class WorkspaceItemProcessorTest {
             installingPkgs = installingPkgs,
             allDeepShortcuts = allDeepShortcuts,
             iconCache = mockIconCache,
-            idp = InvariantDeviceProfile.INSTANCE.get(mContext),
+            idp = mContext.appComponent.idp,
             isSafeMode = false,
             widgetSizeHandler = mContext.appComponent.widgetSizeHandler,
             workspaceItemSpaceFinder = mockWorkspaceItemSpaceFinder,
             homeScreenFiles = homeScreenFiles,
         )
-
-    @Test
-    fun `When user is null then mark item deleted`() {
-        // Given
-        mockCursor = mock<LoaderCursor>().apply { id = 1 }
-
-        // When
-        itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
-        itemProcessorUnderTest.processItem()
-
-        // Then
-        verify(mockCursor)
-            .markDeleted("User has been deleted for item id=1", RestoreError.PROFILE_DELETED)
-        verify(mockCursor, times(0)).checkAndAddItem(any(), any(), anyOrNull())
     }
 
     @Test
     fun `When app has null intent then mark deleted`() {
         // Given
-        mockCursor.apply { whenever(parseIntent()).thenReturn(null) }
+        realCursorRow.add(INTENT, null)
 
         // When
         itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
@@ -237,12 +264,8 @@ class WorkspaceItemProcessorTest {
 
     @Test
     fun `When app has null target package then mark deleted`() {
-
         // Given
-        mIntent.apply {
-            component = null
-            `package` = null
-        }
+        realCursorRow.add(INTENT, Intent().toUri(0))
 
         // When
         itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
@@ -256,11 +279,9 @@ class WorkspaceItemProcessorTest {
 
     @Test
     fun `When app has empty String target package then mark deleted`() {
-
         // Given
         mComponentName = ComponentName("", "")
-        mIntent.component = mComponentName
-        mIntent.`package` = ""
+        realCursorRow.add(INTENT, Intent().setComponent(mComponentName).toUri(0))
 
         // When
         itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
@@ -274,7 +295,6 @@ class WorkspaceItemProcessorTest {
 
     @Test
     fun `When valid app then mark restored`() {
-
         // When
         itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
         itemProcessorUnderTest.processItem()
@@ -349,7 +369,7 @@ class WorkspaceItemProcessorTest {
     @Test
     fun `When valid Pinned Deep Shortcut then mark restored`() {
         // Given
-        mockCursor.itemType = ITEM_TYPE_DEEP_SHORTCUT
+        realCursorRow.add(ITEM_TYPE, ITEM_TYPE_DEEP_SHORTCUT)
         val expectedShortcutInfo =
             mock<ShortcutInfo>().apply {
                 whenever(userHandle).thenReturn(mUserHandle)
@@ -362,7 +382,7 @@ class WorkspaceItemProcessorTest {
                 whenever(disabledReason).thenReturn(0)
                 whenever(persons).thenReturn(EMPTY_PERSON_ARRAY)
             }
-        val shortcutKey = ShortcutKey.fromIntent(mIntent, mockCursor.user)
+        val shortcutKey = ShortcutKey.fromIntent(mIntent, mUserHandle)
         mKeyToPinnedShortcutsMap[shortcutKey] = expectedShortcutInfo
         mIconRequestInfos = mutableListOf()
 
@@ -386,7 +406,6 @@ class WorkspaceItemProcessorTest {
     @EnableFlags(Flags.FLAG_RESTORE_ARCHIVED_SHORTCUTS)
     fun `When Archived Deep Shortcut with flag on then mark restored`() {
         // Given
-        val mockContentWriter: ContentWriter = mock()
         val mockAppInfo: ApplicationInfo =
             mock<ApplicationInfo>().apply {
                 isArchived = true
@@ -394,27 +413,18 @@ class WorkspaceItemProcessorTest {
             }
         val expectedRestoreFlag = FLAG_RESTORED_ICON or FLAG_RESTORE_STARTED
         doReturn(mockAppInfo).whenever(mLauncherApps).getApplicationInfo(any(), any(), any())
-        whenever(mockContentWriter.put(Favorites.RESTORED, expectedRestoreFlag))
-            .thenReturn(mockContentWriter)
-        whenever(mockContentWriter.commit()).thenReturn(1)
-        mockCursor.apply {
-            itemType = ITEM_TYPE_DEEP_SHORTCUT
-            restoreFlag = restoreFlag or FLAG_RESTORED_ICON
-            whenever(updater()).thenReturn(mockContentWriter)
-        }
-        mIconRequestInfos = mutableListOf()
+
+        realCursorRow.add(ITEM_TYPE, ITEM_TYPE_DEEP_SHORTCUT).add(RESTORED, FLAG_RESTORED_ICON)
 
         // When
-        itemProcessorUnderTest =
-            createWorkspaceItemProcessorUnderTest(allDeepShortcuts = mAllDeepShortcuts)
+        itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
         itemProcessorUnderTest.processItem()
 
         // Then
         assertThat(mockCursor.restoreFlag and FLAG_RESTORED_ICON).isEqualTo(FLAG_RESTORED_ICON)
         assertThat(mockCursor.restoreFlag and FLAG_RESTORE_STARTED).isEqualTo(FLAG_RESTORE_STARTED)
-        assertThat(mIconRequestInfos).isNotEmpty()
         assertThat(mAllDeepShortcuts).isEmpty()
-        verify(mockContentWriter).put(Favorites.RESTORED, expectedRestoreFlag)
+        verify(mockContentWriter).put(RESTORED, expectedRestoreFlag)
         verify(mockCursor).checkAndAddItem(any(), any(), eq(null))
     }
 
@@ -422,12 +432,11 @@ class WorkspaceItemProcessorTest {
     @DisableFlags(Flags.FLAG_RESTORE_ARCHIVED_SHORTCUTS)
     fun `When Archived Deep Shortcut with flag off then remove`() {
         // Given
-        mockCursor.itemType = ITEM_TYPE_DEEP_SHORTCUT
+        realCursorRow.add(ITEM_TYPE, ITEM_TYPE_DEEP_SHORTCUT)
         mIconRequestInfos = mutableListOf()
 
         // When
-        itemProcessorUnderTest =
-            createWorkspaceItemProcessorUnderTest(allDeepShortcuts = mAllDeepShortcuts)
+        itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
         itemProcessorUnderTest.processItem()
 
         // Then
@@ -446,7 +455,7 @@ class WorkspaceItemProcessorTest {
     @Test
     fun `When Pinned Deep Shortcut is not stored in ShortcutManager re-query by Shortcut ID`() {
         // Given
-        mockCursor.itemType = ITEM_TYPE_DEEP_SHORTCUT
+        realCursorRow.add(ITEM_TYPE, ITEM_TYPE_DEEP_SHORTCUT)
         val si =
             mock<ShortcutInfo>().apply {
                 whenever(id).thenReturn("")
@@ -481,7 +490,7 @@ class WorkspaceItemProcessorTest {
     fun `When Pinned Deep Shortcut not found then mark deleted`() {
 
         // Given
-        mockCursor.itemType = ITEM_TYPE_DEEP_SHORTCUT
+        realCursorRow.add(ITEM_TYPE, ITEM_TYPE_DEEP_SHORTCUT)
         mIconRequestInfos = mutableListOf()
         mKeyToPinnedShortcutsMap = hashMapOf()
 
@@ -506,7 +515,6 @@ class WorkspaceItemProcessorTest {
     fun `When valid Pinned Deep Shortcut with null intent package then use targetPkg`() {
 
         // Given
-        mockCursor.itemType = ITEM_TYPE_DEEP_SHORTCUT
         val expectedShortcutInfo =
             mock<ShortcutInfo>().apply {
                 whenever(id).thenReturn("")
@@ -522,10 +530,11 @@ class WorkspaceItemProcessorTest {
         mIconRequestInfos = mutableListOf()
         // Make sure shortcuts map has expected key from expected package
         mIntent.`package` = mComponentName.packageName
-        val shortcutKey = ShortcutKey.fromIntent(mIntent, mockCursor.user)
+        val shortcutKey = ShortcutKey.fromIntent(mIntent, Process.myUserHandle())
         mKeyToPinnedShortcutsMap[shortcutKey] = expectedShortcutInfo
         // set intent package back to null to test scenario
         mIntent.`package` = null
+        realCursorRow.add(ITEM_TYPE, ITEM_TYPE_DEEP_SHORTCUT).add(INTENT, mIntent.toUri(0))
 
         // When
         itemProcessorUnderTest =
@@ -545,28 +554,20 @@ class WorkspaceItemProcessorTest {
 
     @Test
     fun `When processing Folder then create FolderInfo and mark restored`() {
-        val actualFolderInfo = FolderInfo()
-        mockCursor =
-            mock<LoaderCursor>().apply {
-                user = mUserHandle
-                itemType = ITEM_TYPE_FOLDER
-                id = 1
-                container = 100
-                restoreFlag = 1
-                serialNumber = 101
-                whenever(applyCommonProperties(any<ItemInfo>())).then {}
-                whenever(markRestored()).doAnswer { restoreFlag = 0 }
-                whenever(getColumnIndex(Favorites.TITLE)).thenReturn(4)
-                whenever(getString(4)).thenReturn("title")
-                whenever(options).thenReturn(5)
-                whenever(findOrMakeFolder(eq(1), any())).thenReturn(actualFolderInfo)
-            }
+        realCursorRow
+            .add(ITEM_TYPE, ITEM_TYPE_FOLDER)
+            .add(TITLE, "title")
+            .add(OPTIONS, 5)
+            .add(_ID, 3)
+
         val expectedFolderInfo =
             FolderInfo().apply {
                 itemType = ITEM_TYPE_FOLDER
+                title = "title"
                 spanX = 1
                 spanY = 1
                 options = 5
+                id = 3
             }
         itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
 
@@ -578,16 +579,17 @@ class WorkspaceItemProcessorTest {
             .that(mockCursor.restoreFlag)
             .isEqualTo(0)
         verify(mockCursor).markRestored()
+
+        val folderCaptor = argumentCaptor<FolderInfo>()
+        verify(mockCursor).checkAndAddItem(folderCaptor.capture(), any(), anyOrNull())
+        val actualFolderInfo = folderCaptor.firstValue
+
         assertThat(actualFolderInfo.id).isEqualTo(expectedFolderInfo.id)
-        assertThat(actualFolderInfo.container).isEqualTo(expectedFolderInfo.container)
+        assertThat(actualFolderInfo.title).isEqualTo(expectedFolderInfo.title)
         assertThat(actualFolderInfo.itemType).isEqualTo(expectedFolderInfo.itemType)
-        assertThat(actualFolderInfo.screenId).isEqualTo(expectedFolderInfo.screenId)
-        assertThat(actualFolderInfo.cellX).isEqualTo(expectedFolderInfo.cellX)
-        assertThat(actualFolderInfo.cellY).isEqualTo(expectedFolderInfo.cellY)
         assertThat(actualFolderInfo.spanX).isEqualTo(expectedFolderInfo.spanX)
         assertThat(actualFolderInfo.spanY).isEqualTo(expectedFolderInfo.spanY)
         assertThat(actualFolderInfo.options).isEqualTo(expectedFolderInfo.options)
-        verify(mockCursor).checkAndAddItem(eq(actualFolderInfo), any(), anyOrNull())
     }
 
     @Test
@@ -595,32 +597,20 @@ class WorkspaceItemProcessorTest {
 
         // Given
         val expectedProvider = "com.google.android.testApp/com.android.testApp.testAppProvider"
-        val expectedComponentName =
-            ComponentName.unflattenFromString(expectedProvider)!!.flattenToString()
         val expectedRestoreStatus = FLAG_UI_NOT_READY
         val expectedAppWidgetId = 0
-        mockCursor.apply {
-            itemType = ITEM_TYPE_APPWIDGET
-            user = mUserHandle
-            restoreFlag = FLAG_UI_NOT_READY
-            container = CONTAINER_DESKTOP
-            whenever(isOnWorkspaceOrHotseat).thenCallRealMethod()
-            whenever(appWidgetProvider).thenReturn(expectedProvider)
-            whenever(appWidgetId).thenReturn(expectedAppWidgetId)
-            whenever(spanX).thenReturn(2)
-            whenever(spanY).thenReturn(1)
-            whenever(options).thenReturn(0)
-            whenever(appWidgetSource).thenReturn(20)
-            whenever(applyCommonProperties(any())).thenCallRealMethod()
-            whenever(
-                    updater()
-                        .put(Favorites.APPWIDGET_PROVIDER, expectedComponentName)
-                        .put(Favorites.APPWIDGET_ID, expectedAppWidgetId)
-                        .put(Favorites.RESTORED, expectedRestoreStatus)
-                        .commit()
-                )
-                .thenReturn(1)
-        }
+
+        realCursorRow
+            .add(ITEM_TYPE, ITEM_TYPE_APPWIDGET)
+            .add(RESTORED, FLAG_UI_NOT_READY)
+            .add(CONTAINER, CONTAINER_DESKTOP)
+            .add(APPWIDGET_PROVIDER, expectedProvider)
+            .add(APPWIDGET_ID, expectedAppWidgetId)
+            .add(SPANX, 2)
+            .add(SPANY, 1)
+            .add(OPTIONS, 0)
+            .add(APPWIDGET_SOURCE, 20)
+
         val expectedWidgetInfo =
             LauncherAppWidgetInfo().apply {
                 appWidgetId = expectedAppWidgetId
@@ -649,9 +639,9 @@ class WorkspaceItemProcessorTest {
         itemProcessorUnderTest.processItem()
 
         // Then
-        val widgetInfoCaptor = ArgumentCaptor.forClass(LauncherAppWidgetInfo::class.java)
+        val widgetInfoCaptor = argumentCaptor<LauncherAppWidgetInfo>()
         verify(mockCursor).checkAndAddItem(widgetInfoCaptor.capture(), any(), anyOrNull())
-        val actualWidgetInfo = widgetInfoCaptor.value
+        val actualWidgetInfo = widgetInfoCaptor.firstValue
         with(actualWidgetInfo) {
             assertThat(providerName).isEqualTo(expectedWidgetInfo.providerName)
             assertThat(restoreStatus).isEqualTo(expectedWidgetInfo.restoreStatus)
@@ -662,25 +652,20 @@ class WorkspaceItemProcessorTest {
 
     @Test
     fun `When valid Pending Widget then checkAndAddItem`() {
-
         // Given
-        mockCursor =
-            mock<LoaderCursor>().apply {
-                itemType = ITEM_TYPE_APPWIDGET
-                id = 1
-                user = UserHandle(1)
-                restoreFlag = FLAG_UI_NOT_READY
-                container = CONTAINER_DESKTOP
-                whenever(isOnWorkspaceOrHotseat).thenCallRealMethod()
-                whenever(appWidgetProvider)
-                    .thenReturn("com.google.android.testApp/com.android.testApp.testAppProvider")
-                whenever(appWidgetId).thenReturn(0)
-                whenever(spanX).thenReturn(2)
-                whenever(spanY).thenReturn(1)
-                whenever(options).thenReturn(0)
-                whenever(appWidgetSource).thenReturn(20)
-                whenever(applyCommonProperties(any())).thenCallRealMethod()
-            }
+        realCursorRow
+            .add(ITEM_TYPE, ITEM_TYPE_APPWIDGET)
+            .add(RESTORED, FLAG_UI_NOT_READY)
+            .add(CONTAINER, CONTAINER_DESKTOP)
+            .add(
+                APPWIDGET_PROVIDER,
+                "com.google.android.testApp/com.android.testApp.testAppProvider",
+            )
+            .add(APPWIDGET_ID, 0)
+            .add(SPANX, 2)
+            .add(SPANY, 1)
+            .add(OPTIONS, 0)
+            .add(APPWIDGET_SOURCE, 20)
         val mockProviderInfo =
             mock<LauncherAppWidgetProviderInfo>().apply {
                 provider = mock()
@@ -706,25 +691,18 @@ class WorkspaceItemProcessorTest {
 
     @Test
     fun `When Unrestored Pending App Widget then mark deleted`() {
-
         // Given
         val expectedProvider = "com.google.android.testApp/com.android.testApp.testAppProvider"
-        mockCursor =
-            mock<LoaderCursor>().apply {
-                itemType = ITEM_TYPE_APPWIDGET
-                id = 1
-                user = UserHandle(1)
-                restoreFlag = FLAG_UI_NOT_READY
-                container = CONTAINER_DESKTOP
-                whenever(isOnWorkspaceOrHotseat).thenCallRealMethod()
-                whenever(appWidgetProvider).thenReturn(expectedProvider)
-                whenever(appWidgetId).thenReturn(0)
-                whenever(spanX).thenReturn(2)
-                whenever(spanY).thenReturn(1)
-                whenever(options).thenReturn(0)
-                whenever(appWidgetSource).thenReturn(20)
-                whenever(applyCommonProperties(any())).thenCallRealMethod()
-            }
+        realCursorRow
+            .add(ITEM_TYPE, ITEM_TYPE_APPWIDGET)
+            .add(RESTORED, FLAG_UI_NOT_READY)
+            .add(CONTAINER, CONTAINER_DESKTOP)
+            .add(APPWIDGET_PROVIDER, expectedProvider)
+            .add(APPWIDGET_ID, 0)
+            .add(SPANX, 2)
+            .add(SPANY, 1)
+            .add(OPTIONS, 0)
+            .add(APPWIDGET_SOURCE, 20)
         mInstallingPkgs = hashMapOf()
         val inflationResult =
             WidgetInflater.InflationResult(type = WidgetInflater.TYPE_PENDING, widgetInfo = null)
@@ -750,18 +728,16 @@ class WorkspaceItemProcessorTest {
     fun `When widget inflation result is TYPE_DELETE then mark deleted`() {
         // Given
         val expectedProvider = "com.google.android.testApp/com.android.testApp.testAppProvider"
-        mockCursor =
-            mock<LoaderCursor>().apply {
-                itemType = ITEM_TYPE_APPWIDGET
-                id = 1
-                user = UserHandle(1)
-                container = CONTAINER_DESKTOP
-                whenever(spanX).thenReturn(2)
-                whenever(spanY).thenReturn(1)
-                whenever(appWidgetProvider).thenReturn(expectedProvider)
-                whenever(isOnWorkspaceOrHotseat).thenCallRealMethod()
-                whenever(applyCommonProperties(any())).thenCallRealMethod()
-            }
+        realCursorRow
+            .add(ITEM_TYPE, ITEM_TYPE_APPWIDGET)
+            .add(RESTORED, FLAG_UI_NOT_READY)
+            .add(CONTAINER, CONTAINER_DESKTOP)
+            .add(APPWIDGET_PROVIDER, expectedProvider)
+            .add(APPWIDGET_ID, 0)
+            .add(SPANX, 2)
+            .add(SPANY, 1)
+            .add(OPTIONS, 0)
+            .add(APPWIDGET_SOURCE, 20)
         mInstallingPkgs = hashMapOf()
         val inflationResult =
             WidgetInflater.InflationResult(
@@ -784,20 +760,177 @@ class WorkspaceItemProcessorTest {
     }
 
     @Test
-    fun restoresFileSystemFileItemType() {
+    fun deletesFileSystemFileItemTypeWhenRestoringFromBackup() {
+        testRestoresFileSystemItemIfNotRestoringFromBackup(
+            ITEM_TYPE_FILE_SYSTEM_FILE,
+            HomeScreenFile(
+                uri = Uri.parse("content://media/external_primary/file/1"),
+                displayName = "file.png",
+                mimeType = "image/png",
+                isDirectory = false,
+                user = Process.myUserHandle(),
+            ),
+            /*isFileSystemReady=*/ true,
+            /*isRestoreFromBackup=*/ true,
+        )
+    }
+
+    @Test
+    fun deletesFileSystemFolderItemTypeWhenRestoringFromBackup() {
+        testRestoresFileSystemItemIfNotRestoringFromBackup(
+            ITEM_TYPE_FILE_SYSTEM_FOLDER,
+            HomeScreenFile(
+                uri = Uri.parse("content://media/external_primary/file/1"),
+                displayName = "folder_a",
+                mimeType = null,
+                isDirectory = true,
+                user = Process.myUserHandle(),
+            ),
+            /*isFileSystemReady=*/ true,
+            /*isRestoreFromBackup=*/ true,
+        )
+    }
+
+    @Test
+    fun disablesFilesSystemFileItemTypeWhenNotRestoringFromBackup() {
+        testRestoresFileSystemItemIfNotRestoringFromBackup(
+            ITEM_TYPE_FILE_SYSTEM_FILE,
+            HomeScreenFile(
+                uri = Uri.parse("content://media/external_primary/file/1"),
+                displayName = "folder_a",
+                mimeType = null,
+                isDirectory = true,
+                user = Process.myUserHandle(),
+            ),
+            /*isFileSystemReady=*/ false,
+            /*isRestoreFromBackup=*/ false,
+        )
+    }
+
+    @Test
+    fun disablesFilesSystemFolderItemTypeWhenNotRestoringFromBackup() {
+        testRestoresFileSystemItemIfNotRestoringFromBackup(
+            ITEM_TYPE_FILE_SYSTEM_FOLDER,
+            HomeScreenFile(
+                uri = Uri.parse("content://media/external_primary/file/1"),
+                displayName = "folder_a",
+                mimeType = null,
+                isDirectory = true,
+                user = Process.myUserHandle(),
+            ),
+            /*isFileSystemReady=*/ false,
+            /*isRestoreFromBackup=*/ false,
+        )
+    }
+
+    @Test
+    fun restoresFileSystemFileItemTypeWhenNotRestoringFromBackup() {
+        testRestoresFileSystemItemIfNotRestoringFromBackup(
+            ITEM_TYPE_FILE_SYSTEM_FILE,
+            HomeScreenFile(
+                uri = Uri.parse("content://media/external_primary/file/1"),
+                displayName = "file.png",
+                mimeType = "image/png",
+                isDirectory = false,
+                user = Process.myUserHandle(),
+            ),
+            /*isFileSystemReady=*/ true,
+            /*isRestoreFromBackup=*/ false,
+        )
+    }
+
+    @Test
+    fun restoresFileSystemFolderItemTypeWhenNotRestoringFromBackup() {
+        testRestoresFileSystemItemIfNotRestoringFromBackup(
+            ITEM_TYPE_FILE_SYSTEM_FOLDER,
+            HomeScreenFile(
+                uri = Uri.parse("content://media/external_primary/file/1"),
+                displayName = "folder_a",
+                mimeType = null,
+                isDirectory = true,
+                user = Process.myUserHandle(),
+            ),
+            /*isFileSystemReady=*/ true,
+            /*isRestoreFromBackup=*/ false,
+        )
+    }
+
+    private fun testRestoresFileSystemItemIfNotRestoringFromBackup(
+        itemType: Int,
+        homeScreenFile: HomeScreenFile,
+        isFileSystemReady: Boolean,
+        isRestoreFromBackup: Boolean,
+    ) {
         // Given
-        mockCursor.apply {
-            itemType = ITEM_TYPE_FILE_SYSTEM_FILE
-            whenever(title).thenReturn("name.ext")
+        val homeScreenFiles =
+            mock<CompletableFuture<Map<Uri, HomeScreenFile>>>().also { mock ->
+                val isDone = AtomicBoolean(isFileSystemReady)
+                whenever(mock.isDone).thenAnswer { isDone.get() }
+                whenever(mock.get()).thenAnswer {
+                    isDone.set(true)
+                    mapOf(homeScreenFile.uri to homeScreenFile)
+                }
+            }
+        realCursorRow
+            .add(ITEM_TYPE, itemType)
+            .add(RESTORED, if (isRestoreFromBackup) FLAG_RESTORED_ICON else 0)
+            .add(TITLE, homeScreenFile.displayName)
+            .add(
+                INTENT,
+                HomeScreenFilesUtils.buildLaunchIntent(homeScreenFile.uri, homeScreenFile).toUri(0),
+            )
+
+        // When
+        itemProcessorUnderTest =
+            createWorkspaceItemProcessorUnderTest(homeScreenFiles = homeScreenFiles)
+        itemProcessorUnderTest.processItem()
+
+        // Then
+        if (isRestoreFromBackup) {
+            verify(mockCursor)
+                .markDeleted(
+                    "File system items are not restored from backup",
+                    RestoreError.FILE_SYSTEM_ITEM_FROM_BACKUP,
+                )
+            verify(mockCursor, times(0)).checkAndAddItem(any(), any(), anyOrNull())
+        } else {
+            val itemCaptor = argumentCaptor<ItemInfoWithIcon>()
+            verify(mockCursor).markRestored()
+            verify(mockCursor).checkAndAddItem(itemCaptor.capture(), any(), anyOrNull())
+            with(itemCaptor.firstValue) {
+                assertThat(itemType).isEqualTo(itemType)
+                assertThat(title).isEqualTo(homeScreenFile.displayName)
+                with(intent!!) {
+                    assertThat(data).isEqualTo(homeScreenFile.uri)
+                    assertThat(flags).isEqualTo(HomeScreenFilesUtils.LAUNCH_INTENT_DEFAULT_FLAGS)
+                }
+                val disabled = (runtimeStatusFlags and FLAG_DISABLED_FILE_SYSTEM_NOT_READY) != 0
+                val expectedDisabled = enableFilesOnHomeScreenDecoupledInit() && !isFileSystemReady
+                assertThat(disabled).isEqualTo(expectedDisabled)
+            }
         }
+    }
+
+    @Test
+    fun deletesFileSystemItemThatNoLongerExists() {
+        // Given
+        realCursorRow
+            .add(ITEM_TYPE, ITEM_TYPE_FILE_SYSTEM_FILE)
+            .add(RESTORED, 0)
+            .add(TITLE, "name.ext")
+            .add(
+                INTENT,
+                HomeScreenFilesUtils.buildLaunchIntent(
+                        Uri.parse("content://media/external_primary/file/1")
+                    )
+                    .toUri(0),
+            )
 
         // When
         itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
         itemProcessorUnderTest.processItem()
 
         // Then
-        // TODO(b/424466810): update expectation after implementing
-        // `WorkspaceItemProcessor#processFileSystemItem()`.
         verify(mockCursor)
             .markDeleted(
                 "File system item name.ext no longer exists",
@@ -807,38 +940,29 @@ class WorkspaceItemProcessorTest {
     }
 
     @Test
-    fun restoresFileSystemFolderItemType() {
-        // Given
-        mockCursor.apply {
-            itemType = ITEM_TYPE_FILE_SYSTEM_FOLDER
-            whenever(title).thenReturn("folder_a")
-        }
-
-        // When
-        itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
-        itemProcessorUnderTest.processItem()
-
-        // Then
-        // TODO(b/424466810): update expectation after implementing
-        // `WorkspaceItemProcessor#processFileSystemItem()`.
-        verify(mockCursor)
-            .markDeleted(
-                "File system item folder_a no longer exists",
-                RestoreError.FILE_SYSTEM_ITEM_NO_LONGER_EXISTS,
-            )
-        verify(mockCursor, times(0)).checkAndAddItem(any(), any(), anyOrNull())
-    }
-
-    @Test
     fun addsRemainingFileSystemItemsThatWereNotPartOfRestore() {
         // Given
+        val uri1 = Uri.parse("content://media/external_primary/file/1")
+        val uri2 = Uri.parse("content://media/external_primary/file/2")
         val homeScreenFiles =
-            lazyOf(
+            CompletableFuture.completedFuture(
                 mapOf(
-                    Uri.parse("content://media/external_primary/file/1") to
-                        HomeScreenFile("file.png", "image/png", false),
-                    Uri.parse("content://media/external_primary/file/2") to
-                        HomeScreenFile("folder_a", null, true),
+                    uri1 to
+                        HomeScreenFile(
+                            uri = uri1,
+                            displayName = "file.png",
+                            mimeType = "image/png",
+                            isDirectory = false,
+                            user = Process.myUserHandle(),
+                        ),
+                    uri2 to
+                        HomeScreenFile(
+                            uri = uri2,
+                            displayName = "folder_a",
+                            mimeType = null,
+                            isDirectory = true,
+                            user = Process.myUserHandle(),
+                        ),
                 )
             )
         val maybeReservesSpaceForQsb: (ArrayList<WorkspaceItemInfo>) -> Boolean = { addItemsFinal ->
@@ -871,47 +995,143 @@ class WorkspaceItemProcessorTest {
         val items = itemProcessorUnderTest.finalizeData(mockModelDelegate, mockModelDbController)
 
         // Then
+        if (enableFilesOnHomeScreenDecoupledInit()) {
+            assertThat(items.size()).isEqualTo(0)
+            return
+        }
+
         assertThat(items.size()).isEqualTo(2)
 
-        assertThat(items.get(0).id).isEqualTo(0)
-        assertThat(items.get(0).title).isEqualTo("file.png")
-        assertThat(items.get(0).itemType).isEqualTo(ITEM_TYPE_FILE_SYSTEM_FILE)
-        assertThat(items.get(0).container).isEqualTo(CONTAINER_DESKTOP)
-        assertThat(items.get(0).spanX).isEqualTo(1)
-        assertThat(items.get(0).spanY).isEqualTo(1)
-        assertThat(items.get(0).screenId).isEqualTo(0)
-        assertThat(items.get(0).cellX).isEqualTo(0)
-        assertThat(items.get(0).cellY).isEqualTo(0)
-        assertThat(items.get(0).intent).isNotNull()
-        assertThat(items.get(0).intent!!.action).isEqualTo(Intent.ACTION_VIEW)
-        assertThat(items.get(0).intent!!.flags)
-            .isEqualTo(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-        assertThat(items.get(0).intent!!.data)
-            .isEqualTo(Uri.parse("content://media/external_primary/file/1"))
-        assertThat(items.get(0).intent!!.type).isEqualTo("image/png")
+        with(items.get(0)) {
+            assertThat(id).isEqualTo(0)
+            assertThat(title).isEqualTo("file.png")
+            assertThat(itemType).isEqualTo(ITEM_TYPE_FILE_SYSTEM_FILE)
+            assertThat(container).isEqualTo(CONTAINER_DESKTOP)
+            assertThat(spanX).isEqualTo(1)
+            assertThat(spanY).isEqualTo(1)
+            assertThat(screenId).isEqualTo(0)
+            assertThat(cellX).isEqualTo(0)
+            assertThat(cellY).isEqualTo(0)
+            assertThat(intent).isNotNull()
+            assertThat(intent!!.action).isEqualTo(Intent.ACTION_VIEW)
+            assertThat(intent!!.flags).isEqualTo(HomeScreenFilesUtils.LAUNCH_INTENT_DEFAULT_FLAGS)
+            assertThat(intent!!.data).isEqualTo(uri1)
+            assertThat(intent!!.type).isEqualTo("image/png")
+        }
 
-        assertThat(items.get(1).id).isEqualTo(1)
-        assertThat(items.get(1).title).isEqualTo("folder_a")
-        assertThat(items.get(1).itemType).isEqualTo(ITEM_TYPE_FILE_SYSTEM_FOLDER)
-        assertThat(items.get(1).container).isEqualTo(CONTAINER_DESKTOP)
-        assertThat(items.get(1).spanX).isEqualTo(1)
-        assertThat(items.get(1).spanY).isEqualTo(1)
-        assertThat(items.get(1).screenId).isEqualTo(0)
-        assertThat(items.get(1).cellX).isEqualTo(1)
-        assertThat(items.get(1).cellY).isEqualTo(1)
-        assertThat(items.get(1).intent!!.action).isEqualTo(Intent.ACTION_VIEW)
-        assertThat(items.get(1).intent!!.flags)
-            .isEqualTo(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        with(items.get(1)) {
+            assertThat(id).isEqualTo(1)
+            assertThat(title).isEqualTo("folder_a")
+            assertThat(itemType).isEqualTo(ITEM_TYPE_FILE_SYSTEM_FOLDER)
+            assertThat(container).isEqualTo(CONTAINER_DESKTOP)
+            assertThat(spanX).isEqualTo(1)
+            assertThat(spanY).isEqualTo(1)
+            assertThat(screenId).isEqualTo(0)
+            assertThat(cellX).isEqualTo(1)
+            assertThat(cellY).isEqualTo(1)
+            assertThat(intent!!.action).isEqualTo(Intent.ACTION_VIEW)
+            assertThat(intent!!.flags).isEqualTo(HomeScreenFilesUtils.LAUNCH_INTENT_DEFAULT_FLAGS)
+            assertThat(intent!!.data).isEqualTo(uri2)
+            assertThat(intent!!.type).isEqualTo(DocumentsContract.Document.MIME_TYPE_DIR)
+        }
+    }
+
+    @Test
+    fun `When Pending App Widget has not started restore then update db and add item`() {
+        // Given
+        val expectedProvider = "com.google.android.testApp/com.android.testApp.testAppProvider"
+        val expectedComponentName =
+            ComponentName.unflattenFromString(expectedProvider)!!.flattenToString()
+        val expectedRestoreStatus = FLAG_UI_NOT_READY or LauncherAppWidgetInfo.FLAG_RESTORE_STARTED
+        val expectedAppWidgetId = 0
+        realCursorRow
+            .add(APPWIDGET_PROVIDER, expectedComponentName)
+            .add(ITEM_TYPE, ITEM_TYPE_APPWIDGET)
+            .add(RESTORED, FLAG_UI_NOT_READY)
+            .add(CONTAINER, CONTAINER_DESKTOP)
+            .add(APPWIDGET_ID, 0)
+            .add(SPANY, 1)
+            .add(SPANX, 1)
+            .add(OPTIONS, 0)
+            .add(APPWIDGET_SOURCE, 20)
+
+        val inflationResult =
+            WidgetInflater.InflationResult(type = WidgetInflater.TYPE_PENDING, widgetInfo = null)
+        mockWidgetInflater =
+            mock<WidgetInflater>().apply {
+                whenever(inflateAppWidget(any())).thenReturn(inflationResult)
+            }
+        val packageUserKey = PackageUserKey("com.google.android.testApp", mUserHandle)
+        mInstallingPkgs[packageUserKey] = PackageInstaller.SessionInfo()
+
+        // When
+        itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
+        itemProcessorUnderTest.processItem()
+
+        // Then
+        val expectedWidgetInfo =
+            LauncherAppWidgetInfo().apply {
+                appWidgetId = expectedAppWidgetId
+                providerName = ComponentName.unflattenFromString(expectedProvider)
+                restoreStatus = expectedRestoreStatus
+            }
+        Mockito.verify(
+                mockCursor
+                    .updater()
+                    .put(Favorites.APPWIDGET_PROVIDER, expectedProvider)
+                    .put(Favorites.APPWIDGET_ID, expectedAppWidgetId)
+                    .put(Favorites.RESTORED, expectedRestoreStatus)
             )
-        assertThat(items.get(1).intent!!.data)
-            .isEqualTo(Uri.parse("content://media/external_primary/file/2"))
-        assertThat(items.get(1).intent!!.type).isEqualTo(DocumentsContract.Document.MIME_TYPE_DIR)
+            .commit()
+        val widgetInfoCaptor = argumentCaptor<LauncherAppWidgetInfo>()
+        Mockito.verify(mockCursor).checkAndAddItem(widgetInfoCaptor.capture(), any(), anyOrNull())
+        val actualWidgetInfo = widgetInfoCaptor.firstValue
+        with(actualWidgetInfo) {
+            assertThat(providerName).isEqualTo(expectedWidgetInfo.providerName)
+            assertThat(restoreStatus).isEqualTo(expectedWidgetInfo.restoreStatus)
+            assertThat(targetComponent).isEqualTo(expectedWidgetInfo.targetComponent)
+            assertThat(appWidgetId).isEqualTo(expectedWidgetInfo.appWidgetId)
+        }
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_SUPPORT_FOR_ARCHIVING)
+    fun `When Archived Pending App Widget then checkAndAddItem`() {
+        // Given
+        val expectedProvider = "com.google.android.testApp/com.android.testApp.testAppProvider"
+        val expectedComponentName = ComponentName.unflattenFromString(expectedProvider)
+        val mockAppInfo: ApplicationInfo =
+            mock<ApplicationInfo>().apply {
+                isArchived = true
+                enabled = true
+            }
+        doReturn(mockAppInfo).whenever(mLauncherApps).getApplicationInfo(any(), any(), any())
+
+        realCursorRow
+            .add(APPWIDGET_PROVIDER, expectedComponentName)
+            .add(_ID, 1)
+            .add(ITEM_TYPE, ITEM_TYPE_APPWIDGET)
+            .add(RESTORED, FLAG_UI_NOT_READY)
+            .add(CONTAINER, CONTAINER_DESKTOP)
+            .add(APPWIDGET_ID, 0)
+            .add(SPANY, 1)
+            .add(SPANX, 1)
+            .add(OPTIONS, 0)
+            .add(APPWIDGET_SOURCE, 20)
+
+        mInstallingPkgs = hashMapOf()
+        val inflationResult =
+            WidgetInflater.InflationResult(type = WidgetInflater.TYPE_PENDING, widgetInfo = null)
+        mockWidgetInflater =
+            mock<WidgetInflater>().apply {
+                whenever(inflateAppWidget(any())).thenReturn(inflationResult)
+            }
+        itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
+
+        // When
+        itemProcessorUnderTest.processItem()
+
+        // Then
+        Mockito.verify(mockCursor).checkAndAddItem(any(), any(), anyOrNull())
     }
 }

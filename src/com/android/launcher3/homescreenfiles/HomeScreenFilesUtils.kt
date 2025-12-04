@@ -23,10 +23,16 @@ import android.provider.DocumentsContract.Document.MIME_TYPE_DIR
 import com.android.launcher3.Flags.showFilesOnHomeScreen
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FILE_SYSTEM_FILE
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FILE_SYSTEM_FOLDER
+import com.android.launcher3.model.data.ItemInfo
 
 /** Other utility methods related to managing files on the home screen. */
 class HomeScreenFilesUtils {
     companion object {
+        const val LAUNCH_INTENT_DEFAULT_FLAGS =
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+
         /** Returns `true` if the feature to show files on the home screen is enabled. */
         val isFeatureEnabled: Boolean by lazy {
             showFilesOnHomeScreen() && Environment.isExternalStorageManager()
@@ -46,11 +52,7 @@ class HomeScreenFilesUtils {
         @JvmOverloads
         fun buildLaunchIntent(uri: Uri, homeScreenFile: HomeScreenFile? = null) =
             Intent(Intent.ACTION_VIEW).apply {
-                addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
+                addFlags(LAUNCH_INTENT_DEFAULT_FLAGS)
                 setDataAndType(
                     uri,
                     if (homeScreenFile?.isDirectory == true) MIME_TYPE_DIR
@@ -59,3 +61,21 @@ class HomeScreenFilesUtils {
             }
     }
 }
+
+/** Creates a [HomeScreenFile] from [ItemInfo]. */
+val ItemInfo.homeScreenFile: HomeScreenFile?
+    get() {
+        return if (isFileSystemItem()) {
+            HomeScreenFile(
+                uri = requireNotNull(requireNotNull(intent).data),
+                displayName = title?.toString() ?: "",
+                mimeType = requireNotNull(intent).type,
+                isDirectory = itemType == ITEM_TYPE_FILE_SYSTEM_FOLDER,
+                user = user,
+            )
+        } else null
+    }
+
+/** Returns whether an [ItemInfo] represents a file system item. */
+fun ItemInfo.isFileSystemItem(): Boolean =
+    itemType == ITEM_TYPE_FILE_SYSTEM_FILE || itemType == ITEM_TYPE_FILE_SYSTEM_FOLDER

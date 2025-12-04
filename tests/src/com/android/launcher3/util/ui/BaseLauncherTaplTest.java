@@ -55,7 +55,6 @@ import com.android.launcher3.tapl.HomeAllApps;
 import com.android.launcher3.tapl.HomeAppIcon;
 import com.android.launcher3.tapl.LauncherInstrumentation;
 import com.android.launcher3.tapl.TestHelpers;
-import com.android.launcher3.testutil.FavoriteItemsTransaction;
 import com.android.launcher3.util.TestUtil;
 import com.android.launcher3.util.rule.FailureWatcher;
 import com.android.launcher3.util.rule.SamplerRule;
@@ -504,18 +503,16 @@ public abstract class BaseLauncherTaplTest {
         return homeAppIcon;
     }
 
-    protected void commitTransactionAndLoadHome(FavoriteItemsTransaction transaction) {
-        transaction.commit();
-
-        // Launch the home activity
-        UiDevice.getInstance(getInstrumentation()).pressHome();
-        mLauncher.waitForLauncherInitialized();
-    }
-
     /** Clears all recent tasks */
-    protected void clearAllRecentTasks() {
-        if (!mLauncher.getRecentTasks().isEmpty()) {
-            mLauncher.goHome().switchToOverview().dismissAllTasks();
+    public void clearAllRecentTasks() {
+        mLauncher.goHome();
+        try {
+            getUiDevice().executeShellCommand(
+                    "dumpsys activity service SystemUIService WMShell desktopmode removeAllDesks");
+            getUiDevice().executeShellCommand(
+                    "dumpsys activity service SystemUIService WMShell recents clearAll");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }

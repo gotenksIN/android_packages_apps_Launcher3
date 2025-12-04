@@ -44,8 +44,6 @@
     <dimen name="task_thumbnail_icon_drawable_size">44dp</dimen>
     <!--  The splash icon size on in Overview when a task is settled in the list -->
     <dimen name="task_thumbnail_splash_icon_size">52dp</dimen>
-    <!--  The border width shown when task is hovered  -->
-    <dimen name="task_hover_border_width">4dp</dimen>
     <!--  The space under the focused task icon  -->
     <dimen name="overview_task_margin">16dp</dimen>
     <!--  The horizontal space between tasks  -->
@@ -174,6 +172,9 @@
 
     <dimen name="recents_empty_message_text_size">14sp</dimen>
     <dimen name="recents_empty_message_text_padding">16dp</dimen>
+    <dimen name="recents_empty_message_icon_size">60dp</dimen>
+    <dimen name="recents_empty_message_background_size">190dp</dimen>
+    <dimen name="recents_empty_message_background_size_large">288dp</dimen>
 
     <dimen name="max_shadow_radius">0dp</dimen>
 
@@ -445,6 +446,8 @@
     <dimen name="taskbar_tooltip_vertical_padding">8dp</dimen>
     <dimen name="taskbar_tooltip_horizontal_padding">16dp</dimen>
     <dimen name="taskbar_tooltip_y_offset">4dp</dimen>
+    <dimen name="persistent_taskbar_icon_size">44dp</dimen>
+    <dimen name="transient_taskbar_icon_size">57dp</dimen>
 
     <!-- An additional touch slop to prevent x-axis movement during the swipe up to show taskbar -->
     <dimen name="transient_taskbar_clamped_offset_bound">16dp</dimen>
@@ -500,9 +503,6 @@
 
     <!--- The minimum insets size for the IME to be considered docked. -->
     <dimen name="ime_docked_threshold">80dp</dimen>
-
-    <!-- Recents overview -->
-    <dimen name="recents_filter_icon_size">30dp</dimen>
 
     <!-- Bubble bar -->
     <dimen name="bubblebar_size">72dp</dimen>

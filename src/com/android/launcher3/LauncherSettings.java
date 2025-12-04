@@ -124,9 +124,9 @@ public class LauncherSettings {
         public static final int ITEM_TYPE_DEEP_SHORTCUT = 6;
 
         /**
-         * The favorite is an app pair for launching split screen
+         * The favorite is an app group for launching split screen
          */
-        public static final int ITEM_TYPE_APP_PAIR = 10;
+        public static final int ITEM_TYPE_APP_GROUP = 10;
 
         // *** Below enum values are used for metrics purpose but not used in Favorites DB ***
 
@@ -240,7 +240,7 @@ public class LauncherSettings {
                 case ITEM_TYPE_DEEP_SHORTCUT: return "DEEPSHORTCUT";
                 case ITEM_TYPE_TASK: return "TASK";
                 case ITEM_TYPE_QSB: return "QSB";
-                case ITEM_TYPE_APP_PAIR: return "APP_PAIR";
+                case ITEM_TYPE_APP_GROUP: return "APP_PAIR";
                 case ITEM_TYPE_PRIVATE_SPACE_INSTALL_APP_BUTTON:
                     return "PRIVATE_SPACE_INSTALL_APP_BUTTON";
                 case ITEM_TYPE_SYSTEM_DRAG: return "SYSTEM_DRAG";
@@ -338,7 +338,7 @@ public class LauncherSettings {
 
         // LinkedHashMap maintains Order of Insertion
         @NonNull
-        private static LinkedHashMap<String, String> getColumnsToTypes(long profileId) {
+        public static LinkedHashMap<String, String> getColumnsToTypes(long profileId) {
             final LinkedHashMap<String, String> columnsToTypes = new LinkedHashMap<>();
             columnsToTypes.put(_ID, "INTEGER PRIMARY KEY");
             columnsToTypes.put(TITLE, "TEXT");

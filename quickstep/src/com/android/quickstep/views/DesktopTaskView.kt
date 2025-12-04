@@ -35,6 +35,7 @@ import android.view.View
 import android.widget.ImageView
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.drawable.toDrawable
+import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import com.android.internal.hidden_from_bootclasspath.com.android.window.flags.Flags.enableDesktopRecentsTransitionsCornersBugfix
 import com.android.launcher3.Flags.enableDesktopExplodedView
@@ -493,15 +494,17 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                     iconTouchDelegate,
                     SplitConfigurationOptions.STAGE_POSITION_UNDEFINED,
                     digitalWellBeingToast = null,
-                    showWindowsView = null,
                     taskOverlayFactory,
                 )
             }
-        onBind(orientedState)
+        onBind(orientedState, taskOverlayFactory)
     }
 
-    override fun onBind(orientedState: RecentsOrientedState) {
-        super.onBind(orientedState)
+    override fun onBind(
+        orientedState: RecentsOrientedState,
+        taskOverlayFactory: TaskOverlayFactory,
+    ) {
+        super.onBind(orientedState, taskOverlayFactory)
         if (enableOverviewDesktopTileWallpaperBackground()) {
             setWallpaperBackground(false)
         }
@@ -626,6 +629,30 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
         addAccessibleChildToList(backgroundView, outChildren)
     }
 
+    override fun addFocusables(views: ArrayList<View>, direction: Int, focusableMode: Int) {
+        if (!isAttachedToWindow) {
+            return
+        }
+
+        // Manually control focus order.
+        // 1. Add this view itself if it is focusable, visible and enabled.
+        if (isFocusable && isVisible && isEnabled) {
+            views.add(this)
+        }
+
+        // 2. Add the icon view.
+        iconView.addFocusables(views, direction, focusableMode)
+
+        // 3. Add the individual task thumbnails in top-to-bottom, left-to-right tabbing order.
+        taskContainers
+            .asSequence()
+            .map { it.taskContentView }
+            .sortedWith(compareBy({ it.top }, { it.left }))
+            .forEach { taskContentView ->
+                taskContentView.addFocusables(views, direction, focusableMode)
+            }
+    }
+
     fun removeTaskFromExplodedView(taskId: Int, animate: Boolean) {
         if (!enableDesktopExplodedView()) {
             Log.e(
@@ -643,7 +670,7 @@ class DesktopTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
 
         // Dismiss the current DesktopTaskView if all its windows are closed.
         if (taskContainers.isEmpty()) {
-            recentsView?.dismissTaskView(this, animate, /* removeTask= */ true)
+            recentsView?.dismissTaskView(this, /* removeTask= */ true)
         } else {
             // If this task has a live window, then hide it.
             // TODO(b/413120214) The dismissed view should fade out.

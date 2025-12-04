@@ -182,7 +182,7 @@ class TaskContentView @JvmOverloads constructor(context: Context, attrs: Attribu
         taskThumbnailView?.onRecycle()
         taskAppTimerToast?.isInvisible = true
         timerUiState = Uninitialized
-        taskAppTimerViewModel.setState(Uninitialized)
+        if (taskAppTimerToastCompose != null) taskAppTimerViewModel.setState(Uninitialized)
         timerTextHelper = null
         timerUsageAccessibilityAction = null
         hoverBorderVisible = false
@@ -240,6 +240,7 @@ class TaskContentView @JvmOverloads constructor(context: Context, attrs: Attribu
 
     fun onParentAnimationProgress(progress: Float) {
         taskAppTimerToast?.apply { translationY = timerToastHeight * (1f - progress) }
+        taskAppTimerToastCompose?.apply { translationY = timerToastHeight * (1f - progress) }
     }
 
     /** Returns accessibility actions supported by items in the task content view. */
@@ -359,12 +360,11 @@ class TaskContentView @JvmOverloads constructor(context: Context, attrs: Attribu
     }
 
     private fun setAppTimerToastState(state: TaskAppTimerUiState) {
+        timerUiState = state
         if (useComposeTaskAppTimer) {
-            taskAppTimerViewModel.setState(state)
+            if (taskAppTimerToastCompose != null) taskAppTimerViewModel.setState(state)
             return
         }
-
-        timerUiState = state
 
         taskAppTimerToast?.apply {
             when (state) {

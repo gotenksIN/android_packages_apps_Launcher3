@@ -24,6 +24,7 @@ import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
+import android.os.Trace
 import android.util.AttributeSet
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -75,6 +76,7 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
     private val launcher: Launcher = Launcher.getLauncher(context)
     private var stateAnnouncer: DragViewStateAnnouncer?
     private val firstFrameAnimatorHelper: FirstFrameAnimatorHelper
+    private val popupTouchHandler = PopupTouchHandler()
     private var systemGestureExclusionRectsHolder: List<Rect>
 
     private lateinit var dragHandles: DragHandles
@@ -562,19 +564,6 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
         widgetView.requestLayout()
     }
 
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-
-        launcher.dragController.removeDragListener(this)
-        // We are done with resizing the widget. Save the widget size & position to LauncherModel
-        resizeWidgetIfNeeded(true)
-        launcher.statsLogManager
-            .logger()
-            .withInstanceId(logInstanceId)
-            .withItemInfo(widgetView.tag as ItemInfo)
-            .log(LauncherEvent.LAUNCHER_WIDGET_RESIZE_COMPLETED)
-    }
-
     private fun onTouchUp() {
         val dp = launcher.deviceProfile
         val xThreshold = cellLayout.cellWidth + dp.workspaceIconProfile.cellLayoutBorderSpacePx.x
@@ -771,14 +760,13 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
             if (shouldIgnoreTouch()) {
                 return false
             }
-            // We want to close any open popup and close the resize frame if we're not dragging and
-            // the touch event is outside this frame. We want to make sure we consume the event.
+
+            // We close the app widget resize frame if touch is not on it.
+            close(/* animate= */ false)
+
             val popup = getOpen(launcher)
-            if (popup != null) {
-                popup.close(true)
-                close(/* animate= */ false)
-                return true
-            }
+            // If the touch is on the popup menu, we want to make sure we consume the event.
+            return popupTouchHandler.handleTouchEvent(popup, ev)
         }
         close(/* animate= */ false)
         return false
@@ -788,9 +776,28 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
     private fun shouldIgnoreTouch(): Boolean = launcher.dragController.isDragging
 
     override fun handleClose(animate: Boolean) {
-        dragLayer.removeView(this)
-        widgetView.removeOnLayoutChangeListener(widgetViewLayoutListener)
-        launcher.dragController.removeDragListener(this)
+        try {
+            Trace.beginSection("closeAppWidgetResizeFrame")
+            // Mark the frame as closed before removing it from drag layer so drag layer knows not
+            // to asynchronously call `close()` again (which happens with `AbstractFloatingView`s
+            // that get removed without being closed).
+            mIsOpen = false
+            dragLayer.removeView(this)
+            widgetView.removeOnLayoutChangeListener(widgetViewLayoutListener)
+            launcher.dragController.removeDragListener(this)
+
+            // We are done with resizing the widget. Save the widget size & position to
+            // LauncherModel
+            resizeWidgetIfNeeded(true)
+
+            launcher.statsLogManager
+                .logger()
+                .withInstanceId(logInstanceId)
+                .withItemInfo(widgetView.tag as ItemInfo)
+                .log(LauncherEvent.LAUNCHER_WIDGET_RESIZE_COMPLETED)
+        } finally {
+            Trace.endSection()
+        }
     }
 
     private fun updateInvalidResizeEffect(
@@ -1005,44 +1012,47 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
          */
         @JvmStatic
         fun showForWidget(widget: LauncherAppWidgetHostView?, cellLayout: CellLayout) {
-            // If widget is not added to view hierarchy, we cannot show resize frame at correct
-            // location
-            if (widget == null || widget.parent == null) return
+            try {
+                Trace.beginSection("showAppWidgetResizeFrame")
+                // If widget is not added to view hierarchy, we cannot show resize frame at correct
+                // location
+                if (widget == null || widget.parent == null) return
 
-            val activityContext = cellLayout.mActivity
-            val dragLayer = activityContext.dragLayer as DragLayer
+                val activityContext = cellLayout.mActivity
+                val dragLayer = activityContext.dragLayer as DragLayer
 
-            closeAllOpenViewsExcept(activityContext, TYPE_ACTION_POPUP)
+                closeAllOpenViewsExcept(activityContext, TYPE_ACTION_POPUP)
 
-            val frame =
-                activityContext.layoutInflater.inflate(
-                    R.layout.app_widget_resize_frame,
-                    /*root*/ dragLayer,
-                    /*attachToRoot*/ false,
-                ) as AppWidgetResizeFrame
+                val frame =
+                    activityContext.layoutInflater.inflate(
+                        R.layout.app_widget_resize_frame,
+                        /*root*/ dragLayer,
+                        /*attachToRoot*/ false,
+                    ) as AppWidgetResizeFrame
 
-            frame.apply {
-                setupForWidget(widget, cellLayout, dragLayer)
-                // Save widget item info as tag on resize frame; so that, the accessibility delegate
-                // can
-                // attach actions that typically happen on widget (e.g. resize, move) also on the
-                // resize
-                // frame.
-                tag = widget.tag
-                accessibilityDelegate = activityContext.accessibilityDelegate
-                contentDescription =
-                    activityContext
-                        .asContext()
-                        .getString(
-                            R.string.widget_frame_name,
-                            (widget.tag as ItemInfo).contentDescription,
-                        )
-                (layoutParams as BaseDragLayer.LayoutParams).customPosition = true
+                frame.apply {
+                    setupForWidget(widget, cellLayout, dragLayer)
+                    // Save widget item info as tag on resize frame; so that, the accessibility
+                    // delegate can attach actions that typically happen on widget (e.g. resize,
+                    // move) also on the resize frame.
+                    tag = widget.tag
+                    accessibilityDelegate = activityContext.accessibilityDelegate
+                    contentDescription =
+                        activityContext
+                            .asContext()
+                            .getString(
+                                R.string.widget_frame_name,
+                                (widget.tag as ItemInfo).contentDescription,
+                            )
+                    (layoutParams as BaseDragLayer.LayoutParams).customPosition = true
+                }
+
+                dragLayer.addView(frame)
+                frame.mIsOpen = true
+                frame.post { frame.snapToWidget(false) }
+            } finally {
+                Trace.endSection()
             }
-
-            dragLayer.addView(frame)
-            frame.mIsOpen = true
-            frame.post { frame.snapToWidget(false) }
         }
 
         private fun getSpanIncrement(deltaFrac: Float): Int {

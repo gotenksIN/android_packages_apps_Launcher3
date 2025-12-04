@@ -19,10 +19,10 @@ package com.android.launcher3.homescreenfiles
 import android.content.ContentResolver.NOTIFY_INSERT
 import android.content.ContentResolver.NOTIFY_UPDATE
 import android.net.Uri
-import android.os.UserHandle
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.LauncherModel
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
+import com.android.launcher3.LauncherSettings.Favorites.DESKTOP_ICON_FLAG
 import com.android.launcher3.Utilities.qsbOnFirstScreen
 import com.android.launcher3.WorkspaceLayoutManager
 import com.android.launcher3.icons.IconCache
@@ -58,26 +58,28 @@ constructor(
         if (isInsert && file != null) {
             processInsert(fileChange.uri, file, taskController)
         } else if (isUpdate && file != null) {
-            processUpdate(
-                fileChange.uri,
-                fileChange.uriAlias,
-                file,
-                fileChange.user,
-                taskController,
-                dataModel,
-            )
+            processUpdate(fileChange.uri, fileChange.uriAlias, file, taskController, dataModel)
         } else {
             processDelete(fileChange.uri, fileChange.uriAlias, taskController)
         }
     }
 
     private fun processInsert(uri: Uri, file: HomeScreenFile, taskController: ModelTaskController) {
+        iconCache.addIconToDBAndMemCache(
+            file,
+            HomeScreenFilesCachingLogic,
+            iconCache.getSerialNumberForUser(file.user),
+        )
         val item =
             WorkspaceItemInfo().apply {
-                title = file.displayName
                 itemType = HomeScreenFilesUtils.buildItemType(file)
                 intent = HomeScreenFilesUtils.buildLaunchIntent(uri, file)
-                bitmap = iconCache.getDefaultIcon(user)
+                // Explicitly set `title` so that when `IconCache#getTitleAndIcon` converts a
+                // `WorkspaceItemInfo` to a `HomeScreenFile`, it doesn't end up with an empty
+                // string, which would then cause a component to be used as a fallback title in some
+                // cases.
+                title = file.displayName
+                iconCache.getTitleAndIcon(this, DESKTOP_ICON_FLAG)
             }
         val coords =
             workspaceItemSpaceFinder.findSpaceForItem(
@@ -112,19 +114,28 @@ constructor(
         uri: Uri,
         uriAlias: Uri?,
         file: HomeScreenFile,
-        user: UserHandle,
         taskController: ModelTaskController,
         dataModel: BgDataModel,
     ) {
         val updatedItems =
             dataModel.updateAndCollectWorkspaceItemInfos(
-                user,
+                file.user,
                 {
                     val data = it.intent?.data
                     if (data == uri || (uriAlias != null && data == uriAlias)) {
                         it.intent = HomeScreenFilesUtils.buildLaunchIntent(uri, file)
                         it.itemType = HomeScreenFilesUtils.buildItemType(file)
+                        // Explicitly set `title` so that when `IconCache#getTitleAndIcon` converts
+                        // a `WorkspaceItemInfo` to a `HomeScreenFile`, it doesn't end up with an
+                        // empty string, which would then cause a component to be used as a fallback
+                        // title in some cases.
                         it.title = file.displayName
+                        iconCache.addIconToDBAndMemCache(
+                            file,
+                            HomeScreenFilesCachingLogic,
+                            iconCache.getSerialNumberForUser(file.user),
+                        )
+                        iconCache.getTitleAndIcon(it, it.matchingLookupFlag)
                         true
                     } else {
                         false
@@ -132,6 +143,7 @@ constructor(
                 },
             )
         if (updatedItems.isNotEmpty()) {
+            taskController.getModelWriter().run { updatedItems.forEach(::updateItemInDatabase) }
             taskController.bindUpdatedWorkspaceItems(updatedItems)
         } else {
             processInsert(uri, file, taskController)

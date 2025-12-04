@@ -17,19 +17,12 @@
 package com.android.launcher3.integration.util
 
 import android.content.Intent
-import android.os.SystemClock
-import android.view.InputDevice
-import android.view.KeyCharacterMap
-import android.view.KeyEvent
-import android.view.MotionEvent
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ActivityScenario.ActivityAction
 import androidx.test.platform.app.InstrumentationRegistry.getInstrumentation
-import androidx.test.uiautomator.UiDevice
 import com.android.launcher3.Launcher
 import com.android.launcher3.LauncherState
-import com.android.launcher3.integration.util.events.ActivityTestEvents.createStateWaiter
 import com.android.launcher3.testutil.Wait.atMost
 import com.android.launcher3.util.Executors
 import com.android.launcher3.util.TestUtil
@@ -39,8 +32,6 @@ import java.util.function.Supplier
 import org.junit.rules.ExternalResource
 
 open class LauncherActivityScenarioRule<LAUNCHER_TYPE : Launcher> : ExternalResource() {
-
-    private val uiDevice = UiDevice.getInstance(getInstrumentation())
 
     private var currentScenario: ActivityScenario<LAUNCHER_TYPE>? = null
 
@@ -82,10 +73,8 @@ open class LauncherActivityScenarioRule<LAUNCHER_TYPE : Launcher> : ExternalReso
         return result.get()
     }
 
-    fun goToState(state: LauncherState) {
-        val stateWaiter = createStateWaiter(state)
-        executeOnLauncher { it.stateManager.goToState(state, 0) }
-        stateWaiter.waitForSignal()
+    fun goToState(state: LauncherState) = executeOnLauncher {
+        it.stateManager.goToState(state, false)
     }
 
     fun <T> getOnceNotNull(message: String, f: Function<LAUNCHER_TYPE, T?>): T? {
@@ -103,24 +92,34 @@ open class LauncherActivityScenarioRule<LAUNCHER_TYPE : Launcher> : ExternalReso
 
     @JvmOverloads
     fun injectKeyEvent(keyCode: Int, actionDown: Boolean, metaState: Int = 0) {
-        uiDevice.waitForIdle()
-        val eventTime = SystemClock.uptimeMillis()
-        val event =
-            KeyEvent(
-                eventTime,
-                eventTime,
-                if (actionDown) KeyEvent.ACTION_DOWN else MotionEvent.ACTION_UP,
-                keyCode,
-                /* repeat= */ 0,
-                metaState,
-                KeyCharacterMap.VIRTUAL_KEYBOARD,
-                /* scancode= */ 0,
-                /* flags= */ 0,
-                InputDevice.SOURCE_KEYBOARD,
-            )
-        executeOnLauncher { it.dispatchKeyEvent(event) }
+        executeOnLauncher {
+            it.dispatchKeyEvent(TestUtil.createKeyEvent(keyCode, metaState, actionDown))
+        }
     }
+
+    protected fun waitForLauncherCondition(message: String, condition: (LAUNCHER_TYPE) -> Boolean) =
+        atMost(message) { getFromLauncher(condition)!! }
+
+    fun waitForResumed() =
+        waitForLauncherCondition("Launcher activity never resumed") { it.hasBeenResumed() }
+
+    fun waitForStopped() =
+        waitForLauncherCondition("Launcher activity never stopped") { !it.isStarted }
 
     fun isInState(state: Supplier<LauncherState>): Boolean =
         getFromLauncher { it.stateManager.state == state.get() }!!
+
+    /** Waits until the [condition] is not true */
+    fun waitUntil(message: String, condition: (LAUNCHER_TYPE) -> Boolean) =
+        atMost(message) { getFromLauncher(condition)!! }
+
+    /** Waits until the [condition] is non-null and returns the non-null value */
+    fun <T> waitAndGet(message: String, condition: (LAUNCHER_TYPE) -> T?): T {
+        var result: T? = null
+        atMost(message) {
+            result = getFromLauncher(condition)
+            result != null
+        }
+        return result!!
+    }
 }

@@ -34,7 +34,7 @@ import com.android.app.displaylib.PerDisplayRepository
 import com.android.app.tracing.traceSection
 import com.android.internal.jank.Cuj
 import com.android.launcher3.DeviceProfile
-import com.android.launcher3.Flags
+import com.android.launcher3.anim.AnimatorListeners
 import com.android.launcher3.logger.LauncherAtom
 import com.android.launcher3.logging.StatsLogManager
 import com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_OVERVIEW_SHOW_OVERVIEW_FROM_3_BUTTON
@@ -55,6 +55,8 @@ import com.android.quickstep.OverviewCommandHelper.CommandType.SHOW_WITH_FOCUS
 import com.android.quickstep.OverviewCommandHelper.CommandType.TOGGLE
 import com.android.quickstep.OverviewCommandHelper.CommandType.TOGGLE_OVERVIEW_PREVIOUS
 import com.android.quickstep.OverviewCommandHelper.CommandType.TOGGLE_WITH_FOCUS
+import com.android.quickstep.fallback.RecentsState
+import com.android.quickstep.fallback.toRecentsState
 import com.android.quickstep.util.ActiveGestureLog
 import com.android.quickstep.util.ActiveGestureProtoLogProxy
 import com.android.quickstep.views.DesktopTaskView
@@ -273,17 +275,31 @@ constructor(
             }
 
             TOGGLE -> {
-                val runningTaskId = recentsView.runningTaskView?.taskIdSet
-                launchTask(
-                    recentsView,
-                    getNextToggledTaskView(recentsView, command.displayId),
-                    command,
-                ) {
-                    if (runningTaskId != null) {
-                        lastToggleInfo[command.displayId] =
-                            ToggleInfo(command.createTime, runningTaskId)
+                val recentsState = recentsView.getStateManager().state.toRecentsState()
+                if (recentsState == RecentsState.MODAL_TASK) {
+                    val recentsViewContainer =
+                        getContainerInterface(command.displayId)?.getCreatedContainer()
+                    if (recentsViewContainer != null) {
+                        val listener =
+                            AnimatorListeners.forEndCallback(Runnable { onCallbackResult() })
+                        recentsViewContainer.goToRecentsState(RecentsState.DEFAULT, true, listener)
+                        false
+                    } else {
+                        true
                     }
-                    onCallbackResult()
+                } else {
+                    val runningTaskId = recentsView.runningTaskView?.taskIdSet
+                    launchTask(
+                        recentsView,
+                        getNextToggledTaskView(recentsView, command.displayId),
+                        command,
+                    ) {
+                        if (runningTaskId != null) {
+                            lastToggleInfo[command.displayId] =
+                                ToggleInfo(command.createTime, runningTaskId)
+                        }
+                        onCallbackResult()
+                    }
                 }
             }
             TOGGLE_OVERVIEW_PREVIOUS -> {
@@ -458,18 +474,12 @@ constructor(
 
             HOME -> {
                 if (displaySupportsHomeGesture(command.displayId)) {
-                    if (Flags.homeButtonUsesKeycodeHome()) {
-                        systemUiProxy.onKeyEvent(KeyEvent.KEYCODE_HOME, command.displayId)
-                    } else {
-                        // Although IActivityTaskManager$Stub$Proxy.startActivity is a slow binder
-                        // call, we should still call it on main thread because launcher is waiting
-                        // for ActivityTaskManager to resume it. Also calling startActivity() on bg
-                        // thread could potentially delay resuming launcher. See b/348668521 for
-                        // more details.
-                        touchInteractionService.startActivity(
-                            overviewComponentObserver.getHomeIntent(command.displayId)
-                        )
-                    }
+                    // Although IActivityTaskManager$Stub$Proxy.startActivity is a slow binder
+                    // call, we should still call it on main thread because launcher is waiting
+                    // for ActivityTaskManager to resume it. Also calling startActivity() on bg
+                    // thread could potentially delay resuming launcher. See b/348668521 for
+                    // more details.
+                    systemUiProxy.onKeyEvent(KeyEvent.KEYCODE_HOME, command.displayId)
                     return true
                 } else {
                     // Initiate a recents animation that is immediately rejected, which will

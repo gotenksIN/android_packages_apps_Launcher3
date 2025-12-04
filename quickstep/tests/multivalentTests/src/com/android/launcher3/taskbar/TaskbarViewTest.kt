@@ -17,10 +17,16 @@
 package com.android.launcher3.taskbar
 
 import android.animation.AnimatorTestRule
+import android.graphics.Rect
+import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
+import android.platform.test.flag.junit.FlagsParameterization
+import android.platform.test.flag.junit.FlagsParameterization.allCombinationsOf
 import android.platform.test.flag.junit.SetFlagsRule
 import android.view.View
 import androidx.core.view.children
+import com.android.launcher3.Flags.FLAG_ENABLE_TASKBAR_DRAG_AND_DROP
+import com.android.launcher3.Flags.FLAG_ENABLE_TASKBAR_ICON_CONTAINER
 import com.android.launcher3.R
 import com.android.launcher3.apppairs.AppPairIcon
 import com.android.launcher3.statehandlers.DesktopVisibilityController
@@ -40,31 +46,53 @@ import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.ForceRtl
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
-import com.android.launcher3.util.LauncherMultivalentJUnit
+import com.android.launcher3.util.LauncherMultivalentJUnit.Companion.isRunningInRobolectric
 import com.android.launcher3.util.LauncherMultivalentJUnit.EmulatedDevices
 import com.android.window.flags.Flags.FLAG_ENABLE_OVERFLOW_BUTTON_FOR_TASKBAR_PINNED_ITEMS
 import com.android.window.flags.Flags.FLAG_ENABLE_TASKBAR_OVERFLOW
 import com.google.common.truth.Truth
 import com.google.common.truth.Truth.assertThat
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.whenever
+import platform.test.runner.parameterized.ParameterizedAndroidJunit4
+import platform.test.runner.parameterized.Parameters
 
-@RunWith(LauncherMultivalentJUnit::class)
+@RunWith(ParameterizedAndroidJunit4::class)
 @EmulatedDevices(["pixelFoldable2023", "pixelTablet2023"])
 @EnableFlags(FLAG_ENABLE_TASKBAR_OVERFLOW)
-class TaskbarViewTest {
+class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
+
+    companion object {
+        @JvmStatic
+        @Parameters(name = "{0},{1}")
+        fun getParams(): List<Array<Any>> {
+            val devices =
+                if (isRunningInRobolectric) {
+                    listOf("pixelFoldable2023", "pixelTablet2023")
+                } else {
+                    listOf("onDevice") // Unused.
+                }
+            val flags = allCombinationsOf(FLAG_ENABLE_TASKBAR_ICON_CONTAINER)
+            return devices.flatMap { d -> flags.map { f -> arrayOf(d, f) } } // Cartesian product.
+        }
+    }
 
     @get:Rule(order = 0) val animatorTestRule = AnimatorTestRule(this)
     @get:Rule(order = 1) val setFlagsRule = SetFlagsRule()
     @get:Rule(order = 2) val context = TaskbarWindowSandboxContext.create()
     @get:Rule(order = 3) val taskbarUnitTestRule = TaskbarUnitTestRule(this, context)
 
+    private val activityContext by taskbarUnitTestRule::activityContext
+
     @InjectController lateinit var viewController: TaskbarViewController
     private lateinit var taskbarView: TaskbarView
+    private val pinnedHitRectBuffer =
+        context.resources.getDimensionPixelSize(R.dimen.taskbar_pinned_hit_rect_buffer)
+    private var unpinnedHitRectBuffer =
+        context.resources.getDimensionPixelSize(R.dimen.taskbar_unpinned_hit_rect_buffer)
 
     private val iconViews: Array<View>
         get() = taskbarView.iconViews
@@ -76,11 +104,11 @@ class TaskbarViewTest {
         get() = taskbarView.maxNumIconViews - 2 // Account for All Apps and Divider.
 
     private val maxShownHotseat: Int
-        get() = taskbarUnitTestRule.activityContext.taskbarSpecsEvaluator.numShownHotseatIcons
+        get() = activityContext.taskbarSpecsEvaluator.numShownHotseatIcons
 
     @Before
     fun obtainView() {
-        taskbarView = taskbarUnitTestRule.activityContext.dragLayer.findViewById(R.id.taskbar_view)
+        taskbarView = activityContext.dragLayer.findViewById(R.id.taskbar_view)
     }
 
     @Test
@@ -415,7 +443,6 @@ class TaskbarViewTest {
     }
 
     @Test
-    @Ignore("b/435259563")
     fun testUpdateItems_desktopMode_hotseatItem_noDividerAfterDesktopModeChange() {
         whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(false)
         runOnMainSync { taskbarView.updateItems(createHotseatItems(1), emptyList(), emptyList()) }
@@ -741,18 +768,7 @@ class TaskbarViewTest {
 
         iconToAnimate = taskbarView.iconViews.find { it.tag == taskThatWillAnimateIn }
         assertThat(iconToAnimate).isNotNull()
-        runOnMainSync {
-            taskbarView.measure(
-                View.MeasureSpec.makeMeasureSpec(taskbarView.width, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(taskbarView.height, View.MeasureSpec.EXACTLY),
-            )
-            taskbarView.layout(
-                taskbarView.left,
-                taskbarView.top,
-                taskbarView.right,
-                taskbarView.bottom,
-            )
-        }
+        forceLayoutUpdate()
         assertThat(iconToAnimate?.alpha).isEqualTo(0)
 
         runOnMainSync {
@@ -777,6 +793,224 @@ class TaskbarViewTest {
 
         iconToAnimate = taskbarView.iconViews.find { it.tag == taskThatWillAnimateIn }
         assertThat(iconToAnimate).isNotNull()
+        forceLayoutUpdate()
+        assertThat(iconToAnimate?.alpha).isEqualTo(0)
+
+        runOnMainSync {
+            animatorTestRule.advanceTimeBy(TaskbarOverflowView.ITEM_ICON_SIZE_ANIMATION_DURATION)
+        }
+        assertThat(iconToAnimate?.alpha).isEqualTo(1f)
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_TASKBAR_DRAG_AND_DROP, FLAG_ENABLE_TASKBAR_ICON_CONTAINER)
+    fun testGetHitRect_withHotseatIconContainer_coversHotseatIconContainer() {
+        runOnMainSync {
+            taskbarView.updateItems(createHotseatItems(2), createRecents(1), emptyList())
+        }
+        forceLayoutUpdate()
+
+        val outRect = Rect()
+        runOnMainSync { taskbarView.getHitRectForPinRelativeToDragLayer(outRect) }
+        val expectedRect = Rect()
+        runOnMainSync {
+            activityContext.dragLayer.getDescendantRectRelativeToSelf(
+                taskbarView.taskbarHotseatIconsContainer!!,
+                expectedRect,
+            )
+        }
+
+        assertThat(outRect.top).isEqualTo(expectedRect.top)
+        assertThat(outRect.bottom).isEqualTo(expectedRect.bottom)
+        assertThat(outRect.left).isEqualTo(expectedRect.left - pinnedHitRectBuffer)
+        assertThat(outRect.right).isEqualTo(expectedRect.right + pinnedHitRectBuffer)
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_TASKBAR_DRAG_AND_DROP)
+    @DisableFlags(FLAG_ENABLE_TASKBAR_ICON_CONTAINER)
+    fun testGetHitRect_withDivider_coversFromAllAppsToDivider() {
+        runOnMainSync {
+            taskbarView.updateItems(createHotseatItems(2), createRecents(1), emptyList())
+        }
+        forceLayoutUpdate()
+
+        val allAppsButtonContainer = taskbarView.allAppsButtonContainer
+        val dividerContainer = taskbarView.taskbarDividerViewContainer!!
+        val outRect = Rect()
+        runOnMainSync { taskbarView.getHitRectForPinRelativeToDragLayer(outRect) }
+        val taskbarRectInDragLayer = Rect()
+        runOnMainSync {
+            activityContext.dragLayer.getDescendantRectRelativeToSelf(
+                taskbarView,
+                taskbarRectInDragLayer,
+            )
+        }
+
+        assertThat(outRect.top).isEqualTo(taskbarRectInDragLayer.top)
+        assertThat(outRect.bottom).isEqualTo(taskbarRectInDragLayer.bottom)
+        assertThat(outRect.left)
+            .isEqualTo(
+                taskbarRectInDragLayer.left + allAppsButtonContainer.left - pinnedHitRectBuffer +
+                    taskbarView.allAppsButtonTranslationXOffsetUsedForLayout
+            )
+        assertThat(outRect.right)
+            .isEqualTo(taskbarRectInDragLayer.left + dividerContainer.left + pinnedHitRectBuffer)
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_TASKBAR_DRAG_AND_DROP)
+    @DisableFlags(FLAG_ENABLE_TASKBAR_ICON_CONTAINER)
+    fun testGetHitRect_noDivider_coversUpTohotseatIconsContainer() {
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
+        runOnMainSync { taskbarView.updateItems(createHotseatItems(3), emptyList(), emptyList()) }
+        forceLayoutUpdate()
+
+        val allAppsButtonContainer = taskbarView.allAppsButtonContainer
+        val outRect = Rect()
+        runOnMainSync { taskbarView.getHitRectForPinRelativeToDragLayer(outRect) }
+        val taskbarRectInDragLayer = Rect()
+        runOnMainSync {
+            activityContext.dragLayer.getDescendantRectRelativeToSelf(
+                taskbarView,
+                taskbarRectInDragLayer,
+            )
+        }
+
+        val lastIcon = iconViews.last()
+
+        assertThat(outRect.top).isEqualTo(taskbarRectInDragLayer.top)
+        assertThat(outRect.bottom).isEqualTo(taskbarRectInDragLayer.bottom)
+        assertThat(outRect.left)
+            .isEqualTo(
+                taskbarRectInDragLayer.left + allAppsButtonContainer.left - pinnedHitRectBuffer +
+                    taskbarView.allAppsButtonTranslationXOffsetUsedForLayout
+            )
+        assertThat(outRect.right)
+            .isEqualTo(taskbarRectInDragLayer.left + lastIcon.right + pinnedHitRectBuffer)
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_TASKBAR_DRAG_AND_DROP)
+    @DisableFlags(FLAG_ENABLE_TASKBAR_ICON_CONTAINER)
+    @ForceRtl
+    fun testGetHitRect_rtl_withDivider_coversFromDividerToAllApps() {
+        runOnMainSync {
+            taskbarView.updateItems(createHotseatItems(2), createRecents(1), emptyList())
+        }
+        forceLayoutUpdate()
+
+        val allAppsButtonContainer = taskbarView.allAppsButtonContainer
+        val dividerContainer = taskbarView.taskbarDividerViewContainer!!
+        val outRect = Rect()
+        runOnMainSync { taskbarView.getHitRectForPinRelativeToDragLayer(outRect) }
+        val taskbarRectInDragLayer = Rect()
+        runOnMainSync {
+            activityContext.dragLayer.getDescendantRectRelativeToSelf(
+                taskbarView,
+                taskbarRectInDragLayer,
+            )
+        }
+
+        assertThat(outRect.top).isEqualTo(taskbarRectInDragLayer.top)
+        assertThat(outRect.bottom).isEqualTo(taskbarRectInDragLayer.bottom)
+        assertThat(outRect.left)
+            .isEqualTo(taskbarRectInDragLayer.left + dividerContainer.right - pinnedHitRectBuffer)
+        assertThat(outRect.right)
+            .isEqualTo(
+                taskbarRectInDragLayer.left + allAppsButtonContainer.right + pinnedHitRectBuffer -
+                    taskbarView.allAppsButtonTranslationXOffsetUsedForLayout
+            )
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_TASKBAR_DRAG_AND_DROP)
+    fun testGetHitRectForUnpin_withDivider_coversAreaBetweenDividerAndLastIcon() {
+        runOnMainSync {
+            taskbarView.updateItems(createHotseatItems(2), createRecents(2), emptyList())
+        }
+        forceLayoutUpdate()
+
+        val dividerContainer = taskbarView.taskbarDividerViewContainer!!
+        val outRect = Rect()
+        runOnMainSync { taskbarView.getHitRectForUnpinRelativeToDragLayer(outRect) }
+        val taskbarRectInDragLayer = Rect()
+        runOnMainSync {
+            activityContext.dragLayer.getDescendantRectRelativeToSelf(
+                taskbarView,
+                taskbarRectInDragLayer,
+            )
+        }
+        val lastIcon = iconViews.last()
+
+        assertThat(outRect.top).isEqualTo(taskbarRectInDragLayer.top)
+        assertThat(outRect.bottom).isEqualTo(taskbarRectInDragLayer.bottom)
+        assertThat(outRect.left).isEqualTo(taskbarRectInDragLayer.left + dividerContainer.right)
+        assertThat(outRect.right).isEqualTo(taskbarRectInDragLayer.left + lastIcon.right)
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_TASKBAR_DRAG_AND_DROP)
+    fun testGetHitRectForUnpin_noDivider_coversAreaAfterIcons() {
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
+        runOnMainSync { taskbarView.updateItems(createHotseatItems(3), emptyList(), emptyList()) }
+        forceLayoutUpdate()
+
+        val outRect = Rect()
+        runOnMainSync { taskbarView.getHitRectForUnpinRelativeToDragLayer(outRect) }
+        val taskbarRectInDragLayer = Rect()
+        runOnMainSync {
+            activityContext.dragLayer.getDescendantRectRelativeToSelf(
+                taskbarView,
+                taskbarRectInDragLayer,
+            )
+        }
+        val lastIcon = iconViews.last()
+        val iconsEnd = taskbarRectInDragLayer.left + lastIcon.right
+
+        assertThat(outRect.top).isEqualTo(taskbarRectInDragLayer.top)
+        assertThat(outRect.bottom).isEqualTo(taskbarRectInDragLayer.bottom)
+        assertThat(outRect.left).isEqualTo(iconsEnd)
+        assertThat(outRect.right).isEqualTo(iconsEnd + unpinnedHitRectBuffer)
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_TASKBAR_DRAG_AND_DROP)
+    @ForceRtl
+    fun testGetHitRectForUnpin_rtl_withDivider_coversAreaBetweenStartAndDivider() {
+        runOnMainSync {
+            taskbarView.updateItems(createHotseatItems(2), createRecents(2), emptyList())
+        }
+        forceLayoutUpdate()
+
+        val dividerContainer = taskbarView.taskbarDividerViewContainer!!
+
+        val outRect = Rect()
+        runOnMainSync { taskbarView.getHitRectForUnpinRelativeToDragLayer(outRect) }
+        val taskbarRectInDragLayer = Rect()
+        runOnMainSync {
+            activityContext.dragLayer.getDescendantRectRelativeToSelf(
+                taskbarView,
+                taskbarRectInDragLayer,
+            )
+        }
+
+        assertThat(outRect.top).isEqualTo(taskbarRectInDragLayer.top)
+        assertThat(outRect.bottom).isEqualTo(taskbarRectInDragLayer.bottom)
+        assertThat(outRect.left).isEqualTo(taskbarRectInDragLayer.left)
+        assertThat(outRect.right).isEqualTo(taskbarRectInDragLayer.left + dividerContainer.left)
+    }
+
+    /** Returns the number of expected recents outside of the overflow based on [hotseatSize]. */
+    private fun getExpectedNumRecentsWithOverflow(hotseatSize: Int = 0): Int {
+        return 0.coerceAtLeast(maxShownRecents - hotseatSize - 1)
+    }
+
+    /**
+     * Forces the TaskbarView to measure and layout its children to ensure that view bounds are
+     * correctly calculated.
+     */
+    private fun forceLayoutUpdate() {
         runOnMainSync {
             taskbarView.measure(
                 View.MeasureSpec.makeMeasureSpec(taskbarView.width, View.MeasureSpec.EXACTLY),
@@ -789,16 +1023,5 @@ class TaskbarViewTest {
                 taskbarView.bottom,
             )
         }
-        assertThat(iconToAnimate?.alpha).isEqualTo(0)
-
-        runOnMainSync {
-            animatorTestRule.advanceTimeBy(TaskbarOverflowView.ITEM_ICON_SIZE_ANIMATION_DURATION)
-        }
-        assertThat(iconToAnimate?.alpha).isEqualTo(1f)
-    }
-
-    /** Returns the number of expected recents outside of the overflow based on [hotseatSize]. */
-    private fun getExpectedNumRecentsWithOverflow(hotseatSize: Int = 0): Int {
-        return 0.coerceAtLeast(maxShownRecents - hotseatSize - 1)
     }
 }

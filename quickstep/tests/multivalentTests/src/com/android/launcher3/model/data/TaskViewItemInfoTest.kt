@@ -186,7 +186,16 @@ class TaskViewItemInfoTest {
     }
 
     private fun createTask(id: Int) =
-        Task(TaskKey(id, 0, Intent(), ComponentName(PACKAGE, CLASS), 0, 2000))
+        Task(
+            TaskKey(
+                id,
+                0,
+                Intent(),
+                ComponentName(PACKAGE, CLASS),
+                Process.myUserHandle().identifier,
+                2000,
+            )
+        )
 
     private fun createTaskContainer(task: Task): TaskContainer {
         return TaskContainer(
@@ -198,7 +207,6 @@ class TaskViewItemInfoTest {
             mock<TransformingTouchDelegate>(),
             SplitConfigurationOptions.STAGE_POSITION_UNDEFINED,
             digitalWellBeingToast = null,
-            showWindowsView = null,
             overlayFactory,
         )
     }

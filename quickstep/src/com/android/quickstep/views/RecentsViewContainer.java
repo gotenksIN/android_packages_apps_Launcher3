@@ -16,6 +16,7 @@
 
 package com.android.quickstep.views;
 
+import android.animation.Animator;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.LocusId;
@@ -34,7 +35,7 @@ import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.ScrimView;
 import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.fallback.RecentsState;
-import com.android.quickstep.util.SplitSelectStateController;
+import com.android.quickstep.split.SplitSelectStateController;
 
 /**
  * Interface to be implemented by the parent view of RecentsView
@@ -198,6 +199,8 @@ public interface RecentsViewContainer extends ActivityContext {
      *
      * @param animated false if the state should change immediately without any animation,
      *                true otherwise
+     * @param listener a callback that is invoked after the state change logic completes.
      */
-    void goToRecentsState(RecentsState recentsState, boolean animated);
+    void goToRecentsState(RecentsState recentsState, boolean animated,
+            Animator.AnimatorListener listener);
 }

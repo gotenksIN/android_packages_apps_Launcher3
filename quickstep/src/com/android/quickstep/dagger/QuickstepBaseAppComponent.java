@@ -19,6 +19,7 @@ package com.android.quickstep.dagger;
 import com.android.app.displaylib.DisplayRepository;
 import com.android.app.displaylib.DisplaysWithDecorationsRepositoryCompat;
 import com.android.app.displaylib.PerDisplayRepository;
+import com.android.internal.policy.DesktopModeCompatPolicy;
 import com.android.launcher3.LifecycleTracker;
 import com.android.launcher3.dagger.LauncherAppComponent;
 import com.android.launcher3.dagger.LauncherBaseAppComponent;
@@ -50,6 +51,7 @@ import com.android.quickstep.util.AsyncClockEventDelegate;
 import com.android.quickstep.util.ContextualSearchHapticManager;
 import com.android.quickstep.util.ContextualSearchStateManager;
 import com.android.quickstep.views.RecentsDismissUtils;
+import com.android.quickstep.views.RecentsViewUtils;
 import com.android.quickstep.window.RecentsWindowManager;
 import com.android.quickstep.window.RecentsWindowTracker;
 
@@ -97,6 +99,8 @@ public interface QuickstepBaseAppComponent extends LauncherBaseAppComponent {
 
     RecentsModel getRecentsModel();
 
+    RecentsViewUtils.Factory getRecentsViewUtilsFactory();
+
     RecentsDismissUtils.Factory getRecentsDismissUtilsFactory();
 
     SettingsChangeLogger getSettingsChangeLogger();
@@ -129,4 +133,6 @@ public interface QuickstepBaseAppComponent extends LauncherBaseAppComponent {
     Set<LifecycleTracker> getLifecycleTrackers();
 
     QuickstepKeyGestureEventsManager getQuickstepKeyGestureEventsManager();
+
+    DesktopModeCompatPolicy getDesktopModeCompatPolicy();
 }

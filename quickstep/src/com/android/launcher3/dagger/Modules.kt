@@ -21,6 +21,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.SystemClock
 import com.android.internal.R
+import com.android.internal.policy.DesktopModeCompatPolicy
 import com.android.launcher3.Flags.enableSystemDrag
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger
 import com.android.launcher3.concurrent.annotations.ThreadPool
@@ -29,6 +30,7 @@ import com.android.launcher3.dragndrop.SystemDragControllerImpl
 import com.android.launcher3.dragndrop.SystemDragControllerStub
 import com.android.launcher3.dragndrop.SystemDragListener
 import com.android.launcher3.dragndrop.SystemDragListenerFactory
+import com.android.launcher3.homescreenfiles.EnvironmentWrapper
 import com.android.launcher3.homescreenfiles.HomeScreenFilesMediaStoreProvider
 import com.android.launcher3.homescreenfiles.HomeScreenFilesNoOpProvider
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider
@@ -64,6 +66,7 @@ import dagger.Lazy
 import dagger.Module
 import dagger.Provides
 import dagger.multibindings.ElementsIntoSet
+import java.io.File
 import java.util.Optional
 import java.util.concurrent.ExecutorService
 import javax.inject.Named
@@ -144,11 +147,6 @@ object StaticObjectModule {
         if (ctx.resources.getBoolean(R.bool.config_searchAllEntrypointsEnabledDefault)) {
             setOf(ContextualSearchStateManager.SEARCH_ALL_ENTRYPOINTS_ENABLED_URI)
         } else emptySet()
-
-    @Provides
-    @JvmStatic
-    fun provideDesktopState(@ApplicationContext context: Context): DesktopState =
-        DesktopState.getInstance(context)
 }
 
 @Module
@@ -181,12 +179,32 @@ object HomeScreenFilesModule {
     fun provideHomeScreenFilesProvider(
         @ApplicationContext context: Context,
         @ThreadPool executorService: ExecutorService,
+        environmentWrapper: EnvironmentWrapper,
         tracker: DaggerSingletonTracker,
     ): HomeScreenFilesProvider {
         return if (HomeScreenFilesUtils.isFeatureEnabled) {
-            HomeScreenFilesMediaStoreProvider(context, executorService, tracker)
+            HomeScreenFilesMediaStoreProvider(
+                context,
+                executorService,
+                ::File,
+                environmentWrapper,
+                tracker,
+            )
         } else {
             HomeScreenFilesNoOpProvider()
         }
     }
+}
+
+@Module
+object DesktopModule {
+    @Provides
+    @LauncherAppSingleton
+    fun provideDesktopModeCompatPolicy(@ApplicationContext context: Context) =
+        DesktopModeCompatPolicy(context)
+
+    @Provides
+    @JvmStatic
+    fun provideDesktopState(@ApplicationContext context: Context): DesktopState =
+        DesktopState.getInstance(context)
 }

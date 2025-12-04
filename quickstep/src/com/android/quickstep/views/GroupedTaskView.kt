@@ -37,7 +37,7 @@ import com.android.quickstep.recents.di.RecentsDependencies
 import com.android.quickstep.recents.di.get
 import com.android.quickstep.recents.ui.viewmodel.GroupedTaskViewModel
 import com.android.quickstep.util.RecentsOrientedState
-import com.android.quickstep.util.SplitSelectStateController
+import com.android.quickstep.split.SplitSelectStateController
 import com.android.quickstep.util.SplitTask
 import com.android.systemui.shared.system.InteractionJankMonitorWrapper
 import com.android.wm.shell.Flags.enableFlexibleTwoAppSplit
@@ -133,7 +133,6 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                     R.id.task_content_view,
                     R.id.snapshot,
                     R.id.icon,
-                    R.id.show_windows,
                     R.id.digital_wellbeing_toast,
                     STAGE_POSITION_TOP_OR_LEFT,
                     taskOverlayFactory,
@@ -144,7 +143,6 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                     if (enableRefactorTaskContentView()) R.id.snapshot
                     else R.id.bottomright_snapshot,
                     R.id.bottomRight_icon,
-                    R.id.show_windows_right,
                     R.id.bottomRight_digital_wellbeing_toast,
                     STAGE_POSITION_BOTTOM_OR_RIGHT,
                     taskOverlayFactory,
@@ -152,7 +150,7 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
             )
         this.splitBoundsConfig = splitTask.splitBounds
         taskContainers.forEach { it.digitalWellBeingToast?.splitBounds = splitBoundsConfig }
-        onBind(orientedState)
+        onBind(orientedState, taskOverlayFactory)
     }
 
     override fun setOrientationState(orientationState: RecentsOrientedState) {

@@ -29,10 +29,29 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Future
 
 /** Represents a single file or folder item queried by [HomeScreenFilesProvider]. */
-data class HomeScreenFile(val displayName: String, val mimeType: String?, val isDirectory: Boolean)
+data class HomeScreenFile(
+    val uri: Uri,
+    val displayName: String,
+    val mimeType: String?,
+    val isDirectory: Boolean,
+    val user: UserHandle,
+)
 
 /** An interface for managing file items to be shown on the home screen. */
 interface HomeScreenFilesProvider {
+
+    /** A stream of updates to file items shown on the home screen. */
+    val updates: ListenableStream<HomeScreenFilesUpdate>
+
+    /** Resolves when the home screen files provider is ready to service calls. */
+    fun onReady(): CompletableFuture<Void>
+
+    /** Returns whether a new folder can be created. */
+    fun canCreateNewFolder(): Boolean
+
+    /** Attempts to asynchronously create a new folder. */
+    fun createNewFolder(): CompletableFuture<Boolean>
+
     /**
      * Returns whether all URIs in the specified list can be moved to the home screen.
      *
@@ -50,8 +69,17 @@ interface HomeScreenFilesProvider {
      */
     fun moveToHomeScreen(uriList: List<Uri>): List<CompletableFuture<Boolean>>
 
+    /**
+     * Deletes a single file or folder.
+     *
+     * @param uri The URI of the item to be deleted.
+     * @param permanent If `true`, the item is deleted permanently and cannot be restored. If
+     *   `false`, the item is moved to trash and can be restored later.
+     */
+    fun delete(uri: Uri, permanent: Boolean)
+
     /** Returns all eligible file items to be shown on the home screen. */
-    fun query(): Lazy<Map<Uri, HomeScreenFile>>
+    fun query(): CompletableFuture<Map<Uri, HomeScreenFile>>
 
     /**
      * Information about a change to a file item shown on the home screen.
@@ -60,7 +88,6 @@ interface HomeScreenFilesProvider {
      * @param flags The bitmask describing the type of the file change (one of [NOTIFY_INSERT],
      *   [NOTIFY_UPDATE], [NOTIFY_DELETE]).
      * @param file Complete information about the file that is being changed.
-     * @param user The user associated with this change event.
      * @param uriAlias An alias for the URI of the item that was changed, possibly in a different
      *   content provider authority. Note that an alias will only be available if the URI was moved
      *   via call to [#moveToHomeScreen()].
@@ -69,7 +96,6 @@ interface HomeScreenFilesProvider {
         val uri: Uri,
         val flags: Int,
         val file: Future<HomeScreenFile?>,
-        val user: UserHandle,
         val uriAlias: Uri?,
     )
 

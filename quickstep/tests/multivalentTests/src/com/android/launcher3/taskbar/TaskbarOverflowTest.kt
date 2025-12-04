@@ -24,10 +24,15 @@ import android.os.Process
 import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.SetFlagsRule
+import android.view.MotionEvent
+import android.view.MotionEvent.ACTION_HOVER_ENTER
+import android.view.MotionEvent.ACTION_HOVER_EXIT
 import android.window.RemoteTransition
 import androidx.test.core.app.ApplicationProvider
+import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.BubbleTextView
 import com.android.launcher3.Flags.FLAG_ENABLE_MULTI_INSTANCE_MENU_TASKBAR
+import com.android.launcher3.Flags.FLAG_ENABLE_TASKBAR_ICON_CONTAINER
 import com.android.launcher3.R
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
@@ -115,11 +120,13 @@ class TaskbarOverflowTest {
         TaskbarWindowSandboxContext.create(
             SandboxParams(
                 {
-                    spy(SystemUiProxy(
+                    spy(
+                        SystemUiProxy(
                             ApplicationProvider.getApplicationContext(),
                             MAIN_EXECUTOR,
-                            UI_HELPER_EXECUTOR
-                        )) { proxy ->
+                            UI_HELPER_EXECUTOR,
+                        )
+                    ) { proxy ->
                         systemUiProxySpy = proxy
                         doAnswer { desktopTaskListener = it.getArgument(0) }
                             .whenever(proxy)
@@ -220,6 +227,8 @@ class TaskbarOverflowTest {
 
     @Test
     @TaskbarMode(PINNED)
+    @DisableFlags(FLAG_ENABLE_TASKBAR_ICON_CONTAINER)
+    // TODO: b/448650325 - update/remove test to adapt to overflow icon in pinned apps section.
     fun testOverflownTaskbarWithNoSpaceForRecentApps_pinned() {
         val initialIconCount = currentNumberOfTaskbarIcons.coerceAtLeast(2)
 
@@ -245,6 +254,8 @@ class TaskbarOverflowTest {
 
     @Test
     @TaskbarMode(PINNED)
+    @DisableFlags(FLAG_ENABLE_TASKBAR_ICON_CONTAINER)
+    // TODO: b/448650325 - update/remove test to adapt to overflow icon in pinned apps section.
     fun testOverflownTaskbarWithNoSpaceForRecentApps_singleRecent_pinned() {
         val initialIconCount = currentNumberOfTaskbarIcons.coerceAtLeast(2)
 
@@ -288,7 +299,7 @@ class TaskbarOverflowTest {
     @TaskbarMode(PINNED)
     @EnableFlags(FLAG_ENABLE_OVERFLOW_BUTTON_FOR_TASKBAR_PINNED_ITEMS)
     fun testTaskbarWithPinAppsOverflow_pinned() {
-        val numHotseatIcons = taskbarContext.deviceProfile.numShownHotseatIcons
+        val numHotseatIcons = taskbarContext.deviceProfile.inv.numShownHotseatIcons
 
         val taskbarView = getOnUiThread {
             val view = taskbarContext.dragLayer.findViewById<TaskbarView>(R.id.taskbar_view)
@@ -299,6 +310,7 @@ class TaskbarOverflowTest {
         TaskbarViewTestUtil.assertThat(taskbarView)
             .hasIconTypes(ALL_APPS, *HOTSEAT * (numHotseatIcons - 1), OVERFLOW)
         assertThat(taskbarOverflowIconIndex).isEqualTo(numHotseatIcons)
+        verifyOverflowIconTooltip("Other apps")
         assertThat(overflowItems)
             .containsExactlyElementsIn(numHotseatIcons - 1..numHotseatIcons + 1)
     }
@@ -408,7 +420,7 @@ class TaskbarOverflowTest {
         createDesktopTask(createdTasks)
 
         assertThat(taskbarOverflowIconIndex).isEqualTo(initialIconCount)
-        assertThat(getOverflowIconTooltipText()).isEqualTo("Other recent apps")
+        verifyOverflowIconTooltip("Other recent apps")
 
         tapOverflowIcon()
         // Keyboard quick switch view is shown only after list of recent task is asynchronously
@@ -418,11 +430,11 @@ class TaskbarOverflowTest {
         assertThat(getOnUiThread { keyboardQuickSwitchController.isShownFromTaskbar }).isTrue()
         assertThat(getOnUiThread { keyboardQuickSwitchController.shownTaskIds() })
             .containsExactlyElementsIn(0..targetOverflowSize)
-        assertThat(getOverflowIconTooltipText()).isNull()
+        verifyOverflowIconTooltip(null)
 
         tapOverflowIcon()
         assertThat(keyboardQuickSwitchController.isShown).isFalse()
-        assertThat(getOverflowIconTooltipText()).isEqualTo("Other recent apps")
+        verifyOverflowIconTooltip("Other recent apps")
     }
 
     @Test
@@ -711,6 +723,112 @@ class TaskbarOverflowTest {
         assertThat(recentAppsController.shownTasks.map { it.tasks[0].key.id }).isEqualTo(listOf(1))
     }
 
+    @Test
+    @TaskbarMode(PINNED)
+    fun recentTaskIconHasClosePopupOption() {
+        // Create two tasks and two pinned items.
+        createDesktopTask(2)
+        val hotseatItems = createHotseatItems(2)
+
+        var shortcut: SystemShortcut<*>? = null
+        runOnMainSync {
+            val taskbarView = setUpTaskbarAndModelCallback(hotseatItems)
+            // Get the first recent task icon
+            val recentTaskIcon =
+                taskbarView.iconViews.filterIsInstance<BubbleTextView>().first {
+                    it.tag is GroupTask
+                }
+            assertNotNull(recentTaskIcon)
+
+            val recentTaskInfo =
+                createTaskItemInfo(
+                    recentTaskIcon!!.tag as SingleTask,
+                    WorkspaceItemInfo().apply {
+                        title = "Test App 2"
+                        intent = Intent().apply { `package` = "fake" }
+                    },
+                )
+            shortcut =
+                taskbarContext.controllers.taskbarPopupController
+                    .createCloseAppTaskbarShortcutFactory()
+                    ?.getShortcut(taskbarContext, recentTaskInfo, recentTaskIcon!!)
+        }
+        assertThat(shortcut).isNotNull()
+    }
+
+    @Test
+    @TaskbarMode(PINNED)
+    fun pinnedAppIconWithDesktopTaskHasClosePopupOption() {
+        // Create two hotseat items with a task for both of them respectively.
+        var hotseatItems =
+            createHotseatItems(2).mapIndexed { idx, item -> TaskItemInfo(idx, item) }.toTypedArray()
+        createDesktopTaskWithTasksFromPackages(hotseatItems.mapNotNull { it.targetPackage })
+
+        var shortcut: SystemShortcut<*>? = null
+        runOnMainSync {
+            val taskbarView = setUpTaskbarAndModelCallback(hotseatItems.map { it }.toTypedArray())
+            val hotseatIcon =
+                taskbarView.iconViews.filterIsInstance<BubbleTextView>().first {
+                    it.tag is WorkspaceItemInfo
+                }
+            assertNotNull(hotseatIcon)
+            shortcut =
+                taskbarContext.controllers.taskbarPopupController
+                    .createCloseAppTaskbarShortcutFactory()
+                    ?.getShortcut(taskbarContext, hotseatIcon!!.tag as ItemInfo, hotseatIcon!!)
+        }
+        assertThat(shortcut).isNotNull()
+    }
+
+    @Test
+    @TaskbarMode(PINNED)
+    fun pinnedAppIconWithFullscreenTaskDoesntHaveClosePopupOption() {
+        // Create two hotseat items with a task for both of them respectively.
+        var hotseatItems =
+            createHotseatItems(2).mapIndexed { idx, item -> TaskItemInfo(idx, item) }.toTypedArray()
+        createFullscreenAndDesktopTasksFromPackages(
+            hotseatItems.mapNotNull { it.targetPackage },
+            emptyList(),
+        )
+
+        var shortcut: SystemShortcut<*>? = null
+        runOnMainSync {
+            val taskbarView = setUpTaskbarAndModelCallback(hotseatItems.map { it }.toTypedArray())
+            val hotseatIcon =
+                taskbarView.iconViews.filterIsInstance<BubbleTextView>().first {
+                    it.tag is WorkspaceItemInfo
+                }
+            assertNotNull(hotseatIcon)
+            shortcut =
+                taskbarContext.controllers.taskbarPopupController
+                    .createCloseAppTaskbarShortcutFactory()
+                    ?.getShortcut(taskbarContext, hotseatIcon!!.tag as ItemInfo, hotseatIcon!!)
+        }
+        assertThat(shortcut).isNull()
+    }
+
+    @Test
+    @TaskbarMode(PINNED)
+    fun pinnedAppIconWithoutDesktopTaskDoesNotHaveClosePopupOption() {
+        // Create two hotseat items with a task for both of them respectively.
+        var hotseatItems = createHotseatItems(2)
+
+        var shortcut: SystemShortcut<*>? = null
+        runOnMainSync {
+            val taskbarView = setUpTaskbarAndModelCallback(hotseatItems.map { it }.toTypedArray())
+            val hotseatIcon =
+                taskbarView.iconViews.filterIsInstance<BubbleTextView>().first {
+                    it.tag is WorkspaceItemInfo
+                }
+            assertNotNull(hotseatIcon)
+            shortcut =
+                taskbarContext.controllers.taskbarPopupController
+                    .createCloseAppTaskbarShortcutFactory()
+                    ?.getShortcut(taskbarContext, hotseatIcon!!.tag as ItemInfo, hotseatIcon!!)
+        }
+        assertThat(shortcut).isNull()
+    }
+
     private fun setUpTaskbarAndModelCallback(hotseatItems: Array<WorkspaceItemInfo>): TaskbarView {
         val taskbarView: TaskbarView =
             taskbarUnitTestRule.activityContext.dragLayer.findViewById(R.id.taskbar_view)
@@ -834,11 +952,40 @@ class TaskbarOverflowTest {
         }
     }
 
-    private fun getOverflowIconTooltipText(): String? {
-        return getOnUiThread {
-            val overflowIcon =
-                taskbarViewController.iconViews.firstOrNull { it is TaskbarOverflowView }
-            (overflowIcon as? TaskbarOverflowView)?.getTextForTooltipPopup()
+    /**
+     * Verifies that when hovering over the overflow icon, the tooltip popup is shown with the
+     * [expectedText], or verifies that the tooltip is not shown if [expectedText] is null.
+     */
+    private fun verifyOverflowIconTooltip(expectedText: String?) {
+        val overflowIcon = getOnUiThread {
+            taskbarViewController.iconViews
+                .filterIsInstance<TaskbarOverflowView>()
+                .firstOrNull()
+                ?.also {
+                    it.dispatchGenericMotionEvent(
+                        MotionEvent.obtain(0, 0, ACTION_HOVER_ENTER, 0f, 0f, 0)
+                    )
+                }
+        }
+
+        val isPopupOpen =
+            AbstractFloatingView.hasOpenView(
+                taskbarContext,
+                AbstractFloatingView.TYPE_ON_BOARD_POPUP,
+            )
+
+        if (expectedText == null) {
+            assertThat(isPopupOpen).isFalse()
+        } else {
+            assertThat(isPopupOpen).isTrue()
+            val actualText = getOnUiThread { overflowIcon?.textForTooltipPopup }
+            assertThat(actualText).isEqualTo(expectedText)
+        }
+
+        runOnMainSync {
+            overflowIcon?.dispatchGenericMotionEvent(
+                MotionEvent.obtain(0, 0, ACTION_HOVER_EXIT, 0f, 0f, 0)
+            )
         }
     }
 

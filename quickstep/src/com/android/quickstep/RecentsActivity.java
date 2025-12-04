@@ -46,6 +46,7 @@ import android.view.RemoteAnimationAdapter;
 import android.view.RemoteAnimationTarget;
 import android.view.SurfaceControl.Transaction;
 import android.view.View;
+import android.view.ViewGroup;
 import android.window.RemoteTransition;
 import android.window.SplashScreen;
 
@@ -85,14 +86,14 @@ import com.android.quickstep.fallback.FallbackRecentsView;
 import com.android.quickstep.fallback.RecentsDragLayer;
 import com.android.quickstep.fallback.RecentsState;
 import com.android.quickstep.util.RecentsAtomicAnimationFactory;
-import com.android.quickstep.util.SplitSelectStateController;
+import com.android.quickstep.split.SplitSelectStateController;
+import com.android.quickstep.util.SurfaceTransactionApplier;
 import com.android.quickstep.util.TISBindHelper;
 import com.android.quickstep.views.OverviewActionsView;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.RecentsViewContainer;
 import com.android.quickstep.views.TaskView;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
-import com.android.wm.shell.shared.desktopmode.DesktopState;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -150,15 +151,17 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
         mScrimView = rootView.findViewById(R.id.scrim_view);
         mFallbackRecentsView = rootView.findViewById(R.id.overview_panel);
         mActionsView = rootView.findViewById(R.id.overview_actions_view);
+        ViewGroup emptyRecentsMessageView = rootView.findViewById(R.id.empty_recents_message_view);
 
         if (DesktopModeStatus.canEnterDesktopMode(this)) {
             mDesktopRecentsTransitionController = new DesktopRecentsTransitionController(
                     getStateManager(), systemUiProxy, getIApplicationThread(),
-                    null /* depthController */, DesktopState.getInstance(this)
+                    null /* depthController */
             );
         }
         mFallbackRecentsView.init(mActionsView, mSplitSelectStateController,
-                mDesktopRecentsTransitionController);
+                mDesktopRecentsTransitionController, new SurfaceTransactionApplier(getRootView()),
+                emptyRecentsMessageView);
 
         setContentView(rootView);
         rootView.getSysUiScrim().getSysUIProgress().updateValue(0);
@@ -241,8 +244,9 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
     }
 
     @Override
-    public void goToRecentsState(RecentsState recentsState, boolean animated) {
-        getStateManager().goToState(recentsState, animated);
+    public void goToRecentsState(RecentsState recentsState, boolean animated,
+            Animator.AnimatorListener listener) {
+        getStateManager().goToState(recentsState, animated, listener);
     }
 
     @Override

@@ -37,6 +37,7 @@ import static com.android.launcher3.shapes.ShapesProvider.FOUR_SIDED_COOKIE_KEY;
 import static com.android.launcher3.shapes.ShapesProvider.SEVEN_SIDED_COOKIE_KEY;
 import static com.android.launcher3.shapes.ShapesProvider.SQUARE_KEY;
 import static com.android.launcher3.util.DisplayController.CHANGE_NAVIGATION_MODE;
+import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.SettingsCache.NOTIFICATION_BADGING_URI;
 
 import android.content.Context;
@@ -72,6 +73,8 @@ import com.android.launcher3.util.DisplayController.Info;
 import com.android.launcher3.util.NavigationMode;
 import com.android.launcher3.util.SettingsCache;
 import com.android.quickstep.dagger.QuickstepBaseAppComponent;
+
+import kotlin.Unit;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -111,8 +114,6 @@ public class SettingsChangeLogger implements
     private NavigationMode mNavMode;
     private LauncherEvent mNotificationDotsEvent;
 
-    private final SettingsCache.OnChangeListener mListener = this::onNotificationDotsChanged;
-
     @Inject
     SettingsChangeLogger(@ApplicationContext Context context,
             DaggerSingletonTracker tracker,
@@ -141,9 +142,8 @@ public class SettingsChangeLogger implements
             mLauncherPrefs.getDevicePrefs().unregisterOnSharedPreferenceChangeListener(this);
         });
 
-        settingsCache.register(NOTIFICATION_BADGING_URI, mListener);
-        onNotificationDotsChanged(settingsCache.getValue(NOTIFICATION_BADGING_URI));
-        tracker.addCloseable(() -> settingsCache.unregister(NOTIFICATION_BADGING_URI, mListener));
+        tracker.addCloseable(settingsCache.getListenableRef(NOTIFICATION_BADGING_URI).forEach(
+                MAIN_EXECUTOR, this::onNotificationDotsChanged));
 
         ThemeChangeListener themeChangeListener = () -> logThemeEvent(mStatsLogManager.logger());
         themeManager.addChangeListener(themeChangeListener);
@@ -189,7 +189,7 @@ public class SettingsChangeLogger implements
         return result;
     }
 
-    private void onNotificationDotsChanged(boolean isDotsEnabled) {
+    private Unit onNotificationDotsChanged(boolean isDotsEnabled) {
         LauncherEvent mEvent =
                 isDotsEnabled ? LAUNCHER_NOTIFICATION_DOT_ENABLED
                         : LAUNCHER_NOTIFICATION_DOT_DISABLED;
@@ -199,6 +199,7 @@ public class SettingsChangeLogger implements
             mStatsLogManager.logger().log(mNotificationDotsEvent);
         }
         mNotificationDotsEvent = mEvent;
+        return null;
     }
 
     @Override

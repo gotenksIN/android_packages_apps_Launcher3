@@ -17,10 +17,6 @@
 package com.android.quickstep.task.apptimer.ui.composable
 
 import android.app.ActivityOptions
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -52,16 +48,10 @@ fun AppTimerToast(
     viewModel: ViewModel<TaskAppTimerUiState>,
     modifier: Modifier = Modifier,
 ) {
-    AnimatedVisibility(
-        visible = appTimerUiState is TaskAppTimerUiState.Timer,
-        enter = slideInVertically { it },
-        exit = slideOutVertically { it },
-    ) {
-        when (appTimerUiState) {
-            is TaskAppTimerUiState.Timer -> ActiveTimerToast(viewModel, appTimerUiState, modifier)
-            else -> {
-                /* Do nothing */
-            }
+    when (appTimerUiState) {
+        is TaskAppTimerUiState.Timer -> ActiveTimerToast(viewModel, appTimerUiState, modifier)
+        else -> {
+            /* Do nothing */
         }
     }
 }
@@ -78,24 +68,16 @@ private fun ActiveTimerToast(
         modifier =
             modifier
                 .fillMaxWidth()
-                .height(dimensionResource(R.dimen.digital_wellbeing_toast_height))
-                .clickable(
-                    onClick = {
-                        viewModel.startActivityWithScaleUpAnimation(
-                            ActivityOptions.makeScaleUpAnimation(
-                                view,
-                                0,
-                                0,
-                                view.width,
-                                view.height,
-                            ),
-                            view.context,
-                            appTimerUiState.taskPackageName,
-                            appTimerUiState.taskDescription,
-                        )
-                    }
-                ),
+                .height(dimensionResource(R.dimen.digital_wellbeing_toast_height)),
         shape = MaterialTheme.shapes.extraLarge,
+        onClick = {
+            viewModel.startActivityWithScaleUpAnimation(
+                ActivityOptions.makeScaleUpAnimation(view, 0, 0, view.width, view.height),
+                view.context,
+                appTimerUiState.taskPackageName,
+                appTimerUiState.taskDescription,
+            )
+        },
         color = MaterialTheme.colorScheme.secondaryFixed,
     ) {
         CustomTimerToastLayout(viewModel, appTimerUiState, iconTextSpacing, modifier)

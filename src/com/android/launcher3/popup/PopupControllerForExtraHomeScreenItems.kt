@@ -17,6 +17,7 @@
 package com.android.launcher3.popup
 
 import android.content.Context
+import android.os.Trace
 import android.view.View
 import com.android.launcher3.AppWidgetResizeFrame
 import com.android.launcher3.R
@@ -27,33 +28,46 @@ import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.widget.LauncherAppWidgetHostView
 
 /**
- * Controller for home screen items: folders, app pairs, and widgets. This controller does not
- * handle apps or app shortcuts. This controller handles actions for the popups such as showing and
- * dismissing them.
+ * Controller for home screen items: folders, app pairs, widgets, and file system based items. This
+ * controller does not handle apps or app shortcuts. This controller handles actions for the popups
+ * such as showing and dismissing them.
  */
 class PopupControllerForExtraHomeScreenItems<T>(
     private val popupDataRepository: PopupDataRepository,
     private val dragController: LauncherDragController,
 ) : PopupController<T> where T : Context, T : ActivityContext {
     override fun show(view: View): Popup {
-        val itemInfo = view.tag as ItemInfo
-        val activityContext: ActivityContext = ActivityContext.lookupContext<T>(view.context)
-        val container =
-            PopupContainer.create<T>(
-                context = view.context,
-                originalView = view,
-                itemInfo = itemInfo,
-            )
-        dragController.addDragListener(container)
-        addSystemShortcuts(container, itemInfo, itemView = view, activityContext)
-        container.show()
+        val container: PopupContainer<T>
+        try {
+            Trace.beginSection("showPopupMenu")
+            val itemInfo = view.tag as ItemInfo
+            val activityContext: ActivityContext = ActivityContext.lookupContext<T>(view.context)
+            container =
+                PopupContainer.create<T>(
+                    context = view.context,
+                    originalView = view,
+                    itemInfo = itemInfo,
+                )
+            dragController.addDragListener(container)
+            addSystemShortcuts(container, itemInfo, itemView = view, activityContext)
+            container.show()
+            showResizeFrameIfNeeded(activityContext, itemInfo, view)
+        } finally {
+            Trace.endSection()
+        }
+        return container
+    }
 
+    private fun showResizeFrameIfNeeded(
+        activityContext: ActivityContext,
+        itemInfo: ItemInfo,
+        view: View,
+    ) {
         val cellLayout = activityContext.getCellLayout(itemInfo.container, itemInfo.screenId)
         val resizeStrategy = DefaultPopupResizeStrategy()
         if (resizeStrategy.shouldShowResizeFrame(itemInfo, view, cellLayout)) {
             AppWidgetResizeFrame.showForWidget(view as LauncherAppWidgetHostView?, cellLayout)
         }
-        return container
     }
 
     private fun addSystemShortcuts(

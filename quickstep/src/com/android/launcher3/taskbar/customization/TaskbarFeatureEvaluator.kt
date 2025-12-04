@@ -17,6 +17,7 @@
 package com.android.launcher3.taskbar.customization
 
 import android.content.Context
+import androidx.annotation.AnyThread
 import com.android.launcher3.Flags.enableRecentsInTaskbar
 import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.LauncherPrefs.Companion.TASKBAR_PINNING
@@ -49,6 +50,7 @@ constructor(
     val isRecentsEnabled: Boolean
         get() = enableRecentsInTaskbar()
 
+    @get:AnyThread
     val isTransient: Boolean
         get() =
             if (
@@ -85,7 +87,10 @@ constructor(
         get() = isPinned || hasNavButtons
 
     val supportsTransitionToTransientTaskbar: Boolean
-        get() = !hasNavButtons && !DisplayController.showDesktopTaskbarForFreeformDisplay(context)
+        get() =
+            !hasNavButtons &&
+                !DisplayController.showDesktopTaskbarForFreeformDisplay(context) &&
+                !desktopVisibilityController.isInDesktopMode(primaryDisplayId)
 
     companion object {
         @JvmField

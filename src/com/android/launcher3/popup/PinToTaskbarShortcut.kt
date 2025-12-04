@@ -22,6 +22,7 @@ import android.util.SparseArray
 import android.view.View
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
+import android.widget.Toast
 import androidx.annotation.VisibleForTesting
 import androidx.core.util.isEmpty
 import androidx.core.util.size
@@ -30,7 +31,6 @@ import com.android.launcher3.Launcher
 import com.android.launcher3.LauncherAppState
 import com.android.launcher3.LauncherSettings.Favorites
 import com.android.launcher3.R
-import com.android.launcher3.Workspace.mapOverCellLayouts
 import com.android.launcher3.model.BgDataModel
 import com.android.launcher3.model.ModelWriter
 import com.android.launcher3.model.data.ItemInfo
@@ -62,6 +62,12 @@ constructor(
     ) where T : Context?, T : ActivityContext? {
 
     override fun onClick(v: View?) {
+        if (isPin && pinnedInfoList.size >= maxPinnableItems) {
+            dismissTaskMenuView()
+            showNoSpaceMessage(requireNotNull(mTarget))
+            return
+        }
+
         // Create a placeholder callbacks for the writer to notify other launcher model callbacks
         // after update.
         val callbacks: BgDataModel.Callbacks = object : BgDataModel.Callbacks {}
@@ -126,22 +132,6 @@ constructor(
 
         pinItem(writer, newInfo, mItemInfo.screenId, cellX, cellY)
         onClickCleanUp(v)
-    }
-
-    @VisibleForTesting
-    fun pinItem(
-        writer: ModelWriter,
-        info: WorkspaceItemInfo,
-        screenId: Int,
-        cellX: Int,
-        cellY: Int,
-    ) {
-        writer.addOrMoveItemInDatabase(info, Favorites.CONTAINER_HOTSEAT, screenId, cellX, cellY)
-    }
-
-    @VisibleForTesting
-    fun unpinItem(writer: ModelWriter, info: ItemInfo) {
-        writer.deleteItemFromDatabase(info, "item unpinned through long-press menu")
     }
 
     /**
@@ -219,27 +209,53 @@ constructor(
         return Pair(cellX, cellY)
     }
 
+    /* Functions that are non-companion to be easier to spy in tests. */
+
+    @VisibleForTesting
+    fun pinItem(
+        writer: ModelWriter,
+        info: WorkspaceItemInfo,
+        screenId: Int,
+        cellX: Int,
+        cellY: Int,
+    ) {
+        writer.addOrMoveItemInDatabase(info, Favorites.CONTAINER_HOTSEAT, screenId, cellX, cellY)
+    }
+
+    @VisibleForTesting
+    fun unpinItem(writer: ModelWriter, info: ItemInfo) {
+        writer.deleteItemFromDatabase(info, "item unpinned through long-press menu")
+    }
+
+    @VisibleForTesting
+    fun showNoSpaceMessage(context: Context) {
+        Toast.makeText(context, R.string.no_room_in_taskbar, Toast.LENGTH_SHORT).show()
+    }
+
     companion object {
         private const val TAG = "PinToTaskbarShortcut"
 
         @JvmStatic
-        fun getPinShortcutFactoryFromLauncher(maxPinnableItems: Int): Factory<Launcher> {
+        fun getPinShortcutFactoryFromLauncher(
+            maxPinnableItems: Int,
+            supportsPinnedAppsOverflow: Boolean,
+        ): Factory<Launcher> {
             return Factory { context, itemInfo, originalView ->
-                val hotseat = context.hotseat
-                val hotseatInfosList = SparseArray<ItemInfo?>()
+                val allPinnedItems = context.pinnedItems
 
-                val isPinnedInHotseat =
-                    mapOverCellLayouts(arrayOf(hotseat)) { info, _ ->
-                        info?.componentKey == itemInfo?.componentKey &&
-                            info?.itemType == itemInfo?.itemType
-                    } != null
+                if (allPinnedItems == null) {
+                    Log.e(TAG, "Can not load the valid list of pinned apps")
+                    return@Factory null
+                }
 
-                mapOverCellLayouts(arrayOf(hotseat)) { info, view ->
-                    if (info != null && !info.isPredictedItem && view != hotseat.qsb) {
-                        // In hotseat, the screenId is often used as the rank or position.
-                        hotseatInfosList.put(info.screenId, info)
+                // If the target ItemInfo is already pinned on taskbar. Show the unpin option
+                // instead.
+                var isPinnedInHotseat = false
+                for (i in 0 until allPinnedItems.size) {
+                    if (allPinnedItems.valueAt(i).getComponentKey() == itemInfo.componentKey) {
+                        isPinnedInHotseat = true
+                        break
                     }
-                    false // Return false to continue iterating through all items
                 }
 
                 if (isPinnedInHotseat) {
@@ -250,18 +266,18 @@ constructor(
                         originalView,
                         false,
                         maxPinnableItems,
-                        hotseatInfosList,
+                        allPinnedItems,
                     )
                 }
 
-                if (hotseatInfosList.size < maxPinnableItems) {
+                if (supportsPinnedAppsOverflow || allPinnedItems.size < maxPinnableItems) {
                     return@Factory PinToTaskbarShortcut<Launcher>(
                         context,
                         itemInfo,
                         originalView,
                         true,
                         maxPinnableItems,
-                        hotseatInfosList,
+                        allPinnedItems,
                         context::onItemPinnedFromContextMenu,
                     )
                 }

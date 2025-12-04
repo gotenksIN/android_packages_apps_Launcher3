@@ -16,8 +16,10 @@
 
 package com.android.launcher3.popup
 
+import android.animation.AnimatorSet
 import android.content.Context
 import android.graphics.Rect
+import android.os.Trace
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -39,8 +41,12 @@ import com.android.launcher3.views.ActivityContext
  * @param context The context in which the popup is created.
  * @param originalView The view from which this popup was opened.
  */
-open class PopupContainer<T>(context: Context?, val originalView: View, val itemInfo: ItemInfo) :
-    ArrowPopup<T>(context), DragSource, DragController.DragListener, Popup
+open class PopupContainer<T>(
+    context: Context?,
+    val originalView: View,
+    val itemInfo: ItemInfo,
+    val updateIconUi: Boolean,
+) : ArrowPopup<T>(context), DragSource, DragController.DragListener, Popup
     where T : Context, T : ActivityContext {
     /** Here we hold the system shortcuts that we show for the Popup. */
     // TODO b/441320297
@@ -51,6 +57,37 @@ open class PopupContainer<T>(context: Context?, val originalView: View, val item
         originalView.context.resources.getDimensionPixelSize(
             R.dimen.deep_shortcuts_start_drag_threshold
         )
+
+    private val iconViewController: IconViewController? = originalView as? IconViewController
+
+    @CallSuper
+    override fun handleClose(animate: Boolean) {
+        Trace.beginAsyncSection("dismissPopupMenu", hashCode())
+        super.handleClose(animate)
+    }
+
+    @CallSuper
+    override fun closeComplete() {
+        super.closeComplete()
+        mActivityContext?.getDragController<DragController<*>>()?.removeDragListener(this)
+        val openPopup = getOpen<T>(mActivityContext)
+        if (openPopup == null || openPopup.originalView !== iconViewController) {
+            iconViewController?.getFloatingViewTextAlpha()?.value = 1f
+            iconViewController?.setForceHideDot(false)
+        }
+        Trace.endAsyncSection("dismissPopupMenu", hashCode())
+    }
+
+    @CallSuper
+    override fun onCreateCloseAnimation(anim: AnimatorSet) {
+        // Animate original icon's text back in.
+        anim.play(iconViewController?.getFloatingViewTextAlpha()?.animateToValue(1f))
+        iconViewController?.setForceHideDot(false)
+    }
+
+    override fun getAccessibilityInitialFocusView(): View {
+        return systemShortcutContainer?.getChildAt(0) ?: super.getAccessibilityInitialFocusView()
+    }
 
     @CallSuper
     override fun onControllerInterceptTouchEvent(ev: MotionEvent): Boolean {
@@ -74,7 +111,10 @@ open class PopupContainer<T>(context: Context?, val originalView: View, val item
         outPos.top += originalView.paddingTop
         outPos.left += originalView.paddingLeft
         outPos.right -= originalView.paddingRight
-        outPos.bottom = outPos.top + originalView.height
+        val iconHeight = iconViewController?.getIconHeight()
+        outPos.bottom =
+            outPos.top +
+                if (iconHeight != null && iconHeight > 0) iconHeight else originalView.height
     }
 
     override fun isOfType(type: Int): Boolean {
@@ -86,7 +126,7 @@ open class PopupContainer<T>(context: Context?, val originalView: View, val item
         // Either the original item or one of the shortcuts was dragged.
         // Hide the container, but don't remove it yet because that interferes with touch events.
         mDeferContainerRemoval = true
-        animateClose()
+        handleClose(/* animate */ true)
     }
 
     override fun onDropCompleted(target: View, d: DragObject, success: Boolean) {}
@@ -118,9 +158,33 @@ open class PopupContainer<T>(context: Context?, val originalView: View, val item
                 return distanceDragged > startDragThreshold
             }
 
-            override fun onPreDragStart(dragObject: DragObject) {}
+            override fun onPreDragStart(dragObject: DragObject) {
+                if (iconViewController == null || !updateIconUi) return
+                iconViewController.setForceHideDot(true)
+                if (mIsAboveIcon) {
+                    // Hide only the icon, keep the text visible.
+                    iconViewController.setIconVisible(false)
+                    originalView.visibility = VISIBLE
+                } else {
+                    // Hide both the icon and text.
+                    originalView.visibility = INVISIBLE
+                }
+            }
 
-            override fun onPreDragEnd(dragObject: DragObject, dragStarted: Boolean) {}
+            override fun onPreDragEnd(dragObject: DragObject, dragStarted: Boolean) {
+                if (iconViewController == null || !updateIconUi) return
+                iconViewController.setIconVisible(true)
+                if (dragStarted) {
+                    // Make sure we keep the original icon hidden while it is being dragged.
+                    originalView.visibility = INVISIBLE
+                } else {
+                    if (!mIsAboveIcon) {
+                        // Show the icon but keep the text hidden.
+                        originalView.visibility = VISIBLE
+                        iconViewController.getFloatingViewTextAlpha()?.value = 0f
+                    }
+                }
+            }
         }
     }
 
@@ -139,9 +203,9 @@ open class PopupContainer<T>(context: Context?, val originalView: View, val item
             if (
                 originalView != null &&
                     (!originalView.isAttachedToWindow ||
-                        !ShortcutUtil.supportsShortcuts(popup?.itemInfo))
+                        !ShortcutUtil.supportsShortcuts(popup.itemInfo))
             ) {
-                popup.animateClose()
+                popup.handleClose(/* animate */ true)
             }
         }
 
@@ -150,12 +214,17 @@ open class PopupContainer<T>(context: Context?, val originalView: View, val item
          *
          * @param context The context in which the popup will be created.
          * @param originalView The view that the popup is associated with.
+         * @param updateIconUi Whether to update the icon UI during drag and drop.
          * @return A new instance of [PopupContainer].
          */
         @JvmStatic
-        fun <T> create(context: Context, originalView: View, itemInfo: ItemInfo): PopupContainer<T>
-            where T : Context, T : ActivityContext {
-            val container = PopupContainer<T>(context, originalView, itemInfo)
+        fun <T> create(
+            context: Context,
+            originalView: View,
+            itemInfo: ItemInfo,
+            updateIconUi: Boolean = true,
+        ): PopupContainer<T> where T : Context, T : ActivityContext {
+            val container = PopupContainer<T>(context, originalView, itemInfo, updateIconUi)
             container.id = R.id.popup_container
             container.clipChildren = false
             container.clipToPadding = false

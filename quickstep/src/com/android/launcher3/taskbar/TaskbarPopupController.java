@@ -95,10 +95,6 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
     // Saves the ItemInfos in the hotseat without the predicted items.
     private SparseArray<ItemInfo> mTaskbarInfoList;
     private ManageWindowsTaskbarShortcut<BaseTaskbarContext> mManageWindowsTaskbarShortcut;
-    // Whether the popup is currently open. This is reset to false when the close animation is
-    // complete.
-    private boolean mIsPopupOpened = false;
-
 
     public TaskbarPopupController(TaskbarActivityContext context) {
         mContext = context;
@@ -129,10 +125,6 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
         mAllowInitialSplitSelection = allowInitialSplitSelection;
     }
 
-    public boolean isPopupOpened() {
-        return mIsPopupOpened;
-    }
-
     // Create a Stream of all applicable system shortcuts
     private Stream<SystemShortcut.Factory<BaseTaskbarContext>> getSystemShortcuts() {
         // append split options to APP_INFO shortcut if not in Desktop Windowing mode, the order
@@ -154,8 +146,9 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
             shortcuts.addAll(getMultiInstanceMenuOptions().toList());
         }
 
-        if (mControllers.taskbarDesktopModeController
-                .isInDesktopModeAndNotInOverview(mContext.getDisplayId())) {
+        if (!mControllers.taskbarStashController.isInOverview()
+                && mControllers.taskbarDesktopModeController.shouldShowDesktopTasksInTaskbar(
+                        mContext.getDisplayId())) {
             shortcuts.add(createCloseAppTaskbarShortcutFactory());
         }
         return shortcuts.stream();
@@ -187,7 +180,7 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
             }
         }
 
-        if (mTaskbarInfoList.size()
+        if (canPinAppsOverflow() || mTaskbarInfoList.size()
                 < mContext.getTaskbarSpecsEvaluator().getMaxPinnableCount()) {
             return new PinToTaskbarShortcut<>(target, itemInfo, originalView, true,
                     maxPinnableCount, mTaskbarInfoList);
@@ -262,9 +255,7 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
         context.onPopupVisibilityChanged(true);
         container.addOnCloseCallback(() -> {
             context.getDragLayer().post(() -> context.onPopupVisibilityChanged(false));
-            mIsPopupOpened = false;
         });
-        mIsPopupOpened = true;
 
         return container;
     }
@@ -408,9 +399,16 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
      * is in Desktop Mode.
      * @return A factory function to be used in populating the long-press menu.
      */
-    private SystemShortcut.Factory<BaseTaskbarContext> createCloseAppTaskbarShortcutFactory() {
-        return (context, itemInfo, originalView) -> new CloseAppTaskbarShortcut<>(
-                context, itemInfo, originalView, mControllers);
+    @Nullable
+    @VisibleForTesting
+    SystemShortcut.Factory<BaseTaskbarContext> createCloseAppTaskbarShortcutFactory() {
+        return (context, itemInfo, originalView) -> {
+            if (mControllers.taskbarRecentAppsController.getDesktopItemState(
+                    itemInfo).getRunningAppState() == BubbleTextView.RunningAppState.NOT_RUNNING) {
+                return null;
+            }
+            return new CloseAppTaskbarShortcut<>(context, itemInfo, originalView, mControllers);
+        };
     }
 
     /**

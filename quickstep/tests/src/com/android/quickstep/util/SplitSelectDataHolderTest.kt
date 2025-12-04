@@ -30,15 +30,16 @@ import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.shortcuts.ShortcutKey
 import com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_TOP_OR_LEFT
 import com.android.launcher3.util.ui.AbstractLauncherUiTest
-import com.android.quickstep.util.SplitSelectDataHolder.Companion.SPLIT_PENDINGINTENT_PENDINGINTENT
-import com.android.quickstep.util.SplitSelectDataHolder.Companion.SPLIT_PENDINGINTENT_TASK
-import com.android.quickstep.util.SplitSelectDataHolder.Companion.SPLIT_SHORTCUT_TASK
-import com.android.quickstep.util.SplitSelectDataHolder.Companion.SPLIT_SINGLE_INTENT_FULLSCREEN
-import com.android.quickstep.util.SplitSelectDataHolder.Companion.SPLIT_SINGLE_SHORTCUT_FULLSCREEN
-import com.android.quickstep.util.SplitSelectDataHolder.Companion.SPLIT_SINGLE_TASK_FULLSCREEN
-import com.android.quickstep.util.SplitSelectDataHolder.Companion.SPLIT_TASK_PENDINGINTENT
-import com.android.quickstep.util.SplitSelectDataHolder.Companion.SPLIT_TASK_SHORTCUT
-import com.android.quickstep.util.SplitSelectDataHolder.Companion.SPLIT_TASK_TASK
+import com.android.quickstep.split.SplitSelectDataHolder
+import com.android.quickstep.split.SplitSelectDataHolder.Companion.SPLIT_PENDINGINTENT_PENDINGINTENT
+import com.android.quickstep.split.SplitSelectDataHolder.Companion.SPLIT_PENDINGINTENT_TASK
+import com.android.quickstep.split.SplitSelectDataHolder.Companion.SPLIT_SHORTCUT_TASK
+import com.android.quickstep.split.SplitSelectDataHolder.Companion.SPLIT_SINGLE_INTENT_FULLSCREEN
+import com.android.quickstep.split.SplitSelectDataHolder.Companion.SPLIT_SINGLE_SHORTCUT_FULLSCREEN
+import com.android.quickstep.split.SplitSelectDataHolder.Companion.SPLIT_SINGLE_TASK_FULLSCREEN
+import com.android.quickstep.split.SplitSelectDataHolder.Companion.SPLIT_TASK_PENDINGINTENT
+import com.android.quickstep.split.SplitSelectDataHolder.Companion.SPLIT_TASK_SHORTCUT
+import com.android.quickstep.split.SplitSelectDataHolder.Companion.SPLIT_TASK_TASK
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -409,5 +410,13 @@ class SplitSelectDataHolderTest {
         splitSelectDataHolder.setSecondTask(sampleIntent, sampleUser, sampleItemInfo2)
         splitSelectDataHolder.resetState()
         assertFalse(splitSelectDataHolder.isSplitSelectActive())
+    }
+
+    @Test
+    fun callingTwoSetters_shouldNotMerge() {
+        splitSelectDataHolder.setSecondTask(9, sampleItemInfo)
+        assertEquals(9, splitSelectDataHolder.getSecondTaskId())
+        splitSelectDataHolder.setSecondTask(sampleIntent, sampleUser, sampleItemInfo2)
+        assertEquals(INVALID_TASK_ID, splitSelectDataHolder.getSecondTaskId())
     }
 }

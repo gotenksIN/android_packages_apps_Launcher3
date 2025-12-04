@@ -37,6 +37,7 @@ import com.android.launcher3.SecondaryDropTarget;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.accessibility.LauncherAccessibilityDelegate;
 import com.android.launcher3.allapps.PrivateProfileManager;
+import com.android.launcher3.compose.ComposeFacade;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
@@ -52,6 +53,7 @@ import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.Snackbar;
 import com.android.launcher3.widget.WidgetsBottomSheet;
 import com.android.launcher3.widget.picker.model.data.WidgetPickerData;
+import com.android.wm.shell.shared.bubbles.BubbleAnythingFlagHelper;
 import com.android.wm.shell.shared.bubbles.logging.EntryPoint;
 
 import java.util.Arrays;
@@ -158,20 +160,30 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
          * @return drawable for Widget shortcut icon
          */
         public static int getDrawableId() {
-            if (Flags.enableLauncherVisualRefresh()) {
-                return R.drawable.widgets_24px;
-            } else {
-                return R.drawable.ic_widget;
-            }
+            return R.drawable.widgets_24px;
         }
 
         @Override
         public void onClick(View view) {
             AbstractFloatingView.closeAllOpenViews(mTarget);
-            WidgetsBottomSheet widgetsBottomSheet =
-                    (WidgetsBottomSheet) mTarget.getLayoutInflater().inflate(
-                            R.layout.widgets_bottom_sheet, mTarget.getDragLayer(), false);
-            widgetsBottomSheet.populateAndShow(mItemInfo);
+            boolean useComposePicker = ComposeFacade.INSTANCE.isComposeAvailable()
+                    && Flags.enableAppWidgetPickerRefactor();
+
+            if (useComposePicker) {
+                Context context = view.getContext();
+                Intent intent = new Intent(Intent.ACTION_PICK);
+                intent.putExtra(Intent.EXTRA_PACKAGE_NAME,
+                        mItemInfo.getTargetPackage());
+                intent.putExtra(Intent.EXTRA_USER, mItemInfo.user);
+                intent.setPackage(context.getPackageName());
+                context.startActivity(intent);
+            } else {
+                WidgetsBottomSheet widgetsBottomSheet =
+                        (WidgetsBottomSheet) mTarget.getLayoutInflater().inflate(
+                                R.layout.widgets_bottom_sheet, mTarget.getDragLayer(), false);
+                widgetsBottomSheet.populateAndShow(mItemInfo);
+            }
+
             mTarget.getStatsLogManager().logger().withItemInfo(mItemInfo)
                     .log(LAUNCHER_SYSTEM_SHORTCUT_WIDGETS_TAP);
         }
@@ -193,11 +205,7 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
          * @return drawable for App Info shortcut icon
          */
         public static int getDrawableId() {
-            if (Flags.enableLauncherVisualRefresh()) {
-                return R.drawable.info_24px;
-            } else {
-                return R.drawable.ic_info_no_shadow;
-            }
+            return R.drawable.info_24px;
         }
 
         /**
@@ -261,7 +269,7 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
     public static class RemoveApp<T extends ActivityContext> extends SystemShortcut<T> {
 
         public RemoveApp(T target, ItemInfo itemInfo, @NonNull View originalView) {
-            super(R.drawable.ic_remove_no_shadow, R.string.remove_drop_target_label, target,
+            super(R.drawable.ic_remove_no_shadow, R.string.remove_system_shortcut_label, target,
                     itemInfo, originalView, false);
         }
 
@@ -502,7 +510,8 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
                         && !(itemInfo instanceof WorkspaceItemInfo)) {
                     return null;
                 }
-                if (itemInfo instanceof ItemInfoWithIcon itemInfoWithIcon) {
+                if (!BubbleAnythingFlagHelper.allowMultiWindowNonResizableActivities()
+                        && itemInfo instanceof ItemInfoWithIcon itemInfoWithIcon) {
                     // Don't show bubble shortcut option for non-resizeable apps on small screens.
                     // TODO(b/411558731): isPhone just checks for smallest width < 600dp, so it
                     // basically is a check for small screens including Foldables when folded.

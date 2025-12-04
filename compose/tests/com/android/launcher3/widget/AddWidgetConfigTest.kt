@@ -26,14 +26,13 @@ import com.android.launcher3.LauncherSettings.Favorites
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.LauncherAppWidgetInfo
 import com.android.launcher3.testcomponent.WidgetConfigActivity
-import com.android.launcher3.testutil.FavoriteItemsTransaction
 import com.android.launcher3.testutil.Wait
 import com.android.launcher3.util.BaseLauncherActivityTest
 import com.android.launcher3.util.BlockingBroadcastReceiver
 import com.android.launcher3.util.LauncherBindableItemsContainer.ItemOperator
+import com.android.launcher3.util.ModelTestExtensions.setEmptyModelLayout
 import com.android.launcher3.util.WidgetUtils
 import com.android.launcher3.util.rule.ShellCommandRule
-import com.android.launcher3.util.ui.PortraitLandscapeRunner.PortraitLandscape
 import com.android.launcher3.widgetpicker.listeners.WidgetPickerAddItemListener
 import com.android.launcher3.widgetpicker.shared.model.WidgetInfo
 import com.google.common.truth.Truth.assertThat
@@ -64,14 +63,12 @@ class AddWidgetConfigTest : BaseLauncherActivityTest<Launcher>() {
     }
 
     @Test
-    @PortraitLandscape
     @Throws(Throwable::class)
     fun testWidgetConfig() {
         runTest(acceptConfig = true)
     }
 
     @Test
-    @PortraitLandscape
     @Throws(Throwable::class)
     fun testConfigCancelled() {
         runTest(acceptConfig = false)
@@ -80,7 +77,7 @@ class AddWidgetConfigTest : BaseLauncherActivityTest<Launcher>() {
     /** @param acceptConfig accept the config activity */
     @Throws(Throwable::class)
     private fun runTest(acceptConfig: Boolean) {
-        FavoriteItemsTransaction(targetContext()).commit()
+        targetContext().setEmptyModelLayout()
         loadLauncherSync()
 
         // Add widget to home screen
