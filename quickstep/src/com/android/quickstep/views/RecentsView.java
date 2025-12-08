@@ -3524,13 +3524,6 @@ public abstract class RecentsView<
         mContainer.getStatsLogManager().logger().log(LAUNCHER_TASK_CLEAR_ALL);
     }
 
-    private void dismissCurrentTask() {
-        TaskView taskView = getNextPageTaskView();
-        if (taskView != null) {
-            dismissTaskView(taskView, true /*removeTask*/);
-        }
-    }
-
     private void createDesk() {
         SystemUiProxy.INSTANCE
                 .get(getContext())
@@ -3566,12 +3559,12 @@ public abstract class RecentsView<
                         TaskGridNavHelper.TaskNavDirection.DOWN);
             case KeyEvent.KEYCODE_DEL:
             case KeyEvent.KEYCODE_FORWARD_DEL:
-                dismissCurrentTask();
+                mUtils.onDeleteKeyPressed();
                 return true;
             case KeyEvent.KEYCODE_NUMPAD_DOT:
                 if (event.isAltPressed()) {
                     // Numpad DEL pressed while holding Alt.
-                    dismissCurrentTask();
+                    mUtils.onDeleteKeyPressed();
                     return true;
                 }
         }
@@ -5016,7 +5009,8 @@ public abstract class RecentsView<
             // Notify the SysUI to use fade-in animation when entering PiP from live tile.
             // Note: PiP2 handles entering differently, so skip if enable_pip2=true.
             mSystemUiProxy.setPipAnimationTypeToAlpha();
-            mSystemUiProxy.setShelfHeight(true, mContainer.getDeviceProfile().hotseatBarSizePx);
+            mSystemUiProxy.setShelfHeight(true,
+                    mContainer.getDeviceProfile().getHotseatProfile().getBarSizePx());
             // Transaction to hide the task to avoid flicker for entering PiP from split-screen.
             // See also {@link AbsSwipeUpHandler#maybeFinishSwipeToHome}.
             PictureInPictureSurfaceTransaction tx =

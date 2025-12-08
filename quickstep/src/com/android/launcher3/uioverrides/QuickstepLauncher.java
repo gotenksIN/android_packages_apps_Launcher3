@@ -54,6 +54,7 @@ import static com.android.launcher3.popup.PinToTaskbarShortcut.getPinShortcutFac
 import static com.android.launcher3.popup.QuickstepSystemShortcut.getSplitSelectShortcutByPosition;
 import static com.android.launcher3.popup.SystemShortcut.ADD_TO_HOME_SCREEN;
 import static com.android.launcher3.popup.SystemShortcut.APP_INFO;
+import static com.android.launcher3.popup.SystemShortcut.APP_LOCK;
 import static com.android.launcher3.popup.SystemShortcut.BUBBLE_SHORTCUT;
 import static com.android.launcher3.popup.SystemShortcut.DONT_SUGGEST_APP;
 import static com.android.launcher3.popup.SystemShortcut.INSTALL;
@@ -112,7 +113,6 @@ import android.window.RemoteTransition;
 import android.window.SplashScreen;
 
 import androidx.annotation.AnyThread;
-import androidx.annotation.BinderThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
@@ -279,7 +279,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     private @Nullable LauncherUnfoldAnimationController mLauncherUnfoldAnimationController;
 
     private SplitSelectStateController mSplitSelectStateController;
-    private SplitFromRunningTaskController mSplitFromRunningTaskController;
     private SplitToWorkspaceController mSplitToWorkspaceController;
     private BubbleBarLocation mBubbleBarLocation;
 
@@ -352,14 +351,15 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         mActionsView = findViewById(R.id.overview_actions_view);
         RecentsView<?, LauncherState> overviewPanel = getOverviewPanel();
         SystemUiProxy systemUiProxy = SystemUiProxy.INSTANCE.get(this);
-        mSplitFromRunningTaskController = new SplitFromRunningTaskController(this);
+        SplitFromRunningTaskController splitFromRunningTaskController =
+                new SplitFromRunningTaskController(this);
         mSplitSelectStateController =
                 new SplitSelectStateController(this, getStateManager(),
                         getDepthController(), getStatsLogManager(),
                         systemUiProxy, RecentsModel.INSTANCE.get(this),
                         () -> onStateBack(), mLauncherUiState.getSplitScreenUiState(),
-                        mSplitFromRunningTaskController);
-        mSplitFromRunningTaskController.init(mSplitSelectStateController);
+                        splitFromRunningTaskController);
+        splitFromRunningTaskController.init(mSplitSelectStateController);
         if (DesktopModeStatus.canEnterDesktopMode(this)) {
             mDesktopRecentsTransitionController = new DesktopRecentsTransitionController(
                     getStateManager(), systemUiProxy, getIApplicationThread(),
@@ -568,6 +568,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         if (BubbleAnythingFlagHelper.enableCreateAnyBubble()) {
             shortcuts.add(BUBBLE_SHORTCUT);
         }
+        if (android.security.Flags.appLockApis() && Flags.enableAppLockShortcut()) {
+            shortcuts.add(APP_LOCK);
+        }
         return shortcuts.stream();
     }
 
@@ -632,7 +635,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                 && !profile.isVerticalBarLayout()
                 && !mIsOverlayVisible;
         SystemUiProxy.INSTANCE.get(this)
-                .setLauncherKeepClearAreaHeight(visible, profile.hotseatBarSizePx);
+                .setLauncherKeepClearAreaHeight(visible,
+                        profile.getHotseatProfile().getBarSizePx());
         if (state == NORMAL && !inTransition) {
             ((RecentsView) getOverviewPanel()).setSwipeDownShouldLaunchApp(false);
         }
