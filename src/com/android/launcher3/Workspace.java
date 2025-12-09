@@ -420,7 +420,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         // Set insets for page indicator
         lp.topMargin = lp.leftMargin = lp.rightMargin = 0;
         lp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM;
-        lp.bottomMargin = grid.hotseatBarSizePx;
+        lp.bottomMargin = grid.getHotseatProfile().getBarSizePx();
         mPageIndicator.setLayoutParams(lp);
     }
 
@@ -1177,14 +1177,6 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             return mLauncher.getDragLayer();
         }
         return null;
-    }
-
-    @Override
-    public void onBoxSelection(android.graphics.Rect selectionRect) {
-        if (shouldEnableCursorDrivenWorkflows(getContext())) {
-            mLauncher.getActivityComponent().getWorkspaceSelectionManager()
-                    .onBoxSelection(selectionRect);
-        }
     }
 
     /**
@@ -2767,12 +2759,17 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     }
 
     private boolean shouldUseHotseatAsDropLayout(DragObject dragObject) {
-        if (mLauncher.getHotseat() == null
-                || mLauncher.getHotseat().getShortcutsAndWidgets() == null
-                || isDragWidget(dragObject)) {
+        Hotseat hotseat = mLauncher.getHotseat();
+        if (hotseat == null) {
             return false;
         }
-        View hotseatShortcuts = mLauncher.getHotseat().getShortcutsAndWidgets();
+
+        ShortcutAndWidgetContainer hotseatShortcuts = hotseat.getShortcutsAndWidgets();
+        if (hotseatShortcuts == null
+                || isDragWidget(dragObject)
+                || hotseatShortcuts.getVisibility() != View.VISIBLE) {
+            return false;
+        }
         getViewBoundsRelativeToWorkspace(hotseatShortcuts, mTempRect);
         return mTempRect.contains(dragObject.x, dragObject.y);
     }
