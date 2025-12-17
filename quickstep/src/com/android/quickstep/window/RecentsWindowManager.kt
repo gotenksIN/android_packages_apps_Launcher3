@@ -113,8 +113,8 @@ import com.android.quickstep.fallback.FallbackWindowRecentsView
 import com.android.quickstep.fallback.RecentsDragLayer
 import com.android.quickstep.fallback.RecentsState
 import com.android.quickstep.fallback.RecentsState.Companion.BACKGROUND_APP
-import com.android.quickstep.fallback.RecentsState.Companion.BG_LAUNCHER
 import com.android.quickstep.fallback.RecentsState.Companion.DEFAULT
+import com.android.quickstep.fallback.RecentsState.Companion.HIDDEN
 import com.android.quickstep.fallback.RecentsState.Companion.MODAL_TASK
 import com.android.quickstep.fallback.RecentsState.Companion.OVERVIEW_SPLIT_SELECT
 import com.android.quickstep.fallback.toLauncherStateOrdinal
@@ -181,7 +181,7 @@ constructor(
     private var surfaceControlViewHost: SurfaceControlViewHost? = null
     private var layoutInflater: LayoutInflater = LayoutInflater.from(this).cloneInContext(this)
     private var stateManager: StateManager<RecentsState, RecentsWindowManager> =
-        StateManager<RecentsState, RecentsWindowManager>(this, BG_LAUNCHER)
+        StateManager<RecentsState, RecentsWindowManager>(this, HIDDEN)
     private var systemUiController: SystemUiController? = null
 
     private var overviewOverlay: SurfaceControl? = null
@@ -257,7 +257,10 @@ constructor(
     private val homeVisibilityState = systemUiProxy.homeVisibilityState
     private val homeVisibilityListener =
         object : HomeVisibilityState.VisibilityChangeListener {
-            override fun onHomeVisibilityChanged(isHomeVisible: Boolean) {
+            override fun onHomeVisibilityChanged(
+                isHomeVisible: Boolean,
+                keyguardGoingAway: Boolean,
+            ) {
                 if (fallbackWindowInterface.isInLiveTileMode || isHomeVisible) {
                     return
                 }
@@ -283,6 +286,9 @@ constructor(
                 // therefore also need to post this request onto the recents view.
                 // (see OverviewCommandHelper#updateRecentsViewFocus)
                 if (!useInputReportedFocusForAccessibility()) {
+                    return
+                }
+                if (recentsView?.keyboardFocusTaskView == null) {
                     return
                 }
                 recentsView?.post { requestInputFocus(focused = true) }
@@ -468,7 +474,6 @@ constructor(
         if (isShowing()) {
             return
         }
-
         createWindowView()
         windowRootView.visibility = View.VISIBLE
 
@@ -483,7 +488,6 @@ constructor(
             AbstractFloatingView.closeAllOpenViews(this, /* animate= */ false)
             recentsView?.viewRootImpl?.touchModeChanged(true)
             windowRootView.visibility = View.GONE
-            requestInputFocus(focused = false)
             AccessibilityManagerCompat.sendTestProtocolEventToTest(
                 this,
                 LAUNCHER_ACTIVITY_STOPPED_MESSAGE,
@@ -554,7 +558,7 @@ constructor(
         return homeOverlay
     }
 
-    private fun requestInputFocus(focused: Boolean) {
+    fun requestInputFocus(focused: Boolean) {
         if (!useInputReportedFocusForAccessibility()) {
             return
         }
@@ -715,8 +719,7 @@ constructor(
                 result: LauncherAnimationRunner.AnimationResult? ->
                 result ?: return@RemoteAnimationFactory
                 val controller =
-                    getStateManager()
-                        .createAnimationToNewWorkspace(BG_LAUNCHER, HOME_APPEAR_DURATION)
+                    getStateManager().createAnimationToNewWorkspace(HIDDEN, HOME_APPEAR_DURATION)
                 controller.dispatchOnStart()
                 val targets =
                     RemoteAnimationTargets(
@@ -735,8 +738,7 @@ constructor(
                     anim,
                     this@RecentsWindowManager,
                     {
-                        getStateManager().goToState(BG_LAUNCHER, true)
-                        hideRecentsWindow()
+                        getStateManager().moveToRestState(/* isAnimated= */ true)
                         onHomeAnimationComplete?.run()
                     },
                     true, /* skipFirstFrame */
@@ -754,7 +756,6 @@ constructor(
             )
         options.launchDisplayId = displayId
         OverviewComponentObserver.startHomeIntentSafely(this, options.toBundle(), TAG, displayId)
-        stateManager.moveToRestState()
     }
 
     private fun isShowing() = windowView?.parent != null && windowRootView.isVisible
@@ -839,7 +840,7 @@ constructor(
     override fun goToRecentsState(
         recentsState: RecentsState,
         animated: Boolean,
-        listener: Animator.AnimatorListener,
+        listener: Animator.AnimatorListener?,
     ) {
         stateManager.goToState(recentsState, animated, listener)
     }

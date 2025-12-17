@@ -225,21 +225,6 @@ flag {
     }
 }
 
-
-flag {
-    name: "one_grid_specs"
-    namespace: "launcher"
-    description: "Defines the new specs for grids based on OneGrid"
-    bug: "364711064"
-}
-
-flag {
-    name: "one_grid_mounted_mode"
-    namespace: "launcher"
-    description: "Support a fixed landscape mode for handheld devices"
-    bug: "364711735"
-}
-
 flag {
     name: "one_grid_rotation_handling"
     namespace: "launcher"
@@ -379,13 +364,6 @@ flag {
 }
 
 flag {
-  name: "enable_gesture_nav_on_connected_displays"
-  namespace: "lse_desktop_experience"
-  description: "Enables gesture navigation handling on connected displays"
-  bug: "382130680"
-}
-
-flag {
   name: "enable_taskbar_behind_shade"
   namespace: "lse_desktop_experience"
   description: "Keeps taskbar behind notification shade when its pulled down"
@@ -483,16 +461,6 @@ flag {
     namespace: "launcher"
     description: "Enable model items to be provided by dagger"
     bug: "423957181"
-}
-
-flag {
-  name: "enable_taskbar_recents_themed_icons"
-  namespace: "launcher"
-  description: "Have recent icons in Taskbar respect icon theme preferences"
-  bug: "407950127"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
 }
 
 flag {
@@ -636,13 +604,10 @@ flag {
 }
 
 flag {
-  name: "orientation_enabled_desktop_grid_spec"
+  name: "orientation_friendly_desktop_grid_spec"
   namespace: "launcher"
   description: "Uses a desktop grid spec that specifies grid dimensions that look reasonably well when the device is used in portrait mode"
   bug: "444244391"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
 }
 
 flag {
@@ -680,6 +645,13 @@ flag {
   namespace: "launcher"
   description: "Enables indicator for active app automation in Launcher"
   bug: "440353845"
+}
+
+flag {
+    name: "fallback_reveal_animation"
+    namespace: "launcher"
+    description: "Introduces a Launcher reveal animation that runs as a backup when a different process takes care of the overall transition animation."
+    bug: "202516970"
 }
 
 flag {

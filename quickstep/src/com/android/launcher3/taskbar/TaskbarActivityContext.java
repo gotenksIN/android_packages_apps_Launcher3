@@ -816,8 +816,11 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      * @param title The window title to pass to the created WindowManager.LayoutParams.
      */
     public WindowManager.LayoutParams createDefaultWindowLayoutParams(int type, String title) {
-        int windowFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                | WindowManager.LayoutParams.FLAG_SLIPPERY;
+        int windowFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+        if (!isTransientTaskbar()) {
+            // Allow apps to receive swipe events from non-transient taskbar (e.g. 3 button nav).
+            windowFlags |= WindowManager.LayoutParams.FLAG_SLIPPERY;
+        }
         boolean watchOutside = isTransientTaskbar() || isThreeButtonNav();
         if (watchOutside && !isRunningInTestHarness()) {
             windowFlags |= WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
@@ -1241,6 +1244,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                         || isNavBarKidsModeActive());
         mControllers.stashedHandleViewController.setIsHomeButtonDisabled(
                 mControllers.navbarButtonsViewController.isHomeDisabled());
+        mControllers.cueBarController.updateStateForSysuiFlags(systemUiStateFlags);
         mControllers.stashedHandleViewController.updateStateForSysuiFlags(systemUiStateFlags);
         mControllers.taskbarKeyguardController.updateStateForSysuiFlags(systemUiStateFlags);
         mControllers.taskbarStashController.updateStateForSysuiFlags(

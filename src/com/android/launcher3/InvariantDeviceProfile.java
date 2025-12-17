@@ -18,8 +18,6 @@ package com.android.launcher3;
 
 import static com.android.launcher3.Flags.enableScalabilityForDesktopExperience;
 import static com.android.launcher3.GridType.GRID_TYPE_ANY;
-import static com.android.launcher3.GridType.GRID_TYPE_NON_ONE_GRID;
-import static com.android.launcher3.GridType.GRID_TYPE_ONE_GRID;
 import static com.android.launcher3.GridType.GRID_TYPE_DUAL_OPTIMIZED_GRID;
 import static com.android.launcher3.GridType.GRID_TYPE_LANDSCAPE_OPTIMIZED_GRID;
 import static com.android.launcher3.LauncherPrefs.DB_FILE;
@@ -70,7 +68,6 @@ import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.icons.DotRenderer;
 import com.android.launcher3.logging.FileLog;
 import com.android.launcher3.model.DeviceGridState;
-import com.android.launcher3.provider.RestoreDbTask;
 import com.android.launcher3.testing.shared.ResourceUtils;
 import com.android.launcher3.util.DaggerSingletonObject;
 import com.android.launcher3.util.DaggerSingletonTracker;
@@ -344,7 +341,7 @@ public class InvariantDeviceProfile {
         List<DisplayOption> allOptions = getPredefinedDeviceProfiles(
                 displayInfo,
                 gridName,
-                (RestoreDbTask.isPending(mPrefs) && !Flags.oneGridSpecs()),
+                /* allowDisabledGrid= */ false,
                 mPrefs.get(FIXED_LANDSCAPE_MODE)
         );
 
@@ -515,14 +512,14 @@ public class InvariantDeviceProfile {
 
         int numMinShownHotseatIconsForTablet = supportedProfiles
                 .stream()
-                .filter(deviceProfile -> deviceProfile.getDeviceProperties().isTablet())
+                .filter(deviceProfile -> deviceProfile.getDeviceProperties().isLargeScreen())
                 .mapToInt(deviceProfile -> deviceProfile.numShownHotseatIcons)
                 .min()
                 .orElse(0);
 
         supportedProfiles
                 .stream()
-                .filter(deviceProfile -> deviceProfile.getDeviceProperties().isTablet())
+                .filter(deviceProfile -> deviceProfile.getDeviceProperties().isLargeScreen())
                 .forEach(deviceProfile -> {
                     deviceProfile.numShownHotseatIcons = numMinShownHotseatIconsForTablet;
                     deviceProfile.recalculateHotseatWidthAndBorderSpace();
@@ -869,13 +866,13 @@ public class InvariantDeviceProfile {
         int minWidthPx = Integer.MAX_VALUE;
         int minHeightPx = Integer.MAX_VALUE;
         for (WindowBounds bounds : displayInfo.supportedBounds) {
-            boolean isTablet = displayInfo.isTablet(bounds);
-            if (isTablet && deviceType == TYPE_MULTI_DISPLAY) {
+            boolean isLargeScreen = displayInfo.isLargeScreen(bounds);
+            if (isLargeScreen && deviceType == TYPE_MULTI_DISPLAY) {
                 // For split displays, take half width per page
                 minWidthPx = Math.min(minWidthPx, bounds.availableSize.x / 2);
                 minHeightPx = Math.min(minHeightPx, bounds.availableSize.y);
 
-            } else if (!isTablet && bounds.isLandscape()) {
+            } else if (!isLargeScreen && bounds.isLandscape()) {
                 // We will use transposed layout in this case
                 minWidthPx = Math.min(minWidthPx, bounds.availableSize.y);
                 minHeightPx = Math.min(minHeightPx, bounds.availableSize.x);
@@ -1338,7 +1335,7 @@ public class InvariantDeviceProfile {
          */
         public boolean filterByFlag(int deviceType, boolean isFixedLandscape) {
             if (deviceType == TYPE_DESKTOP) {
-                if (Flags.orientationEnabledDesktopGridSpec()) {
+                if (Flags.orientationFriendlyDesktopGridSpec()) {
                     return (gridType & GRID_TYPE_DUAL_OPTIMIZED_GRID)
                             == GRID_TYPE_DUAL_OPTIMIZED_GRID;
                 }
@@ -1352,15 +1349,7 @@ public class InvariantDeviceProfile {
 
             // Here we return true if fixed landscape mode should be on.
             if (mIsFixedLandscape || isFixedLandscape) {
-                return mIsFixedLandscape && isFixedLandscape && Flags.oneGridSpecs();
-            }
-
-            // If the grid type is one grid we return true when the flag is on, if the grid type
-            // is non-one grid we return true when the flag is off. Otherwise, we return true.
-            if (gridType == GRID_TYPE_ONE_GRID) {
-                return Flags.oneGridSpecs();
-            } else if (gridType == GRID_TYPE_NON_ONE_GRID) {
-                return !Flags.oneGridSpecs();
+                return mIsFixedLandscape && isFixedLandscape;
             }
 
             return true;
