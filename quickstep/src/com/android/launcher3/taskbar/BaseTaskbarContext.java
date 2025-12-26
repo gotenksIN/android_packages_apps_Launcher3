@@ -16,7 +16,6 @@
 package com.android.launcher3.taskbar;
 
 import static com.android.launcher3.Flags.enableTaskbarUiThread;
-import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.TASKBAR_UI_THREAD;
 
 import android.annotation.SuppressLint;
@@ -24,6 +23,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ShortcutInfo;
 import android.graphics.Point;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.UserHandle;
 import android.view.LayoutInflater;
 
@@ -35,6 +36,7 @@ import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.popup.SystemShortcut;
 import com.android.launcher3.taskbar.bubbles.BubbleActivityStarter;
 import com.android.launcher3.util.BaseContext;
+import com.android.launcher3.util.LooperExecutor;
 import com.android.launcher3.util.NavigationMode;
 import com.android.launcher3.util.Themes;
 import com.android.wm.shell.shared.bubbles.logging.EntryPoint;
@@ -64,10 +66,29 @@ public abstract class BaseTaskbarContext extends BaseContext
                 (owner) -> enableTaskbarUiThread()
                         ? LifecycleRegistry.createUnsafe(owner) : new LifecycleRegistry(owner),
                 /* savedStateRegistryExecutor= */
-                enableTaskbarUiThread() ? TASKBAR_UI_THREAD : MAIN_EXECUTOR);
+                TASKBAR_UI_THREAD);
         mDisplayId = displayId;
         mIsPrimaryDisplay = isPrimaryDisplay;
         mLayoutInflater = LayoutInflater.from(this).cloneInContext(this);
+    }
+
+    /**
+     * For taskbar the "main" thread should be TASKBAR_UI_THREAD obtained from
+     * [ActivityContext.getUiExecutor]
+     */
+    @Override
+    public Handler getMainThreadHandler()  {
+        return getUiExecutor().getHandler();
+    }
+
+    @Override
+    public Looper getMainLooper() {
+        return getUiExecutor().getLooper();
+    }
+
+    @Override
+    public Executor getMainExecutor() {
+        return getUiExecutor();
     }
 
     @Override
@@ -76,7 +97,7 @@ public abstract class BaseTaskbarContext extends BaseContext
     }
 
     @Override
-    public Executor getUiExecutor() {
+    public LooperExecutor getUiExecutor() {
         return TASKBAR_UI_THREAD;
     }
 

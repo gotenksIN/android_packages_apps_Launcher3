@@ -25,7 +25,6 @@ import com.android.launcher3.Utilities.shouldEnableMouseInteractionChanges
 import com.android.launcher3.anim.AnimatedFloat
 import com.android.launcher3.statemanager.BaseState
 import com.android.launcher3.statemanager.StatefulContainer
-import com.android.launcher3.taskbar.TaskbarApiProxy
 import com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar
 import com.android.launcher3.taskbar.TaskbarManager
 import com.android.launcher3.util.LockedUserState.Companion.get
@@ -82,14 +81,16 @@ object InputConsumerUtils {
         rotationTouchHelper: RotationTouchHelper,
         desktopState: DesktopState,
     ): InputConsumer where T : RecentsViewContainer, T : StatefulContainer<S> {
-        val tac = taskbarManager.getTaskbarForDisplay(event.displayId)
-        val bubbleControllers = tac?.bubbleControllers
-        if (bubbleControllers != null && BubbleBarInputConsumer.isEventOnBubbles(tac, event)) {
+        val taskbarApiProxy = taskbarManager.getTaskbarForDisplay(event.displayId)
+        if (
+            taskbarApiProxy?.hasBubbleControllers() == true &&
+                BubbleBarInputConsumer.isEventOnBubbles(taskbarApiProxy, event)
+        ) {
             val consumer: InputConsumer =
                 BubbleBarInputConsumer(
                     context,
+                    taskbarApiProxy,
                     gestureState.displayId,
-                    bubbleControllers,
                     inputMonitorCompat,
                 )
             logInputConsumerSelectionReason(
@@ -205,7 +206,8 @@ object InputConsumerUtils {
         if (
             deviceState.isFullyGesturalNavMode ||
                 gestureState.isTrackpadGesture ||
-                (enableAutoStashConnectedDisplayTaskbar.isTrue && tac?.isPrimaryDisplay == false)
+                (enableAutoStashConnectedDisplayTaskbar.isTrue &&
+                    taskbarApiProxy?.taskbarUiState?.isPrimaryDisplay == false)
         ) {
             val reasonPrefix =
                 "device is in gesture navigation mode or 3-button mode with a trackpad gesture"
@@ -230,12 +232,12 @@ object InputConsumerUtils {
             }
 
             // If Taskbar is present, we listen for swipe or cursor hover events to unstash it.
-            if (tac != null && base !is AssistantInputConsumer) {
+            if (taskbarApiProxy != null && base !is AssistantInputConsumer) {
                 // Present always on large screen or on small screen w/ flag
                 val useTaskbarConsumer =
-                    (tac.deviceProfile.isTaskbarPresent &&
-                        !tac.isPhoneMode &&
-                        !tac.isInStashedLauncherState)
+                    (taskbarApiProxy.taskbarUiState.getDeviceProfile().isTaskbarPresent &&
+                        !taskbarApiProxy.isPhoneMode() &&
+                        !taskbarApiProxy.isInStashedLauncherState())
                 if (canStartSystemGesture && useTaskbarConsumer) {
                     reasonString.append(
                         "%s%s%sTaskbarActivityContext != null, " +
@@ -248,7 +250,7 @@ object InputConsumerUtils {
                         TaskbarUnstashInputConsumer(
                             base,
                             inputMonitorCompat,
-                            TaskbarApiProxy(tac),
+                            taskbarApiProxy,
                             context.getSystemService(DisplayManager::class.java),
                             overviewCommandHelper,
                             gestureState,
@@ -278,11 +280,12 @@ object InputConsumerUtils {
                 }
             }
 
-            val navHandle = tac?.navHandle ?: SystemUiProxy.INSTANCE[context]
+            val canNavHandleBeLongPressed =
+                taskbarApiProxy?.taskbarUiState?.isTaskbarStashedHandleViewVisible ?: true
             if (
                 canStartSystemGesture &&
                     !previousGestureState.isRecentsAnimationRunning &&
-                    navHandle.canNavHandleBeLongPressed() &&
+                    canNavHandleBeLongPressed &&
                     !ignoreThreeFingerTrackpadForNavHandleLongPress(gestureState)
             ) {
                 reasonString.append(
@@ -291,7 +294,10 @@ object InputConsumerUtils {
                     reasonPrefix,
                     SUBSTRING_PREFIX,
                 )
-                if (tac != null && tac.navHandle.canNavHandleBeLongPressed()) {
+                if (
+                    taskbarApiProxy != null &&
+                        taskbarApiProxy.taskbarUiState.isTaskbarStashedHandleViewVisible
+                ) {
                     reasonString.append("stashed handle is long-pressable, ")
                 }
                 reasonString.append("using NavHandleLongPressInputConsumer")
@@ -301,7 +307,7 @@ object InputConsumerUtils {
                         base,
                         inputMonitorCompat,
                         deviceState,
-                        navHandle,
+                        taskbarApiProxy?.navHandle() ?: SystemUiProxy.INSTANCE[context],
                         gestureState,
                     )
             }
@@ -566,11 +572,12 @@ object InputConsumerUtils {
                 deviceState.isPredictiveBackToHomeInProgress)
         // with shell-transitions, home is resumed during recents animation, so
         // explicitly check against recents animation too.
-        // Home is always running and isn't resumed when home shows behind desktop.
+        // Home is always running and is resumed when home shows behind desktop, so check whether
+        // running task is home in that case.
         val launcherResumedThroughShellTransition =
             containerInterface.isResumed() &&
                 !previousGestureState.isRecentsAnimationRunning &&
-                !desktopState.shouldShowHomeBehindDesktop
+                (!desktopState.shouldShowHomeBehindDesktop || runningTask?.isHomeTask == true)
 
         // If a task fragment within Launcher is resumed
         val launcherChildActivityResumed =

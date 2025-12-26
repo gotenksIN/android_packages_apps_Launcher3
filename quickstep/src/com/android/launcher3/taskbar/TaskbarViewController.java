@@ -22,6 +22,7 @@ import static android.window.DesktopModeFlags.ENABLE_TASKBAR_OVERFLOW;
 import static com.android.app.animation.Interpolators.EMPHASIZED;
 import static com.android.app.animation.Interpolators.FINAL_FRAME;
 import static com.android.app.animation.Interpolators.LINEAR;
+import static com.android.launcher3.Flags.enableTaskbarDragAndDrop;
 import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_ALPHA;
@@ -84,8 +85,6 @@ import com.android.launcher3.model.data.TaskItemInfo;
 import com.android.launcher3.taskbar.bubbles.BubbleBarController;
 import com.android.launcher3.taskbar.bubbles.BubbleBarViewController;
 import com.android.launcher3.taskbar.bubbles.BubbleControllers;
-import com.android.launcher3.taskbar.customization.TaskbarAllAppsButtonContainer;
-import com.android.launcher3.taskbar.customization.TaskbarDividerContainer;
 import com.android.launcher3.taskbar.customization.TaskbarIconSpecs;
 import com.android.launcher3.taskbar.customization.TaskbarIconsContainer;
 import com.android.launcher3.taskbar.handoff.HandoffSuggestion;
@@ -312,7 +311,9 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
                 ? mActivity.getResources().getDimensionPixelSize(R.dimen.taskbar_phone_size)
                 : mActivity.getDeviceProfile().getTaskbarProfile().getHeight();
         mOverflownAppsContainerController.init(viewCallbacks);
-
+        if (enableTaskbarDragAndDrop()) {
+            mControllers.taskbarViewDragDropController.setUpCallbacks(mModelCallbacks);
+        }
         mTaskbarIconScaleForStash.updateValue(1f);
         float pinningValue =
                 mActivity.isTransientTaskbar() ? PINNING_TRANSIENT : PINNING_PERSISTENT;
@@ -462,7 +463,7 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
     /** Creates a ModelWriter for updating model properties */
     public ModelWriter getModelWriter() {
         return LauncherAppState.getInstance(mActivity).getModel()
-                .getWriter(false, mActivity.getCellPosMapper(), mModelCallbacks);
+                .getWriter(false, mActivity, mModelCallbacks);
     }
 
     /**
@@ -822,19 +823,31 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
     public void updateIconViewsRunningStates() {
         for (BubbleTextView iconView : getAllAppIcons()) {
             updateRunningState(iconView);
-            if (shouldUpdateIconContentDescription(iconView)) {
-                iconView.updateDescriptionWithRunningState();
-            }
+            updateDescriptionWithRunningState(iconView);
         }
     }
 
-    private boolean shouldUpdateIconContentDescription(BubbleTextView btv) {
-        boolean isInDesktopMode =
-                mControllers.taskbarDesktopModeController.shouldShowDesktopTasksInTaskbar(
-                        DEFAULT_DISPLAY);
-        boolean isAllAppsButton = btv instanceof TaskbarAllAppsButtonContainer;
-        boolean isDividerButton = btv instanceof TaskbarDividerContainer;
-        return isInDesktopMode && !isAllAppsButton && !isDividerButton;
+    void updateDescriptionWithRunningState(BubbleTextView btv) {
+        final Object tag = btv.getTag();
+        final CharSequence tagDescription;
+        if (tag instanceof ItemInfo itemInfo) {
+            tagDescription = itemInfo.contentDescription;
+        } else if (tag instanceof SingleTask singleTask) {
+            tagDescription = singleTask.getTask().titleDescription;
+        } else {
+            return; // Tag does not support running state.
+        }
+
+        if (!mControllers.taskbarDesktopModeController.shouldShowDesktopTasksInTaskbar(
+                DEFAULT_DISPLAY)) {
+            btv.setContentDescription(tagDescription);
+            return;
+        }
+        final String iconStateDescription = btv.getIconStateDescription();
+        btv.setContentDescription(iconStateDescription.isEmpty()
+                ? tagDescription
+                : mActivity.getString(
+                        R.string.running_app_description, tagDescription, iconStateDescription));
     }
 
     /**
@@ -1381,7 +1394,7 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
 
     /** Called when there's a change in handoff suggestions to update the UI. */
     public void commitHandoffSuggestionsToUI() {
-        if (!android.companion.Flags.enableTaskContinuity()) {
+        if (!android.companion.Flags.taskContinuity()) {
             return;
         }
 

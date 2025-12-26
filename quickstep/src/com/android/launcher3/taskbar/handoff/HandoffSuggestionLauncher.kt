@@ -16,6 +16,7 @@
 
 package com.android.launcher3.taskbar.handoff
 
+import android.companion.Flags.taskContinuity
 import android.companion.datatransfer.continuity.RemoteTask
 import android.companion.datatransfer.continuity.TaskContinuityManager
 import android.util.Log
@@ -28,13 +29,13 @@ class HandoffSuggestionLauncher(
 ) : TaskContinuityManager.HandoffRequestCallback {
 
     fun launch(suggestion: HandoffSuggestion) {
-        if (android.companion.Flags.enableTaskContinuity()) {
+        if (taskContinuity()) {
             if (DEBUG) {
                 Log.d(TAG, "Launching suggestion.")
             }
             taskContinuityManager.requestHandoff(
-                suggestion.deviceId,
-                suggestion.remoteTask.id,
+                suggestion.associationId,
+                suggestion.remoteTask.taskId,
                 executor,
                 this,
             )
@@ -43,7 +44,7 @@ class HandoffSuggestionLauncher(
         }
     }
 
-    override fun onHandoffRequestFinished(deviceId: Int, taskId: Int, resultCode: Int) {
+    override fun onHandoffRequestFinished(associationId: Int, taskId: Int, resultCode: Int) {
         if (DEBUG) {
             Log.d(TAG, "onHandoffRequestFinished: resultCode=$resultCode")
         }

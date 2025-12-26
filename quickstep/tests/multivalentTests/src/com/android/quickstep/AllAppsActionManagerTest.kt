@@ -26,7 +26,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.util.AllModulesForTest
-import com.android.launcher3.util.Executors.MAIN_EXECUTOR
 import com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR
 import com.android.launcher3.util.SandboxApplication
 import com.android.launcher3.util.SettingsCache
@@ -78,7 +77,7 @@ class AllAppsActionManagerTest {
         }
 
     @Before
-    fun initDaggerGraph() {
+    fun initDaggerGraphAndWaitForSettingUpdate() {
         context.initDaggerComponent(
             DaggerAllAppsActionManagerTestComponent.builder()
                 .bindSettingsCache(settingsCacheSandbox.cache)
@@ -86,6 +85,11 @@ class AllAppsActionManagerTest {
 
         doNothing().whenever(inputManager).registerKeyGestureEventHandler(any(), any())
         doNothing().whenever(inputManager).unregisterKeyGestureEventHandler(any())
+
+        // Trigger any property access to initialize allAppsActionManager
+        allAppsActionManager.isActionRegistered
+        // Wait for SettingCache update isUserSetupComplete on bgExecutor.
+        bgExecutor.submit<Any?> { null }.get()
     }
 
     @Before fun unlockUser() = allAppsActionManager.onUserUnlocked()
@@ -146,7 +150,7 @@ class AllAppsActionManagerTest {
     @Test
     fun taskbarPresent_userSetupIncomplete_actionUnregistered() {
         settingsCacheSandbox[USER_SETUP_COMPLETE_URI] = 0
-        TestUtil.runOnExecutorSync(MAIN_EXECUTOR) {}
+        TestUtil.runOnExecutorSync(bgExecutor) {}
         allAppsActionManager.isTaskbarPresent = true
         assertThat(allAppsActionManager.isActionRegistered).isFalse()
     }

@@ -16,17 +16,23 @@
 
 package com.android.launcher3.widgetpicker
 
+import android.app.Activity
 import android.app.Activity.RESULT_OK
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.LauncherApps.PinItemRequest
+import android.os.Bundle
 import android.os.UserHandle
 import android.util.Log
+import android.widget.RemoteViews
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalView
+import com.android.launcher3.BaseActivity
 import com.android.launcher3.Launcher
 import com.android.launcher3.LauncherSettings.Favorites
 import com.android.launcher3.R
@@ -34,11 +40,15 @@ import com.android.launcher3.compose.ComposeFacade
 import com.android.launcher3.compose.core.widgetpicker.WidgetPickerComposeWrapper
 import com.android.launcher3.concurrent.annotations.BackgroundContext
 import com.android.launcher3.dagger.ApplicationContext
+import com.android.launcher3.dragndrop.PinItemAddHandler
+import com.android.launcher3.dragndrop.PinItemDragListener
 import com.android.launcher3.util.ApiWrapper
+import com.android.launcher3.util.PackageUserKey
 import com.android.launcher3.widgetpicker.WidgetPickerConfig.Companion.EXTRA_IS_PENDING_WIDGET_DRAG
 import com.android.launcher3.widgetpicker.data.repository.WidgetAppIconsRepository
 import com.android.launcher3.widgetpicker.data.repository.WidgetUsersRepository
 import com.android.launcher3.widgetpicker.data.repository.WidgetsRepository
+import com.android.launcher3.widgetpicker.data.repository.WidgetsRepository.InitializationOptions
 import com.android.launcher3.widgetpicker.listeners.WidgetPickerAddItemListener
 import com.android.launcher3.widgetpicker.listeners.WidgetPickerDragItemListener
 import com.android.launcher3.widgetpicker.logging.LauncherWidgetPickerCuiReporter
@@ -47,11 +57,15 @@ import com.android.launcher3.widgetpicker.shared.model.HostConstraint
 import com.android.launcher3.widgetpicker.shared.model.SheetStyle
 import com.android.launcher3.widgetpicker.shared.model.WidgetAppId
 import com.android.launcher3.widgetpicker.shared.model.WidgetHostInfo
+import com.android.launcher3.widgetpicker.shared.model.WidgetId
+import com.android.launcher3.widgetpicker.shared.model.WidgetPreview
 import com.android.launcher3.widgetpicker.shared.model.isAppWidget
 import com.android.launcher3.widgetpicker.theme.LauncherWidgetPickerTheme
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionInfo
 import com.android.launcher3.widgetpicker.ui.WidgetInteractionSource
 import com.android.launcher3.widgetpicker.ui.WidgetPickerEventListeners
+import com.android.launcher3.widgetpicker.ui.components.WidgetPickerHostStateProvider
+import java.lang.Runnable
 import javax.inject.Inject
 import javax.inject.Provider
 import kotlin.coroutines.CoroutineContext
@@ -75,10 +89,7 @@ constructor(
     private val apiWrapper: ApiWrapper,
 ) : WidgetPickerComposeWrapper {
 
-    override fun showAllWidgets(
-        activity: WidgetPickerActivity,
-        widgetPickerConfig: WidgetPickerConfig,
-    ) {
+    override fun showAllWidgets(activity: BaseActivity, widgetPickerConfig: WidgetPickerConfig) {
         val widgetPickerComponent = newWidgetPickerComponent(widgetPickerConfig)
         val fullWidgetsCatalog = widgetPickerComponent.getFullWidgetsCatalog()
 
@@ -88,6 +99,7 @@ constructor(
             fullWidgetsCatalog.Content(
                 eventListeners = eventListeners,
                 cuiReporter = eventsReporter,
+                hostStateProvider = activity.buildWidgetPickerHostStateProvider(),
             )
         }
     }
@@ -95,14 +107,15 @@ constructor(
     override fun showWidgetsFor(
         packageName: String,
         userHandle: UserHandle,
-        activity: WidgetPickerActivity,
+        activity: BaseActivity,
         widgetPickerConfig: WidgetPickerConfig,
     ) {
-        val widgetAppId = WidgetAppId(
-            packageName = packageName,
-            userHandle = userHandle,
-            category = NO_WIDGET_APP_CATEGORY
-        )
+        val widgetAppId =
+            WidgetAppId(
+                packageName = packageName,
+                userHandle = userHandle,
+                category = NO_WIDGET_APP_CATEGORY,
+            )
 
         val widgetPickerComponent = newWidgetPickerComponent(widgetPickerConfig)
         val singleAppCatalog = widgetPickerComponent.getSingleAppWidgetsCatalog()
@@ -116,17 +129,81 @@ constructor(
                 widgetAppId = widgetAppId,
                 eventListeners = eventListeners,
                 cuiReporter = uiEventsReporter,
+                hostStateProvider = activity.buildWidgetPickerHostStateProvider(),
+            )
+        }
+    }
+
+    override fun showWidgetsForPinRequest(
+        activity: BaseActivity,
+        targetApp: PackageUserKey,
+        pinItemRequest: PinItemRequest,
+        widgetPickerConfig: WidgetPickerConfig,
+        pinItemAddHandler: PinItemAddHandler,
+    ) {
+        val widgetPickerComponent = newWidgetPickerComponent(widgetPickerConfig)
+        val pinAppWidgetCatalog = widgetPickerComponent.getPinAppWidgetCatalog()
+
+        val widgetAppId =
+            WidgetAppId(
+                packageName = targetApp.mPackageName,
+                userHandle = targetApp.mUser,
+                category = targetApp.mWidgetCategory,
+            )
+
+        setupComposeView(
+            activity = activity,
+            widgetPickerConfig = widgetPickerConfig,
+            pinItemRequest = pinItemRequest,
+            pinItemAddHandler = pinItemAddHandler,
+        ) { eventListeners, uiEventsReporter ->
+            pinAppWidgetCatalog.Content(
+                widgetAppId = widgetAppId,
+                eventListeners = eventListeners,
+                cuiReporter = uiEventsReporter,
+                previewOverridesProvider = {
+                    if (pinItemRequest.requestType == PinItemRequest.REQUEST_TYPE_APPWIDGET) {
+                        val extras: Bundle? = pinItemRequest.extras
+                        val previewExtra =
+                            extras?.getParcelable(
+                                AppWidgetManager.EXTRA_APPWIDGET_PREVIEW,
+                                RemoteViews::class.java,
+                            )
+                        if (previewExtra != null) {
+                            val context = activity.asContext()
+                            val widgetInfo =
+                                checkNotNull(pinItemRequest.getAppWidgetProviderInfo(context))
+                            val widgetId =
+                                WidgetId(
+                                    componentName = widgetInfo.provider,
+                                    userHandle = widgetInfo.profile,
+                                )
+                            val preview = WidgetPreview.RemoteViewsWidgetPreview(previewExtra)
+
+                            return@Content mapOf(widgetId to preview)
+                        }
+                    }
+                    emptyMap()
+                },
             )
         }
     }
 
     private fun setupComposeView(
-        activity: WidgetPickerActivity,
+        activity: BaseActivity,
         widgetPickerConfig: WidgetPickerConfig,
         widgetAppId: WidgetAppId? = null,
+        pinItemRequest: PinItemRequest? = null,
+        pinItemAddHandler: PinItemAddHandler? = null,
         content: @Composable (WidgetPickerEventListeners, LauncherWidgetPickerCuiReporter) -> Unit,
     ) {
-        val callbacks = activity.buildEventListeners(widgetPickerConfig, apiWrapper)
+        val callbacks =
+            activity.buildEventListeners(
+                widgetPickerConfig = widgetPickerConfig,
+                apiWrapper = apiWrapper,
+                pinItemRequest = pinItemRequest,
+                pinItemAddHandler = pinItemAddHandler,
+            )
         val uiEventsReporter = LauncherWidgetPickerCuiReporter(activity.statsLogManager)
 
         val composeView = ComposeFacade.initComposeView(activity.asContext()) as ComposeView
@@ -142,7 +219,7 @@ constructor(
                 }
 
                 DisposableEffect(view) {
-                    scope.launch { initializeRepositories(widgetAppId) }
+                    scope.launch { initializeRepositories(widgetAppId, pinItemRequest) }
 
                     onDispose { cleanUpRepositories() }
                 }
@@ -182,15 +259,21 @@ constructor(
             )
     }
 
-    private fun initializeRepositories(widgetAppId: WidgetAppId? = null) {
-        val loadAllData = widgetAppId == null
+    private fun initializeRepositories(
+        widgetAppId: WidgetAppId? = null,
+        pinItemRequest: PinItemRequest? = null,
+    ) {
+        val loadAllData = widgetAppId == null && pinItemRequest == null
 
         widgetsRepository.initialize(
-            WidgetsRepository.InitializationOptions(
-                widgetAppId = widgetAppId,
-                loadFeaturedWidgets = loadAllData,
-            )
+            options =
+                when {
+                    widgetAppId != null -> InitializationOptions.SingleAppWidgets(widgetAppId)
+                    pinItemRequest != null -> InitializationOptions.PinWidget(pinItemRequest)
+                    else -> InitializationOptions.AllWidgets
+                }
         )
+
         if (loadAllData) {
             widgetUsersRepository.initialize()
             widgetAppIconsRepository.initialize()
@@ -209,19 +292,67 @@ constructor(
             "WidgetPickerActivity.OnWidgetInteraction"
         private const val NO_WIDGET_APP_CATEGORY = -1
 
-        private fun WidgetPickerActivity.buildEventListeners(
+        private fun BaseActivity.buildWidgetPickerHostStateProvider() =
+            object : WidgetPickerHostStateProvider {
+                val listeners: MutableList<(Boolean) -> Unit> = mutableListOf()
+                var activityObserver: Runnable? = null
+
+                override fun observeIsTopResumed(listener: (Boolean) -> Unit) {
+                    if (activityObserver == null) {
+                        activityObserver =
+                            object : Runnable {
+                                override fun run() {
+                                    listeners.forEach { it(isTopResumedActivity()) }
+                                }
+                            }
+                        addTopResumedChangedCallback(activityObserver)
+                    }
+                    listeners.add(listener)
+                }
+
+                override fun stopObservingIsTopResumed(listener: (Boolean) -> Unit) {
+                    listeners.remove(listener)
+
+                    if (listeners.isEmpty() && activityObserver != null) {
+                        removeTopResumedChangedCallback(activityObserver)
+                        activityObserver = null
+                    }
+                }
+            }
+
+        private fun Activity.buildEventListeners(
             widgetPickerConfig: WidgetPickerConfig,
             apiWrapper: ApiWrapper,
+            pinItemRequest: PinItemRequest?,
+            pinItemAddHandler: PinItemAddHandler?,
         ) =
             object : WidgetPickerEventListeners {
+                override fun onSheetProgress(progress: Float) {
+                    if (this@buildEventListeners is WidgetPickerProgressHandler) {
+                        this@buildEventListeners.onProgress(progress)
+                    }
+                }
+
                 override fun onClose() {
                     Log.d(TAG, "Closing widget picker")
                     finish()
                 }
 
                 override fun onWidgetInteraction(widgetInteractionInfo: WidgetInteractionInfo) {
-                    if (widgetPickerConfig.isForHomeScreen) {
-                        handleWidgetInteractionForHomeScreen(widgetInteractionInfo, apiWrapper)
+                    if (
+                        pinItemRequest != null &&
+                            widgetInteractionInfo is WidgetInteractionInfo.WidgetAddInfo
+                    ) {
+                        pinItemAddHandler?.onAddItemClicked()
+                        return
+                    }
+
+                    if (widgetPickerConfig.isForHomeScreen || pinItemRequest != null) {
+                        handleWidgetInteractionForHomeScreen(
+                            widgetInteractionInfo,
+                            apiWrapper,
+                            pinItemRequest,
+                        )
                     } else {
                         handleWidgetInteractionForExternalHost(widgetInteractionInfo)
                     }
@@ -233,26 +364,38 @@ constructor(
          * widgets within widget picker.
          *
          * For home screen, we register a listener that is called back when home screen is shown;
-         * - WidgetPickerDragItemListener: bootstraps the drag helper that displays the shadow and
-         *   handles the drag until completion.
+         * - WidgetPickerDragItemListener / PinItemDragListener: bootstraps the drag helper that
+         *   displays the shadow and handles the drag until completion.
          * - WidgetPickerAddItemListener: once launcher is shown, triggers the flow to add the
-         *   widget to workspace.
+         *   widget to workspace. For pin flow, there is no listener and the activity handles the
+         *   add.
          */
-        private fun WidgetPickerActivity.handleWidgetInteractionForHomeScreen(
+        private fun Activity.handleWidgetInteractionForHomeScreen(
             interactionInfo: WidgetInteractionInfo,
             apiWrapper: ApiWrapper,
+            pinItemRequest: PinItemRequest?,
         ) {
             val interactionListener =
                 when (interactionInfo) {
                     is WidgetInteractionInfo.WidgetDragInfo ->
-                        WidgetPickerDragItemListener(
-                            container = interactionInfo.source.toContainer(),
-                            mimeType = interactionInfo.mimeType,
-                            widgetInfo = interactionInfo.widgetInfo,
-                            widgetPreview = interactionInfo.previewInfo,
-                            previewRect = interactionInfo.bounds,
-                            previewWidth = interactionInfo.widthPx,
-                        )
+                        if (pinItemRequest != null) {
+                            PinItemDragListener(
+                                pinItemRequest,
+                                /*previewRect=*/ interactionInfo.bounds,
+                                /*previewBitmapWidth=*/ interactionInfo.widthPx,
+                                /*previewViewWidth=*/ interactionInfo.widthPx,
+                                /*mimeType=*/ interactionInfo.mimeType,
+                            )
+                        } else {
+                            WidgetPickerDragItemListener(
+                                container = interactionInfo.source.toContainer(),
+                                mimeType = interactionInfo.mimeType,
+                                widgetInfo = interactionInfo.widgetInfo,
+                                widgetPreview = interactionInfo.previewInfo,
+                                previewRect = interactionInfo.bounds,
+                                previewWidth = interactionInfo.widthPx,
+                            )
+                        }
 
                     is WidgetInteractionInfo.WidgetAddInfo ->
                         WidgetPickerAddItemListener(
@@ -283,7 +426,7 @@ constructor(
          * - In case of add, finishes the activity with result containing extra information about
          *   the widget being added (namely [Intent.EXTRA_COMPONENT_NAME] and [Intent.EXTRA_USER].
          */
-        private fun WidgetPickerActivity.handleWidgetInteractionForExternalHost(
+        private fun Activity.handleWidgetInteractionForExternalHost(
             widgetInteractionInfo: WidgetInteractionInfo
         ) {
             when (widgetInteractionInfo) {
@@ -335,8 +478,23 @@ constructor(
                 WidgetInteractionSource.FEATURED -> Favorites.CONTAINER_WIDGETS_PREDICTION
                 WidgetInteractionSource.SEARCH,
                 WidgetInteractionSource.BROWSE -> Favorites.CONTAINER_WIDGETS_TRAY
+
                 WidgetInteractionSource.APP_SPECIFIC_PICKER ->
                     Favorites.CONTAINER_BOTTOM_WIDGETS_TRAY
+
+                WidgetInteractionSource.PIN_WIDGET_PICKER -> Favorites.CONTAINER_PIN_WIDGETS
             }
     }
+}
+
+/**
+ * Interface for activities to perform an operation (e.g. background scrim animation) on while
+ * widget picker opens / closes.
+ */
+interface WidgetPickerProgressHandler {
+    /**
+     * Callback during opening / closing of widget picker. Progress is between 0-1 where 0 is fully
+     * closed and 1 is fully open.
+     */
+    fun onProgress(progress: Float) {} // NO-op
 }

@@ -73,6 +73,8 @@ public class SettingsActivity extends FragmentActivity
 
     public static final String FIXED_LANDSCAPE_MODE = "pref_fixed_landscape_mode";
 
+    public static final String WORKSPACE_ITEMS_LABEL_HIDDEN = "pref_workspace_items_label_hidden";
+
     private static final String NOTIFICATION_DOTS_PREFERENCE_KEY = "pref_icon_badging";
 
     public static final String EXTRA_FRAGMENT_ARGS = ":settings:fragment_args";
@@ -178,24 +180,19 @@ public class SettingsActivity extends FragmentActivity
 
         private boolean mPreferenceHighlighted = false;
 
-        private boolean mIsDeveloperSettingEnabledSet = false;
-
         @Override
         public void onCreate(@Nullable Bundle savedInstanceState) {
             if (BuildConfig.IS_DEBUG_DEVICE) {
+                // Query DEVELOPMENT_SETTINGS_ENABLED and recreate activity if such setting
+                // has changed.
                 Uri devUri = Settings.Global.getUriFor(DEVELOPMENT_SETTINGS_ENABLED);
                 SettingsCache settingsCache = SettingsCache.INSTANCE.get(getContext());
                 mDeveloperOptionsEnabled = settingsCache.getValue(devUri);
                 mSettingCacheSafeCloseable = settingsCache.getListenableRef(devUri).forEach(
                         MAIN_EXECUTOR, (v) -> {
-                            // Listening to developer enabled setting will immediately trigger
-                            // callback for current value. Yet we only want to recreate activity
-                            // when such value has changed.
-                            if (!mIsDeveloperSettingEnabledSet) {
-                                mIsDeveloperSettingEnabledSet = true;
-                                return null;
+                            if (v != mDeveloperOptionsEnabled) {
+                                tryRecreateActivity();
                             }
-                            tryRecreateActivity();
                             return null;
                         });
             }
@@ -348,6 +345,8 @@ public class SettingsActivity extends FragmentActivity
                             }
                     );
                     return !info.isTablet(info.realBounds);
+                case WORKSPACE_ITEMS_LABEL_HIDDEN:
+                    return Flags.workspaceHiddenLabels();
             }
             return true;
         }

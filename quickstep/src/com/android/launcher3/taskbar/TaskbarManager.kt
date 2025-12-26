@@ -17,17 +17,22 @@
 package com.android.launcher3.taskbar
 
 import android.app.PendingIntent
+import androidx.annotation.VisibleForTesting
 import com.android.app.displaylib.DisplayDecorationListener
-import com.android.launcher3.anim.AnimatorPlaybackController
+import com.android.launcher3.AsyncAnimatorPlaybackController
 import com.android.launcher3.statemanager.StatefulActivity
+import com.android.launcher3.util.ListenableStream
 import com.android.quickstep.views.RecentsViewContainer
 import com.android.systemui.shared.statusbar.phone.BarTransitions
 import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags
 import java.io.PrintWriter
+import javax.annotation.concurrent.ThreadSafe
 
+/** Expose threadsafe APIs of [TaskbarManagerImpl] to launcher. */
+@ThreadSafe
 interface TaskbarManager : DisplayDecorationListener {
 
-    fun createLauncherStartFromSuwAnim(duration: Int): AnimatorPlaybackController?
+    fun createLauncherStartFromSuwAnim(duration: Int): AsyncAnimatorPlaybackController?
 
     fun shouldForceAllSetFallbackAnimation(): Boolean
 
@@ -36,8 +41,6 @@ interface TaskbarManager : DisplayDecorationListener {
     fun setActivity(activity: StatefulActivity<*>)
 
     fun setRecentsViewContainer(recentsViewContainer: RecentsViewContainer)
-
-    fun recreateTaskbars()
 
     fun onSystemUiFlagsChanged(@SystemUiStateFlags systemUiStateFlags: Long, displayId: Int)
 
@@ -71,17 +74,49 @@ interface TaskbarManager : DisplayDecorationListener {
 
     fun destroy()
 
-    fun getCurrentActivityContext(): TaskbarActivityContext?
+    fun hasCurrentActivityContext(): Boolean
+
+    fun toggleTaskbarStash()
+
+    fun getStashedHandleViewController(): StashedHandleViewControllerProxy?
+
+    fun getPrimaryDisplayUiControllerStream(): ListenableStream<TaskbarUIController>
 
     fun dumpLogs(prefix: String, pw: PrintWriter)
 
-    fun getUIControllerForDisplay(displayId: Int): TaskbarUIController?
+    fun getTaskbarInteractor(displayId: Int): TaskbarInteractor?
 
-    fun getTaskbarForDisplay(displayId: Int): TaskbarActivityContext?
+    fun getTaskbarForDisplay(displayId: Int): TaskbarApiProxy?
 
     fun createAllAppsPendingIntent(): PendingIntent
 
     fun getPrimaryDisplayId(): Int
 
     fun debugPrimaryTaskbar(debugReason: String, verbose: Boolean)
+
+    @VisibleForTesting fun getCurrentActivityContext(): TaskbarActivityContext?
+
+    @VisibleForTesting fun recreateTaskbars()
+
+    @VisibleForTesting fun removeAllSystemUiBubbles()
+
+    @VisibleForTesting fun unstashBubbleBarIfStashed()
+
+    @VisibleForTesting fun limitMaxTaskbarIconsNum(maxIconLimitNum: Int)
+
+    @VisibleForTesting fun getStashedTaskbarScale(): Float
+
+    @VisibleForTesting fun removeAllBubbles()
+
+    @VisibleForTesting fun unstashTaskbarIfStashed()
+
+    @VisibleForTesting fun enableBlockingTimeoutDuringTests(enableBlockingTimeout: Boolean)
+
+    @VisibleForTesting fun isTransient(): Boolean
+
+    @VisibleForTesting fun getTaskbarAllAppsScroll(): Int
+
+    @VisibleForTesting fun getTaskbarAllAppsTopPadding(): Int
+
+    @VisibleForTesting fun isImeDocked(): Boolean
 }

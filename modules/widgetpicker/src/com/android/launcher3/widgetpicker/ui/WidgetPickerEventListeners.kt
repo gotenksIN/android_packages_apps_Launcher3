@@ -25,6 +25,9 @@ import com.android.launcher3.widgetpicker.shared.model.WidgetPreview
  * picker.
  */
 interface WidgetPickerEventListeners {
+    /** Called while widget picker content is running opening animation / closing animation. */
+    fun onSheetProgress(progress: Float) {}
+
     /** Called when the widget picker is dismissed. */
     fun onClose()
 
@@ -84,4 +87,10 @@ enum class WidgetInteractionSource {
 
     /** Picker UI opened for a specific app. */
     APP_SPECIFIC_PICKER,
+
+    /**
+     * Picker UI opened when an app requests to pin a widget / short using RequestPinAppWidget /
+     * shortcut apis.
+     */
+    PIN_WIDGET_PICKER,
 }

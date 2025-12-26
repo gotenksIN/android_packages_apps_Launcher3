@@ -16,7 +16,6 @@
 
 package com.android.quickstep;
 
-import static com.android.quickstep.TaskViewTestDIHelpers.initializeRecentsDependencies;
 import static com.android.quickstep.TaskViewTestDIHelpers.mockRecentsModel;
 
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -26,19 +25,16 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import android.graphics.Rect;
-import android.platform.uiautomatorhelpers.DeviceHelpers;
 import android.view.MotionEvent;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import com.android.launcher3.util.SandboxApplication;
-import com.android.quickstep.recents.di.RecentsDependencies;
+import com.android.launcher3.util.SandboxContext;
 import com.android.quickstep.util.BorderAnimator;
 import com.android.quickstep.views.TaskView;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -50,8 +46,9 @@ import org.mockito.junit.MockitoRule;
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class TaskViewTest {
-    @Rule
-    public SandboxApplication app = new SandboxApplication();
+    private final SandboxContext mApp =
+            new SandboxContext(InstrumentationRegistry.getInstrumentation().getTargetContext());
+
     @Rule
     public MockitoRule mockitoRule = MockitoJUnit.rule();
     @Mock
@@ -62,15 +59,9 @@ public class TaskViewTest {
 
     @Before
     public void setup() {
-        app.initDaggerComponent(
+        mApp.initDaggerComponent(
                 DaggerTaskViewTestComponent.builder().bindRecentsModel(mockRecentsModel()));
-        initializeRecentsDependencies(app);
-        mTaskView = new TaskView(app, null, 0, 0, mFocusAnimator, mHoverAnimator);
-    }
-
-    @After
-    public void tearDown() {
-        RecentsDependencies.destroy(DeviceHelpers.getContext());
+        mTaskView = new TaskView(mApp, null, 0, 0, mFocusAnimator, mHoverAnimator);
     }
 
     @Test

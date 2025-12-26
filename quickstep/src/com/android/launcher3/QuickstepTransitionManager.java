@@ -49,7 +49,6 @@ import static com.android.launcher3.BaseActivity.INVISIBLE_BY_PENDING_FLAGS;
 import static com.android.launcher3.BaseActivity.PENDING_INVISIBLE_BY_WALLPAPER_ANIMATION;
 import static com.android.launcher3.Flags.appLaunchBlur;
 import static com.android.launcher3.Flags.refactorTaskbarUiState;
-import static com.android.launcher3.Flags.syncAppLaunchWithTaskbarStash;
 import static com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY;
 import static com.android.launcher3.LauncherState.ALL_APPS;
 import static com.android.launcher3.LauncherState.BACKGROUND_APP;
@@ -383,8 +382,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         // Prepare taskbar for animation synchronization. This needs to happen here before any
         // app transition is created.
         TaskbarInteractor taskbarInteractor = mLauncher.getTaskbarInteractor();
-        if (syncAppLaunchWithTaskbarStash()
-                && mLauncher.getStateManager().getState() == NORMAL
+        if (mLauncher.getStateManager().getState() == NORMAL
                 && taskbarInteractor != null) {
             taskbarInteractor.setIgnoreInAppFlagForSync(true);
             mLauncher.addEventCallback(EVENT_DESTROYED, onEndCallback::executeAllAndDestroy);
@@ -854,7 +852,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             }
 
             private boolean newShouldShowEduOnAppLaunch() {
-                return mLauncher.getTaskbarUiState().getShouldShowEduOnAppLaunchRef().getValue();
+                return mLauncher.getTaskbarUiState().getShowTaskbarEduOnAppLaunch();
             }
         });
 
@@ -1371,9 +1369,6 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         homeCheck.mRequirements[0].mActivityType = ACTIVITY_TYPE_HOME;
         homeCheck.mRequirements[0].mTopActivity = mLauncher.getComponentName();
         homeCheck.mRequirements[0].mModes = new int[]{TRANSIT_OPEN, TRANSIT_TO_FRONT};
-        if (!com.android.window.flags.Flags.polishCloseWallpaperIncludesOpenChange()) {
-            homeCheck.mRequirements[0].mOrder = CONTAINER_ORDER_TOP;
-        }
 
         homeCheck.mRequirements[1].mActivityType = ACTIVITY_TYPE_STANDARD;
         homeCheck.mRequirements[1].mModes = new int[]{TRANSIT_CLOSE, TRANSIT_TO_BACK};
@@ -2087,14 +2082,12 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             }
 
             // Syncs the app launch animation and taskbar stash animation (if exists).
-            if (syncAppLaunchWithTaskbarStash()) {
-                TaskbarInteractor taskbarInteractor = mLauncher.getTaskbarInteractor();
-                if (taskbarInteractor != null) {
-                    taskbarInteractor.setIgnoreInAppFlagForSync(false);
+            TaskbarInteractor taskbarInteractor = mLauncher.getTaskbarInteractor();
+            if (taskbarInteractor != null) {
+                taskbarInteractor.setIgnoreInAppFlagForSync(false);
 
-                    if (launcherClosing) {
-                        taskbarInteractor.createAnimToAppAndPlay(anim);
-                    }
+                if (launcherClosing) {
+                    taskbarInteractor.createAnimToAppAndPlay(anim);
                 }
             }
 

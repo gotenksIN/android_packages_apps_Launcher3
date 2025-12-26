@@ -17,6 +17,7 @@ package com.android.quickstep;
 
 import static android.app.ActivityTaskManager.INVALID_TASK_ID;
 import static android.os.Trace.TRACE_TAG_APP;
+import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.RemoteAnimationTarget.MODE_CLOSING;
 import static android.view.RemoteAnimationTarget.MODE_OPENING;
 
@@ -31,6 +32,7 @@ import static com.android.launcher3.util.WallpaperThemeManager.setWallpaperDepen
 import static com.android.quickstep.OverviewComponentObserver.startHomeIntentSafely;
 import static com.android.quickstep.TaskUtils.taskIsATargetWithMode;
 import static com.android.quickstep.TaskViewUtils.createRecentsWindowAnimator;
+import static com.android.quickstep.fallback.RecentsState.BACKGROUND_APP;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -66,6 +68,9 @@ import com.android.launcher3.SplitScreenUiState;
 import com.android.launcher3.anim.AnimatorPlaybackController;
 import com.android.launcher3.anim.PendingAnimation;
 import com.android.launcher3.compat.AccessibilityManagerCompat;
+import com.android.launcher3.dagger.LauncherAppComponent;
+import com.android.launcher3.dagger.LauncherComponentProvider;
+import com.android.launcher3.dagger.PerDisplayComponent;
 import com.android.launcher3.desktop.DesktopRecentsTransitionController;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.statemanager.StateManager;
@@ -85,8 +90,9 @@ import com.android.quickstep.fallback.FallbackRecentsStateController;
 import com.android.quickstep.fallback.FallbackRecentsView;
 import com.android.quickstep.fallback.RecentsDragLayer;
 import com.android.quickstep.fallback.RecentsState;
-import com.android.quickstep.util.RecentsAtomicAnimationFactory;
+import com.android.quickstep.recents.di.RecentsComponent;
 import com.android.quickstep.split.SplitSelectStateController;
+import com.android.quickstep.util.RecentsAtomicAnimationFactory;
 import com.android.quickstep.util.SurfaceTransactionApplier;
 import com.android.quickstep.util.TISBindHelper;
 import com.android.quickstep.views.OverviewActionsView;
@@ -98,6 +104,7 @@ import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A recents activity that shows the recently launched tasks as swipable task cards.
@@ -132,11 +139,13 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
     @Nullable
     private DesktopRecentsTransitionController mDesktopRecentsTransitionController;
 
+    private RecentsComponent mRecentsComponent;
+
     /**
      * Init drag layer and overview panel views.
      */
-    protected void setupViews() {
-        getTheme().applyStyle(getOverviewBlurStyleResId(), true);
+    private void setupViews() {
+        getTheme().applyStyle(R.style.OverviewBlurFallbackStyle, true);
         SystemUiProxy systemUiProxy = SystemUiProxy.INSTANCE.get(this);
         // SplitSelectStateController needs to be created before setContentView()
         mSplitSelectStateController =
@@ -170,7 +179,7 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
         mTISBindHelper = new TISBindHelper(this, this::onTISConnected);
     }
 
-    private void onTISConnected(TouchInteractionService.TISBinder binder) {
+    private void onTISConnected(TouchInteractionHandler.TISBinder binder) {
         TaskbarManager taskbarManager = binder.getTaskbarManager();
         if (taskbarManager != null) {
             taskbarManager.setActivity(this);
@@ -234,8 +243,13 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
     }
 
     @Override
+    public RecentsState getBackgroundAppState() {
+        return BACKGROUND_APP;
+    }
+
+    @Override
     public FallbackActivityInterface getContainerInterface() {
-        return FallbackActivityInterface.INSTANCE;
+        return FallbackActivityInterface.INSTANCE.get(this);
     }
 
     @Override
@@ -247,6 +261,11 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
     public void goToRecentsState(RecentsState recentsState, boolean animated,
             Animator.AnimatorListener listener) {
         getStateManager().goToState(recentsState, animated, listener);
+    }
+
+    @Override
+    public RecentsComponent getRecentsComponent() {
+        return mRecentsComponent;
     }
 
     @Override
@@ -386,6 +405,10 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        LauncherAppComponent appComponent = LauncherComponentProvider.get(getApplication());
+        PerDisplayComponent perDisplayComponent = Objects.requireNonNull(
+                appComponent.getPerDisplayComponentRepository().get(DEFAULT_DISPLAY));
+        mRecentsComponent = perDisplayComponent.getRecentsComponentFactory().build(this);
         setWallpaperDependentTheme(this);
         mStateManager = new StateManager<>(this, RecentsState.BG_LAUNCHER);
 
@@ -578,10 +601,5 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
     @Override
     public void onIdpChanged(boolean modelPropertiesChanged) {
         onHandleConfigurationChanged();
-    }
-
-    @Override
-    public int getOverviewBlurStyleResId() {
-        return R.style.OverviewBlurFallbackStyle;
     }
 }

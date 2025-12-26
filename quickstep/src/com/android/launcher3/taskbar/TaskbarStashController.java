@@ -23,7 +23,6 @@ import static com.android.app.animation.Interpolators.INSTANT;
 import static com.android.app.animation.Interpolators.LINEAR;
 import static com.android.internal.jank.InteractionJankMonitor.Configuration;
 import static com.android.launcher3.Flags.refactorTaskbarUiState;
-import static com.android.launcher3.Flags.syncAppLaunchWithTaskbarStash;
 import static com.android.launcher3.QuickstepTransitionManager.PINNED_TASKBAR_TRANSITION_DURATION;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_TRANSIENT_TASKBAR_HIDE;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_TRANSIENT_TASKBAR_SHOW;
@@ -275,7 +274,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
     private boolean mIsImeVisible;
 
     private final Alarm mTimeoutAlarm = new Alarm();
-    private boolean mEnableBlockingTimeoutDuringTests = false;
+    private volatile boolean mEnableBlockingTimeoutDuringTests = false;
 
     private Animator mTaskbarBackgroundAlphaAnimator;
     private final long mTaskbarBackgroundDuration;
@@ -474,6 +473,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
      * Enables the auto timeout for taskbar stashing. This method should only be used for taskbar
      * testing.
      */
+    @AnyThread
     @VisibleForTesting
     public void enableBlockingTimeoutDuringTests(boolean enableBlockingTimeout) {
         mEnableBlockingTimeoutDuringTests = enableBlockingTimeout;
@@ -757,7 +757,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
     /** @return if we should allow taskbar to auto stash. */
     @AnyThread
     private boolean newShouldAllowTaskbarToAutoStash() {
-        final boolean isPrimaryDisplay = mTaskbarUiState.isPrimaryDisplayRef().getValue();
+        final boolean isPrimaryDisplay = mTaskbarUiState.isPrimaryDisplay();
         if (mTaskbarUiState.isThreeButtonNav() && isPrimaryDisplay) {
             return false;
         }
@@ -773,9 +773,9 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
                 LauncherPrefs.TASKBAR_PINNING_IN_DESKTOP_MODE.get(mActivity);
         final boolean isTaskbarShowingDesktopTasks = DesktopVisibilityController.INSTANCE
                 .get(mActivity).isInDesktopMode(mActivity.getDisplayId())
-                        || mTaskbarUiState.getShowDesktopTaskbarForFreeformDisplayRef().getValue()
-                        || (mTaskbarUiState.getShowLockedTaskbarOnHome().getValue()
-                        && mTaskbarUiState.isTaskbarOnHomeRef().getValue());
+                        || mTaskbarUiState.getShowDesktopTaskbarForFreeformDisplay()
+                        || (mTaskbarUiState.getShowLockedTaskbarOnHome()
+                        && mTaskbarUiState.isTaskbarOnHome());
         return !isTaskbarPinningOnInDesktopMode && isTaskbarShowingDesktopTasks;
     }
 
@@ -1271,7 +1271,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
 
     private void updateIsTaskbarStashed(boolean isStashed) {
         if (refactorTaskbarUiState()) {
-            mActivity.getTaskbarUiState().setIsTaskbarStashed(isStashed);
+            mActivity.getTaskbarUiState().setTaskbarStashed(isStashed);
         }
     }
 
@@ -1428,7 +1428,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
         } else {
             mState &= ~flag;
         }
-        mTaskbarUiState.setStashStateRef(mState);
+        mTaskbarUiState.setTaskbarStashState(mState);
         return mState != oldState;
     }
 
@@ -1656,8 +1656,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
         @Nullable
         public Animator createSetStateAnimator(long flags, long duration) {
             // We do this when we want to synchronize the app launch and taskbar stash animations.
-            if (syncAppLaunchWithTaskbarStash()
-                    && hasAnyFlag(FLAG_IGNORE_IN_APP)
+            if (hasAnyFlag(FLAG_IGNORE_IN_APP)
                     && hasAnyFlag(flags, FLAG_IN_APP)) {
                 flags = flags & ~FLAG_IN_APP;
             }

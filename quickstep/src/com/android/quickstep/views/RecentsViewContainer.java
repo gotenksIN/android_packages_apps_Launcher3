@@ -26,21 +26,24 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 
+import androidx.annotation.AnyThread;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.BaseActivity;
 import com.android.launcher3.logger.LauncherAtom;
+import com.android.launcher3.taskbar.RecentsViewInteractor;
 import com.android.launcher3.taskbar.TaskbarInteractor;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.ScrimView;
 import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.fallback.RecentsState;
+import com.android.quickstep.recents.di.RecentsComponent;
 import com.android.quickstep.split.SplitSelectStateController;
 
 /**
  * Interface to be implemented by the parent view of RecentsView
  */
-public interface RecentsViewContainer extends ActivityContext {
+public interface RecentsViewContainer extends ActivityContext, RecentsViewContainerInteractor {
 
     /**
      * Returns an instance of an implementation of RecentsViewContainer
@@ -70,6 +73,25 @@ public interface RecentsViewContainer extends ActivityContext {
      * Returns the Overview Panel as a View
      */
     <T extends View> T getOverviewPanel();
+
+    @AnyThread
+    default RecentsViewInteractor getRecentsViewInteractor(
+            @Nullable RecentsViewInteractor oldInteractor) {
+        View overviewPanel = getOverviewPanel();
+        if (overviewPanel == null) {
+            return null;
+        }
+
+        if (!(overviewPanel instanceof RecentsView<?, ?> recentsView)) {
+            return null;
+        }
+
+        if (oldInteractor != null && oldInteractor.hasSameRecentsView(recentsView)) {
+            return oldInteractor;
+        }
+
+        return new RecentsViewInteractor(recentsView);
+    }
 
     /**
      * @see Window.Callback#dispatchGenericMotionEvent(MotionEvent)
@@ -185,8 +207,6 @@ public interface RecentsViewContainer extends ActivityContext {
                         .build());
     }
 
-    void setTaskbarInteractor(@Nullable TaskbarInteractor taskbarInteractor);
-
     @Nullable TaskbarInteractor getTaskbarInteractor();
 
     /**
@@ -203,4 +223,9 @@ public interface RecentsViewContainer extends ActivityContext {
      */
     void goToRecentsState(RecentsState recentsState, boolean animated,
             Animator.AnimatorListener listener);
+
+    /**
+     * Returns the Recents component
+     */
+    RecentsComponent getRecentsComponent();
 }

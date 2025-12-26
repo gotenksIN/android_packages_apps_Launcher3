@@ -16,6 +16,7 @@
 
 package com.android.launcher3.taskbar.allapps
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry.getInstrumentation
 import com.android.launcher3.R
 import com.android.launcher3.appprediction.AppsDividerView
@@ -24,6 +25,7 @@ import com.android.launcher3.appprediction.PredictionRowView
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.asProperty
 import com.android.launcher3.taskbar.TaskbarStashController
 import com.android.launcher3.taskbar.TaskbarStashController.FLAG_STASHED_IN_APP_AUTO
+import com.android.launcher3.taskbar.TaskbarUiState
 import com.android.launcher3.taskbar.allapps.TaskbarAllAppsControllerTest.Companion.TEST_PREDICTED_APPS
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayController
 import com.android.launcher3.taskbar.rules.TaskbarModeRule
@@ -33,8 +35,6 @@ import com.android.launcher3.taskbar.rules.TaskbarModeRule.TaskbarMode
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
-import com.android.launcher3.util.LauncherMultivalentJUnit
-import com.android.launcher3.util.LauncherMultivalentJUnit.EmulatedDevices
 import com.android.launcher3.util.OnboardingPrefs.ALL_APPS_VISITED_COUNT
 import com.android.launcher3.util.TestUtil
 import com.google.common.truth.Truth.assertThat
@@ -44,8 +44,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@RunWith(LauncherMultivalentJUnit::class)
-@EmulatedDevices(["pixelFoldable2023"])
+@RunWith(AndroidJUnit4::class)
 class TaskbarAllAppsViewControllerTest {
 
     @get:Rule(order = 0) val context = TaskbarWindowSandboxContext.create()
@@ -147,6 +146,7 @@ class TaskbarAllAppsViewControllerTest {
             val overlayContext = overlayController.requestWindow()
             TaskbarAllAppsViewController(
                 overlayContext,
+                TaskbarUiState(),
                 overlayContext.layoutInflater.inflate(
                     R.layout.taskbar_all_apps_sheet,
                     overlayContext.dragLayer,

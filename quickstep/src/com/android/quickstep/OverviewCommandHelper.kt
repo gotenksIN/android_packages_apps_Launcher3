@@ -85,7 +85,7 @@ import kotlinx.coroutines.withTimeout
 class OverviewCommandHelper
 @AssistedInject
 constructor(
-    @Assisted private val touchInteractionService: TouchInteractionService,
+    @Assisted private val touchInteractionHandler: TouchInteractionHandler,
     private val overviewComponentObserver: OverviewComponentObserver,
     private val dispatcherProvider: DispatcherProvider,
     private val displayRepository: DisplayRepository,
@@ -417,7 +417,6 @@ constructor(
     ): Boolean {
         val containerInterface = getContainerInterface(command.displayId) ?: return true
         val recentsViewContainer = containerInterface.getCreatedContainer()
-        val recentsView: RecentsView<*, *>? = recentsViewContainer?.getOverviewPanel()
         val deviceProfile = recentsViewContainer?.getDeviceProfile()
         val taskbarInteractor: TaskbarInteractor? =
             if (
@@ -426,9 +425,7 @@ constructor(
             ) {
                 // When recentsViewContainer is not RecentsWindowManager, get TaskbarUiController
                 // from TaskbarManager as a workaround.
-                taskbarManager.getUIControllerForDisplay(command.displayId)?.let {
-                    TaskbarInteractor(it)
-                }
+                taskbarManager.getTaskbarInteractor(command.displayId)
             } else {
                 containerInterface.getTaskbarInteractor()
             }
@@ -439,6 +436,10 @@ constructor(
             ActiveGestureProtoLogProxy.logOnTaskAnimationManagerNotAvailable(command.displayId)
             return false
         }
+        // Make sure the recents view is available if the recents window hasn't been created yet
+        (recentsViewContainer as? RecentsWindowManager)?.createWindowView()
+
+        val recentsView: RecentsView<*, *>? = recentsViewContainer?.getOverviewPanel()
 
         when (command.type) {
             HIDE_ALT_TAB -> {
@@ -562,7 +563,7 @@ constructor(
         }
 
         val gestureState =
-            touchInteractionService
+            touchInteractionHandler
                 .createGestureState(
                     command.displayId,
                     GestureState.DEFAULT_STATE,
@@ -585,7 +586,7 @@ constructor(
                     }
                 }
         val interactionHandler =
-            touchInteractionService
+            touchInteractionHandler
                 .getSwipeUpHandlerFactory(command.displayId)
                 .newHandler(gestureState, command.createTime)
         if (interactionHandler == null) {
@@ -719,10 +720,10 @@ constructor(
         ) {
             return
         }
-        // When the overview is launched via alt tab (command type is TYPE_KEYBOARD_INPUT),
-        // the touch mode somehow is not change to false by the Android framework.
-        // The subsequent tab to go through tasks in overview can only be dispatched to
-        // focuses views, while focus can only be requested in
+        // When the overview is launched via alt+tab (command type is TYPE_KEYBOARD_INPUT),
+        // the touch mode somehow is not changed to false by the Android framework.
+        // The subsequent tabs to go through tasks in overview can only be dispatched to
+        // focused views, while focus can only be requested in
         // {@link View#requestFocusNoSearch(int, Rect)} when touch mode is false. To note,
         // here we launch overview with live tile.
         if (recentsView.isAttachedToWindow) {
@@ -838,7 +839,7 @@ constructor(
     @AssistedFactory
     interface Factory {
         fun create(
-            touchInteractionService: TouchInteractionService,
+            touchInteractionHandler: TouchInteractionHandler,
             taskbarManager: TaskbarManager,
             systemUiProxy: SystemUiProxy,
         ): OverviewCommandHelper

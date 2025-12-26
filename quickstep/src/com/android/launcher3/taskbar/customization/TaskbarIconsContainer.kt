@@ -28,6 +28,7 @@ import androidx.annotation.LayoutRes
 import androidx.core.view.contains
 import androidx.core.view.isEmpty
 import androidx.core.view.setPadding
+import com.android.app.tracing.traceSection
 import com.android.launcher3.BubbleTextView
 import com.android.launcher3.LauncherSettings
 import com.android.launcher3.R
@@ -41,6 +42,7 @@ import com.android.launcher3.model.data.AppPairInfo
 import com.android.launcher3.model.data.CollectionInfo
 import com.android.launcher3.model.data.FolderInfo
 import com.android.launcher3.model.data.ItemInfo
+import com.android.launcher3.model.data.TaskItemInfo.Companion.isSameItem
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.taskbar.ItemInfoWrapper
 import com.android.launcher3.taskbar.TaskbarActivityContext
@@ -48,6 +50,7 @@ import com.android.launcher3.taskbar.TaskbarOverflowView
 import com.android.launcher3.taskbar.TaskbarPopupController
 import com.android.launcher3.taskbar.TaskbarViewCallbacks
 import com.android.launcher3.util.MultiTranslateDelegate
+import com.android.launcher3.util.ViewCache
 import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.views.PredictedAppIcon
 import kotlin.math.min
@@ -62,24 +65,29 @@ constructor(
     defStyleRes: Int = 0,
 ) : LinearLayout(context, attrs, defStyleAttr, defStyleRes), Reorderable, TaskbarContainer {
     private val activityContext: TaskbarActivityContext = ActivityContext.lookupContext(context)
-    private var iconTouchSize = 0
+    // Needs its own cache to avoid crashes from moving icons between containers. LayoutTransition
+    // doesn't remove views immediately from this in order to perform the disappear animation.
+    // If a cache is shared, when a different container may tries to take this view from the cache,
+    // there will be a crash.
+    private val viewCache = ViewCache()
     private var itemMarginLeftRight = 0
     private val translateDelegate = MultiTranslateDelegate(this)
     private var reorderBounceScale = DEFAULT_BOUNCE_SCALE
     private val isRtl = isRtl(resources)
 
-    private val taskbarIconSize =
-        dpToPx(
-            activityContext.taskbarSpecsEvaluator.taskbarIconSize.size.toFloat(),
-            activityContext,
-        )
+    override val taskbarIconViewSize =
+        dpToPx(activityContext.taskbarSpecsEvaluator.taskbarIconTouchSize, activityContext)
+
+    override val taskbarIconViewPadding =
+        dpToPx(activityContext.taskbarSpecsEvaluator.taskbarIconPadding, activityContext)
+
 
     val taskbarPinnedOverflowView: TaskbarOverflowView =
         TaskbarOverflowView.inflateIcon(
             TaskbarOverflowView.OverflowType.PINNED,
             this,
-            taskbarIconSize,
-            activityContext.taskbarSpecsEvaluator.taskbarIconPadding,
+            taskbarIconViewSize,
+            taskbarIconViewPadding,
         )
 
     val isOverflowViewShowing: Boolean
@@ -93,7 +101,20 @@ constructor(
         layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT)
     }
 
-    fun updateIcons(itemInfos: Array<ItemInfo>) {
+    /**
+     * Updates container with [itemInfos] data.
+     *
+     * Any existing icons whose info instance has not changed are not rebound; changes within the
+     * existing item instances have already been bound when Taskbar's model callbacks updated them.
+     * But if [forceUpdate] is `true`, all icons are rebound.
+     */
+    fun updateIcons(itemInfos: Array<ItemInfo>, forceUpdate: Boolean) {
+        traceSection("TaskbarIconsContainer#updateIcons") {
+            updateIconsInternal(itemInfos, forceUpdate)
+        }
+    }
+
+    private fun updateIconsInternal(itemInfos: Array<ItemInfo>, forceUpdate: Boolean) {
         var numViewsAnimated = 0
         val numMaxIcons = activityContext.taskbarSpecsEvaluator.numShownHotseatIcons
         val hotseatLength = itemInfos.size
@@ -107,7 +128,7 @@ constructor(
 
         var list = itemInfos.asList().subList(onTaskbarStartIdx, onTaskbarEndIdx)
         if (isRtl) list = list.reversed()
-        for ((index, itemInfo) in list.withIndex()) {
+        forEachIcon(list) { index, itemInfo ->
             // Replace any Hotseat views with the appropriate type if it's not already that type.
             var isCollection = false
             val expectedLayoutResId: Int =
@@ -137,6 +158,13 @@ constructor(
                     break
                 }
             }
+
+            if (!forceUpdate && itemInfo.isSameItem(hotseatView?.tag)) {
+                // Might have been wrapped in TaskItemInfo by recents update.
+                hotseatView?.tag = itemInfo
+                return@forEachIcon
+            }
+
             if (hotseatView == null) {
                 if (isCollection) {
                     val collectionInfo = itemInfo as CollectionInfo
@@ -175,7 +203,7 @@ constructor(
                     hotseatView = inflate(expectedLayoutResId)
                     (hotseatView as BubbleTextView).setContainerTextVisibility(false)
                 }
-                val lp = TaskbarIconContainerLayoutParams(taskbarIconSize, taskbarIconSize)
+                val lp = TaskbarIconContainerLayoutParams(taskbarIconViewSize, taskbarIconViewSize)
                 if (index != 0) {
                     lp.marginStart = itemMarginLeftRight
                 }
@@ -183,8 +211,7 @@ constructor(
                     lp.marginEnd = itemMarginLeftRight
                 }
 
-                val padding = activityContext.taskbarSpecsEvaluator.taskbarIconPadding
-                hotseatView.setPadding(padding)
+                hotseatView.setPadding(taskbarIconViewPadding)
                 addView(hotseatView, lp)
             } else if (hotseatView is FolderIcon) {
                 hotseatView.onItemsChanged(false)
@@ -250,6 +277,13 @@ constructor(
         }
     }
 
+    /** Applies and traces [body] for each [icons] instance. */
+    private inline fun forEachIcon(icons: List<ItemInfo>, body: (Int, ItemInfo) -> Unit) {
+        for ((index, icon) in icons.withIndex()) {
+            traceSection("TaskbarIconsContainer#forEachIcon.icon") { body(index, icon) }
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     fun setUpCallbacks(callbacks: TaskbarViewCallbacks) {
         taskbarViewCallbacks = callbacks
@@ -260,7 +294,7 @@ constructor(
         view.setOnClickListener(null)
         view.onLongClickListener = null
         if (view.tag !is CollectionInfo) {
-            activityContext.viewCache.recycleView(view.sourceLayoutResId, view)
+            viewCache.recycleView(view.sourceLayoutResId, view)
         }
         view.tag = null
     }
@@ -295,10 +329,9 @@ constructor(
         }
         // adding overflow view remove last hotseat item
         removeViewAt(childCount - 1)
-        val lp = TaskbarIconContainerLayoutParams(taskbarIconSize, taskbarIconSize)
-        val padding = activityContext.taskbarSpecsEvaluator.taskbarIconPadding
+        val lp = TaskbarIconContainerLayoutParams(taskbarIconViewSize, taskbarIconViewSize)
         lp.marginStart = itemMarginLeftRight
-        taskbarPinnedOverflowView.setPadding(padding)
+        taskbarPinnedOverflowView.setPadding(taskbarIconViewPadding)
         taskbarPinnedOverflowView.setOnClickListener(
             taskbarViewCallbacks.pinnedOverflowOnClickListener
         )
@@ -309,7 +342,7 @@ constructor(
     }
 
     private fun inflate(@LayoutRes layoutResId: Int): View? {
-        return activityContext.viewCache.getView(layoutResId, activityContext, this)
+        return viewCache.getView(layoutResId, activityContext, this)
     }
 
     class TaskbarIconContainerLayoutParams : LayoutParams {
@@ -345,7 +378,7 @@ constructor(
     override val spaceNeeded: Int
         get() =
             if (isEmpty()) 0
-            else (childCount * taskbarIconSize) + ((childCount - 1) * 2 * itemMarginLeftRight)
+            else (childCount * taskbarIconViewSize) + ((childCount - 1) * 2 * itemMarginLeftRight)
 
     companion object {
         // effectively a no-op since we do not scale this container.
@@ -355,11 +388,9 @@ constructor(
         @JvmStatic
         fun create(
             context: Context,
-            iconTouchSize: Int,
             itemMarginLeftRight: Int,
         ): TaskbarIconsContainer {
             return TaskbarIconsContainer(context).apply {
-                this.iconTouchSize = iconTouchSize
                 this.itemMarginLeftRight = itemMarginLeftRight
                 // App icon views draw running state indicators outside of the icon view bounds, and
                 // thus outside the icons container bounds - don't clip the children so running

@@ -30,13 +30,17 @@ import androidx.dynamicanimation.animation.DynamicAnimation.MIN_VISIBLE_CHANGE_P
 import androidx.dynamicanimation.animation.DynamicAnimation.MIN_VISIBLE_CHANGE_SCALE
 import com.android.launcher3.BubbleTextView
 import com.android.launcher3.LauncherAnimUtils
+import com.android.launcher3.LauncherAnimUtils.HOTSEAT_SCALE_PROPERTY_FACTORY
+import com.android.launcher3.LauncherAnimUtils.SCALE_INDEX_FOLDER_ANIM
 import com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY
+import com.android.launcher3.LauncherAnimUtils.WORKSPACE_SCALE_PROPERTY_FACTORY
 import com.android.launcher3.R
 import com.android.launcher3.Utilities.isDarkTheme
 import com.android.launcher3.anim.SpringAnimationBuilder
 import com.android.launcher3.apppairs.AppPairIcon
 import com.android.launcher3.folder.ClippedFolderIconLayoutRule.MAX_NUM_ITEMS_IN_PREVIEW
 import com.android.launcher3.util.MultiPropertyFactory
+import com.android.launcher3.util.MultiPropertyFactory.*
 import com.android.launcher3.util.Themes
 
 /** Holder for Animators created from [FolderAnimationSpringBuilderManager] */
@@ -56,6 +60,7 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
         private const val DAMPING_ALPHA = 0.9f
         private const val STIFFNESS_LAUNCHER_SCRIM = 380f
         private const val DAMPING_LAUNCHER_SCRIM = 0.98f
+        private const val WALLPAPER_ZOOM = 0.125f
 
         /**
          * Factory method to take data calculated from [FolderAnimationSpringBuilderManager], and
@@ -73,12 +78,15 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
             addFolderScaleAndTranslateAnimators(folder, animatorSet, folderAnimData)
             addClipRevealAnimators(folder, animatorSet, clipRevealData)
             addAlphaAndColorAnimators(folder, animatorSet, folderAnimData)
-            addScrimAnimators(
+            addWorkspaceAnimators(
                 folder.context,
                 animatorSet,
                 folderAnimData.isOpening,
                 launcherDelegate,
             )
+            launcherDelegate.launcher?.depthController?.folderZoom?.let {
+                addWallpaperZoomAnimator(folder.context, animatorSet, folderAnimData.isOpening, it)
+            }
             iconAnimData.forEach { addContentIconAnimators(folder.context, animatorSet, it) }
             return FolderSpringAnimatorSet(animatorSet)
         }
@@ -223,6 +231,27 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
             )
         }
 
+        private fun addWallpaperZoomAnimator(
+            context: Context,
+            animatorSet: AnimatorSet,
+            isOpening: Boolean,
+            property: MultiPropertyFactory<*>.MultiProperty,
+        ) {
+            playSpringAnimation(
+                context = context,
+                animatorSet = animatorSet,
+                isOpening = isOpening,
+                startDelay = 0,
+                stiffness = STIFFNESS_SHAPE_POSITION,
+                damping = DAMPING_SHAPE_POSITION,
+                startValue = 0f,
+                endValue = WALLPAPER_ZOOM,
+                minVisibleChange = MIN_VISIBLE_CHANGE_SCALE,
+                property = MULTI_PROPERTY_VALUE,
+                view = property,
+            )
+        }
+
         private fun addAlphaAndColorAnimators(
             folder: Folder,
             animatorSet: AnimatorSet,
@@ -296,7 +325,6 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
             revealData: ClipRevealData,
         ) {
             with(revealData) {
-                // Create reveal animator for the folder background
                 animatorSet.play(
                     shapeDelegate.createRevealAnimator(
                         folder,
@@ -306,20 +334,10 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                         !isOpening,
                     )
                 )
-                // animated contents of folder with the folder background
-                animatorSet.play(
-                    shapeDelegate.createRevealAnimator(
-                        folder.content,
-                        contentStart,
-                        contentEnd,
-                        finalRadius,
-                        !isOpening,
-                    )
-                )
             }
         }
 
-        private fun addScrimAnimators(
+        private fun addWorkspaceAnimators(
             context: Context,
             animatorSet: AnimatorSet,
             isOpening: Boolean,
@@ -329,6 +347,8 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
             val scrimView = launcher.scrimView
             val workspace = launcher.workspace
             val hotseat = launcher.hotseat
+            val workspaceScale = WORKSPACE_SCALE_PROPERTY_FACTORY.get(SCALE_INDEX_FOLDER_ANIM)
+            val hotseatScale = HOTSEAT_SCALE_PROPERTY_FACTORY.get(SCALE_INDEX_FOLDER_ANIM)
             val finalScrimAlpha = if (isDarkTheme(context)) 0.32f else 0.2f
             scrimView.setBackgroundColor(Color.BLACK)
             playSpringAnimation(
@@ -354,7 +374,7 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                 startValue = 1f,
                 endValue = LAUNCHER_SCALE,
                 minVisibleChange = MIN_VISIBLE_CHANGE_SCALE,
-                property = SCALE_PROPERTY,
+                property = workspaceScale,
                 view = workspace,
             )
             playSpringAnimation(
@@ -367,7 +387,7 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                 startValue = 1f,
                 endValue = LAUNCHER_SCALE,
                 minVisibleChange = MIN_VISIBLE_CHANGE_SCALE,
-                property = SCALE_PROPERTY,
+                property = hotseatScale,
                 view = hotseat,
             )
             animatorSet.addListener(FolderScrimAnimationListener(scrimView, isOpening))
@@ -402,7 +422,7 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                     startValue = 0f,
                     endValue = 1f,
                     minVisibleChange = MIN_VISIBLE_CHANGE_ALPHA,
-                    property = MultiPropertyFactory.MULTI_PROPERTY_VALUE,
+                    property = MULTI_PROPERTY_VALUE,
                     view = titleText.getFloatingViewTextAlpha(),
                 )
                 if (!itemsInPreview.contains(icon)) {

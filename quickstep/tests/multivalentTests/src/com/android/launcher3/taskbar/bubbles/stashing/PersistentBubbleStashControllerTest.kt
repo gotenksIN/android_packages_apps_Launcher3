@@ -16,7 +16,6 @@
 
 package com.android.launcher3.taskbar.bubbles.stashing
 
-import android.animation.AnimatorTestRule
 import android.content.Context
 import android.widget.FrameLayout
 import androidx.test.core.app.ApplicationProvider
@@ -25,9 +24,11 @@ import androidx.test.filters.SmallTest
 import androidx.test.platform.app.InstrumentationRegistry.getInstrumentation
 import com.android.launcher3.anim.AnimatedFloat
 import com.android.launcher3.taskbar.TaskbarInsetsController
+import com.android.launcher3.taskbar.TaskbarUiState
 import com.android.launcher3.taskbar.bubbles.BubbleBarView
 import com.android.launcher3.taskbar.bubbles.BubbleBarViewController
 import com.android.launcher3.taskbar.bubbles.stashing.BubbleStashController.BubbleLauncherState
+import com.android.launcher3.taskbar.rules.TaskbarAnimatorTestRule
 import com.android.launcher3.util.MultiValueAlpha
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation
 import com.google.common.truth.Truth.assertThat
@@ -57,11 +58,12 @@ class PersistentBubbleStashControllerTest {
         const val TASK_BAR_STASHED_TRANSLATION_Y = 105f
     }
 
-    @get:Rule val animatorTestRule: AnimatorTestRule = AnimatorTestRule(this)
+    @get:Rule val animatorTestRule = TaskbarAnimatorTestRule(this)
 
     @get:Rule val rule: MockitoRule = MockitoJUnit.rule()
 
     private val context = ApplicationProvider.getApplicationContext<Context>()
+    private val taskbarUiState = TaskbarUiState()
     private lateinit var bubbleBarView: BubbleBarView
 
     @Mock lateinit var bubbleBarViewController: BubbleBarViewController
@@ -76,7 +78,7 @@ class PersistentBubbleStashControllerTest {
     @Before
     fun setUp() {
         persistentTaskBarStashController =
-            PersistentBubbleStashController(DefaultDimensionsProvider())
+            PersistentBubbleStashController(DefaultDimensionsProvider(), taskbarUiState)
         setUpBubbleBarView()
         setUpBubbleBarController()
         persistentTaskBarStashController.bubbleBarVerticalCenterForHome = HOTSEAT_VERTICAL_CENTER
@@ -226,6 +228,7 @@ class PersistentBubbleStashControllerTest {
     @Test
     fun isStashed_false() {
         assertThat(persistentTaskBarStashController.isStashed).isFalse()
+        assertThat(taskbarUiState.isBubbleStashed).isFalse()
     }
 
     @Test
@@ -464,6 +467,7 @@ class PersistentBubbleStashControllerTest {
         // Then bubble bar is stashed
         assertThat(bubbleBarView.translationY).isEqualTo(TASK_BAR_STASHED_TRANSLATION_Y)
         assertThat(persistentTaskBarStashController.isStashed).isTrue()
+        assertThat(taskbarUiState.isBubbleStashed).isTrue()
     }
 
     @Test
@@ -494,6 +498,7 @@ class PersistentBubbleStashControllerTest {
         }
         // Check that bubble bar is un-stashed
         assertThat(persistentTaskBarStashController.isStashed).isFalse()
+        assertThat(taskbarUiState.isBubbleStashed).isFalse()
         assertThat(bubbleBarView.translationY).isEqualTo(TASK_BAR_TRANSLATION_Y)
 
         // When calling to stash
@@ -505,6 +510,7 @@ class PersistentBubbleStashControllerTest {
         // Then Bubble bar is stashed
         assertThat(bubbleBarView.translationY).isEqualTo(TASK_BAR_STASHED_TRANSLATION_Y)
         assertThat(persistentTaskBarStashController.isStashed).isTrue()
+        assertThat(taskbarUiState.isBubbleStashed).isTrue()
     }
 
     private fun advanceTimeBy(advanceMs: Long) {

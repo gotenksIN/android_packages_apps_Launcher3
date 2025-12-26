@@ -4,6 +4,7 @@ import static android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED;
 import static android.view.accessibility.AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS;
 import static android.view.accessibility.AccessibilityNodeInfo.ACTION_LONG_CLICK;
 
+import static com.android.launcher3.AbstractFloatingView.TYPE_WIDGET_RESIZE_FRAME;
 import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.anim.AnimatorListeners.forEndCallback;
 import static com.android.launcher3.anim.AnimatorListeners.forSuccessCallback;
@@ -27,7 +28,7 @@ import android.view.accessibility.AccessibilityEvent;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.AbstractFloatingView;
-import com.android.launcher3.AppWidgetResizeFrame;
+import com.android.launcher3.AppWidgetResizeFrameBase;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.ButtonDropTarget;
 import com.android.launcher3.CellLayout;
@@ -37,11 +38,12 @@ import com.android.launcher3.PendingAddItemInfo;
 import com.android.launcher3.R;
 import com.android.launcher3.ShortcutAndWidgetContainer;
 import com.android.launcher3.Workspace;
+import com.android.launcher3.apppairs.AppPairIcon;
 import com.android.launcher3.celllayout.CellLayoutLayoutParams;
 import com.android.launcher3.dragndrop.DragOptions;
-import com.android.launcher3.dragndrop.DragOptions.PreDragCondition;
 import com.android.launcher3.dragndrop.DragView;
 import com.android.launcher3.folder.Folder;
+import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtilsKt;
 import com.android.launcher3.keyboard.KeyboardDragAndDropView;
 import com.android.launcher3.model.data.AppInfo;
@@ -53,7 +55,9 @@ import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemFactory;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.ArrowPopup;
+import com.android.launcher3.popup.Popup;
 import com.android.launcher3.popup.PopupContainer;
+import com.android.launcher3.popup.PopupController;
 import com.android.launcher3.shortcuts.DeepShortcutView;
 import com.android.launcher3.touch.ItemLongClickListener;
 import com.android.launcher3.util.IntArray;
@@ -64,6 +68,7 @@ import com.android.launcher3.views.BubbleTextHolder;
 import com.android.launcher3.views.OptionsPopupView;
 import com.android.launcher3.views.OptionsPopupView.OptionItem;
 import com.android.launcher3.widget.LauncherAppWidgetHostView;
+import com.android.launcher3.widget.NavigableAppWidgetHostView;
 import com.android.launcher3.widget.PendingAddWidgetInfo;
 import com.android.launcher3.widget.util.WidgetSizeHandler;
 
@@ -148,7 +153,7 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
             }
         }
 
-        if (host instanceof AppWidgetResizeFrame) {
+        if (host instanceof AppWidgetResizeFrameBase) {
             out.add(mActions.get(CLOSE));
         }
 
@@ -186,33 +191,37 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
     protected boolean performAction(final View host, final ItemInfo item, int action,
             boolean fromKeyboard) {
         if (action == ACTION_LONG_CLICK) {
-            PreDragCondition dragCondition = null;
+            PopupController<Launcher> popupController = null;
             // Long press should be consumed for workspace items, and it should invoke the
             // Shortcuts / Notifications / Actions pop-up menu, and not start a drag as the
             // standard long press path does.
-            if (host instanceof BubbleTextView) {
-                dragCondition = ((BubbleTextView) host)
-                        .startLongPressAction(mContext.getPopupControllerForAppIcons());
-            } else if (host instanceof BubbleTextHolder) {
-                BubbleTextHolder holder = (BubbleTextHolder) host;
-                dragCondition = holder.getBubbleText() == null ? null
-                        : holder.getBubbleText()
-                                .startLongPressAction(mContext.getPopupControllerForAppIcons());
+            if (host instanceof BubbleTextView || (host instanceof BubbleTextHolder
+                    && ((BubbleTextHolder) host).getBubbleText() != null)) {
+                popupController = ShortcutUtil.supportsShortcuts(item)
+                        ? mContext.getPopupControllerForAppIcons()
+                        : mContext.getPopupControllerForHomeScreenItems();
+            } else if (host instanceof FolderIcon || host instanceof AppPairIcon
+                    || host instanceof NavigableAppWidgetHostView) {
+                popupController = mContext.getPopupControllerForHomeScreenItems();
             }
-            return dragCondition != null;
+
+            if (popupController == null) {
+                return false;
+            }
+
+            Popup popup = popupController.show(host);
+            return popup != null && popup.createPreDragCondition() != null;
         } else if (action == MOVE) {
-            final View itemView = (host instanceof AppWidgetResizeFrame)
-                    ? ((AppWidgetResizeFrame) host).getViewForAccessibility()
-                    : host;
+            final View itemView = (host instanceof AppWidgetResizeFrameBase)
+                    ? ((AppWidgetResizeFrameBase) host).getViewForAccessibility() : host;
             return beginAccessibleDrag(itemView, item, fromKeyboard);
         } else if (action == ADD_TO_WORKSPACE) {
             return addToWorkspace(item, true /*accessibility*/, null /*finishCallback*/);
         } else if (action == MOVE_TO_WORKSPACE) {
             return moveToWorkspace(item);
         } else if (action == RESIZE) {
-            final View itemView = (host instanceof AppWidgetResizeFrame)
-                    ? ((AppWidgetResizeFrame) host).getViewForAccessibility()
-                    : host;
+            final View itemView = (host instanceof AppWidgetResizeFrameBase)
+                    ? ((AppWidgetResizeFrameBase) host).getViewForAccessibility() : host;
             final LauncherAppWidgetInfo info = (LauncherAppWidgetInfo) item;
             List<OptionItem> actions = getSupportedResizeActions(itemView, info);
             Rect pos = new Rect();
@@ -236,9 +245,9 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
                     && mContext.getPopupControllerForAppIcons()
                     .show(btv) != null;
         } else if (action == CLOSE) {
-            if (host instanceof AppWidgetResizeFrame) {
+            if (host instanceof AppWidgetResizeFrameBase) {
                 AbstractFloatingView.closeOpenViews(mContext, /* animate= */ false,
-                        AbstractFloatingView.TYPE_WIDGET_RESIZE_FRAME);
+                        TYPE_WIDGET_RESIZE_FRAME);
             }
         } else {
             for (ButtonDropTarget dropTarget : mContext.getDropTargetBar().getDropTargets()) {
@@ -254,9 +263,9 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
 
     private List<OptionItem> getSupportedResizeActions(View host, LauncherAppWidgetInfo info) {
         List<OptionItem> actions = new ArrayList<>();
-        if (host instanceof AppWidgetResizeFrame) {
+        if (host instanceof AppWidgetResizeFrameBase) {
             return getSupportedResizeActions(
-                    ((AppWidgetResizeFrame) host).getViewForAccessibility(), info);
+                    ((AppWidgetResizeFrameBase) host).getViewForAccessibility(), info);
         }
         AppWidgetProviderInfo providerInfo = ((LauncherAppWidgetHostView) host).getAppWidgetInfo();
         if (providerInfo == null) {

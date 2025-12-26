@@ -16,20 +16,38 @@
 
 package com.android.launcher3.taskbar
 
+import android.view.Display.DEFAULT_DISPLAY
 import android.view.View
+import com.android.launcher3.BubbleTextView
+import com.android.launcher3.BubbleTextView.RunningAppState
+import com.android.launcher3.BubbleTextView.RunningAppState.MINIMIZED
+import com.android.launcher3.BubbleTextView.RunningAppState.NOT_RUNNING
+import com.android.launcher3.BubbleTextView.RunningAppState.RUNNING
+import com.android.launcher3.R
+import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.taskbar.TaskbarViewController.DIVIDER_VIEW_POSITION_OFFSET
+import com.android.launcher3.taskbar.TaskbarViewTestUtil.createHotseatWorkspaceItem
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
-import com.android.launcher3.util.LauncherMultivalentJUnit
-import com.android.launcher3.util.LauncherMultivalentJUnit.EmulatedDevices
+import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext.Companion.getDeviceParams
 import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.whenever
+import platform.test.runner.parameterized.ParameterizedAndroidJunit4
+import platform.test.runner.parameterized.Parameters
 
-@RunWith(LauncherMultivalentJUnit::class)
-@EmulatedDevices(["pixelFoldable2023", "pixelTablet2023"])
+private const val TEST_DESCRIPTION = "test description"
+
+private val TEST_ITEM = createHotseatWorkspaceItem().apply { contentDescription = TEST_DESCRIPTION }
+
+private val TEST_TASK =
+    TaskbarViewTestUtil.createRecentTask().apply {
+        tasks.first().titleDescription = TEST_DESCRIPTION
+    }
+
 /**
  * Legend for the comments below:
  * ```
@@ -45,12 +63,22 @@ import org.junit.runner.RunWith
  * // Index of items relative to Hotseat: -1 -.5 012345
  * ```
  */
-class TaskbarViewControllerTest {
+@RunWith(ParameterizedAndroidJunit4::class)
+class TaskbarViewControllerTest(deviceName: String) {
 
-    @get:Rule(order = 0) val context = TaskbarWindowSandboxContext.create()
+    companion object {
+        @JvmStatic
+        @Parameters(name = "{0}")
+        fun getParams(): List<String> = getDeviceParams("pixelFoldable2023", "pixelTablet2023")
+    }
+
+    @get:Rule(order = 0) val context = TaskbarWindowSandboxContext.create(deviceName)
     @get:Rule(order = 1) val taskbarUnitTestRule = TaskbarUnitTestRule(this, context)
 
     @InjectController lateinit var taskbarViewController: TaskbarViewController
+
+    private val desktopVisibilityController: DesktopVisibilityController
+        get() = DesktopVisibilityController.INSTANCE[context]
 
     @Test
     fun testGetPositionInHotseat_allAppsButton_nonRtl() {
@@ -232,5 +260,69 @@ class TaskbarViewControllerTest {
         // [HHHHHH][A] | [R>R<]
         //  012345  6 6.5 7 8
         assertThat(position).isEqualTo(numShownHotseatIcons + 1 + recentTaskIndex)
+    }
+
+    @Test
+    fun testUpdateDescriptionWithRunningState_notRunningItem_noStateInDescription() {
+        whenever(desktopVisibilityController.isInDesktopMode(DEFAULT_DISPLAY)).thenReturn(true)
+        val btv = createTestBtv(TEST_ITEM, NOT_RUNNING)
+        taskbarViewController.updateDescriptionWithRunningState(btv)
+        assertThat(btv.contentDescription).isEqualTo(TEST_DESCRIPTION)
+    }
+
+    @Test
+    fun testUpdateDescriptionWithRunningState_runningItem_stateInDescription() {
+        whenever(desktopVisibilityController.isInDesktopMode(DEFAULT_DISPLAY)).thenReturn(true)
+        val btv = createTestBtv(TEST_ITEM, RUNNING)
+        taskbarViewController.updateDescriptionWithRunningState(btv)
+        assertThat(btv.contentDescription.toString())
+            .contains(context.getString(R.string.app_running_state_description))
+    }
+
+    @Test
+    fun testUpdateDescriptionWithRunningState_closeItem_removesStateFromDescription() {
+        whenever(desktopVisibilityController.isInDesktopMode(DEFAULT_DISPLAY)).thenReturn(true)
+        val btv = createTestBtv(TEST_ITEM, RUNNING)
+        taskbarViewController.updateDescriptionWithRunningState(btv)
+
+        btv.runningAppState = NOT_RUNNING
+        taskbarViewController.updateDescriptionWithRunningState(btv)
+        assertThat(btv.contentDescription).isEqualTo(TEST_DESCRIPTION)
+    }
+
+    @Test
+    fun testUpdateDescriptionWithRunningState_runningTask_stateInDescription() {
+        whenever(desktopVisibilityController.isInDesktopMode(DEFAULT_DISPLAY)).thenReturn(true)
+        val btv = createTestBtv(TEST_TASK, RUNNING)
+        taskbarViewController.updateDescriptionWithRunningState(btv)
+        assertThat(btv.contentDescription.toString())
+            .contains(context.getString(R.string.app_running_state_description))
+    }
+
+    @Test
+    fun testUpdateDescriptionWithRunningState_minimizeTask_updatesStateInDescription() {
+        whenever(desktopVisibilityController.isInDesktopMode(DEFAULT_DISPLAY)).thenReturn(true)
+        val btv = createTestBtv(TEST_TASK, RUNNING)
+        taskbarViewController.updateDescriptionWithRunningState(btv)
+
+        btv.runningAppState = MINIMIZED
+        taskbarViewController.updateDescriptionWithRunningState(btv)
+        assertThat(btv.contentDescription.toString())
+            .contains(context.getString(R.string.app_minimized_state_description))
+    }
+
+    @Test
+    fun testUpdateDescriptionWithRunningState_runningTaskOutsideDesktop_noStateInDescription() {
+        whenever(desktopVisibilityController.isInDesktopMode(DEFAULT_DISPLAY)).thenReturn(false)
+        val btv = createTestBtv(TEST_TASK, RUNNING)
+        taskbarViewController.updateDescriptionWithRunningState(btv)
+        assertThat(btv.contentDescription).isEqualTo(TEST_DESCRIPTION)
+    }
+
+    private fun createTestBtv(tag: Any, runningAppState: RunningAppState): BubbleTextView {
+        return BubbleTextView(taskbarUnitTestRule.activityContext).apply {
+            this.tag = tag
+            this.runningAppState = runningAppState
+        }
     }
 }

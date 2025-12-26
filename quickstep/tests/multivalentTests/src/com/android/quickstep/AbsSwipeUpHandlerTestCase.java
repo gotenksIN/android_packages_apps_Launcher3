@@ -97,6 +97,9 @@ import com.android.wm.shell.shared.split.SplitBounds;
 
 import com.google.android.msdl.data.model.MSDLToken;
 
+import kotlin.Unit;
+import kotlin.jvm.functions.Function1;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -109,9 +112,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-
-import kotlin.Unit;
-import kotlin.jvm.functions.Function1;
 
 public abstract class AbsSwipeUpHandlerTestCase<
         STATE_TYPE extends BaseState<STATE_TYPE>,
@@ -676,8 +676,7 @@ public abstract class AbsSwipeUpHandlerTestCase<
         when(mDeviceState.isFullyGesturalNavMode()).thenReturn(false);
         when(mGestureState.isTrackpadGesture()).thenReturn(false);
         when(getRecentsView().getPagedViewOrientedState()).thenReturn(
-                new RecentsOrientedState(mContext, swipeHandler.mContainerInterface, (r) -> {
-                }));
+                new RecentsOrientedState(mContext, swipeHandler.mContainerInterface));
         when(getRecentsView().shouldUpdateRunningTaskAlpha()).thenReturn(true);
         swipeHandler.onActivityInit(/*isHomeStarted= */ true);
         swipeHandler.onGestureStarted(/*isLikelyToStartNewTask =*/ true);
@@ -697,8 +696,7 @@ public abstract class AbsSwipeUpHandlerTestCase<
         when(mDeviceState.isFullyGesturalNavMode()).thenReturn(false);
         when(mGestureState.isTrackpadGesture()).thenReturn(false);
         when(getRecentsView().getPagedViewOrientedState()).thenReturn(
-                new RecentsOrientedState(mContext, swipeHandler.mContainerInterface, (r) -> {
-                }));
+                new RecentsOrientedState(mContext, swipeHandler.mContainerInterface));
         when(getRecentsView().shouldUpdateRunningTaskAlpha()).thenReturn(false);
         swipeHandler.onActivityInit(/*isHomeStarted= */ true);
         swipeHandler.onGestureStarted(/*isLikelyToStartNewTask =*/ true);
@@ -874,7 +872,17 @@ public abstract class AbsSwipeUpHandlerTestCase<
     }
 
     @NonNull
-    protected abstract SWIPE_HANDLER createSwipeHandler(
+    private SWIPE_HANDLER createSwipeHandler(
+            long touchTimeMs, boolean continuingLastGesture) {
+        try {
+            return  Executors.MAIN_EXECUTOR.submit(
+                    () -> createSwipeHandlerInternal(touchTimeMs, continuingLastGesture)).get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    @NonNull
+    protected abstract SWIPE_HANDLER createSwipeHandlerInternal(
             long touchTimeMs, boolean continuingLastGesture);
 
     @NonNull

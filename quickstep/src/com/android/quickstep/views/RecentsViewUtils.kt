@@ -18,12 +18,14 @@ package com.android.quickstep.views
 
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
+import android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM
 import android.graphics.PointF
 import android.graphics.Rect
 import android.util.FloatProperty
 import android.util.Log
 import android.util.Property
 import android.view.KeyEvent
+import android.view.RemoteAnimationTarget
 import android.view.View
 import android.view.View.LAYOUT_DIRECTION_LTR
 import android.view.View.LAYOUT_DIRECTION_RTL
@@ -41,6 +43,7 @@ import com.android.launcher3.Flags.enableDesktopExplodedView
 import com.android.launcher3.PagedView.INVALID_PAGE
 import com.android.launcher3.R
 import com.android.launcher3.Utilities.getPivotsForScalingRectToRect
+import com.android.launcher3.dagger.DisplayId
 import com.android.launcher3.statehandlers.DesktopVisibilityController.Companion.INACTIVE_DESK_ID
 import com.android.launcher3.statemanager.BaseState
 import com.android.launcher3.util.DisplayController
@@ -49,6 +52,8 @@ import com.android.launcher3.util.RunnableList
 import com.android.launcher3.util.window.WindowManagerProxy.DesktopVisibilityListener
 import com.android.quickstep.GestureState
 import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle
+import com.android.quickstep.RotationTouchHelper
+import com.android.quickstep.TaskAnimationManager
 import com.android.quickstep.util.DesksUtils.Companion.areMultiDesksFlagsEnabled
 import com.android.quickstep.util.DesktopTask
 import com.android.quickstep.util.GroupTask
@@ -81,6 +86,9 @@ constructor(
     @Assisted private val recentsView: RecentsView<*, *>,
     private val displayController: DisplayController,
     private val desktopState: DesktopState,
+    @DisplayId private val displayId: Int,
+    private val taskAnimationManager: TaskAnimationManager,
+    private val rotationTouchHelper: RotationTouchHelper,
 ) : DesktopVisibilityListener {
     val taskViews = TaskViewsIterable(recentsView)
 
@@ -233,9 +241,7 @@ constructor(
 
     /** Returns true if it is in desktop-first mode. Otherwise, returns false. */
     fun isInDesktopFirstMode() =
-        displayController
-            .getInfoForDisplay(recentsView.mContainer.displayId)
-            ?.isInDesktopFirstMode == true
+        displayController.getInfoForDisplay(displayId)?.isInDesktopFirstMode == true
 
     /**
      * Returns false if it is the last desktop on desktop-first when multi-desk enabled. Otherwise,
@@ -432,12 +438,9 @@ constructor(
     }
 
     override fun onDeskAdded(displayId: Int, deskId: Int) {
-        with(recentsView) {
-            // Ignore desk changes that don't belong to this display.
-            if (displayId != mContainer.displayId) {
-                return
-            }
+        if (displayId != this.displayId) return
 
+        with(recentsView) {
             if (getDesktopTaskViewForDeskId(deskId) != null) {
                 Log.e(TAG, "A task view for this desk has already been added.")
                 return
@@ -485,17 +488,30 @@ constructor(
     }
 
     override fun onDeskRemoved(displayId: Int, deskId: Int) {
-        with(recentsView) {
-            // Ignore desk changes that don't belong to this display.
-            if (displayId != mContainer.displayId) {
-                return
-            }
+        if (displayId != this.displayId) return
 
-            // We need to distinguish between desk removals that are triggered from outside of
-            // overview vs. the ones that were initiated from overview by dismissing the
-            // corresponding desktop task view.
-            getDesktopTaskViewForDeskId(deskId)?.let { dismissTaskView(it, /* removeTask= */ true) }
+        // We need to distinguish between desk removals that are triggered from outside of
+        // overview vs. the ones that were initiated from overview by dismissing the
+        // corresponding desktop task view.
+        getDesktopTaskViewForDeskId(deskId)?.let {
+            recentsView.dismissTaskView(it, /* removeTask= */ true)
         }
+    }
+
+    override fun onActiveDeskChanged(displayId: Int, newActiveDesk: Int, oldActiveDesk: Int) {
+        if (!isInDesktopFirstMode()) return
+        if (displayId != this.displayId) return
+        if (oldActiveDesk != INACTIVE_DESK_ID || newActiveDesk == INACTIVE_DESK_ID) return
+        // TaskAnimationManager.onTasksAppeared already handles desktop task launching.
+        if (taskAnimationManager.isRecentsAnimationRunning) return
+        // Desktop launch will close Recents when tra]nsition is finished.
+        if (recentsView.desktopRecentsController?.isDesktopLaunchOngoing() == true) return
+
+        Log.d(
+            TAG,
+            "onActiveDeskChanged - closing RecentsView because desk $newActiveDesk is activated",
+        )
+        recentsView.stateManager.moveToRestState()
     }
 
     /**
@@ -889,6 +905,18 @@ constructor(
     @AssistedFactory
     interface Factory {
         fun create(recentsView: RecentsView<*, *>): RecentsViewUtils
+    }
+
+    fun isTaskLaunchingInFreeFromWindow(taskId: Int, apps: Array<RemoteAnimationTarget>): Boolean {
+        return apps.firstOrNull { it.taskId == taskId }?.windowConfiguration?.windowingMode ==
+            WINDOWING_MODE_FREEFORM
+    }
+
+    fun reapplyActiveRotation() {
+        recentsView.setLayoutRotation(
+            rotationTouchHelper.currentActiveRotation,
+            rotationTouchHelper.displayRotation,
+        )
     }
 
     companion object {

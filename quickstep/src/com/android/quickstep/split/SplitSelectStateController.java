@@ -154,7 +154,7 @@ public class SplitSelectStateController {
     @Nullable
     private SplitFromDesktopController mSplitFromDesktopController;
     @Nullable
-    private DepthController mDepthController;
+    private DepthController<?, ?> mDepthController;
     private boolean mRecentsAnimationRunning;
     /** If {@code true}, animates the existing task view split placeholder view */
     private boolean mAnimateCurrentTaskDismissal;
@@ -212,9 +212,9 @@ public class SplitSelectStateController {
     };
 
     public SplitSelectStateController(RecentsViewContainer container,
-            StateManager stateManager, DepthController depthController,
+            StateManager<?, ?> stateManager, @Nullable DepthController<?, ?> depthController,
             StatsLogManager statsLogManager, SystemUiProxy systemUiProxy, RecentsModel recentsModel,
-            Runnable activityBackCallback, SplitScreenUiState splitScreenUiState) {
+            @Nullable Runnable activityBackCallback, SplitScreenUiState splitScreenUiState) {
         mContainer = container;
         mStatsLogManager = statsLogManager;
         mSystemUiProxy = systemUiProxy;
@@ -916,8 +916,6 @@ public class SplitSelectStateController {
 
     public class SplitFromDesktopController {
         private static final String TAG = "SplitFromDesktopController";
-        private static final boolean isBugfixFlagEnabled =
-                DesktopExperienceFlags.ENABLE_DESKTOP_SPLITSCREEN_TRANSITION_BUGFIX.isTrue();
         private static final boolean SPLIT_SELECT_ON_EXTERNAL_DISPLAY_ENABLED =
                 DesktopExperienceFlags.ENABLE_NON_DEFAULT_DISPLAY_SPLIT_BUGFIX.isTrue();
         private final QuickstepLauncher mLauncher;
@@ -1043,10 +1041,6 @@ public class SplitSelectStateController {
                                     displayId);
                 });
 
-                if (SPLIT_SELECT_ON_EXTERNAL_DISPLAY_ENABLED && displayId != DEFAULT_DISPLAY) {
-                    mRecentsWindowManager.showRecentsWindow(callbacks);
-                }
-
             } else {
                 animation.start(/* targets= */null, updateTaskbarRunnable);
             }
@@ -1101,10 +1095,6 @@ public class SplitSelectStateController {
                     public void onAnimationStart(Animator animation) {
                         InteractionJankMonitorWrapper.begin(
                                 floatingTaskView, CUJ_DESKTOP_MODE_MOVE_TO_SPLIT_SCREEN);
-                        if (!isBugfixFlagEnabled) {
-                            finishController.run();
-                            return;
-                        }
                         if (targets == null) {
                             return;
                         }
@@ -1120,30 +1110,26 @@ public class SplitSelectStateController {
                     @Override
                     public void onAnimationEnd(Animator animation) {
                         InteractionJankMonitorWrapper.end(CUJ_DESKTOP_MODE_MOVE_TO_SPLIT_SCREEN);
-                        if (isBugfixFlagEnabled) {
-                            for (FloatingDesktopTaskView taskView : closingTaskViews) {
-                                mContainer.getDragLayer().removeView(taskView);
-                            }
-                            finishController.run();
+                        for (FloatingDesktopTaskView taskView : closingTaskViews) {
+                            mContainer.getDragLayer().removeView(taskView);
                         }
+                        finishController.run();
                     }
                     @Override
                     public void onAnimationCancel(Animator animation) {
                         InteractionJankMonitorWrapper.cancel(CUJ_DESKTOP_MODE_MOVE_TO_SPLIT_SCREEN);
                         mContainer.getDragLayer().removeView(floatingTaskView);
                         getSplitAnimationController().removeSplitInstructionsView(mContainer);
-                        if (isBugfixFlagEnabled) {
-                            for (FloatingDesktopTaskView taskView : closingTaskViews) {
-                                mContainer.getDragLayer().removeView(taskView);
-                            }
-                            finishController.run();
+                        for (FloatingDesktopTaskView taskView : closingTaskViews) {
+                            mContainer.getDragLayer().removeView(taskView);
                         }
+                        finishController.run();
                         resetState();
                     }
                 });
                 anim.add(getSplitAnimationController()
                         .getShowSplitInstructionsAnim(mContainer).buildAnim());
-                if (isBugfixFlagEnabled && (mContainer instanceof QuickstepLauncher)) {
+                if (mContainer instanceof QuickstepLauncher) {
                     // TODO: b/438065072 - Support createHomeRevealAnimation in non-default display
                     //  when there is no launcher.
                     anim.add(createHomeRevealAnimation());
@@ -1153,7 +1139,7 @@ public class SplitSelectStateController {
 
             private List<FloatingDesktopTaskView> setUpClosingWindowViews(
                     PendingAnimation anim, RemoteAnimationTargets targets) {
-                if (targets == null || !isBugfixFlagEnabled) {
+                if (targets == null) {
                     return Collections.emptyList();
                 }
                 RemoteAnimationTarget[] appTargets = Arrays.stream(targets.apps)
@@ -1193,19 +1179,16 @@ public class SplitSelectStateController {
                             .playAnimPlaceholderToFullscreen(mContainer, view,
                                     Optional.of(() -> resetState()));
                 });
-                if (isBugfixFlagEnabled) {
-                    floatingTaskView.setUseFitXYThumbnailScale();
-                }
+                floatingTaskView.setUseFitXYThumbnailScale();
                 floatingTaskView.setAlpha(1);
                 floatingTaskView.addStagingAnimation(anim, mTaskBounds, mTempRect,
-                        isBugfixFlagEnabled /* fadeWithThumbnail */, true /* isStagedTask */);
+                        true /* fadeWithThumbnail */, true /* isStagedTask */);
                 setFirstFloatingTaskView(floatingTaskView);
                 return floatingTaskView;
             }
 
             private @Nullable Bitmap getTaskThumbnail(ActivityManager.RunningTaskInfo taskInfo) {
                 if (taskInfo == null) return null;
-                if (!isBugfixFlagEnabled) return null;
                 if (mRecentsAnimationController == null) return null;
                 return mRecentsAnimationController.screenshotTask(taskInfo.taskId).getThumbnail();
             }

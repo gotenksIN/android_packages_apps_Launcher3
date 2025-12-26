@@ -107,13 +107,12 @@
     <string name="widget_settings" msgid="5280157748464495511">"ການຕັ້ງຄ່າ"</string>
     <string name="pin_to_taskbar" msgid="5914002252642242332">"ປັກໝຸດໄປໃສ່ແຖບໜ້າວຽກ"</string>
     <string name="unpin_from_taskbar" msgid="1025883383457627426">"ຖອດປັກໝຸດຈາກແຖບໜ້າວຽກ"</string>
-    <!-- no translation found for no_room_in_taskbar (6885243748717395469) -->
-    <skip />
+    <string name="no_room_in_taskbar" msgid="6885243748717395469">"ບໍ່ມີພື້ນທີ່ຫວ່າງໃນແຖບໜ້າວຽກ"</string>
     <string name="app_added_to_taskbar" msgid="6348755169793615171">"ເພີ່ມແອັບໃສ່ແຖບໜ້າວຽກແລ້ວ"</string>
     <string name="app_removed_from_taskbar" msgid="3471754847898675396">"ລຶບແອັບອອກຈາກແຖບໜ້າວຽກແລ້ວ"</string>
     <string name="remove_system_shortcut_label" msgid="3991201411148073972">"ລຶບອອກ"</string>
     <string name="home_screen_files_context_menu_open_in_app_label" msgid="7930552598671791537">"ເປີດ"</string>
-    <string name="home_screen_files_context_menu_move_to_trash_label" msgid="1145655050674479315">"ຍ້າຍໄປຖັງຂີ້ເຫຍື້ອ"</string>
+    <string name="home_screen_files_context_menu_delete_permanently_label" msgid="8660443461874174185">"ລຶບອອກຖາວອນ"</string>
     <string name="permlab_install_shortcut" msgid="5632423390354674437">"ຕິດຕັ້ງທາງລັດ"</string>
     <string name="permdesc_install_shortcut" msgid="923466509822011139">"ອະນຸຍາດໃຫ້ແອັບຯ ເພີ່ມທາງລັດໂດຍບໍ່ຕ້ອງຮັບການຢືນຢັນຈາກຜູ່ໃຊ້."</string>
     <string name="permlab_read_settings" msgid="5136500343007704955">"ອ່ານການຕັ້ງຄ່າໜ້າຫຼັກ ແລະ ທາງລັດ"</string>
@@ -203,6 +202,16 @@
     <string name="action_increase_height" msgid="459390020612501122">"ເພີ່ມ​ລວງ​ສູງ​ຂຶ້ນ"</string>
     <string name="action_decrease_width" msgid="1374549771083094654">"ຫຼຸດ​ລວງ​ກ້​ວາງ​ລົງ"</string>
     <string name="action_decrease_height" msgid="282377193880900022">"ຫຼຸດ​ລວງ​ສູງ​ລົງ"</string>
+    <!-- no translation found for resize_handle_start (431073846880883794) -->
+    <skip />
+    <!-- no translation found for resize_handle_top (280799523356834542) -->
+    <skip />
+    <!-- no translation found for resize_handle_end (8411240534474246075) -->
+    <skip />
+    <!-- no translation found for resize_handle_bottom (4217171801060928429) -->
+    <skip />
+    <!-- no translation found for tap_to_show_resize_buttons (964815552123289232) -->
+    <skip />
     <string name="widget_resized" msgid="9130327887929620">"ປ່ຽນ​ຂະ​ໜາດ​ວິດ​ເຈັດ​ເປັນ​ລວງ​ກ້​ວາງ <xliff:g id="NUMBER_0">%1$s</xliff:g> ລວງ​ສູງ <xliff:g id="NUMBER_1">%2$s</xliff:g> ແລ້ວ"</string>
     <string name="action_deep_shortcut" msgid="4766835855579976045">"ເມນູທາງລັດ"</string>
     <string name="widget_frame_name" msgid="8782828448471444270">"ປັບຂະໜາດກອບວິດເຈັດສຳລັບ <xliff:g id="STRING">%1$s</xliff:g>"</string>

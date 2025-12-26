@@ -130,7 +130,7 @@ class LauncherInteractor(private val launcher: QuickstepLauncher) : ActivityInte
     fun setHotseatIconsAlpha(alpha: Float, @Hotseat.HotseatQsbAlphaId channelId: Int) {
         executor.execute {
             if (channelId == ALPHA_CHANNEL_TASKBAR_ALIGNMENT) {
-                launcher.getLauncherUiState().setTaskbarAlignmentChannelAlpha(alpha)
+                launcher.launcherUiState.taskbarAlignmentChannelAlpha = alpha
             }
             launcher.hotseat.setIconsAlpha(alpha, channelId)
         }
@@ -201,6 +201,17 @@ class LauncherInteractor(private val launcher: QuickstepLauncher) : ActivityInte
     @AnyThread
     fun launchSplitTasks(splitTask: SplitTask, remoteTransition: RemoteTransition?) {
         executor.execute { launcher.launchSplitTasks(splitTask, remoteTransition) }
+    }
+
+
+    @AnyThread
+    fun onTaskbarAllAppsClosed() {
+        executor.execute {
+            if (launcher.isResumed && launcher.stateManager.state == LauncherState.ALL_APPS) {
+                // TODO(b/414847564) - Connect swipe-to-close to state transition.
+                launcher.stateManager.goToState(LauncherState.NORMAL, /* animate= */ true)
+            }
+        }
     }
 
     @AnyThread

@@ -16,6 +16,7 @@
 
 package com.android.launcher3.taskbar.handoff
 
+import android.companion.Flags
 import android.companion.datatransfer.continuity.RemoteTask
 import android.companion.datatransfer.continuity.TaskContinuityManager
 import android.platform.test.annotations.DisableFlags
@@ -42,35 +43,35 @@ class HandoffSuggestionLauncherTest {
         HandoffSuggestionLauncher(mockTaskContinuityManager, context.mainExecutor)
 
     @Test
-    @EnableFlags(android.companion.Flags.FLAG_ENABLE_TASK_CONTINUITY)
+    @EnableFlags(Flags.FLAG_TASK_CONTINUITY)
     fun launch_launchesSuggestion() {
         val suggestion = createSuggestion()
         launcher.launch(suggestion)
         verify(mockTaskContinuityManager)
             .requestHandoff(
-                suggestion.deviceId,
-                suggestion.remoteTask.id,
+                suggestion.associationId,
+                suggestion.remoteTask.taskId,
                 context.mainExecutor,
                 launcher,
             )
     }
 
     @Test
-    @DisableFlags(android.companion.Flags.FLAG_ENABLE_TASK_CONTINUITY)
+    @DisableFlags(Flags.FLAG_TASK_CONTINUITY)
     fun launch_flagDisabled_doesNotLaunchSuggestion() {
         val suggestion = createSuggestion()
         launcher.launch(suggestion)
         verify(mockTaskContinuityManager, never())
             .requestHandoff(
-                suggestion.deviceId,
-                suggestion.remoteTask.id,
+                suggestion.associationId,
+                suggestion.remoteTask.taskId,
                 context.mainExecutor,
                 launcher,
             )
     }
 
     private fun createSuggestion(): HandoffSuggestion {
-        val remoteTask = RemoteTask.Builder(1).setDeviceId(1).build()
+        val remoteTask = RemoteTask.Builder(1, 1).build()
         return HandoffSuggestion(remoteTask)
     }
 }

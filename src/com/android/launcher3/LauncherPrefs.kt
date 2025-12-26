@@ -30,7 +30,7 @@ import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.model.DeviceGridState
 import com.android.launcher3.pm.InstallSessionHelper
 import com.android.launcher3.provider.RestoreDbTask
-import com.android.launcher3.provider.RestoreDbTask.FIRST_LOAD_AFTER_RESTORE_KEY
+import com.android.launcher3.provider.RestoreDbTask.Companion.FIRST_LOAD_AFTER_RESTORE_KEY
 import com.android.launcher3.settings.SettingsActivity
 import com.android.launcher3.states.RotationHelper
 import com.android.launcher3.util.DaggerSingletonObject
@@ -313,6 +313,9 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
 
         @JvmField
         val FIXED_LANDSCAPE_MODE = backedUpItem(SettingsActivity.FIXED_LANDSCAPE_MODE, false)
+
+        @JvmField
+        val WORKSPACE_ITEMS_LABEL_HIDDEN = backedUpItem("pref_workspace_items_label_hidden", false)
 
         @JvmField
         val NON_FIXED_LANDSCAPE_GRID_NAME =

@@ -17,6 +17,8 @@
 package com.android.launcher3.widgetpicker.ui.components.bottomsheet
 
 import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
@@ -65,9 +67,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import com.android.launcher3.widgetpicker.R
 import com.android.launcher3.widgetpicker.shared.model.CloseBehavior
+import com.android.launcher3.widgetpicker.ui.components.LocalWidgetPickerHostStateProvider
 import com.android.launcher3.widgetpicker.ui.components.SheetDismissState
 import com.android.launcher3.widgetpicker.ui.components.SheetHeader
+import com.android.launcher3.widgetpicker.ui.components.WidgetPickerHostStateEffect
 import com.android.launcher3.widgetpicker.ui.components.accessibility.LocalAccessibilityState
+import com.android.launcher3.widgetpicker.ui.components.bottomsheet.TitledBottomSheetAnimations.OpenCloseAnimationSpec
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.TitledBottomSheetDimens.SHEET_HEIGHT_CAP_RATIO
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.TitledBottomSheetDimens.SheetHeightCapBreakpoint
 import com.android.launcher3.widgetpicker.ui.components.bottomsheet.TitledBottomSheetDimens.TALL_ASPECT_RATIO_THRESHOLD
@@ -108,6 +113,7 @@ fun TitledBottomSheet(
     sheetSize: SheetSize,
     closeBehavior: CloseBehavior = CloseBehavior.DRAG_HANDLE,
     enableSwipeUpToDismiss: Boolean = false,
+    onSheetProgress: (Float) -> Unit,
     onSheetOpen: () -> Unit,
     onDismissSheet: () -> Unit,
     content: @Composable () -> Unit,
@@ -132,8 +138,16 @@ fun TitledBottomSheet(
                     .maxSheetWidth(sheetSize)
                     .windowInsetsPadding(sheetWindowInsets)
         ) {
-            val animSpec: AnimationSpec<Float> = MaterialTheme.motionScheme.slowSpatialSpec()
-            val sheetState = remember { SheetDismissState(expandCollapseAnimationSpec = animSpec) }
+            val sheetState = remember { SheetDismissState(OpenCloseAnimationSpec) }
+
+            val scope = rememberCoroutineScope()
+
+            WidgetPickerHostStateEffect(LocalWidgetPickerHostStateProvider.current) { isTopResumed
+                ->
+                if (!isTopResumed) {
+                    scope.launch { sheetState.collapse() }
+                }
+            }
 
             Surface(
                 modifier =
@@ -150,6 +164,7 @@ fun TitledBottomSheet(
                         .fillMaxSize()
                         .dismissibleSheet(
                             sheetState = sheetState,
+                            onSheetProgress = onSheetProgress,
                             onSheetOpen = onSheetOpen,
                             onDismissSheet = onDismissSheet,
                             maxHeight = with(density) { maxHeight.toPx() },
@@ -195,8 +210,6 @@ fun TitledBottomSheet(
             )
 
             if (enableSwipeUpToDismiss) {
-                val scope = rememberCoroutineScope()
-
                 SwipeUpToDismissHandler(
                     modifier = Modifier.align(Alignment.BottomCenter),
                     contentHeight = maxHeight,
@@ -277,6 +290,9 @@ private fun Modifier.maxSheetHeight(
             sheetSize == SheetSize.WINDOW ->
                 Modifier.heightIn(max = dimensionResource(R.dimen.window_bottom_sheet_max_height))
 
+            sheetSize == SheetSize.X_SMALL ->
+                Modifier.heightIn(max = dimensionResource(R.dimen.x_small_bottom_sheet_max_height))
+
             // Cap height to 5/6th if in an elongated (i.e. tall) orientation on larger devices.
             availableHeight > SheetHeightCapBreakpoint &&
                 availableHeight.value / availableWidth.value >= TALL_ASPECT_RATIO_THRESHOLD ->
@@ -293,6 +309,7 @@ private fun Modifier.maxSheetWidth(sheetSize: SheetSize): Modifier =
             SheetSize.WINDOW ->
                 Modifier.widthIn(max = dimensionResource(R.dimen.window_bottom_sheet_max_width))
 
+            SheetSize.X_SMALL,
             SheetSize.COMPACT ->
                 Modifier.widthIn(max = dimensionResource(R.dimen.compact_bottom_sheet_max_width))
 
@@ -348,12 +365,19 @@ private object TitledBottomSheetDimens {
             WindowInsets.safeDrawing.only(sides = WindowInsetsSides.Bottom + WindowInsetsSides.Top)
 }
 
+private object TitledBottomSheetAnimations {
+    val OpenCloseAnimationSpec: AnimationSpec<Float> =
+        tween(durationMillis = 500, easing = FastOutSlowInEasing)
+}
+
 /** Different size variations supported for a [TitledBottomSheet] component. */
 enum class SheetSize {
     /** Full size sheet for content heavy use cases. Height is capped in certain taller layouts. */
     FULL,
-    /** Small sheet for single content use cases; values can overridden with resource xml. */
+    /** Small sheet for single app content use cases; values can overridden with resource xml. */
     COMPACT,
+    /** An extra small sheet for single widget use cases. */
+    X_SMALL,
     /** A window like sheet for desktop like uses cases; values can overridden with resource xml. */
     WINDOW,
 }

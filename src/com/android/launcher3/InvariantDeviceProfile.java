@@ -27,6 +27,7 @@ import static com.android.launcher3.LauncherPrefs.ENABLE_TWOLINE_ALLAPPS_TOGGLE;
 import static com.android.launcher3.LauncherPrefs.FIXED_LANDSCAPE_MODE;
 import static com.android.launcher3.LauncherPrefs.GRID_NAME;
 import static com.android.launcher3.LauncherPrefs.NON_FIXED_LANDSCAPE_GRID_NAME;
+import static com.android.launcher3.LauncherPrefs.WORKSPACE_ITEMS_LABEL_HIDDEN;
 import static com.android.launcher3.Utilities.dpiFromPx;
 import static com.android.launcher3.testing.shared.ResourceUtils.INVALID_RESOURCE_HANDLE;
 import static com.android.launcher3.util.DisplayController.CHANGE_DENSITY;
@@ -34,11 +35,11 @@ import static com.android.launcher3.util.DisplayController.CHANGE_DESKTOP_MODE;
 import static com.android.launcher3.util.DisplayController.CHANGE_NAVIGATION_MODE;
 import static com.android.launcher3.util.DisplayController.CHANGE_SUPPORTED_BOUNDS;
 import static com.android.launcher3.util.DisplayController.CHANGE_TASKBAR_PINNING;
+import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.SimpleBroadcastReceiver.actionsFilter;
 
 import android.content.Context;
 import android.content.Intent;
-import com.android.launcher3.concurrent.annotations.Ui;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.content.res.XmlResourceParser;
@@ -61,6 +62,7 @@ import androidx.annotation.StyleRes;
 import androidx.annotation.VisibleForTesting;
 import androidx.annotation.XmlRes;
 
+import com.android.launcher3.concurrent.annotations.Ui;
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.dagger.LauncherAppComponent;
@@ -75,6 +77,7 @@ import com.android.launcher3.util.DaggerSingletonObject;
 import com.android.launcher3.util.DaggerSingletonTracker;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.DisplayController.Info;
+import com.android.launcher3.util.ListenableDiffAwareRef;
 import com.android.launcher3.util.LooperExecutor;
 import com.android.launcher3.util.Partner;
 import com.android.launcher3.util.ResourceHelper;
@@ -96,7 +99,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -297,15 +299,17 @@ public class InvariantDeviceProfile {
         initGrid(gridName);
         mThemeManager.generateIconShape(iconBitmapSize);
 
-        dc.setPriorityListener(
-                (displayContext, info, flags) -> {
-                    if ((flags & (CHANGE_DENSITY | CHANGE_SUPPORTED_BOUNDS
-                            | CHANGE_NAVIGATION_MODE | CHANGE_TASKBAR_PINNING
-                            | CHANGE_DESKTOP_MODE)) != 0) {
-                        onConfigChanged();
-                    }
-                });
-        lifeCycle.addCloseable(() -> dc.setPriorityListener(null));
+        ListenableDiffAwareRef<Info, Integer> listenable = dc.getListenable();
+        if (listenable != null) {
+            lifeCycle.addCloseable(listenable.getChanges().forEach(MAIN_EXECUTOR, (flags) -> {
+                if ((flags & (CHANGE_DENSITY | CHANGE_SUPPORTED_BOUNDS
+                        | CHANGE_NAVIGATION_MODE | CHANGE_TASKBAR_PINNING
+                        | CHANGE_DESKTOP_MODE)) != 0) {
+                    onConfigChanged();
+                }
+                return null;
+            }));
+        }
 
         LauncherPrefChangeListener prefListener = key -> {
             if (FIXED_LANDSCAPE_MODE.getSharedPrefKey().equals(key)
@@ -320,6 +324,9 @@ public class InvariantDeviceProfile {
                 Trace.endSection();
             } else if (ENABLE_TWOLINE_ALLAPPS_TOGGLE.getSharedPrefKey().equals(key)
                     && enableTwoLinesInAllApps != prefs.get(ENABLE_TWOLINE_ALLAPPS_TOGGLE)) {
+                onConfigChanged();
+            } else if (WORKSPACE_ITEMS_LABEL_HIDDEN.getSharedPrefKey().equals(key)
+                    && Flags.workspaceHiddenLabels()) {
                 onConfigChanged();
             }
         };
@@ -479,11 +486,16 @@ public class InvariantDeviceProfile {
         defaultWallpaperSize = new Point(displayInfo.currentSize);
         SparseArray<DotRenderer> dotRendererCache = new SparseArray<>();
         for (WindowBounds bounds : displayInfo.supportedBounds) {
-            localSupportedProfiles.add(newDPBuilder(displayInfo)
+            DeviceProfile.Builder builder = newDPBuilder(displayInfo)
                     .setIsMultiDisplay(deviceType == TYPE_MULTI_DISPLAY)
                     .setWindowBounds(bounds)
-                    .setDotRendererCache(dotRendererCache)
-                    .build());
+                    .setDotRendererCache(dotRendererCache);
+            if (Flags.workspaceHiddenLabels()) {
+                builder.setIsWorkspaceItemsLabelHidden(
+                        LauncherPrefs.get(context).get(WORKSPACE_ITEMS_LABEL_HIDDEN)
+                );
+            }
+            localSupportedProfiles.add(builder.build());
 
             // Wallpaper size should be the maximum of the all possible sizes Launcher expects
             int displayWidth = bounds.bounds.width();

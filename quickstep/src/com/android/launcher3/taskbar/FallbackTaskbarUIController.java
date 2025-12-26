@@ -37,7 +37,6 @@ import com.android.quickstep.GestureState;
 import com.android.quickstep.RecentsAnimationCallbacks;
 import com.android.quickstep.TopTaskTracker;
 import com.android.quickstep.fallback.RecentsState;
-import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.RecentsViewContainer;
 
 import java.io.PrintWriter;
@@ -109,14 +108,16 @@ public class FallbackTaskbarUIController
         if (mControllers.taskbarActivityContext.isPhoneMode()) {
             return null;
         }
+        FallbackActivityInterface activityInterface =
+                FallbackActivityInterface.INSTANCE.get(mControllers.taskbarActivityContext);
         if (enableTaskbarUiThread()) {
             return new TaskbarAsyncAnimator(TASKBAR_UI_THREAD, MAIN_EXECUTOR,
                     () -> createAnimToRecentsState(
-                            FallbackActivityInterface.INSTANCE.stateFromGestureEndTarget(endTarget),
+                            activityInterface.stateFromGestureEndTarget(endTarget),
                             duration));
         } else {
             Animator animator = createAnimToRecentsState(
-                    FallbackActivityInterface.INSTANCE.stateFromGestureEndTarget(endTarget),
+                    activityInterface.stateFromGestureEndTarget(endTarget),
                     duration);
             return animator != null ? new ImmediateAnimator(animator) : null;
         }
@@ -152,17 +153,7 @@ public class FallbackTaskbarUIController
 
     @Override
     public @Nullable RecentsViewInteractor getRecentsViewInteractor() {
-        RecentsView recentsView = mRecentsContainer.getOverviewPanel();
-        if (recentsView == null) {
-            mRecentsViewInteractor = null;
-            return null;
-        }
-
-        if (mRecentsViewInteractor == null
-                || !mRecentsViewInteractor.hasSameRecentsView(recentsView)) {
-            mRecentsViewInteractor = new RecentsViewInteractor(recentsView);
-        }
-
+        mRecentsViewInteractor = mRecentsContainer.getRecentsViewInteractor(mRecentsViewInteractor);
         return mRecentsViewInteractor;
     }
 

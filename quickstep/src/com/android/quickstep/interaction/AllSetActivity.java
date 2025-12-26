@@ -28,6 +28,7 @@ import static com.android.launcher3.Utilities.mapBoundToRange;
 import static com.android.launcher3.Utilities.mapRange;
 import static com.android.launcher3.Utilities.mapToRange;
 import static com.android.launcher3.taskbar.StashedHandleViewController.ALPHA_INDEX_ALL_SET_TRANSITION;
+import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.quickstep.OverviewComponentObserver.startHomeIntentSafely;
 import static com.android.quickstep.RecentsAnimationDeviceState.RESET_TO_DEFAULT_GESTURAL_HEIGHT;
 import static com.android.quickstep.views.WallpaperScreenshotClipView.CLIP_ANIM_DURATION;
@@ -74,25 +75,22 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 import androidx.core.graphics.ColorUtils;
 
+import com.android.launcher3.AsyncAnimatorPlaybackController;
 import com.android.launcher3.DeviceProfile;
-import com.android.launcher3.Flags;
 import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.R;
 import com.android.launcher3.RemoveAnimationSettingsTracker;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimatedFloat;
-import com.android.launcher3.anim.AnimatorPlaybackController;
-import com.android.launcher3.taskbar.StashedHandleViewController;
-import com.android.launcher3.taskbar.TaskbarActivityContext;
-import com.android.launcher3.taskbar.TaskbarActivityContext.UIControllerChangeListener;
+import com.android.launcher3.taskbar.StashedHandleViewControllerProxy;
 import com.android.launcher3.taskbar.TaskbarManager;
-import com.android.launcher3.taskbar.TaskbarUIController;
 import com.android.launcher3.util.Executors;
+import com.android.launcher3.util.SafeCloseable;
 import com.android.quickstep.GestureState;
 import com.android.quickstep.OverviewComponentObserver;
 import com.android.quickstep.OverviewComponentObserver.OverviewChangeListener;
-import com.android.quickstep.TouchInteractionService.TISBinder;
+import com.android.quickstep.TouchInteractionHandler.TISBinder;
 import com.android.quickstep.util.ActivityPreloadUtil;
 import com.android.quickstep.util.LottieAnimationColorUtils;
 import com.android.quickstep.util.TISBindHelper;
@@ -108,7 +106,7 @@ import java.util.Map;
  * A page shows after SUW flow to hint users to swipe up from the bottom of the screen to go home
  * for the gestural system navigation.
  */
-public class AllSetActivity extends Activity implements UIControllerChangeListener {
+public class AllSetActivity extends Activity {
 
     public static final float ALL_SET_SWIPE_THRESHOLD_FOR_WORKSPACE_ANIM = 0.95f;
     // The fade-out happens in the last 65% of the animation.
@@ -164,7 +162,7 @@ public class AllSetActivity extends Activity implements UIControllerChangeListen
     private LottieAnimationView mAnimatedBackground;
     private Animator.AnimatorListener mBackgroundAnimatorListener;
 
-    private AnimatorPlaybackController mLauncherStartAnim = null;
+    @Nullable private AsyncAnimatorPlaybackController mLauncherStartAnim = null;
 
     // Auto play background animation by default
     private boolean mBackgroundAnimationToggledOn = true;
@@ -174,6 +172,10 @@ public class AllSetActivity extends Activity implements UIControllerChangeListen
 
     @Nullable private AnimatorSet mExpressiveAnimSet;
     @Nullable private WallpaperScreenshotClipView mWallpaperClipPath;
+
+    @Nullable private SafeCloseable mUiControllerChangeSafeCloseable;
+
+    @Nullable private StashedHandleViewControllerProxy mStashedHandleViewControllerProxy;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -370,9 +372,9 @@ public class AllSetActivity extends Activity implements UIControllerChangeListen
             public void onAnimationUpdate(ValueAnimator animation) {
                 float transY = (float) animation.getAnimatedValue();
                 mWallpaperClipPath.setClipTranslationY(transY, animation.getAnimatedFraction());
-                StashedHandleViewController controller = getStashedHandleViewController();
-                if (controller != null) {
-                    controller.setTranslationYForSwipe(transY);
+                StashedHandleViewControllerProxy proxy = getStashedHandleViewController();
+                if (proxy != null) {
+                    proxy.setTranslationYForSwipe(transY);
                 }
             }
         });
@@ -397,11 +399,9 @@ public class AllSetActivity extends Activity implements UIControllerChangeListen
             public void onAnimationUpdate(ValueAnimator valueAnimator) {
                 float alpha = (float) valueAnimator.getAnimatedValue();
                 mHintView.setAlpha(alpha);
-                StashedHandleViewController controller = getStashedHandleViewController();
-                if (controller != null) {
-                    controller.getStashedHandleAlpha()
-                            .get(ALPHA_INDEX_ALL_SET_TRANSITION)
-                            .setValue(alpha);
+                StashedHandleViewControllerProxy proxy = getStashedHandleViewController();
+                if (proxy != null) {
+                    proxy.setStashedHandleAlpha(ALPHA_INDEX_ALL_SET_TRANSITION, alpha);
                 }
             }
         });
@@ -414,27 +414,28 @@ public class AllSetActivity extends Activity implements UIControllerChangeListen
         as.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
-                StashedHandleViewController controller = getStashedHandleViewController();
-                if (controller != null) {
-                    controller.setTranslationYForSwipe(0);
-                    controller.getStashedHandleAlpha()
-                            .get(ALPHA_INDEX_ALL_SET_TRANSITION)
-                            .setValue(1f);
+                StashedHandleViewControllerProxy proxy = getStashedHandleViewController();
+                if (proxy != null) {
+                    proxy.setTranslationYForSwipe(0);
+                    proxy.setStashedHandleAlpha(ALPHA_INDEX_ALL_SET_TRANSITION, 1f);
                 }
             }
         });
         return as;
     }
 
-    private @Nullable StashedHandleViewController getStashedHandleViewController() {
-        if (mTISBindHelper != null) {
-            TaskbarManager taskbarManager = mTISBindHelper.getTaskbarManager();
-            if (taskbarManager != null) {
-                return taskbarManager.getCurrentActivityContext()
-                        .getControllers().stashedHandleViewController;
-            }
+    private @Nullable StashedHandleViewControllerProxy getStashedHandleViewController() {
+        if (mStashedHandleViewControllerProxy != null) {
+            return mStashedHandleViewControllerProxy;
         }
-        return null;
+        if (mTISBindHelper == null) {
+            return null;
+        }
+        TaskbarManager taskbarManager = mTISBindHelper.getTaskbarManager();
+        if (taskbarManager != null) {
+            mStashedHandleViewControllerProxy = taskbarManager.getStashedHandleViewController();
+        }
+        return mStashedHandleViewControllerProxy;
     }
 
     @Override
@@ -560,7 +561,7 @@ public class AllSetActivity extends Activity implements UIControllerChangeListen
                 binder.setGesturalHeight((int) (height * GESTURE_HEIGHT_RATIO_OF_WINDOW_HEIGHT));
             }
         }
-        setUIControllerChangeListener(this);
+        listenForUiControllerChange();
     }
 
     private void onTISConnected(TISBinder binder) {
@@ -571,27 +572,26 @@ public class AllSetActivity extends Activity implements UIControllerChangeListen
             binder.setGesturalHeight((int) (height * GESTURE_HEIGHT_RATIO_OF_WINDOW_HEIGHT));
         }
 
-        setUIControllerChangeListener(this);
-        TaskbarManager taskbarManager = mTISBindHelper.getTaskbarManager();
-        if (taskbarManager != null) {
-            // Initial call
-            onUIControllerChanged(
-                    taskbarManager.getUIControllerForDisplay(taskbarManager.getPrimaryDisplayId()));
-        }
+        listenForUiControllerChange();
+        onUiControllerChanged();
     }
 
-    private void setUIControllerChangeListener(UIControllerChangeListener listener) {
-        TaskbarManager taskbarManager = mTISBindHelper.getTaskbarManager();
-        if (taskbarManager != null) {
-            TaskbarActivityContext context = taskbarManager.getCurrentActivityContext();
-            if (context != null) {
-                context.setUIControllerChangeListener(listener);
-            }
+    private void listenForUiControllerChange() {
+        if (mUiControllerChangeSafeCloseable != null) {
+            return;
         }
+        TaskbarManager taskbarManager = mTISBindHelper.getTaskbarManager();
+        if (taskbarManager == null) {
+            return;
+        }
+        mUiControllerChangeSafeCloseable = taskbarManager.getPrimaryDisplayUiControllerStream()
+                .forEach(MAIN_EXECUTOR, (c) -> {
+                    onUiControllerChanged();
+                    return null;
+                });
     }
 
-    @Override
-    public void onUIControllerChanged(TaskbarUIController uiController) {
+    private void onUiControllerChanged() {
         TaskbarManager taskbarManager = mTISBindHelper.getTaskbarManager();
         if (taskbarManager != null) {
             mLauncherStartAnim = taskbarManager.createLauncherStartFromSuwAnim(MAX_SWIPE_DURATION);
@@ -615,7 +615,14 @@ public class AllSetActivity extends Activity implements UIControllerChangeListen
             finishAndRemoveTask();
             dispatchLauncherAnimStartEnd();
         }
-        setUIControllerChangeListener(null);
+        closeUiControllerChangeSafeCloseable();
+    }
+
+    private void closeUiControllerChangeSafeCloseable() {
+        if (mUiControllerChangeSafeCloseable != null) {
+            mUiControllerChangeSafeCloseable.close();
+            mUiControllerChangeSafeCloseable = null;
+        }
     }
 
     private void clearBinderOverride() {
@@ -646,7 +653,7 @@ public class AllSetActivity extends Activity implements UIControllerChangeListen
     protected void onDestroy() {
         super.onDestroy();
         getIDP().removeOnChangeListener(mOnIDPChangeListener);
-        setUIControllerChangeListener(null);
+        closeUiControllerChangeSafeCloseable();
         mTISBindHelper.onDestroy();
         clearBinderOverride();
         if (mBackgroundAnimatorListener != null) {

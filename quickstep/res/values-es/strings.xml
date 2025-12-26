@@ -126,7 +126,7 @@
     <string name="taskbar_edu_a11y_title" msgid="5417986057866415355">"Información sobre la barra de tareas"</string>
     <string name="taskbar_edu_splitscreen" msgid="5605512479258053350">"Arrastra una aplicación hacia un lado para usar 2 a la vez"</string>
     <string name="taskbar_edu_bubbles" msgid="5179266214319135127">"Arrastra hasta las esquinas inferiores para que flote"</string>
-    <string name="taskbar_edu_stashing" msgid="5645461372669217294">"Desliza hacia arriba lentamente para ver la barra de tareas"</string>
+    <string name="taskbar_edu_stashing" msgid="911857479758694381">"Desliza hacia arriba lentamente para ver la barra de tareas"</string>
     <string name="taskbar_edu_suggestions" msgid="8215044496435527982">"Obtén sugerencias de apps basadas en tu rutina"</string>
     <string name="taskbar_edu_pinning" msgid="6708550858580071558">"Mantén pulsado el divisor para fijar la barra de tareas"</string>
     <string name="taskbar_edu_features" msgid="3320337287472848162">"Sácale más partido a la barra de tareas"</string>
@@ -155,7 +155,7 @@
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Mover arriba/a la izquierda"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Mover abajo/a la derecha"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"Abrir aplicación como burbuja"</string>
-    <string name="quick_switch_pane_title" msgid="4677158207760585812">"Apps recientes"</string>
+    <string name="quick_switch_pane_title" msgid="4677158207760585812">"Aplicaciones recientes"</string>
     <string name="quick_switch_content_description" msgid="2851244536728720005">"Lista de apps recientes"</string>
     <string name="quick_switch_overflow" msgid="3679780650881041632">"{count,plural, =1{app más}other{apps más}}"</string>
     <string name="quick_switch_desktop" msgid="8393802056024499749">"Ordenador"</string>
@@ -179,4 +179,5 @@
     <string name="nudge_a11y_title" msgid="2126529303123687912">"Aviso"</string>
     <string name="nudge_a11y_close" msgid="4513937143817625570">"Cerrar"</string>
     <string name="nudge_a11y_image" msgid="117910310515857252">"Imagen de aviso"</string>
+    <string name="running_app_description" msgid="1309281047289078871">"<xliff:g id="APP_TITLE">%1$s</xliff:g> <xliff:g id="RUNNING_STATE">%2$s</xliff:g>"</string>
 </resources>

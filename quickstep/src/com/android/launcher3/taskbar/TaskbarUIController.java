@@ -90,6 +90,7 @@ public class TaskbarUIController implements BubbleBarController.BubbleBarLocatio
         return mControllers.taskbarActivityContext.getTaskbarSpecsEvaluator();
     }
 
+    @AnyThread
     protected SparseArray<ItemInfo> getAllPinnedApps() {
         return mControllers.taskbarPopupController.getTaskbarInfoList();
     }
@@ -442,6 +443,13 @@ public class TaskbarUIController implements BubbleBarController.BubbleBarLocatio
      */
     public void onStateTransitionCompletedAfterSwipeToHome(LauncherState finalState) {
         // Overridden
+    }
+
+    /** Called when Taskbar's All Apps is closed. */
+    public void onTaskbarAllAppsClosed() { }
+
+    public boolean isStateTransitionToAllAppsInProgress() {
+        return false;
     }
 
     /**

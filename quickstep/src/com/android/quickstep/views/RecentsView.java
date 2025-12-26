@@ -32,7 +32,6 @@ import static com.android.app.animation.Interpolators.clampToProgress;
 import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
 import static com.android.launcher3.BaseActivity.STATE_HANDLER_INVISIBILITY_FLAGS;
 import static com.android.launcher3.Flags.enableDesktopExplodedView;
-import static com.android.launcher3.Flags.enableOverviewDesktopTileWallpaperBackground;
 import static com.android.launcher3.Flags.enableOverviewPagination;
 import static com.android.launcher3.LauncherAnimUtils.SUCCESS_TRANSITION_PROGRESS;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_BACKGROUND_COLOR;
@@ -84,7 +83,6 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.LocusId;
-import android.content.pm.LauncherApps;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BlendMode;
@@ -96,7 +94,6 @@ import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
-import android.hardware.input.InputManager;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.os.Trace;
@@ -178,8 +175,6 @@ import com.android.launcher3.util.TraceHelper;
 import com.android.launcher3.util.TranslateEdgeEffect;
 import com.android.launcher3.util.VibratorWrapper;
 import com.android.launcher3.util.ViewPool;
-import com.android.launcher3.util.coroutines.DispatcherProvider;
-import com.android.launcher3.util.coroutines.ProductionDispatchers;
 import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.GestureState;
 import com.android.quickstep.HighResLoadingState;
@@ -192,25 +187,13 @@ import com.android.quickstep.RecentsModel;
 import com.android.quickstep.RemoteAnimationTargets;
 import com.android.quickstep.RemoteTargetGluer;
 import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle;
-import com.android.quickstep.RotationTouchHelper;
 import com.android.quickstep.SplitSelectionListener;
 import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.TaskOverlayFactory;
 import com.android.quickstep.TaskViewUtils;
 import com.android.quickstep.TopTaskTracker;
 import com.android.quickstep.orientation.RecentsPagedOrientationHandler;
-import com.android.quickstep.recents.data.AppTimersRepository;
-import com.android.quickstep.recents.data.AppTimersRepositoryImpl;
-import com.android.quickstep.recents.data.InputManagerWrapper;
-import com.android.quickstep.recents.data.PointerRepository;
-import com.android.quickstep.recents.data.PointerRepositoryImpl;
-import com.android.quickstep.recents.data.RecentTasksRepository;
-import com.android.quickstep.recents.data.RecentsDeviceProfileRepository;
-import com.android.quickstep.recents.data.RecentsDeviceProfileRepositoryImpl;
-import com.android.quickstep.recents.data.RecentsRotationStateRepository;
-import com.android.quickstep.recents.data.RecentsRotationStateRepositoryImpl;
-import com.android.quickstep.recents.di.RecentsDependencies;
-import com.android.quickstep.recents.viewmodel.RecentsViewData;
+import com.android.quickstep.recents.di.RecentsComponent;
 import com.android.quickstep.recents.viewmodel.RecentsViewModel;
 import com.android.quickstep.split.SplitAnimationController.Companion.SplitAnimInitProps;
 import com.android.quickstep.split.SplitAnimationTimings;
@@ -246,14 +229,11 @@ import com.android.wm.shell.common.pip.IPipAnimationListener.PipResources;
 import com.android.wm.shell.shared.GroupedTaskInfo;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource;
-import com.android.wm.shell.shared.desktopmode.DesktopState;
 import com.android.wm.shell.shared.pip.PipFlags;
 import com.android.wm.shell.shared.split.SplitBounds;
 
 import kotlin.Unit;
 import kotlin.collections.CollectionsKt;
-
-import kotlinx.coroutines.CoroutineScope;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -547,6 +527,7 @@ public abstract class RecentsView<
     public static final float UPDATE_SYSUI_FLAGS_THRESHOLD = 0.85f;
 
     protected final CONTAINER_TYPE mContainer;
+    private final RecentsComponent mRecentsComponent;
     private final float mFastFlingVelocity;
     private final int mScrollHapticMinGapMillis;
     private final RecentsModel mModel;
@@ -841,12 +822,10 @@ public abstract class RecentsView<
      */
     protected boolean mAnyTaskHasBeenDismissed;
 
-    protected final RecentsViewModel mRecentsViewModel;
+    RecentsViewModel mRecentsViewModel;
     private final RecentsViewModelHelper mHelper;
-    protected final RecentsViewUtils mUtils = LauncherComponentProvider.get(
-            getContext()).getRecentsViewUtilsFactory().create(this);
-    protected final RecentsDismissUtils mDismissUtils = LauncherComponentProvider.get(
-            getContext()).getRecentsDismissUtilsFactory().create(this);
+    protected final RecentsViewUtils mUtils;
+    protected final RecentsDismissUtils mDismissUtils;
 
     private final Matrix mTmpMatrix = new Matrix();
 
@@ -860,45 +839,16 @@ public abstract class RecentsView<
 
         mContainer = RecentsViewContainer.containerFromContext(context);
         mContainerInterface = mContainer.getContainerInterface();
-        mOrientationState = new RecentsOrientedState(
-                context, mContainerInterface, this::animateRecentsRotationInPlace);
+        mOrientationState = new RecentsOrientedState(context, mContainerInterface);
+        mOrientationState.setRotationChangeListener(this::animateRecentsRotationInPlace);
         final int rotation = mContainer.getDisplay().getRotation();
         mOrientationState.setRecentsRotation(rotation);
 
-        // Start Recents Dependency graph
-        RecentsDependencies recentsDependencies =
-                RecentsDependencies.maybeInitialize(context,
-                        ProductionDispatchers.INSTANCE.get(context));
-        String scopeId = recentsDependencies.createRecentsViewScope(context);
-        mRecentsViewModel = new RecentsViewModel(
-                recentsDependencies.inject(RecentTasksRepository.class, scopeId),
-                recentsDependencies.inject(RecentsViewData.class, scopeId),
-                mContainer.getDisplayId()
-        );
-        mHelper = new RecentsViewModelHelper(
-                mRecentsViewModel,
-                recentsDependencies.inject(CoroutineScope.class, scopeId),
-                recentsDependencies.inject(DispatcherProvider.class, scopeId)
-        );
-
-        recentsDependencies.provide(RecentsRotationStateRepository.class, scopeId,
-                () -> new RecentsRotationStateRepositoryImpl(mOrientationState));
-
-        recentsDependencies.provide(RecentsDeviceProfileRepository.class, scopeId,
-                () -> new RecentsDeviceProfileRepositoryImpl(
-                        mContainer.getDeviceProfile().getDeviceProperties(),
-                        DesktopState.getInstance(context)
-                ));
-
-        recentsDependencies.provide(AppTimersRepository.class, scopeId,
-                () -> new AppTimersRepositoryImpl(
-                        context.getApplicationContext().getSystemService(LauncherApps.class),
-                        recentsDependencies.inject(DispatcherProvider.class, scopeId)
-                ));
-
-            recentsDependencies.provide(PointerRepository.class, scopeId,
-                    () -> new PointerRepositoryImpl(new InputManagerWrapper(
-                            context.getApplicationContext().getSystemService(InputManager.class))));
+        mRecentsComponent = mContainer.getRecentsComponent();
+        mRecentsViewModel = mRecentsComponent.getRecentsViewModel();
+        mHelper = mRecentsComponent.getRecentsViewModelHelper();
+        mUtils = mRecentsComponent.getRecentsViewUtilsFactory().create(this);
+        mDismissUtils = mRecentsComponent.getRecentsDismissUtilsFactory().create(this);
 
         mScrollHapticMinGapMillis = getResources()
                 .getInteger(R.integer.recentsScrollHapticMinGapMillis);
@@ -1151,14 +1101,11 @@ public abstract class RecentsView<
      */
     public void destroy() {
         Log.d(TAG, "destroy");
-        if (enableOverviewDesktopTileWallpaperBackground()) {
-            reset();
-        }
         mTaskViewPool.cancelOngoingInitializations();
         mGroupedTaskViewPool.cancelOngoingInitializations();
         mDesktopTaskViewPool.cancelOngoingInitializations();
+        mOrientationState.setRotationChangeListener(null);
         mHelper.onDestroy();
-        RecentsDependencies.destroy(getContext());
     }
 
     @Override
@@ -1354,6 +1301,12 @@ public abstract class RecentsView<
                     });
                 }
             });
+            if (mUtils.isTaskLaunchingInFreeFromWindow(taskId, apps)) {
+                Log.d(TAG,
+                        "launchSideTaskInLiveTileMode - return to desktop due to freeform task "
+                                + "launching");
+                returnToDesktop();
+            }
         } else {
             TaskViewUtils.composeRecentsLaunchAnimator(anim, taskView, apps, wallpaper, nonApps,
                     true /* launcherClosing */, getStateManager(), this,
@@ -1795,13 +1748,6 @@ public abstract class RecentsView<
     }
 
     protected void applyLoadPlan(List<GroupTask> taskGroups, int taskListChangeId) {
-        if (!(isAttachedToWindow() && RecentsDependencies.Companion.hasScope(mContext))) {
-            // This can happen if a TaskView callback is triggered after the view is destroyed
-            // (b/404920951). Prevent crashes by returning immediately.
-            Log.d(TAG, "applyLoadPlan - view invalid, isAttachedToWindow: " + isAttachedToWindow()
-                    + ", hasScope: " + RecentsDependencies.Companion.hasScope(mContext));
-            return;
-        }
         if (mPendingAnimation != null) {
             final List<GroupTask> finalTaskGroups = taskGroups;
             mPendingAnimation.addEndListener(
@@ -2042,6 +1988,11 @@ public abstract class RecentsView<
     /** Counts {@link TaskView}s that are not {@link DesktopTaskView} instances. */
     public int getNonDesktopTaskViewCount() {
         return mUtils.getNonDesktopTaskViewCount();
+    }
+
+    /** Counts {@link TaskView}s that are {@link DesktopTaskView} instances. */
+    public int getDesktopTaskViewCount() {
+        return mUtils.getDesktopTaskViewCount();
     }
 
     /**
@@ -2565,6 +2516,7 @@ public abstract class RecentsView<
             case DESKTOP -> mDesktopTaskViewPool.getView();
             default -> mTaskViewPool.getView();
         };
+        taskView.initialiseInjectables(mRecentsComponent);
         taskView.setTaskViewId(mTaskViewIdCount);
         if (mTaskViewIdCount == Integer.MAX_VALUE) {
             mTaskViewIdCount = 0;
@@ -3681,12 +3633,7 @@ public abstract class RecentsView<
     }
 
     public void reapplyActiveRotation() {
-        RotationTouchHelper rotationTouchHelper = RotationTouchHelper.REPOSITORY_INSTANCE.get(
-                getContext()).get(mContainer.getDisplayId());
-        if (rotationTouchHelper != null) {
-            setLayoutRotation(rotationTouchHelper.getCurrentActiveRotation(),
-                    rotationTouchHelper.getDisplayRotation());
-        }
+        mUtils.reapplyActiveRotation();
     }
 
     public void setLayoutRotation(int touchRotation, int displayRotation) {
@@ -4724,7 +4671,7 @@ public abstract class RecentsView<
                 anim.play(ObjectAnimator.ofFloat(this, DESK_EXPLODE_PROGRESS, 1f, 0f));
             }
         }
-        DepthController depthController = getDepthController();
+        DepthController<?, ?> depthController = getDepthController();
         if (depthController != null) {
             float targetDepth = taskView instanceof DesktopTaskView ? 0 : BACKGROUND_APP.getDepth(
                     mContainer);
@@ -5550,7 +5497,7 @@ public abstract class RecentsView<
     }
 
     @Nullable
-    protected DepthController getDepthController() {
+    protected DepthController<?, ?> getDepthController() {
         return null;
     }
 

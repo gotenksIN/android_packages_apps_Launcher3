@@ -15,14 +15,12 @@
  */
 package com.android.launcher3.taskbar;
 
-import static com.android.launcher3.Flags.enableTaskbarDragAndDrop;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS_PREDICTION;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION;
 import static com.android.launcher3.util.Executors.TASKBAR_UI_THREAD;
 import static com.android.launcher3.taskbar.customization.TaskbarIconsContainer.TaskbarIconContainerLayoutParams;
 
-import android.util.SparseArray;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -40,6 +38,7 @@ import com.android.launcher3.model.data.PredictedContainerInfo;
 import com.android.launcher3.model.data.WorkspaceData;
 import com.android.launcher3.taskbar.TaskbarView.TaskbarLayoutParams;
 import com.android.launcher3.taskbar.handoff.HandoffSuggestion;
+import com.android.launcher3.util.IntSparseArrayMap;
 import com.android.launcher3.util.ItemInfoMatcher;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.PackageUserKey;
@@ -59,7 +58,7 @@ import java.util.function.Predicate;
 public class TaskbarModelCallbacks implements
         BgDataModel.Callbacks, LauncherBindableItemsContainer {
 
-    private final SparseArray<ItemInfo> mHotseatItems = new SparseArray<>();
+    private final IntSparseArrayMap<ItemInfo> mHotseatItems = new IntSparseArrayMap<>();
     private List<ItemInfo> mPredictedItems = Collections.emptyList();
 
     private final TaskbarActivityContext mContext;
@@ -94,7 +93,7 @@ public class TaskbarModelCallbacks implements
                     instanceof PredictedContainerInfo pci) {
                 mControllers.taskbarAllAppsController.setPredictedApps(pci.getContents());
             }
-            commitItemsToUI();
+            commitItemsToUI(/* forceUpdateHotseat = */ true);
         });
     }
 
@@ -139,7 +138,9 @@ public class TaskbarModelCallbacks implements
                     }
                 }
             }
-            if (removed || added || predictionsUpdated) {
+            if (removed || added || (predictionsUpdated
+                    // Avoid committing for prediction updates if they are not shown.
+                    && !mControllers.taskbarRecentAppsController.isReplacingPredictions())) {
                 commitItemsToUI();
             }
         });
@@ -200,6 +201,10 @@ public class TaskbarModelCallbacks implements
     }
 
     private void commitItemsToUI() {
+        commitItemsToUI(/* forceUpdateHotseat = */ false);
+    }
+
+    private void commitItemsToUI(boolean forceUpdateHotseat) {
         Preconditions.assertTaskbarUiThread();
         int taskbarSize = mContext.getTaskbarSpecsEvaluator().getMaxPinnableCount();
         ItemInfo[] hotseatItemInfos = new ItemInfo[taskbarSize];
@@ -220,7 +225,7 @@ public class TaskbarModelCallbacks implements
         hotseatItemInfos = recentAppsController.updateHotseatItemInfos(hotseatItemInfos);
 
         final List<HandoffSuggestion> handoffSuggestions
-            = android.companion.Flags.enableTaskContinuity()
+            = android.companion.Flags.taskContinuity()
                 ? mControllers.taskbarHandoffController.getSuggestions()
                 : Collections.emptyList();
 
@@ -229,26 +234,32 @@ public class TaskbarModelCallbacks implements
             mDeferredUpdates = () ->
                     commitHotseatItemUpdates(finalHotseatItemInfos,
                             recentAppsController.getShownTasks(),
-                            handoffSuggestions);
+                            handoffSuggestions,
+                            forceUpdateHotseat);
         } else {
             commitHotseatItemUpdates(
-                hotseatItemInfos,
-                recentAppsController.getShownTasks(),
-                handoffSuggestions);
+                    hotseatItemInfos,
+                    recentAppsController.getShownTasks(),
+                    handoffSuggestions,
+                    forceUpdateHotseat);
         }
     }
 
+    /**
+     * Commits all updates throughout Taskbar.
+     *
+     * @param forceUpdateHotseat Whether to force update every hotseat icon.
+     */
     private void commitHotseatItemUpdates(
             ItemInfo[] hotseatItemInfos,
             List<GroupTask> recentTasks,
-            List<HandoffSuggestion> handoffSuggestions) {
+            List<HandoffSuggestion> handoffSuggestions,
+            boolean forceUpdateHotseat) {
         Preconditions.assertTaskbarUiThread();
-        mContainer.updateItems(hotseatItemInfos, recentTasks, handoffSuggestions);
+        mContainer.updateItems(
+                hotseatItemInfos, recentTasks, handoffSuggestions, forceUpdateHotseat);
         mControllers.taskbarViewController.updateIconViewsRunningStates();
         mControllers.taskbarPopupController.setTaskbarInfoList(mHotseatItems);
-        if (enableTaskbarDragAndDrop()) {
-            mControllers.taskbarViewDragDropController.setTaskbarInfoList(mHotseatItems);
-        }
     }
 
     /**
@@ -280,11 +291,16 @@ public class TaskbarModelCallbacks implements
     public void commitHandoffSuggestionsToUI() {
         // This API is only exposed to taskbar
         Preconditions.assertTaskbarUiThread();
-        if (!android.companion.Flags.enableTaskContinuity()) {
+        if (!android.companion.Flags.taskContinuity()) {
             return;
         }
 
         commitItemsToUI();
+    }
+
+    /** Returns the current hotseat items in Taskbar. */
+    public IntSparseArrayMap<ItemInfo> getHotseatItems() {
+        return mHotseatItems;
     }
 
     @AnyThread
@@ -292,11 +308,10 @@ public class TaskbarModelCallbacks implements
     public void bindAllApplications(AppInfo[] apps, int flags,
             Map<PackageUserKey, Integer> packageUserKeytoUidMap) {
         TASKBAR_UI_THREAD.execute(() -> {
+            mContext.getActivityComponent().getAppsStore().setApps(
+                    apps, flags, packageUserKeytoUidMap);
             mControllers.taskbarAllAppsController.setApps(apps, flags, packageUserKeytoUidMap);
             mControllers.taskbarPopupController.setApps(apps);
-            if (enableTaskbarDragAndDrop()) {
-                mControllers.taskbarViewDragDropController.setApps(apps);
-            }
         });
     }
 

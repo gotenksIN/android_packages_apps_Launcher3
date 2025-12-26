@@ -25,6 +25,7 @@ import android.os.Handler
 import android.os.TestLooperManager
 import androidx.core.graphics.drawable.toBitmap
 import androidx.test.platform.app.InstrumentationRegistry
+import com.android.launcher3.Flags
 import com.android.launcher3.util.LauncherMultivalentJUnit
 import com.android.launcher3.util.rule.TestStabilityRule
 import com.android.launcher3.util.rule.TestStabilityRule.LOCAL
@@ -33,6 +34,7 @@ import com.android.launcher3.util.rule.TestStabilityRule.Stability
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import org.junit.After
+import org.junit.Assume.assumeFalse
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -68,7 +70,7 @@ class HandoffSuggestionMetadataLoaderTest {
     @Stability(flavors = LOCAL or PLATFORM_POSTSUBMIT) // b/438797644
     fun loadMetadata_drawableLoaded_callsCallback() {
         // Create a fake suggestion to load
-        val remoteTask = RemoteTask.Builder(1).setIcon(icon).setLabel(TEST_LABEL).build()
+        val remoteTask = RemoteTask.Builder(1, 1).setIcon(icon).setLabel(TEST_LABEL).build()
         val suggestion = HandoffSuggestion(remoteTask)
 
         // Trigger a load.
@@ -90,8 +92,14 @@ class HandoffSuggestionMetadataLoaderTest {
     @Test
     @Stability(flavors = LOCAL or PLATFORM_POSTSUBMIT) // b/438797644
     fun loadMetadata_allSuggestionsHaveMetadata_doesNotReloadIcons() {
+        // TODO(b/377678992): revert ag/36346262 once NexusLauncherTests-OverviewInWindowEnabled is
+        //  successfully blocking presubmit.
+        assumeFalse(
+            "Skipping test because overview in window flags are enabled",
+            Flags.enableLauncherOverviewInWindow() || Flags.enableFallbackOverviewInWindow(),
+        )
         // Create a fake suggestion with loaded metadata
-        val remoteTask = RemoteTask.Builder(1).setIcon(icon).setLabel(TEST_LABEL).build()
+        val remoteTask = RemoteTask.Builder(1, 1).setIcon(icon).setLabel(TEST_LABEL).build()
         val suggestion = HandoffSuggestion(remoteTask)
         suggestion.metadata =
             HandoffSuggestion.Metadata(TEST_LABEL, BitmapDrawable(context.resources, bitmap))
@@ -108,8 +116,14 @@ class HandoffSuggestionMetadataLoaderTest {
     @Test
     @Stability(flavors = LOCAL or PLATFORM_POSTSUBMIT) // b/438797644
     fun loadMetadata_taskHasNullIcon_doesNotCallCallback() {
+        // TODO(b/377678992): revert ag/36346262 once NexusLauncherTests-OverviewInWindowEnabled is
+        //  successfully blocking presubmit.
+        assumeFalse(
+            "Skipping test because overview in window flags are enabled",
+            Flags.enableLauncherOverviewInWindow() || Flags.enableFallbackOverviewInWindow(),
+        )
         // Create a fake suggestion to load with a null icon
-        val remoteTask = RemoteTask.Builder(1).setLabel(TEST_LABEL).build()
+        val remoteTask = RemoteTask.Builder(1, 1).setLabel(TEST_LABEL).build()
         val suggestion = HandoffSuggestion(remoteTask)
 
         // Trigger a load.
@@ -124,8 +138,14 @@ class HandoffSuggestionMetadataLoaderTest {
     @Test
     @Stability(flavors = LOCAL or PLATFORM_POSTSUBMIT) // b/438797644
     fun cancelPendingLoads_cancelsPendingLoads() {
+        // TODO(b/377678992): revert ag/36346262 once NexusLauncherTests-OverviewInWindowEnabled is
+        //  successfully blocking presubmit.
+        assumeFalse(
+            "Skipping test because overview in window flags are enabled",
+            Flags.enableLauncherOverviewInWindow() || Flags.enableFallbackOverviewInWindow(),
+        )
         // Create a fake suggestion to load with a null icon
-        val remoteTask = RemoteTask.Builder(1).setLabel(TEST_LABEL).build()
+        val remoteTask = RemoteTask.Builder(1, 1).setLabel(TEST_LABEL).build()
         val suggestion = HandoffSuggestion(remoteTask)
 
         // Trigger a load.

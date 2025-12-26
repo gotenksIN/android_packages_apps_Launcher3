@@ -24,7 +24,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
 import org.junit.Test
 
-@AllowedDevices(allowed = [DeviceProduct.TANGORPRO, DeviceProduct.CF_TABLET])
+@AllowedDevices(allowed = [DeviceProduct.TANGORPRO, DeviceProduct.CF_TABLET, DeviceProduct.CF_DESKTOP])
 class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
 
     @get:Rule val screenRecordRule = ScreenRecordRule()
@@ -37,6 +37,7 @@ class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
     }
 
     override fun tearDown() {
+        mLauncher.goHome().switchToOverview().dismissAllTasks()
         mLauncher.clearLauncherData()
         super.tearDown()
     }

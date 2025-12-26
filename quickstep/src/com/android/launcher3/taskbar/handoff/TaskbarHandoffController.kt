@@ -16,6 +16,7 @@
 
 package com.android.launcher3.taskbar.handoff
 
+import android.companion.Flags.taskContinuity
 import android.companion.datatransfer.continuity.RemoteTask
 import android.companion.datatransfer.continuity.TaskContinuityManager
 import android.os.Handler
@@ -53,7 +54,7 @@ class TaskbarHandoffController(val taskbarActivityContext: TaskbarActivityContex
     /** Starts the controller. */
     fun init(taskbarControllers: TaskbarControllers) {
         this.taskbarControllers = taskbarControllers
-        if (android.companion.Flags.enableTaskContinuity()) {
+        if (taskContinuity()) {
             taskContinuityManager =
                 taskbarActivityContext.applicationContext.getSystemService(
                     TaskContinuityManager::class.java
@@ -84,7 +85,10 @@ class TaskbarHandoffController(val taskbarActivityContext: TaskbarActivityContex
             Log.d(TAG, "onRemoteTasksChanged: updating suggestions.")
         }
 
-        if (suggestionList.updateSuggestions(remoteTasks)) {
+        val remoteTasksToDisplay =
+            remoteTasks.sortedBy { it.lastUsedTimestampMillis }.takeLast(MAX_SUGGESTIONS)
+
+        if (suggestionList.updateSuggestions(remoteTasksToDisplay)) {
             taskbarControllers.taskbarViewController.commitHandoffSuggestionsToUI()
         }
 
@@ -92,7 +96,7 @@ class TaskbarHandoffController(val taskbarActivityContext: TaskbarActivityContex
             if (DEBUG) {
                 Log.d(
                     TAG,
-                    "HandoffSuggestion metadata updated for deviceId ${suggestion.deviceId}.",
+                    "HandoffSuggestion metadata updated for associationId ${suggestion.associationId}.",
                 )
             }
             taskbarControllers.taskbarViewController.onHandoffSuggestionUpdated(suggestion)
@@ -111,5 +115,6 @@ class TaskbarHandoffController(val taskbarActivityContext: TaskbarActivityContex
     private companion object {
         const val DEBUG = false
         const val TAG = "TaskbarHandoffController"
+        const val MAX_SUGGESTIONS = 1
     }
 }

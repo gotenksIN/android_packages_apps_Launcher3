@@ -410,16 +410,6 @@ flag {
 }
 
 flag {
-  name: "sync_app_launch_with_taskbar_stash"
-  namespace: "launcher"
-  description: "Syncs the two animations (app launch, taskbar stash) so they play at the same time."
-  bug: "319162553"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
   name: "remove_apps_refresh_on_right_click"
   namespace: "launcher"
   description: "Remove predicted apps refresh on right click"
@@ -678,3 +668,55 @@ flag {
         purpose: PURPOSE_BUGFIX
     }
 }
+
+flag {
+  name: "disable_obsolete_swipe_handler_logic"
+  namespace: "launcher"
+  description: "Disables a potentially-obsolete codepath in AbsSwipeUpHandler, helping keep its eventual clean up safe."
+  bug: "449855328"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+    name: "fix_widget_single_ptr_resize"
+    namespace: "launcher"
+    description: "Fixes a11y issue that widgets can't be resized with single pointer"
+    bug: "439588493"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    name: "workspace_hidden_labels"
+    namespace: "launcher"
+    description: "Gives the user the option to hide app icon labels on the workspace"
+    bug: "456634299"
+}
+
+flag {
+  name: "enable_app_automation_indicator"
+  namespace: "launcher"
+  description: "Enables indicator for active app automation in Launcher"
+  bug: "440353845"
+}
+
+flag {
+    name: "enable_swipe_up_magnetic_detach"
+    namespace: "launcher"
+    description: "Enables the magnetic detach effect to the swipe up from app gestures"
+    bug: "455552698"
+}
+
+flag {
+  name: "disable_system_level_drag_event_handling_in_button_drop_target"
+  namespace: "launcher"
+  description: "Disables system-level drag event handling in ButtonDropTarget as it may interfere with Launcher's own drag and drop."
+  bug: "456188853"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+

@@ -16,6 +16,8 @@
 
 package com.android.launcher3.dagger;
 
+import static com.android.launcher3.util.WindowBlurState.WINDOW_BLUR_STATE;
+
 import android.content.Context;
 
 import androidx.annotation.Nullable;
@@ -42,7 +44,9 @@ import com.android.launcher3.model.GridSizeMigrationLogic;
 import com.android.launcher3.model.ItemInstallQueue;
 import com.android.launcher3.model.LayoutParserFactory;
 import com.android.launcher3.model.LoaderCursor.LoaderCursorFactory;
+import com.android.launcher3.model.ModelProxyProvider;
 import com.android.launcher3.model.TestableModelState;
+import com.android.launcher3.model.repository.StringCacheRepository;
 import com.android.launcher3.notification.NotificationRepository;
 import com.android.launcher3.pm.InstallSessionHelper;
 import com.android.launcher3.pm.UserCache;
@@ -58,6 +62,7 @@ import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.DynamicResource;
 import com.android.launcher3.util.InstantAppResolver;
 import com.android.launcher3.util.LayoutImportExportHelper;
+import com.android.launcher3.util.ListenableRef;
 import com.android.launcher3.util.LockedUserState;
 import com.android.launcher3.util.MSDLPlayerWrapper;
 import com.android.launcher3.util.PackageManagerHelper;
@@ -136,6 +141,8 @@ public interface LauncherBaseAppComponent {
     LayoutImportExportHelper getLayoutImportExportHelper();
     /** Returns the layout parser factory for default layout parsing */
     LayoutParserFactory getLayoutParserFactory();
+    /** Returns new [ModelProxyProvider] */
+    ModelProxyProvider getModelProxyProvider();
 
     @VisibleForTesting
     GridSizeMigrationLogic createNewGridSizeMigrationLogic();
@@ -154,6 +161,12 @@ public interface LauncherBaseAppComponent {
 
     /** Factory for qsb inflation */
     QsbWidgetFactory getQsbWidgetFactory();
+
+    /** Tracker for cross window blur enabled state */
+    @Named(WINDOW_BLUR_STATE) ListenableRef<Boolean> getWindowBlurState();
+
+    /** Returns the StringCacheRepoRepository */
+    StringCacheRepository getStringCacheRepoRepository();
 
     /** Builder for LauncherBaseAppComponent. */
     interface Builder {

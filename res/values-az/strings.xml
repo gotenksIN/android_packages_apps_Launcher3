@@ -107,13 +107,12 @@
     <string name="widget_settings" msgid="5280157748464495511">"Ayarlar"</string>
     <string name="pin_to_taskbar" msgid="5914002252642242332">"İşləmə panelinə bərkidin"</string>
     <string name="unpin_from_taskbar" msgid="1025883383457627426">"İşləmə panelindən çıxarın"</string>
-    <!-- no translation found for no_room_in_taskbar (6885243748717395469) -->
-    <skip />
+    <string name="no_room_in_taskbar" msgid="6885243748717395469">"İşləmə panelində yer yoxdur"</string>
     <string name="app_added_to_taskbar" msgid="6348755169793615171">"Tətbiq Tapşırıq panelinə əlavə edildi"</string>
     <string name="app_removed_from_taskbar" msgid="3471754847898675396">"Tətbiq Tapşırıq panelindən silindi"</string>
     <string name="remove_system_shortcut_label" msgid="3991201411148073972">"Silin"</string>
     <string name="home_screen_files_context_menu_open_in_app_label" msgid="7930552598671791537">"Açın"</string>
-    <string name="home_screen_files_context_menu_move_to_trash_label" msgid="1145655050674479315">"Zibil qutusuna atın"</string>
+    <string name="home_screen_files_context_menu_delete_permanently_label" msgid="8660443461874174185">"Həmişəlik silin"</string>
     <string name="permlab_install_shortcut" msgid="5632423390354674437">"qısayolları quraşdır"</string>
     <string name="permdesc_install_shortcut" msgid="923466509822011139">"Tətbiqə istifadəçi müdaxiləsi olmadan qısayolları əlavə etməyə icazə verir."</string>
     <string name="permlab_read_settings" msgid="5136500343007704955">"Əsas səhifə ayarlarını və qısayollarını oxumaq"</string>
@@ -203,6 +202,11 @@
     <string name="action_increase_height" msgid="459390020612501122">"Hündürlüyü artırın"</string>
     <string name="action_decrease_width" msgid="1374549771083094654">"Eni azaldın"</string>
     <string name="action_decrease_height" msgid="282377193880900022">"Hündürlüyü azaldın"</string>
+    <string name="resize_handle_start" msgid="431073846880883794">"Soldakı ölçüdəyişmə dəstəyi"</string>
+    <string name="resize_handle_top" msgid="280799523356834542">"Yuxarıdakı ölçüdəyişmə dəstəyi"</string>
+    <string name="resize_handle_end" msgid="8411240534474246075">"Sağdakı ölçüdəyişmə dəstəyi"</string>
+    <string name="resize_handle_bottom" msgid="4217171801060928429">"Aşağıdakı ölçüdəyişmə dəstəyi"</string>
+    <string name="tap_to_show_resize_buttons" msgid="964815552123289232">"Ölçü dəyişmək düymələrini göstərin"</string>
     <string name="widget_resized" msgid="9130327887929620">"Vidcetin eni <xliff:g id="NUMBER_0">%1$s</xliff:g> hündürlüyü <xliff:g id="NUMBER_1">%2$s</xliff:g> kimi ölçüləndirildi"</string>
     <string name="action_deep_shortcut" msgid="4766835855579976045">"Qısayol menyusu"</string>
     <string name="widget_frame_name" msgid="8782828448471444270">"<xliff:g id="STRING">%1$s</xliff:g> üçün vidcet ölçüsünü dəyişdirmə çərçivəsi"</string>

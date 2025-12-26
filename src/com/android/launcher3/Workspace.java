@@ -18,6 +18,7 @@ package com.android.launcher3;
 
 import static com.android.launcher3.AbstractFloatingView.TYPE_WIDGET_RESIZE_FRAME;
 import static com.android.launcher3.BubbleTextView.DISPLAY_FOLDER;
+import static com.android.launcher3.Flags.enableSystemDragToOtherApps;
 import static com.android.launcher3.Flags.injectableModelItems;
 import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherAnimUtils.SPRING_LOADED_EXIT_DELAY;
@@ -59,6 +60,7 @@ import android.annotation.SuppressLint;
 import android.app.WallpaperManager;
 import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetProviderInfo;
+import android.content.ClipData;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Point;
@@ -107,10 +109,12 @@ import com.android.launcher3.dragndrop.LauncherDragController;
 import com.android.launcher3.dragndrop.SpringLoadedDragController;
 import com.android.launcher3.dragndrop.SystemDragController;
 import com.android.launcher3.dragndrop.SystemDragItemInfo;
+import com.android.launcher3.dragndrop.SystemDragParams;
 import com.android.launcher3.folder.Folder;
 import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.folder.PreviewBackground;
 import com.android.launcher3.graphics.DragPreviewProvider;
+import com.android.launcher3.homescreenfiles.HomeScreenFile;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtilsKt;
@@ -126,6 +130,7 @@ import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pageindicators.PageIndicator;
+import com.android.launcher3.pageindicators.PageIndicatorDotsWithArrows;
 import com.android.launcher3.popup.Poppable;
 import com.android.launcher3.popup.Popup;
 import com.android.launcher3.statemanager.StateManager;
@@ -143,7 +148,6 @@ import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.MSDLPlayerWrapper;
 import com.android.launcher3.util.OverlayEdgeEffect;
 import com.android.launcher3.util.RunnableList;
-import com.android.launcher3.util.ShortcutUtil;
 import com.android.launcher3.util.Thunk;
 import com.android.launcher3.util.ViewEx;
 import com.android.launcher3.util.WallpaperOffsetInterpolator;
@@ -374,6 +378,19 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     }
 
     @Override
+    public void initParentViews(View parent) {
+        super.initParentViews(parent);
+        if (mPageIndicator instanceof PageIndicatorDotsWithArrows) {
+            ((PageIndicatorDotsWithArrows) mPageIndicator).setOnNextArrowClickedListener(v ->
+                    snapToPage(getCurrentPage() + 1)
+            );
+            ((PageIndicatorDotsWithArrows) mPageIndicator).setOnPrevArrowClickedListener(v ->
+                    snapToPage(getCurrentPage() - 1)
+            );
+        }
+    }
+
+    @Override
     public void setInsets(Rect insets) {
         DeviceProfile grid = mLauncher.getDeviceProfile();
 
@@ -402,23 +419,12 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
     private void setPageIndicatorInset() {
         DeviceProfile grid = mLauncher.getDeviceProfile();
-
-        View pageIndicatorContainer = (View) mPageIndicator.getParent();
-        FrameLayout.LayoutParams lp =
-                (FrameLayout.LayoutParams) pageIndicatorContainer.getLayoutParams();
-
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mPageIndicator.getLayoutParams();
         // Set insets for page indicator
-        Rect padding = grid.mWorkspaceProfile.getWorkspacePadding();
-        if (grid.isVerticalBarLayout()) {
-            lp.leftMargin = padding.left + grid.mWorkspaceProfile.getWorkspaceCellPaddingXPx();
-            lp.rightMargin = padding.right + grid.mWorkspaceProfile.getWorkspaceCellPaddingXPx();
-            lp.bottomMargin = padding.bottom;
-        } else {
-            lp.leftMargin = lp.rightMargin = 0;
-            lp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM;
-            lp.bottomMargin = grid.hotseatBarSizePx;
-        }
-        pageIndicatorContainer.setLayoutParams(lp);
+        lp.topMargin = lp.leftMargin = lp.rightMargin = 0;
+        lp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM;
+        lp.bottomMargin = grid.hotseatBarSizePx;
+        mPageIndicator.setLayoutParams(lp);
     }
 
     private void updateCellLayoutMeasures() {
@@ -640,13 +646,6 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         cl.setOnInterceptTouchListener(this);
         cl.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         super.onViewAdded(child);
-        mLauncher.updatePaginationArrowVisibilities();
-    }
-
-    @Override
-    public void onViewRemoved(View child) {
-        super.onViewRemoved(child);
-        mLauncher.updatePaginationArrowVisibilities();
     }
 
     /**
@@ -1415,7 +1414,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             }
         }
         if (refactorTaskbarUiState()) {
-            mLauncherUiState.setIsOverlayShown(mOverlayShown);
+            mLauncherUiState.setOverlayShown(mOverlayShown);
         }
         int count = mOverlayCallbacks.size();
         for (int i = 0; i < count; i++) {
@@ -1453,7 +1452,6 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                                             .setPageIndex(prevPage)).build())
                     .log(event);
         }
-        mLauncher.updatePaginationArrowAlphas();
     }
 
     protected void setWallpaperDimension() {
@@ -1822,7 +1820,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         }
 
         if (child.getTag() instanceof ItemInfo item) {
-            if (child instanceof BubbleTextView && ShortcutUtil.supportsShortcuts(item)) {
+            if (child instanceof BubbleTextView && !HomeScreenFilesUtilsKt.isFileSystemItem(item)) {
                 BubbleTextView btv = (BubbleTextView) child;
                 if (!dragOptions.isAccessibleDrag) {
                     dragOptions.preDragCondition =
@@ -1851,49 +1849,77 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             }
         }
 
-        final DragView dv;
-        if (contentView != null) {
-            if (Flags.homeScreenEditImprovements()
-                    && ((ItemInfo) child.getTag()).itemType == ITEM_TYPE_APPWIDGET
-                    && mDragController instanceof LauncherDragController launcherDragController) {
-                dragOptions.deferDragToPreDragEnd = true;
-                dragOptions.preDragEndScale = (contentView.getMeasuredWidth()
-                        + launcherDragController.getWidgetDragScalePx(
-                                null, contentView, dragObject))
-                        / contentView.getMeasuredWidth();
+        DragView<?> dv = null;
+
+        // TODO(458058227): Move this entire code block to [DragController].
+        if (enableSystemDragToOtherApps()
+                && HomeScreenFilesUtilsKt.isFileSystemItem(dragObject)) {
+            final HomeScreenFile file = HomeScreenFilesUtilsKt.getHomeScreenFile(dragObject);
+            if (file != null) {
+                dv = SystemDragController.INSTANCE.get(mLauncher).startDrag(
+                        new SystemDragParams(
+                                new ClipData(
+                                        /*label=*/ "",
+                                        new String[] { file.getMimeType() },
+                                        new ClipData.Item(file.getUri())),
+                                /*closeAllOpenViews=*/ false,
+                                requireNonNull(drawable),
+                                dragObject,
+                                dragLayerX,
+                                dragLayerY,
+                                dragOptions,
+                                dragRect,
+                                source,
+                                /*dragViewScaleOnDrop=*/ scale,
+                                requireNonNull(draggableView),
+                                /*initialDragViewScale=*/ scale * iconScale));
             }
-            dv = mDragController.startDrag(
-                    contentView,
-                    draggableView,
-                    dragLayerX,
-                    dragLayerY,
-                    source,
-                    dragObject,
-                    dragRect,
-                    scale * iconScale,
-                    scale,
-                    dragOptions);
-        } else {
-            if (Flags.homeScreenEditImprovements()
-                    && child.getTag() instanceof ItemInfo childItemInfo
-                    && childItemInfo.itemType == ITEM_TYPE_APPWIDGET
-                    && mDragController instanceof LauncherDragController launcherDragController) {
-                dragOptions.preDragEndScale = (drawable.getIntrinsicWidth()
-                        + launcherDragController.getWidgetDragScalePx(drawable, null, dragObject))
-                        / drawable.getIntrinsicWidth();
-            }
-            dv = mDragController.startDrag(
-                    drawable,
-                    draggableView,
-                    dragLayerX,
-                    dragLayerY,
-                    source,
-                    dragObject,
-                    dragRect,
-                    scale * iconScale,
-                    scale,
-                    dragOptions);
         }
+
+        if (dv == null) {
+            if (contentView != null) {
+                if (Flags.homeScreenEditImprovements()
+                        && ((ItemInfo) child.getTag()).itemType == ITEM_TYPE_APPWIDGET
+                        && mDragController instanceof LauncherDragController dragController) {
+                    dragOptions.deferDragToPreDragEnd = true;
+                    dragOptions.preDragEndScale = (contentView.getMeasuredWidth()
+                            + dragController.getWidgetDragScalePx(null, contentView, dragObject))
+                            / contentView.getMeasuredWidth();
+                }
+                dv = mDragController.startDrag(
+                        contentView,
+                        draggableView,
+                        dragLayerX,
+                        dragLayerY,
+                        source,
+                        dragObject,
+                        dragRect,
+                        scale * iconScale,
+                        scale,
+                        dragOptions);
+            } else {
+                if (Flags.homeScreenEditImprovements()
+                        && child.getTag() instanceof ItemInfo childItemInfo
+                        && childItemInfo.itemType == ITEM_TYPE_APPWIDGET
+                        && mDragController instanceof LauncherDragController dragController) {
+                    dragOptions.preDragEndScale = (drawable.getIntrinsicWidth()
+                            + dragController.getWidgetDragScalePx(drawable, null, dragObject))
+                            / drawable.getIntrinsicWidth();
+                }
+                dv = mDragController.startDrag(
+                        drawable,
+                        draggableView,
+                        dragLayerX,
+                        dragLayerY,
+                        source,
+                        dragObject,
+                        dragRect,
+                        scale * iconScale,
+                        scale,
+                        dragOptions);
+            }
+        }
+
         return dv;
     }
 
@@ -3551,6 +3577,18 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     @Override
     public View mapOverItems(@NonNull ItemOperator op) {
         return mapOverCellLayouts(getWorkspaceAndHotseatCellLayouts(), op);
+    }
+
+    @Override
+    public View mapOverVisibleItems(@NonNull ItemOperator op) {
+        IntSet visibleScreenIds = getVisiblePageIndices();
+        View result = mapOverItems((info, view) -> {
+            if (visibleScreenIds.contains(info.screenId)) {
+                return op.evaluate(info, view);
+            }
+            return false; // Continue iterating if not on a visible screen
+        });
+        return result;
     }
 
     /**

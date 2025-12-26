@@ -367,7 +367,7 @@ public class TaskbarUnstashInputConsumer extends DelegateInputConsumer {
 
     private boolean isTaskbarStashed() {
         if (refactorTaskbarUiState()) {
-            boolean ret = mTaskbarUiState.isTaskbarStashedRef().getValue();
+            boolean ret = mTaskbarUiState.isTaskbarStashed();
             if (BuildConfig.IS_STUDIO_BUILD && ret != legacyIsTaskbarStashed()) {
                 throw new IllegalStateException("isTaskbarStashed doesn't match!");
             }
@@ -384,7 +384,7 @@ public class TaskbarUnstashInputConsumer extends DelegateInputConsumer {
 
     private boolean isTaskbarAllAppsOpen() {
         if (refactorTaskbarUiState()) {
-            boolean ret = mTaskbarUiState.isTaskbarAllAppsOpenRef().getValue();
+            boolean ret = mTaskbarUiState.isTaskbarAllAppsOpen();
             if (BuildConfig.IS_STUDIO_BUILD && ret != legacyIsTaskbarAllAppsOpen()) {
                 throw new IllegalStateException("isTaskbarAllAppsOpen doesn't match!");
             }
@@ -402,7 +402,7 @@ public class TaskbarUnstashInputConsumer extends DelegateInputConsumer {
     @Px
     private int getUnstashAreaSizePx() {
         if (refactorTaskbarUiState()) {
-            int ret = mTaskbarUiState.getUnstashAreaSizePx();
+            int ret = mTaskbarUiState.getTaskbarUnstashAreaSizePx();
             if (BuildConfig.IS_STUDIO_BUILD && ret != legacyGetUnstashAreaSizePx()) {
                 throw new IllegalStateException("getUnstashAreaSizePx doesn't match!");
             }
@@ -421,7 +421,7 @@ public class TaskbarUnstashInputConsumer extends DelegateInputConsumer {
     @Px
     private int getActionCornerPaddingPx() {
         if (refactorTaskbarUiState()) {
-            int ret = mTaskbarUiState.getActionCornerPaddingPx();
+            int ret = mTaskbarUiState.getTaskbarActionCornerPaddingPx();
             if (BuildConfig.IS_STUDIO_BUILD && ret != legacyGetActionCornerPaddingPx()) {
                 throw new IllegalStateException("getActionCornerPaddingPx doesn't match!");
             }

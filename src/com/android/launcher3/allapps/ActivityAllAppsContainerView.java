@@ -26,7 +26,6 @@ import static com.android.launcher3.allapps.BaseAllAppsAdapter.VIEW_TYPE_WORK_ED
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_ALLAPPS_COUNT;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_ALLAPPS_TAP_ON_PERSONAL_TAB;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_ALLAPPS_TAP_ON_WORK_TAB;
-import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.ScrollableLayoutManager.PREDICTIVE_BACK_MIN_SCALE;
 import static com.android.launcher3.views.RecyclerViewFastScroller.FastScrollerLocation.ALL_APPS_SCROLLER;
 
@@ -207,6 +206,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
                 UserCache.INSTANCE.get(mActivityContext));
         mPrivateProfileManager = new PrivateProfileManager(
                 this,
+                mActivityContext.getUiExecutor(),
                 mActivityContext.getStatsLogManager(),
                 UserCache.INSTANCE.get(mActivityContext));
         mPrivateSpaceBottomExtraSpace = context.getResources().getDimensionPixelSize(
@@ -480,7 +480,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         updateHeaderScroll(0);
         if (exitSearch) {
             // Reset the search bar and search RV after transitioning home.
-            MAIN_EXECUTOR.getHandler().post(mSearchUiManager::resetSearch);
+            mActivityContext.getUiExecutor().getHandler().post(mSearchUiManager::resetSearch);
         }
         if (isSearching()) {
             mWorkManager.reset();
@@ -499,7 +499,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         // conflict with following scrolling to bottom, so we need it with 0 time here.
         animateToSearchState(false, 0);
 
-        MAIN_EXECUTOR.getHandler().post(() -> {
+        mActivityContext.getUiExecutor().getHandler().post(() -> {
             // Reset the search bar after transitioning home.
             // When `resetSearch` is called after `animateToSearchState` is finished, the inside
             // `animateToSearchState` with delay is a just no-op and return early.
@@ -872,7 +872,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
      */
     public int getFloatingSearchBarRestingMarginStart() {
         DeviceProfile dp = mActivityContext.getDeviceProfile();
-        return dp.allAppsLeftRightMargin + dp.getAllAppsIconStartMargin(mActivityContext);
+        return dp.getAllAppsProfile().getLeftRightMargin()
+                + dp.getAllAppsIconStartMargin(mActivityContext);
     }
 
     /**
@@ -885,7 +886,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
      */
     public int getFloatingSearchBarRestingMarginEnd() {
         DeviceProfile dp = mActivityContext.getDeviceProfile();
-        return dp.allAppsLeftRightMargin + dp.getAllAppsIconStartMargin(mActivityContext);
+        return dp.getAllAppsProfile().getLeftRightMargin()
+                + dp.getAllAppsIconStartMargin(mActivityContext);
     }
 
     private void layoutBelowSearchContainer(View v, boolean includeTabsMargin) {
@@ -1002,8 +1004,9 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     @Override
     public void onDeviceProfileChanged(DeviceProfile dp) {
         for (AdapterHolder holder : mAH) {
-            holder.mAdapter.setAppsPerRow(dp.numShownAllAppsColumns);
-            holder.mAppsList.setNumAppsPerRowAllApps(dp.numShownAllAppsColumns);
+            holder.mAdapter.setAppsPerRow(dp.getAllAppsProfile().getNumShownAllAppsColumns());
+            holder.mAppsList.setNumAppsPerRowAllApps(
+                    dp.getAllAppsProfile().getNumShownAllAppsColumns());
             if (holder.mRecyclerView != null) {
                 // Remove all views and clear the pool, while keeping the data same. After this
                 // call, all the viewHolders will be recreated.
@@ -1179,8 +1182,9 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         setLayoutParams(mlp);
 
         if (!grid.isVerticalBarLayout() || FeatureFlags.enableResponsiveWorkspace()) {
-            int topPadding = grid.allAppsPadding.top;
-            setPadding(grid.allAppsLeftRightMargin, topPadding, grid.allAppsLeftRightMargin, 0);
+            int topPadding = grid.getAllAppsProfile().getPadding().top;
+            setPadding(grid.getAllAppsProfile().getLeftRightMargin(), topPadding,
+                    grid.getAllAppsProfile().getLeftRightMargin(), 0);
         }
         InsettableFrameLayout.dispatchInsets(this, insets);
     }
@@ -1237,8 +1241,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         int bottomPadding = Math.max(mInsets.bottom, mNavBarScrimHeight);
         mAH.forEach(adapterHolder -> {
             adapterHolder.mPadding.bottom = bottomPadding;
-            adapterHolder.mPadding.left = grid.allAppsPadding.left;
-            adapterHolder.mPadding.right = grid.allAppsPadding.right;
+            adapterHolder.mPadding.left = grid.getAllAppsProfile().getPadding().left;
+            adapterHolder.mPadding.right = grid.getAllAppsProfile().getPadding().right;
             adapterHolder.applyPadding();
         });
     }

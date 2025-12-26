@@ -25,16 +25,19 @@ import android.view.WindowManagerGlobal
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
+import com.android.launcher3.Flags.enableFallbackOverviewInWindow
+import com.android.launcher3.Flags.enableLauncherOverviewInWindow
 import com.android.launcher3.util.LauncherModelHelper
 import com.android.launcher3.util.rule.SetPropRule
 import com.android.launcher3.util.ui.PortraitLandscapeRunner.PortraitLandscape
 import com.android.quickstep.NavigationModeSwitchRule.NavigationModeSwitch
-import com.android.quickstep.TaskbarModeSwitchRule
-import com.android.quickstep.TaskbarModeSwitchRule.TaskbarModeSwitch
+import com.android.quickstep.integration.BaseTaskbarIntegrationTest
+import com.android.quickstep.taskbar.util.IntegrationTaskbarModeSwitchRule.Mode
 import com.android.window.flags.Flags
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus
 import org.junit.After
 import org.junit.Assume
+import org.junit.Assume.assumeFalse
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -42,7 +45,7 @@ import org.junit.runner.RunWith
 
 @LargeTest
 @RunWith(AndroidJUnit4::class)
-class TestsDesktopFirstTaskbar : com.android.quickstep.integration.BaseTaskbarIntegrationTest() {
+class TestsDesktopFirstTaskbar : BaseTaskbarIntegrationTest() {
 
     val TAG: String = "TaplTestsDesktopFirstTaskbar"
 
@@ -52,9 +55,13 @@ class TestsDesktopFirstTaskbar : com.android.quickstep.integration.BaseTaskbarIn
 
     var mOriginalWindowingMode = WindowConfiguration.WINDOWING_MODE_UNDEFINED
 
+    var originalTaskbarMode: Mode = Mode.TRANSIENT
+
     @Before
     fun setUp() {
         // Default-to-desktop feature requires the display to be freeform mode.
+        originalTaskbarMode = taskbarModeSwitchRule.currentMode()
+        taskbarModeSwitchRule.setTaskbarMode(Mode.PERSISTENT)
         mOriginalWindowingMode =
             setDisplayWindowingMode(WindowConfiguration.WINDOWING_MODE_FREEFORM)
         super.setup()
@@ -73,6 +80,10 @@ class TestsDesktopFirstTaskbar : com.android.quickstep.integration.BaseTaskbarIn
         if (mOriginalWindowingMode != WindowConfiguration.WINDOWING_MODE_UNDEFINED) {
             setDisplayWindowingMode(mOriginalWindowingMode)
         }
+        // This is needed because the rule taskbarModeSwitchRule will try to set the Taskbar mode
+        // before tearDown has run and they conflict with each other since the Transient taskbar
+        // can't be set along  setDisplayWindowingMode(WindowConfiguration.WINDOWING_MODE_FREEFORM)
+        taskbarModeSwitchRule.setTaskbarMode(originalTaskbarMode)
     }
 
     override fun startCalendarAppDuringSetup(): Boolean {
@@ -89,7 +100,6 @@ class TestsDesktopFirstTaskbar : com.android.quickstep.integration.BaseTaskbarIn
     @Test
     @PortraitLandscape
     @NavigationModeSwitch
-    @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.PERSISTENT)
     fun testTaskbarOnHome() {
         // Go home - taskbar should be visible in desktop-first display context.
         uiDevice.pressHome()
@@ -116,8 +126,13 @@ class TestsDesktopFirstTaskbar : com.android.quickstep.integration.BaseTaskbarIn
     @Test
     @PortraitLandscape
     @NavigationModeSwitch
-    @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.PERSISTENT)
     fun testTaskbarForFullscreenApp() {
+        // TODO(b/377678992): revert ag/36346262 once NexusLauncherTests-OverviewInWindowEnabled is
+        //  successfully blocking presubmit.
+        assumeFalse(
+            "Skipping test because overview in window flags are enabled",
+            enableLauncherOverviewInWindow() || enableFallbackOverviewInWindow(),
+        )
         clearAllRecentTasks()
         uiDevice.pressHome()
         launcherActivity.waitForResumed()
@@ -143,8 +158,13 @@ class TestsDesktopFirstTaskbar : com.android.quickstep.integration.BaseTaskbarIn
     @Test
     @PortraitLandscape
     @NavigationModeSwitch
-    @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.PERSISTENT)
     fun testTaskbarForDesktopMode() {
+        // TODO(b/377678992): revert ag/36346262 once NexusLauncherTests-OverviewInWindowEnabled is
+        //  successfully blocking presubmit.
+        assumeFalse(
+            "Skipping test because overview in window flags are enabled",
+            enableLauncherOverviewInWindow() || enableFallbackOverviewInWindow(),
+        )
         clearAllRecentTasks()
         uiDevice.pressHome()
         launcherActivity.waitForResumed()
@@ -176,6 +196,8 @@ class TestsDesktopFirstTaskbar : com.android.quickstep.integration.BaseTaskbarIn
                 Display.DEFAULT_DISPLAY,
                 windowingMode,
             )
+            uiDevice.pressHome()
+            uiDevice.waitForIdle()
             return originalWindowingMode
         } catch (e: RemoteException) {
             Log.e(TAG, "error setting windowing mode", e)

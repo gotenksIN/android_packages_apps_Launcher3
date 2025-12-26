@@ -256,7 +256,7 @@ public class TestInformationHandler {
 
             case TestProtocol.REQUEST_NUM_ALL_APPS_COLUMNS:
                 response.putInt(TestProtocol.TEST_INFO_RESPONSE_FIELD,
-                        mDeviceProfile.numShownAllAppsColumns);
+                        mDeviceProfile.getAllAppsProfile().getNumShownAllAppsColumns());
                 return response;
 
             case TestProtocol.REQUEST_IS_TRANSIENT_TASKBAR:
@@ -273,6 +273,11 @@ public class TestInformationHandler {
                 response.putBoolean(
                         TestProtocol.TEST_INFO_RESPONSE_FIELD, TestLogging.sHadEventsNotFromTest);
                 return response;
+
+            case TestProtocol.REQUEST_ENABLE_REGISTER_EVENT_NOT_FROM_TEST: {
+                TestLogging.setEnableRegisterEventNotFromTest(Boolean.parseBoolean(arg));
+                return response;
+            }
 
             case TestProtocol.REQUEST_START_DRAG_THRESHOLD: {
                 final Resources resources = mContext.getResources();

@@ -132,7 +132,7 @@ public class BubbleBarViewController {
                     v.getBoundsOnScreen(mTempRect);
                     if (mTaskbarUiState != null) {
                         mTaskbarUiState.setBubbleBarRect(mTempRect);
-                        mTaskbarUiState.setIsBubbleBarViewVisible(v.getVisibility() == VISIBLE);
+                        mTaskbarUiState.setBubbleBarViewVisible(v.getVisibility() == VISIBLE);
                     }
                 }
             };
@@ -176,6 +176,7 @@ public class BubbleBarViewController {
         mTaskbarUiState = taskbarUiState;
         mBarView = barView;
         if (refactorTaskbarUiState()) {
+            mBarView.setTaskbarUiState(taskbarUiState);
             mBarView.setOnHierarchyChangeListener(new ViewGroup.OnHierarchyChangeListener() {
                 @Override
                 public void onChildViewAdded(View view, View view1) {
@@ -188,13 +189,13 @@ public class BubbleBarViewController {
                 }
 
                 private void onChildViewCountChanged() {
-                    taskbarUiState.setHasBubble(mBarView.getBubbleChildCount() > 0);
+                    taskbarUiState.setHasBubbles(mBarView.getBubbleChildCount() > 0);
                 }
             });
             mBarView.addOnLayoutChangeListener(mBubbleBarViewOnLayoutChangeListener);
             mBarView.getBoundsOnScreen(mTempRect);
             mTaskbarUiState.setBubbleBarRect(mTempRect);
-            mTaskbarUiState.setIsBubbleBarViewVisible(mBarView.getVisibility() == VISIBLE);
+            mTaskbarUiState.setBubbleBarViewVisible(mBarView.getVisibility() == VISIBLE);
         }
         mBubbleBarContainer = bubbleBarContainer;
         mSystemUiProxy = SystemUiProxy.INSTANCE.get(mActivity);

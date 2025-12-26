@@ -29,6 +29,7 @@ import com.android.launcher3.taskbar.NavbarButtonsViewController;
 import com.android.launcher3.taskbar.TaskbarControllers;
 import com.android.launcher3.taskbar.TaskbarSharedState;
 import com.android.launcher3.taskbar.TaskbarStashController;
+import com.android.launcher3.taskbar.TaskbarUiState;
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayContext;
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayController;
 import com.android.systemui.shared.system.InteractionJankMonitorWrapper;
@@ -44,6 +45,7 @@ final class TaskbarAllAppsViewController {
     private final TaskbarOverlayContext mContext;
     private final TaskbarAllAppsSlideInView mSlideInView;
     private final TaskbarAllAppsContainerView mAppsView;
+    private final TaskbarControllers mTaskbarControllers;
     private final TaskbarStashController mTaskbarStashController;
     private final NavbarButtonsViewController mNavbarButtonsViewController;
     private final TaskbarOverlayController mOverlayController;
@@ -52,6 +54,7 @@ final class TaskbarAllAppsViewController {
 
     TaskbarAllAppsViewController(
             TaskbarOverlayContext context,
+            TaskbarUiState taskbarUiState,
             TaskbarAllAppsSlideInView slideInView,
             TaskbarControllers taskbarControllers,
             TaskbarSearchSessionController searchSessionController,
@@ -60,13 +63,13 @@ final class TaskbarAllAppsViewController {
         mContext = context;
         mSlideInView = slideInView;
         mAppsView = mSlideInView.getAppsView();
+        mTaskbarControllers = taskbarControllers;
         mTaskbarStashController = taskbarControllers.taskbarStashController;
         mNavbarButtonsViewController = taskbarControllers.navbarButtonsViewController;
         mOverlayController = taskbarControllers.taskbarOverlayController;
         mTaskbarSharedState = taskbarControllers.getSharedState();
         mShowKeyboard = showKeyboard;
-
-        mSlideInView.init(new TaskbarAllAppsCallbacks(searchSessionController));
+        mSlideInView.init(new TaskbarAllAppsCallbacks(searchSessionController), taskbarUiState);
         setUpAppDivider();
         setUpTaskbarStashing();
     }
@@ -122,6 +125,10 @@ final class TaskbarAllAppsViewController {
 
         int getCloseDuration() {
             return mOverlayController.getCloseDuration();
+        }
+
+        boolean isStateTransitionToAllAppsInProgress() {
+            return mTaskbarControllers.uiController.isStateTransitionToAllAppsInProgress();
         }
 
         @Override
