@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2024 The Android Open Source Project
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
+ * Licensed under the Apache License, Version 2.0 (the "License")
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -21,6 +21,7 @@ import android.animation.ObjectAnimator
 import android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM
 import android.graphics.PointF
 import android.graphics.Rect
+import android.os.UserHandle
 import android.util.FloatProperty
 import android.util.Log
 import android.util.Property
@@ -37,25 +38,30 @@ import androidx.dynamicanimation.animation.FloatPropertyCompat
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
 import com.android.app.animation.Interpolators.LINEAR
+import com.android.internal.annotations.VisibleForTesting
 import com.android.launcher3.AbstractFloatingView.TYPE_TASK_MENU
 import com.android.launcher3.AbstractFloatingView.getTopOpenViewWithType
 import com.android.launcher3.Flags.enableDesktopExplodedView
+import com.android.launcher3.Flags.hideAutomatedTasksInOverview
 import com.android.launcher3.PagedView.INVALID_PAGE
 import com.android.launcher3.R
 import com.android.launcher3.Utilities.getPivotsForScalingRectToRect
+import com.android.launcher3.automation.AutomationChange
+import com.android.launcher3.automation.AutomationRepository
+import com.android.launcher3.concurrent.annotations.Ui
 import com.android.launcher3.dagger.DisplayId
 import com.android.launcher3.statehandlers.DesktopVisibilityController.Companion.INACTIVE_DESK_ID
 import com.android.launcher3.statemanager.BaseState
 import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.IntArray
 import com.android.launcher3.util.RunnableList
+import com.android.launcher3.util.SafeCloseable
 import com.android.launcher3.util.window.WindowManagerProxy.DesktopVisibilityListener
 import com.android.quickstep.GestureState
 import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle
 import com.android.quickstep.RotationTouchHelper
 import com.android.quickstep.SystemUiProxy
 import com.android.quickstep.TaskAnimationManager
-import com.android.quickstep.util.DesksUtils.Companion.areMultiDesksFlagsEnabled
 import com.android.quickstep.util.DesktopTask
 import com.android.quickstep.util.GroupTask
 import com.android.quickstep.util.TaskGridNavHelper
@@ -69,10 +75,10 @@ import com.android.systemui.shared.recents.model.Task
 import com.android.systemui.shared.recents.model.ThumbnailData
 import com.android.window.flags.Flags.betterDeskDeactivationInRecentsTransition
 import com.android.wm.shell.shared.GroupedTaskInfo
-import com.android.wm.shell.shared.desktopmode.DesktopState
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
+import java.util.concurrent.Executor
 import java.util.function.BiConsumer
 import kotlin.math.max
 import kotlin.math.min
@@ -87,17 +93,56 @@ class RecentsViewUtils
 constructor(
     @Assisted private val recentsView: RecentsView<*, *>,
     private val displayController: DisplayController,
-    private val desktopState: DesktopState,
     @DisplayId private val displayId: Int,
     private val taskAnimationManager: TaskAnimationManager,
     private val rotationTouchHelper: RotationTouchHelper,
     private val systemUiProxy: SystemUiProxy,
+    private val automationRepository: AutomationRepository,
+    @Ui uiExecutor: Executor,
 ) : DesktopVisibilityListener {
     val taskViews = TaskViewsIterable(recentsView)
 
     var keyboardFocusTask: KeyboardFocusTask = KeyboardFocusTask.Unfocused
 
     private var isInOverview: Boolean = false
+
+    private var automationChangesClosable: SafeCloseable? = null
+
+    init {
+        if (hideAutomatedTasksInOverview()) {
+            automationChangesClosable =
+                automationRepository.automationChanges.forEach(uiExecutor) {
+                    dismissAutomatedTasks(it)
+                }
+        }
+    }
+
+    private fun dismissAutomatedTasks(change: AutomationChange) {
+        val addedPackages = change.addedPackages
+        if (addedPackages.isEmpty()) {
+            return
+        }
+        getTaskIdsByPackageNamesAndUserHandle(taskViews, addedPackages, change.userHandle).forEach {
+            recentsView.dismissTask(it, /* removeTask= */ false)
+        }
+    }
+
+    @VisibleForTesting
+    fun getTaskIdsByPackageNamesAndUserHandle(
+        taskViews: Iterable<TaskView>,
+        packages: Set<String>,
+        userHandle: UserHandle,
+    ) =
+        taskViews
+            .flatMap { it.taskContainers }
+            .map { it.task.key }
+            .filter { it.userId == userHandle.identifier && it.packageName in packages }
+            .map { it.id }
+
+    fun destroy() {
+        automationChangesClosable?.close()
+        automationChangesClosable = null
+    }
 
     /** Takes a screenshot of all [taskView] and return map of taskId to the screenshot */
     fun screenshotTasks(taskView: TaskView): Map<Int, ThumbnailData> {
@@ -116,13 +161,10 @@ constructor(
      * @return Sorted list of GroupTasks to be used in the RecentsView.
      */
     fun sortDesktopTasksToFront(tasks: List<GroupTask>): List<GroupTask> {
-        var (desktopTasks, otherTasks) = tasks.partition { it.taskViewType == TaskViewType.DESKTOP }
-        if (areMultiDesksFlagsEnabled()) {
-            // Desk IDs of newer desks are larger than those of older desks, hence we can use them
-            // to sort desks from old to new.
-            desktopTasks = desktopTasks.sortedBy { (it as DesktopTask).deskId }
-        }
-        return otherTasks + desktopTasks
+        val (desktopTasks, otherTasks) = tasks.partition { it.taskViewType == TaskViewType.DESKTOP }
+        // Desk IDs of newer desks are larger than those of older desks, hence we can use them
+        // to sort desks from old to new.
+        return otherTasks + desktopTasks.sortedBy { (it as DesktopTask).deskId }
     }
 
     fun sortExternalDisplayTasksToFront(tasks: List<GroupTask>): List<GroupTask> {
@@ -248,17 +290,9 @@ constructor(
     fun isInDesktopFirstMode() =
         displayController.getInfoForDisplay(displayId)?.isInDesktopFirstMode == true
 
-    /**
-     * Returns false if it is the last desktop on desktop-first when multi-desk enabled. Otherwise,
-     * returns true.
-     */
-    fun canRemoveTaskView(taskView: TaskView): Boolean {
-        if (!areMultiDesksFlagsEnabled() || !isInDesktopFirstMode()) {
-            return true
-        }
-
-        return taskView !is DesktopTaskView || getDesktopTaskViewCount() > 1
-    }
+    /** Returns false if it is the last desktop on desktop-first. Otherwise,returns true. */
+    fun canRemoveTaskView(taskView: TaskView) =
+        !isInDesktopFirstMode() || taskView !is DesktopTaskView || getDesktopTaskViewCount() > 1
 
     /**
      * Returns the [TaskView] that should be the current page during task binding, in the following
@@ -330,7 +364,7 @@ constructor(
     private fun getDeviceProfile() = (recentsView.mContainer as RecentsViewContainer).deviceProfile
 
     fun getRunningTaskExpectedIndex(runningTaskView: TaskView): Int {
-        if (areMultiDesksFlagsEnabled() && runningTaskView is DesktopTaskView) {
+        if (runningTaskView is DesktopTaskView) {
             // Use the [deskId] to keep desks in the order of their creation, as a newer desk
             // always has a larger [deskId] than the older desks.
             val desktopTaskView =
@@ -774,25 +808,12 @@ constructor(
     }
 
     fun getRunningTaskViewFromGroupTaskInfo(groupedTaskInfo: GroupedTaskInfo) =
-        if (desktopState.enableMultipleDesktops) {
-            if (groupedTaskInfo.isBaseType(GroupedTaskInfo.TYPE_DESK)) {
-                getDesktopTaskViewForDeskId(groupedTaskInfo.deskId)
-            } else {
-                val runningTaskIds = groupedTaskInfo.taskInfoList.map { it.taskId }.toIntArray()
-                val taskView = recentsView.getTaskViewByTaskIds(runningTaskIds)
-                if (taskView?.type == groupedTaskInfo.getTaskViewType()) taskView else null
-            }
+        if (groupedTaskInfo.isBaseType(GroupedTaskInfo.TYPE_DESK)) {
+            getDesktopTaskViewForDeskId(groupedTaskInfo.deskId)
         } else {
-            if (
-                groupedTaskInfo.isBaseType(GroupedTaskInfo.TYPE_DESK) &&
-                    groupedTaskInfo.taskInfoList.size == 1
-            ) {
-                recentsView.getTaskViewByTaskId(groupedTaskInfo.taskInfo1!!.taskId)
-                    as? DesktopTaskView
-            } else {
-                val runningTaskIds = groupedTaskInfo.taskInfoList.map { it.taskId }.toIntArray()
-                recentsView.getTaskViewByTaskIds(runningTaskIds)
-            }
+            val runningTaskIds = groupedTaskInfo.taskInfoList.map { it.taskId }.toIntArray()
+            val taskView = recentsView.getTaskViewByTaskIds(runningTaskIds)
+            if (taskView?.type == groupedTaskInfo.getTaskViewType()) taskView else null
         }
 
     private fun GroupedTaskInfo.getTaskViewType() =

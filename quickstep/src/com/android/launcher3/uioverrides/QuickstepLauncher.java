@@ -1397,7 +1397,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         options.setPendingIntentBackgroundActivityStartMode(
                 ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
 
-        IRemoteCallback endCallback = completeRunnableListCallback(callbacks, this);
+        IRemoteCallback endCallback = completeRunnableListCallback(
+                callbacks, this, getUiExecutor());
         options.setOnAnimationAbortListener(endCallback);
         options.setOnAnimationFinishedListener(endCallback);
         return new ActivityOptionsWrapper(options, callbacks);
@@ -1504,12 +1505,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                 getDeviceProfile().toSmallString());
         SystemUiProxy.INSTANCE.get(this).setLauncherAppIconSize(
                 mDeviceProfile.getWorkspaceIconProfile().getIconSizePx());
-
-        var conn = mSysUIConnectionTracker.getActiveComponent().getValue();
-        if (conn != null) {
-            conn.getTaskbarManager().debugPrimaryTaskbar("QuickstepLauncher#onDeviceProfileChanged",
-                    true);
-        }
     }
 
     @Override
