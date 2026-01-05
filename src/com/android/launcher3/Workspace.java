@@ -38,11 +38,9 @@ import static com.android.launcher3.LauncherState.FLAG_WORKSPACE_INACCESSIBLE;
 import static com.android.launcher3.LauncherState.HINT_STATE;
 import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.LauncherState.SPRING_LOADED;
-import static com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
 import static com.android.launcher3.Utilities.qsbOnFirstScreen;
 import static com.android.launcher3.Utilities.shouldEnableCursorDrivenWorkflows;
-import static com.android.launcher3.Utilities.shouldEnableMouseInteractionChanges;
 import static com.android.launcher3.anim.AnimatorListeners.forSuccessCallback;
 import static com.android.launcher3.config.FeatureFlags.FOLDABLE_SINGLE_PAGE;
 import static com.android.launcher3.logging.StatsLogManager.LAUNCHER_STATE_HOME;
@@ -75,7 +73,6 @@ import android.util.Log;
 import android.util.SparseArray;
 import android.view.DragAndDropPermissions;
 import android.view.Gravity;
-import android.view.InputDevice;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -118,7 +115,6 @@ import com.android.launcher3.homescreenfiles.HomeScreenFile;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtilsKt;
-import com.android.launcher3.icons.BitmapRenderer;
 import com.android.launcher3.icons.FastBitmapDrawable;
 import com.android.launcher3.logger.LauncherAtom;
 import com.android.launcher3.logging.InstanceId;
@@ -179,7 +175,8 @@ import java.util.function.Predicate;
 public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         implements DropTarget, DragSource, View.OnTouchListener, CellLayoutContainer,
         DragController.DragListener, Insettable, StateHandler<LauncherState>,
-        WorkspaceLayoutManager, LauncherBindableItemsContainer, LauncherOverlayCallbacks {
+        WorkspaceLayoutManager, LauncherBindableItemsContainer, LauncherOverlayCallbacks,
+        BoxSelectionHelper.BoxSelectionHost {
 
     /**
      * The value that {@link #mTransitionProgress} must be greater than for
@@ -423,7 +420,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         // Set insets for page indicator
         lp.topMargin = lp.leftMargin = lp.rightMargin = 0;
         lp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM;
-        lp.bottomMargin = grid.hotseatBarSizePx;
+        lp.bottomMargin = grid.getHotseatProfile().getBarSizePx();
         mPageIndicator.setLayoutParams(lp);
     }
 
@@ -1151,7 +1148,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
      */
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
-        if (isNonTrackpadMouseEvent(ev) || isTrackpadMultiFingerSwipe(ev)) {
+        if (isTrackpadMultiFingerSwipe(ev)) {
             return false;
         }
         return super.onInterceptTouchEvent(ev);
@@ -1163,7 +1160,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
-        if (isNonTrackpadMouseEvent(ev) || isTrackpadMultiFingerSwipe(ev)) {
+        if (isTrackpadMultiFingerSwipe(ev)) {
             return false;
         }
         return super.onTouchEvent(ev);
@@ -1172,6 +1169,14 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     @Override
     protected void onDisallowSwipeToMinusOnePage() {
         mLauncher.getOverlayManager().onDisallowSwipeToMinusOnePage();
+    }
+
+    @Override
+    public ViewGroup getBoxSelectionHostContainer() {
+        if (shouldEnableCursorDrivenWorkflows(getContext())) {
+            return mLauncher.getDragLayer();
+        }
+        return null;
     }
 
     /**
@@ -1183,11 +1188,6 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     @Override
     public boolean onTouch(View v, MotionEvent event) {
         return shouldConsumeTouch(v);
-    }
-
-    private boolean isNonTrackpadMouseEvent(MotionEvent ev) {
-        return shouldEnableMouseInteractionChanges(getContext())
-                && !isTrackpadMotionEvent(ev) && ev.isFromSource(InputDevice.SOURCE_MOUSE);
     }
 
     private boolean shouldConsumeTouch(View v) {
@@ -1822,7 +1822,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         if (child.getTag() instanceof ItemInfo item) {
             if (child instanceof BubbleTextView && !HomeScreenFilesUtilsKt.isFileSystemItem(item)) {
                 BubbleTextView btv = (BubbleTextView) child;
-                if (!dragOptions.isAccessibleDrag) {
+                if (!dragOptions.isAccessibleDrag && !dragOptions.isMouseDrag) {
                     dragOptions.preDragCondition =
                             btv.startLongPressAction(mLauncher.getPopupControllerForAppIcons());
                 }
@@ -1831,7 +1831,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 }
             } else if (((Flags.homeScreenEditImprovements() && child instanceof Poppable)
                     || HomeScreenFilesUtilsKt.isFileSystemItem(item))
-                    && !dragOptions.isAccessibleDrag) {
+                    && !dragOptions.isAccessibleDrag && !dragOptions.isMouseDrag) {
                 Popup popup = mLauncher.getPopupControllerForHomeScreenItems()
                         .show(child);
                 if (popup != null) {
@@ -1849,7 +1849,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             }
         }
 
-        DragView<?> dv = null;
+        DragView dv = null;
 
         // TODO(458058227): Move this entire code block to [DragController].
         if (enableSystemDragToOtherApps()
@@ -2759,12 +2759,17 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     }
 
     private boolean shouldUseHotseatAsDropLayout(DragObject dragObject) {
-        if (mLauncher.getHotseat() == null
-                || mLauncher.getHotseat().getShortcutsAndWidgets() == null
-                || isDragWidget(dragObject)) {
+        Hotseat hotseat = mLauncher.getHotseat();
+        if (hotseat == null) {
             return false;
         }
-        View hotseatShortcuts = mLauncher.getHotseat().getShortcutsAndWidgets();
+
+        ShortcutAndWidgetContainer hotseatShortcuts = hotseat.getShortcutsAndWidgets();
+        if (hotseatShortcuts == null
+                || isDragWidget(dragObject)
+                || hotseatShortcuts.getVisibility() != View.VISIBLE) {
+            return false;
+        }
         getViewBoundsRelativeToWorkspace(hotseatShortcuts, mTempRect);
         return mTempRect.contains(dragObject.x, dragObject.y);
     }
@@ -3162,15 +3167,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         int height = MeasureSpec.makeMeasureSpec(unScaledSize[1], MeasureSpec.EXACTLY);
         layout.measure(width, height);
         layout.layout(0, 0, unScaledSize[0], unScaledSize[1]);
-        Drawable widgetSnapshot;
-        if (Flags.fixWidgetDragRadiusLoss()) {
-            widgetSnapshot = ViewEx.captureSnapshotAsDrawable(layout,
-                    /*debugString=*/ "NewWidgetDrop", unScaledSize[0], unScaledSize[1]);
-        } else {
-            widgetSnapshot = new FastBitmapDrawable(
-                    BitmapRenderer.createHardwareBitmap(unScaledSize[0], unScaledSize[1],
-                            layout::draw));
-        }
+        Drawable widgetSnapshot = ViewEx.captureSnapshotAsDrawable(layout,
+                /*debugString=*/ "NewWidgetDrop", unScaledSize[0], unScaledSize[1]);
         layout.setVisibility(visibility);
         return widgetSnapshot;
     }

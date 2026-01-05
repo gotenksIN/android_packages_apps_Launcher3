@@ -83,6 +83,17 @@ data class WorkspaceProfile(
     val extraSpace: Int = 0,
 ) {
 
+    /**
+     * Return the size in pixels from the corner of one icon to the corner of the next icon after
+     * the given amount of columns.
+     */
+    fun getIconToIconWidthForColumns(columns: Int): Int =
+        (columns * cellSize.x + (columns - 1) * cellLayoutBorderSpacePx.x -
+            getCellHorizontalSpace())
+
+    /** Returns the left and right space on the cell, which is the cell width - icon size */
+    fun getCellHorizontalSpace(): Int = cellSize.x - iconSizePx
+
     fun getTotalWorkspacePadding(): Point =
         Point(
             workspacePadding.left + workspacePadding.right,
@@ -126,7 +137,7 @@ data class WorkspaceProfile(
         isSeascape: Boolean,
         isFixedLandscape: Boolean,
         isScalableGrid: Boolean,
-        hotseatProfile: HotseatProfile,
+        hotseatProfile: HotseatProfileInitialValues,
         hotseatBarSizePx: Int,
         insets: Rect,
         deviceProperties: DeviceProperties,
@@ -250,7 +261,7 @@ data class WorkspaceProfile(
         fun calculateHotseatBarSizePx(
             iconSizePx: Int,
             isVerticalLayout: Boolean,
-            hotseatProfile: HotseatProfile,
+            hotseatProfile: HotseatProfileInitialValues,
             hotseatBarBottomSpacePx: Int,
             hotseatQsbSpace: Int,
             isQsbInline: Boolean,
@@ -286,7 +297,7 @@ data class WorkspaceProfile(
             workspaceBottomPadding: Int,
             insets: Rect,
             edgeMarginPx: Int,
-            hotseatProfile: HotseatProfile,
+            hotseatProfile: HotseatProfileInitialValues,
             hotseatBarBottomSpacePx: Int,
             hotseatQsbSpace: Int,
             iconSize: Int,
@@ -364,7 +375,7 @@ data class WorkspaceProfile(
             iconScale: Float,
             cellScaleToFit: Float,
             insets: Rect,
-            hotseatProfile: HotseatProfile,
+            hotseatProfile: HotseatProfileInitialValues,
             hotseatBarBottomSpacePx: Int,
             hotseatQsbSpace: Int,
             panelCount: Int,
@@ -398,7 +409,9 @@ data class WorkspaceProfile(
 
             var iconDrawablePaddingPx: Int
 
-            if (isItemLabelHidden && Flags.workspaceHiddenLabels()) {
+            if (
+                isItemLabelHidden && com.android.systemui.shared.Flags.workspaceItemsLabelHidden()
+            ) {
                 iconDrawablePaddingPx = 0
                 iconTextSizePx = 0
                 maxIconTextLineCount = 0
@@ -558,7 +571,7 @@ data class WorkspaceProfile(
             insets: Rect,
             isFirstPass: Boolean,
             isSeascape: Boolean,
-            hotseatProfile: HotseatProfile,
+            hotseatProfile: HotseatProfileInitialValues,
             hotseatBarBottomSpacePx: Int,
             hotseatQsbSpace: Int,
             hotseatBarSizePx: Int,

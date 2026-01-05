@@ -132,7 +132,7 @@ public class BubbleBarViewController {
                     v.getBoundsOnScreen(mTempRect);
                     if (mTaskbarUiState != null) {
                         mTaskbarUiState.setBubbleBarRect(mTempRect);
-                        mTaskbarUiState.setBubbleBarViewVisible(v.getVisibility() == VISIBLE);
+                        mTaskbarUiState.setIsBubbleBarViewVisible(v.getVisibility() == VISIBLE);
                     }
                 }
             };
@@ -150,6 +150,7 @@ public class BubbleBarViewController {
     // Whether the bar is hidden when stashed
     private boolean mHiddenForStashed;
     private boolean mShouldShowEducation;
+    private boolean mIsSysUiLocked = false;
     public boolean mOverflowAdded;
     // While a drag actions happens, bubble bar should be unstashed to show as a target, this
     // indicates if stash state should be applied after the drag action is complete.
@@ -163,6 +164,7 @@ public class BubbleBarViewController {
     private BubbleBarFlyoutController mBubbleBarFlyoutController;
     private DragToBubbleController mDragToBubbleController;
     private TaskbarSharedState mTaskbarSharedState;
+    private Animator mTaskbarAlphaAnimator;
     private final TimeSource mTimeSource = System::currentTimeMillis;
     private final int mTaskbarTranslationDelta;
 
@@ -195,7 +197,7 @@ public class BubbleBarViewController {
             mBarView.addOnLayoutChangeListener(mBubbleBarViewOnLayoutChangeListener);
             mBarView.getBoundsOnScreen(mTempRect);
             mTaskbarUiState.setBubbleBarRect(mTempRect);
-            mTaskbarUiState.setBubbleBarViewVisible(mBarView.getVisibility() == VISIBLE);
+            mTaskbarUiState.setIsBubbleBarViewVisible(mBarView.getVisibility() == VISIBLE);
         }
         mBubbleBarContainer = bubbleBarContainer;
         mSystemUiProxy = SystemUiProxy.INSTANCE.get(mActivity);
@@ -255,7 +257,12 @@ public class BubbleBarViewController {
         mBarView.setController(new BubbleBarView.Controller() {
             @Override
             public float getBubbleBarTranslationY() {
-                return mBubbleStashController.getBubbleBarTranslationY();
+                if (mBubbleStashController.isInAppDisplayAnimationInProgress()) {
+                    // if animation is in progress we would like to get the target translation value
+                    return mBubbleStashController.getTargetTranslationYForState();
+                } else {
+                    return mBubbleStashController.getBubbleBarTranslationY();
+                }
             }
 
             @Override
@@ -322,6 +329,15 @@ public class BubbleBarViewController {
                 mBubbleBarController.updateBubbleBarLocation(location, source);
             }
         };
+    }
+
+    /**
+     * Called when initial state from shell is applied and the initial state added bubbles.
+     */
+    public void onInitialBubblesAdded() {
+        // Default taskbar window size includes bubble bar size if bubbles are present.
+        // Bubbles are now added, make sure the taskbar window accounts for them.
+        mActivity.setTaskbarWindowSize(mActivity.getDefaultTaskbarWindowSize());
     }
 
     /** Called when animations for new and updated bubbles ended. */
@@ -1268,6 +1284,7 @@ public class BubbleBarViewController {
     public void adjustTaskbarToBubbleBarState(boolean isBubbleBarExpanded) {
         if (!mBubbleStashController.isBubblesShowingOnHome()
                 && !mBubbleStashController.isTransientTaskBar()) {
+            cancelTaskbarAlphaAnimationIfRunning();
             boolean hideTaskbar = isBubbleBarExpanded && isIntersectingTaskbar();
             Animator taskbarAlphaAnimator = mTaskbarViewPropertiesProvider.getIconsAlpha()
                     .animateToValue(hideTaskbar ? 0 : 1);
@@ -1278,7 +1295,15 @@ public class BubbleBarViewController {
             }
             taskbarAlphaAnimator.setInterpolator(Interpolators.LINEAR);
             taskbarAlphaAnimator.start();
+            mTaskbarAlphaAnimator = taskbarAlphaAnimator;
         }
+    }
+
+    private void cancelTaskbarAlphaAnimationIfRunning() {
+        if (mTaskbarAlphaAnimator != null && mTaskbarAlphaAnimator.isRunning()) {
+            mTaskbarAlphaAnimator.cancel();
+        }
+        mTaskbarAlphaAnimator = null;
     }
 
     /** Return {@code true} if expanded bubble bar would intersect the taskbar. */
@@ -1486,6 +1511,19 @@ public class BubbleBarViewController {
 
         return new RoundedRectRevealOutlineProvider(viewRadius, stashedRadius, viewBounds,
                 stashedViewBounds).createRevealAnimator(bubbleView, !isStashed, 0);
+    }
+
+    /** Notifies controller of the locked state */
+    public void setSysuiLocked(boolean sysUiLocked) {
+        if (mIsSysUiLocked != sysUiLocked) {
+            mIsSysUiLocked = sysUiLocked;
+            if (!sysUiLocked) {
+                // update taskbar icons alpha immediately on device is unlocked
+                cancelTaskbarAlphaAnimationIfRunning();
+                float targetAlpha = isExpanded() && isIntersectingTaskbar() ? 0 : 1;
+                mTaskbarViewPropertiesProvider.getIconsAlpha().setValue(targetAlpha);
+            }
+        }
     }
 
     /**

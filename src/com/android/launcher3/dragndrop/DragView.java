@@ -31,19 +31,17 @@ import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.animation.ValueAnimator.AnimatorUpdateListener;
+import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.appwidget.AppWidgetHostView;
-import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.Path;
-import android.graphics.Picture;
 import android.graphics.Rect;
 import android.graphics.drawable.AdaptiveIconDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.PictureDrawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -60,6 +58,7 @@ import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
 
 import com.android.app.animation.Interpolators;
+import com.android.launcher3.folder.ClippedFolderIconLayoutRule;
 import com.android.launcher3.Flags;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
@@ -73,13 +72,15 @@ import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.BaseDragLayer;
 
 /** A custom view for rendering an icon, folder, shortcut or widget during drag-n-drop. */
-public class DragView<T extends Context & ActivityContext> extends FrameLayout {
+@SuppressLint("ViewConstructor")
+public class DragView extends FrameLayout {
 
     public static final int VIEW_ZOOM_DURATION = 150;
+    private static final int PARALLAX_MAX_IN_DP = 8;
 
     private final View mContent;
     // The following are only used for rendering mContent directly during drag-n-drop.
-    @Nullable private ViewGroup.LayoutParams mContentViewLayoutParams;
+    @Nullable private final ViewGroup.LayoutParams mContentViewLayoutParams;
     @Nullable private ViewGroup mContentViewParent;
     private int mContentViewInParentViewIndex = -1;
     private final int mWidth;
@@ -97,8 +98,8 @@ public class DragView<T extends Context & ActivityContext> extends FrameLayout {
 
     private boolean mHasDragOffset;
     private Rect mDragRegion = null;
-    protected final T mActivity;
-    private final BaseDragLayer<T> mDragLayer;
+    protected final ActivityContext mActivity;
+    private final BaseDragLayer<?> mDragLayer;
     private boolean mHasDrawn = false;
 
     final ValueAnimator mScaleAnim;
@@ -122,7 +123,7 @@ public class DragView<T extends Context & ActivityContext> extends FrameLayout {
     private Drawable mBadge;
     private int mItemType;
 
-    public DragView(T launcher, Drawable drawable, int registrationX,
+    public DragView(ActivityContext launcher, Drawable drawable, int registrationX,
             int registrationY, final float initialScale, final float scaleOnDrop,
             final float finalScaleDps) {
         this(launcher, getViewFromDrawable(launcher, drawable),
@@ -145,10 +146,10 @@ public class DragView<T extends Context & ActivityContext> extends FrameLayout {
      * @param scaleOnDrop   the scale used in the drop animation.
      * @param finalScaleDps the scale used in the zoom out animation when the drag view is shown.
      */
-    public DragView(T activity, View content, int width, int height, int registrationX,
-            int registrationY, final float initialScale, final float scaleOnDrop,
+    public DragView(ActivityContext activity, View content, int width, int height,
+            int registrationX, int registrationY, final float initialScale, final float scaleOnDrop,
             final float finalScaleDps) {
-        super(activity);
+        super(activity.asContext());
         mActivity = activity;
         mDragLayer = activity.getDragLayer();
 
@@ -156,8 +157,8 @@ public class DragView<T extends Context & ActivityContext> extends FrameLayout {
         mWidth = width;
         mHeight = height;
         mContentViewLayoutParams = mContent.getLayoutParams();
-        if (mContent.getParent() instanceof ViewGroup) {
-            mContentViewParent = (ViewGroup) mContent.getParent();
+        if (mContent.getParent() instanceof ViewGroup vg) {
+            mContentViewParent = vg;
             mContentViewInParentViewIndex = mContentViewParent.indexOfChild(mContent);
             mContentViewParent.removeView(mContent);
         }
@@ -260,7 +261,7 @@ public class DragView<T extends Context & ActivityContext> extends FrameLayout {
                     themeManager.isIconThemeEnabled());
             if (fullDrawable != null) {
                 AdaptiveIconDrawable adaptiveIcon = fullDrawable.first;
-                int blurMargin = (int) mActivity.getResources()
+                int blurMargin = (int) getContext().getResources()
                         .getDimension(R.dimen.blur_size_medium_outline) / 2;
 
                 Rect bounds = new Rect(0, 0, w, h);
@@ -277,9 +278,20 @@ public class DragView<T extends Context & ActivityContext> extends FrameLayout {
                 Utilities.scaleRectAboutCenter(shrunkBounds, 0.98f);
                 adaptiveIcon.setBounds(shrunkBounds);
 
-                final Path mask = (adaptiveIcon instanceof FolderAdaptiveIcon
-                        ? themeManager.getFolderShape() : themeManager.getIconShape())
-                        .getPath(shrunkBounds);
+                final Path mask;
+                if (adaptiveIcon instanceof FolderAdaptiveIcon) {
+                    // In order to not clip preview icons, need to account for both parallax
+                    // as well padding for the icon overlap outside of the folder icon.
+                    Rect maskBounds = new Rect(shrunkBounds);
+                    Utilities.scaleRectAboutCenter(maskBounds,
+                            ClippedFolderIconLayoutRule.ICON_OVERLAP_FACTOR);
+                    final int maxParallax =
+                            (int) (getResources().getDisplayMetrics().density * PARALLAX_MAX_IN_DP);
+                    maskBounds.inset(-maxParallax, -maxParallax);
+                    mask = themeManager.getFolderShape().getPath(maskBounds);
+                } else {
+                    mask = themeManager.getIconShape().getPath(shrunkBounds);
+                }
 
                 mTranslateX = new SpringFloatValue(DragView.this,
                         w * AdaptiveIconDrawable.getExtraInsetFraction());
@@ -378,7 +390,7 @@ public class DragView<T extends Context & ActivityContext> extends FrameLayout {
             // If the content is already removed, ignore
             return;
         }
-        ImageView newContent = getViewFromDrawable(getContext(), crossFadeDrawable);
+        ImageView newContent = getViewFromDrawable(mActivity, crossFadeDrawable);
         // We need to fill the ImageView with the content, otherwise the shapes of the final view
         // and the drag view might not match exactly
         newContent.setScaleType(ImageView.ScaleType.FIT_XY);
@@ -520,18 +532,10 @@ public class DragView<T extends Context & ActivityContext> extends FrameLayout {
      */
     public void detachContentView(boolean reattachToPreviousParent) {
         if (mContent != null && mContentViewParent != null && mContentViewInParentViewIndex >= 0) {
-            Drawable snapshotDrawable;
-            if (Flags.fixWidgetDragRadiusLoss()) {
-                snapshotDrawable = ViewEx.captureSnapshotAsDrawable(mContent,
-                        /*debugString=*/ "DragViewDrop", mWidth, mHeight);
-            } else {
-                Picture picture = new Picture();
-                mContent.draw(picture.beginRecording(mWidth, mHeight));
-                picture.endRecording();
-                snapshotDrawable = new PictureDrawable(picture);
-            }
+            Drawable snapshotDrawable = ViewEx.captureSnapshotAsDrawable(mContent,
+                    /*debugString=*/ "DragViewDrop", mWidth, mHeight);
 
-            View view = new View(mActivity);
+            View view = new View(mActivity.asContext());
             view.setBackground(snapshotDrawable);
             view.measure(makeMeasureSpec(mWidth, EXACTLY), makeMeasureSpec(mHeight, EXACTLY));
             view.layout(mContent.getLeft(), mContent.getTop(),
@@ -628,7 +632,6 @@ public class DragView<T extends Context & ActivityContext> extends FrameLayout {
         // Following three values are fine tuned with motion ux designer
         private static final int STIFFNESS = 4000;
         private static final float DAMPENING_RATIO = 1f;
-        private static final int PARALLAX_MAX_IN_DP = 8;
 
         private final View mView;
         private final SpringAnimation mSpring;
@@ -652,8 +655,8 @@ public class DragView<T extends Context & ActivityContext> extends FrameLayout {
         }
     }
 
-    private static ImageView getViewFromDrawable(Context context, Drawable drawable) {
-        ImageView iv = new ImageView(context);
+    private static ImageView getViewFromDrawable(ActivityContext context, Drawable drawable) {
+        ImageView iv = new ImageView(context.asContext());
         iv.setImageDrawable(drawable);
         return iv;
     }
@@ -667,13 +670,13 @@ public class DragView<T extends Context & ActivityContext> extends FrameLayout {
         // and will be one of the last views.
         for (int i = dragLayer.getChildCount() - 1; i >= 0; i--) {
             View child = dragLayer.getChildAt(i);
-            if (child instanceof DragView) {
+            if (child instanceof DragView d) {
                 // Widgets uses a listener to remove views.
                 // When widgets are dropped from another window, we don't want to remove the
                 // dragView on resume of launcher.
                 if (Flags.enableWidgetPickerRefactor()
-                        && ((DragView<?>) child).mItemType != ITEM_TYPE_APPWIDGET
-                        && ((DragView<?>) child).mItemType != ITEM_TYPE_DEEP_SHORTCUT) {
+                        && d.mItemType != ITEM_TYPE_APPWIDGET
+                        && d.mItemType != ITEM_TYPE_DEEP_SHORTCUT) {
                     dragLayer.removeView(child);
                 }
             }

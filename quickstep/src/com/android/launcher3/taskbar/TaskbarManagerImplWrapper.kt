@@ -30,6 +30,7 @@ import com.android.quickstep.views.RecentsViewContainer
 import java.io.PrintWriter
 import java.util.concurrent.Callable
 import javax.annotation.concurrent.ThreadSafe
+import javax.inject.Inject
 
 /**
  * Wrapper of [TaskbarManagerImpl], this class controls which thread the invocation happens. The
@@ -37,10 +38,15 @@ import javax.annotation.concurrent.ThreadSafe
  * rendering taskbar in per-window ui thread.
  */
 @ThreadSafe
-class TaskbarManagerImplWrapper(private val impl: TaskbarManagerImpl) : TaskbarManager {
+class TaskbarManagerImplWrapper @Inject constructor(private val impl: TaskbarManagerImpl) :
+    TaskbarManager {
 
     override fun onUserUnlocked() {
         TASKBAR_UI_THREAD.execute(impl::onUserUnlocked)
+    }
+
+    override fun updateTaskbarsVisibility() {
+        TASKBAR_UI_THREAD.execute { impl.updateTaskbarsVisibility() }
     }
 
     override fun setActivity(activity: StatefulActivity<*>) {
@@ -159,8 +165,9 @@ class TaskbarManagerImplWrapper(private val impl: TaskbarManagerImpl) : TaskbarM
         return impl.getUIControllerForDisplay(displayId)?.let { TaskbarInteractor(it) }
     }
 
-    override fun getTaskbarForDisplay(displayId: Int): TaskbarApiProxy? {
-        return impl.getTaskbarForDisplay(displayId)?.let { TaskbarApiProxy(it) }
+    /* TODO(b/404636836): Evaluate API calls on returned TaskbarActivityContext */
+    override fun getTaskbarForDisplay(displayId: Int): TaskbarActivityContext? {
+        return impl.getTaskbarForDisplay(displayId)
     }
 
     override fun createAllAppsPendingIntent(): PendingIntent {

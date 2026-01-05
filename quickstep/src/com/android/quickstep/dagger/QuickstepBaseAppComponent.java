@@ -31,9 +31,9 @@ import com.android.launcher3.taskbar.TaskbarUiStateMonitor;
 import com.android.launcher3.taskbar.TaskbarViewCallbacksFactory;
 import com.android.launcher3.taskbar.bubbles.BubbleActivityStarter;
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator;
+import com.android.launcher3.taskbar.handoff.HandoffSuggestionRepository;
 import com.android.quickstep.FallbackActivityInterface;
 import com.android.quickstep.LauncherActivityInterface;
-import com.android.quickstep.OverviewCommandHelper;
 import com.android.quickstep.OverviewComponentObserver;
 import com.android.quickstep.RecentsAnimationDeviceState;
 import com.android.quickstep.RecentsModel;
@@ -44,10 +44,10 @@ import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.TaskAnimationManager;
 import com.android.quickstep.TaskOverlayFactory;
 import com.android.quickstep.TopTaskTracker;
-import com.android.quickstep.actioncorner.ActionCornerHandler;
 import com.android.quickstep.input.QuickstepKeyGestureEventsManager;
 import com.android.quickstep.inputconsumers.NavHandleLongPressHandler;
 import com.android.quickstep.logging.SettingsChangeLogger;
+import com.android.quickstep.sysuiconnection.SysUIConnectionTracker;
 import com.android.quickstep.util.AsyncClockEventDelegate;
 import com.android.quickstep.util.ContextualSearchHapticManager;
 import com.android.quickstep.util.ContextualSearchStateManager;
@@ -107,10 +107,6 @@ public interface QuickstepBaseAppComponent extends LauncherBaseAppComponent {
     DisplayRepository getDisplayRepository();
     NavHandleLongPressHandler getNavHandleLongPressHandler();
 
-    ActionCornerHandler.Factory getActionCornerHandlerFactory();
-
-    OverviewCommandHelper.Factory getOverviewCommandHelperFactory();
-
     DisplaysWithDecorationsRepositoryCompat getDisplaysWithDecorationsRepositoryCompat();
 
     TaskbarModelCallbacksFactory getTaskbarModelCallbacksFactory();
@@ -133,5 +129,12 @@ public interface QuickstepBaseAppComponent extends LauncherBaseAppComponent {
 
     LauncherActivityInterface getLauncherActivityInterface();
 
+    HandoffSuggestionRepository getHandoffSuggestionRepository();
+
     PerDisplayComponent.Factory getPerDisplayComponentFactory();
+
+    /** Builder for creating a new SysUIConnectionComponent */
+    SysUIConnectionComponent.Builder getSysUIConnectionComponentBuilder();
+    /** Tracker for active SysUI connection */
+    SysUIConnectionTracker getSysUIConnectionTracker();
 }

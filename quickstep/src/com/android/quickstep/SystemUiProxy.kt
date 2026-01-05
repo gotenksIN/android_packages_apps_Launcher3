@@ -395,7 +395,17 @@ constructor(
             { "Failed call onOverviewShown from: ${(if (fromHome) "home" else "app")}" },
             tag = tag,
         ) {
-            systemUiProxy?.onOverviewShown(fromHome)
+            systemUiProxy?.onOverviewShownDeprecated(fromHome)
+        }
+
+    fun onOverviewShown(displayId: Int, tag: String = TAG) =
+        executeWithErrorLog({ "Failed call onOverviewShown in displayId=$displayId" }, tag = tag) {
+            systemUiProxy?.onOverviewShown(displayId)
+        }
+
+    fun onOverviewHidden(displayId: Int, tag: String = TAG) =
+        executeWithErrorLog({ "Failed call onOverviewHidden in displayId=$displayId" }, tag = tag) {
+            systemUiProxy?.onOverviewHidden(displayId)
         }
 
     @MainThread
@@ -824,7 +834,8 @@ constructor(
             DesktopExperienceFlags.ENABLE_NON_DEFAULT_DISPLAY_SPLIT_BUGFIX.isTrue &&
                 listener != null
         ) {
-            splitSelectListeners.remove(listener)
+            val removeSuccess = splitSelectListeners.remove(listener)
+            Log.d("b/36737459", "removed splitSelectListener? $removeSuccess")
             if (splitSelectListeners.isEmpty()) {
                 executeWithErrorLog({ "Failed call unregisterSplitSelectListener" }) {
                     splitScreen?.unregisterSplitSelectListener(splitSelectListenerTracker)

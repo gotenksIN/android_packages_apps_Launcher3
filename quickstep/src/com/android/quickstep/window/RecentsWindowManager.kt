@@ -29,7 +29,6 @@ import android.content.pm.ActivityInfo.CONFIG_ORIENTATION
 import android.content.pm.ActivityInfo.CONFIG_SCREEN_SIZE
 import android.content.res.Configuration
 import android.os.Bundle
-import android.os.IBinder
 import android.util.Log
 import android.view.Display.DEFAULT_DISPLAY
 import android.view.KeyEvent
@@ -42,9 +41,11 @@ import android.view.SurfaceControl.Transaction
 import android.view.SurfaceControlViewHost
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewStub
 import android.window.BackEvent
 import android.window.DesktopExperienceFlags
 import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import android.window.RemoteTransition
 import android.window.SplashScreen
 import android.window.TransitionInfo
@@ -69,6 +70,7 @@ import com.android.launcher3.anim.PendingAnimation
 import com.android.launcher3.compat.AccessibilityManagerCompat
 import com.android.launcher3.concurrent.annotations.Ui
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 import com.android.launcher3.dagger.PerDisplayComponent
 import com.android.launcher3.dagger.WindowContext
 import com.android.launcher3.desktop.DesktopRecentsTransitionController
@@ -107,7 +109,7 @@ import com.android.quickstep.SystemUiProxy
 import com.android.quickstep.TaskViewUtils
 import com.android.quickstep.dagger.QuickstepBaseAppComponent
 import com.android.quickstep.fallback.FallbackRecentsStateController
-import com.android.quickstep.fallback.FallbackRecentsView
+import com.android.quickstep.fallback.FallbackWindowRecentsView
 import com.android.quickstep.fallback.RecentsDragLayer
 import com.android.quickstep.fallback.RecentsState
 import com.android.quickstep.fallback.RecentsState.Companion.BACKGROUND_APP
@@ -117,12 +119,12 @@ import com.android.quickstep.fallback.RecentsState.Companion.MODAL_TASK
 import com.android.quickstep.fallback.RecentsState.Companion.OVERVIEW_SPLIT_SELECT
 import com.android.quickstep.fallback.toLauncherStateOrdinal
 import com.android.quickstep.recents.di.RecentsComponent
+import com.android.quickstep.split.SplitFromRunningTaskController
 import com.android.quickstep.split.SplitSelectStateController
 import com.android.quickstep.util.QuickstepProtoLogGroup
 import com.android.quickstep.util.RecentsAtomicAnimationFactory
 import com.android.quickstep.util.RecentsWindowProtoLogProxy
 import com.android.quickstep.util.SurfaceTransactionApplier
-import com.android.quickstep.util.TISBindHelper
 import com.android.quickstep.views.OverviewActionsView
 import com.android.quickstep.views.RecentsView
 import com.android.quickstep.views.RecentsViewContainer
@@ -175,7 +177,7 @@ constructor(
     }
 
     private val recentsComponent = recentsComponentFactory.build(this)
-    private var recentsView: FallbackRecentsView<RecentsWindowManager>? = null
+    private var recentsView: FallbackWindowRecentsView? = null
     private var surfaceControlViewHost: SurfaceControlViewHost? = null
     private var layoutInflater: LayoutInflater = LayoutInflater.from(this).cloneInContext(this)
     private var stateManager: StateManager<RecentsState, RecentsWindowManager> =
@@ -186,7 +188,7 @@ constructor(
     private var homeOverlay: SurfaceControl? = null
     private var dragLayer: RecentsDragLayer<RecentsWindowManager>? = null
     private var windowRootView = RecentsWindowRootView(this)
-    private var windowView: View? = null
+    private var windowView: LauncherRootView? = null
     private var actionsView: OverviewActionsView<*>? = null
     private var scrimView: ScrimView? = null
 
@@ -197,7 +199,7 @@ constructor(
     private var oldConfiguration: Configuration? = null
     private var oldRotation: Int = -1
 
-    private val tisBindHelper: TISBindHelper = TISBindHelper(this) {}
+    private val splitFromRunningTaskController = SplitFromRunningTaskController(this)
     private val splitSelectStateController: SplitSelectStateController =
         SplitSelectStateController(
             /* container= */ this,
@@ -208,6 +210,7 @@ constructor(
             recentsModel,
             /* activityBackCallback= */ null,
             SplitScreenUiState(),
+            splitFromRunningTaskController,
         )
 
     // Callback array that corresponds to events defined in @ActivityEvent
@@ -254,12 +257,14 @@ constructor(
     private val homeVisibilityState = systemUiProxy.homeVisibilityState
     private val homeVisibilityListener =
         object : HomeVisibilityState.VisibilityChangeListener {
-            override fun onHomeVisibilityChanged(isVisible: Boolean) {
-                if (isShowing() && !isVisible && isInState(DEFAULT)) {
-                    // handling state where we end recents animation by swiping livetile away
-                    // TODO: animate this switch.
-                    hideRecentsWindow()
+            override fun onHomeVisibilityChanged(isHomeVisible: Boolean) {
+                if (fallbackWindowInterface.isInLiveTileMode || isHomeVisible) {
+                    return
                 }
+                // If there is a running recents animation (i.e. live tile mode) when the home
+                // task disappears, we should let recents animation callbacks
+                // (i.e. onTasksAppeared) reset the state manager.
+                stateManager.moveToRestState(/* isAnimated= */ true)
             }
         }
 
@@ -284,11 +289,13 @@ constructor(
             }
 
             override fun onRecentsAnimationCanceled(thumbnailDatas: HashMap<Int, ThumbnailData>) {
-                recentAnimationStopped()
+                super.onRecentsAnimationCanceled(thumbnailDatas)
+                onRecentAnimationStopped()
             }
 
             override fun onRecentsAnimationFinished(controller: RecentsAnimationController) {
-                recentAnimationStopped()
+                super.onRecentsAnimationFinished(controller)
+                onRecentAnimationStopped()
             }
         }
 
@@ -314,7 +321,8 @@ constructor(
                 displayId != DEFAULT_DISPLAY &&
                 desktopState.canEnterDesktopModeOrShowAppHandle
         ) {
-            splitSelectStateController.initSplitFromDesktopController(this)
+            splitSelectStateController.initSplitFromRunningTaskController(this)
+            splitFromRunningTaskController.init(splitSelectStateController)
         }
 
         displayController.getListenable(displayId)?.let {
@@ -332,13 +340,16 @@ constructor(
         surfaceControlViewHost?.let { cleanUpSurfaceControlViewHost() }
 
         theme.applyStyle(R.style.OverviewBlurFallbackStyle, true)
-        windowView = layoutInflater.inflate(R.layout.fallback_recents_activity, null)
+        windowView =
+            layoutInflater.inflate(R.layout.fallback_recents_activity, null) as LauncherRootView
         windowView?.let {
             actionsView = it.findViewById(R.id.overview_actions_view)
             val emptyRecentsMessageView =
                 it.findViewById<ViewGroup?>(R.id.empty_recents_message_view)
             recentsView =
-                it.findViewById<FallbackRecentsView<RecentsWindowManager>?>(R.id.overview_panel)
+                (it.findViewById<ViewStub>(R.id.overview_panel)
+                        .apply { layoutResource = R.layout.fallback_window_recents_view }
+                        .inflate() as? FallbackWindowRecentsView)
                     ?.apply {
                         init(
                             actionsView,
@@ -369,8 +380,13 @@ constructor(
 
             createSurfaceControlViewHost()
 
-            it.findOnBackInvokedDispatcher()
-                ?.registerSystemOnBackInvokedCallback(onBackInvokedCallback)
+            windowRootView
+                .findOnBackInvokedDispatcher()
+                ?.registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                    onBackInvokedCallback,
+                )
+            updateDisallowBack()
 
             recentsWindowTracker.handleCreate(this)
             onViewCreated()
@@ -380,17 +396,17 @@ constructor(
     }
 
     override fun destroy() {
+        Log.d(TAG, "destroy")
         super.destroy()
         displayChangesSafeCloseable?.close()
         displayChangesSafeCloseable = null
         fallbackWindowInterface.setRecentsWindowManager(null)
-        tisBindHelper.onDestroy()
         uiExecutor.execute {
             onViewDestroyed()
             hideRecentsWindow()
             cleanUpSurfaceControlViewHost()
-            windowView
-                ?.findOnBackInvokedDispatcher()
+            windowRootView
+                .findOnBackInvokedDispatcher()
                 ?.unregisterOnBackInvokedCallback(onBackInvokedCallback)
             callbacks?.removeListener(recentsAnimationListener)
             if (displayId == DEFAULT_DISPLAY) {
@@ -406,7 +422,9 @@ constructor(
 
     private fun createSurfaceControlViewHost() {
         if (surfaceControlViewHost != null) return
-        surfaceControlViewHost = SurfaceControlViewHost(this, display, null as IBinder?)
+        surfaceControlViewHost =
+            SurfaceControlViewHost(this, display, windowRootView.viewRootImpl?.inputToken)
+
         surfaceControlViewHost?.let { scvh ->
             scvh.setView(windowRootView, getWindowLayoutParams())
             scvh.surfacePackage?.let { surfacePackage ->
@@ -503,9 +521,14 @@ constructor(
         )
         dispatchDeviceProfileChanged()
 
-        (windowView as LauncherRootView?)?.dispatchInsets()
+        windowView?.dispatchInsets()
         getStateManager().reapplyState(true /* cancelCurrentAnimation */)
         dragLayer?.recreateControllers()
+        updateDisallowBack()
+    }
+
+    private fun updateDisallowBack() {
+        fallbackWindowInterface.updateDisallowBack()
     }
 
     private fun onDisplayInfoChanged() {
@@ -606,7 +629,7 @@ constructor(
                                 addListener(
                                     onEnd = {
                                         recentsView.resetTaskVisuals()
-                                        stateManager.reapplyState()
+                                        stateManager.moveToRestState()
                                     }
                                 )
                             }
@@ -736,7 +759,7 @@ constructor(
 
     private fun isShowing() = windowView?.parent != null && windowRootView.isVisible
 
-    private fun recentAnimationStopped() {
+    private fun onRecentAnimationStopped() {
         if (isInState(BACKGROUND_APP)) {
             hideRecentsWindow()
         }
@@ -745,7 +768,10 @@ constructor(
     override fun getComponentName() = ComponentName(this, RecentsWindowManager::class.java)
 
     override fun canStartHomeSafely(): Boolean {
-        val overviewCommandHelper = tisBindHelper.overviewCommandHelper
+        val overviewCommandHelper =
+            appComponent.sysUIConnectionTracker.activeComponent.value
+                ?.overviewCommandHelper
+                ?.getIfReady()
         return overviewCommandHelper == null ||
             overviewCommandHelper.canStartHomeSafely() ||
             displayId != DEFAULT_DISPLAY
@@ -773,18 +799,23 @@ constructor(
     override fun onStateSetEnd(state: RecentsState) {
         super.onStateSetEnd(state)
         RecentsWindowProtoLogProxy.logOnStateSetEnd(state.toString())
-        if (!state.isRecentsViewVisible()) {
-            hideRecentsWindow()
-        }
+        state.applyRecentsWindowVisibility()
         AccessibilityManagerCompat.sendStateEventToTest(baseContext, state.toLauncherStateOrdinal())
     }
 
     override fun onRepeatStateSetAborted(state: RecentsState) {
         super.onRepeatStateSetAborted(state)
         RecentsWindowProtoLogProxy.logOnRepeatStateSetAborted(state.toString())
-        if (!state.isRecentsViewVisible()) {
+        state.applyRecentsWindowVisibility()
+    }
+
+    private fun RecentsState.applyRecentsWindowVisibility() {
+        if (isRecentsViewVisible()) {
+            showRecentsWindow()
+        } else {
             hideRecentsWindow()
         }
+        updateDisallowBack()
     }
 
     override fun getSystemUiController(): SystemUiController? {
@@ -826,18 +857,27 @@ constructor(
 
     override fun onRootViewDispatchKeyEvent(event: KeyEvent?): Boolean {
         TestLogging.recordKeyEvent(SEQUENCE_MAIN, "Key event", event)
-        return if (
-            event?.action != KeyEvent.ACTION_DOWN || event.keyCode != KeyEvent.KEYCODE_ESCAPE
-        ) {
+        val isBackEvent =
+            event?.action == KeyEvent.ACTION_UP && event.keyCode == KeyEvent.KEYCODE_BACK
+        val isEscEvent =
+            event?.action == KeyEvent.ACTION_DOWN &&
+                event.keyCode == KeyEvent.KEYCODE_ESCAPE &&
+                event.hasNoModifiers()
+        return if (!isEscEvent && !isBackEvent) {
             super.onRootViewDispatchKeyEvent(event)
-        } else if (isInState(OVERVIEW_SPLIT_SELECT) || isInState(MODAL_TASK)) {
-            stateManager.goToState(DEFAULT, true)
-            true
-        } else if (isInState(DEFAULT)) {
-            stateManager.state.onBackInvoked(this@RecentsWindowManager)
-            true
+        } else if (isEscEvent) {
+            if (isInState(OVERVIEW_SPLIT_SELECT) || isInState(MODAL_TASK)) {
+                stateManager.goToState(DEFAULT, true)
+                true
+            } else if (isInState(DEFAULT)) {
+                stateManager.state.onBackInvoked(this@RecentsWindowManager)
+                true
+            } else {
+                super.onRootViewDispatchKeyEvent(event)
+            }
         } else {
-            super.onRootViewDispatchKeyEvent(event)
+            onBackInvokedCallback.onBackInvoked()
+            true
         }
     }
 
@@ -863,10 +903,6 @@ constructor(
     /** Removes a previously added callback */
     override fun removeEventCallback(@BaseActivity.ActivityEvent event: Int, callback: Runnable?) {
         eventCallbacks[event].remove(callback)
-    }
-
-    override fun runOnBindToTouchInteractionService(r: Runnable?) {
-        tisBindHelper.runOnBindToTouchInteractionService(r)
     }
 
     override fun returnToHomescreen() {

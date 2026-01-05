@@ -27,6 +27,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.BubbleTextView
 import com.android.launcher3.Flags.FLAG_ENABLE_MULTI_INSTANCE_MENU_TASKBAR
+import com.android.launcher3.Flags.FLAG_ENABLE_TASKBAR_UI_THREAD
 import com.android.launcher3.LauncherSettings
 import com.android.launcher3.R
 import com.android.launcher3.dragndrop.DragView
@@ -35,14 +36,14 @@ import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.popup.PinToTaskbarShortcut
 import com.android.launcher3.statehandlers.DesktopVisibilityController
-import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnMainSync
+import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
 import com.android.launcher3.taskbar.TaskbarViewTestUtil.createHotseatWorkspaceItem
 import com.android.launcher3.taskbar.TaskbarViewTestUtil.createRecents
 import com.android.launcher3.taskbar.TaskbarViewTestUtil.createTestWorkspaceItem
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
-import com.android.launcher3.util.TestUtil.getOnUiThread
+import com.android.launcher3.util.TestUtil.getOnTaskbarUiThread
 import com.android.quickstep.util.GroupTask
 import com.android.window.flags.Flags.FLAG_ENABLE_PINNING_APP_WITH_CONTEXT_MENU
 import com.google.common.truth.Truth.assertThat
@@ -78,7 +79,9 @@ class TaskbarPopupControllerTest {
     @Before
     fun setup() {
         taskbarContext.controllers.uiController.init(taskbarContext.controllers)
-        runOnMainSync { taskbarView = taskbarContext.dragLayer.findViewById(R.id.taskbar_view) }
+        runOnTaskbarUiThreadSync {
+            taskbarView = taskbarContext.dragLayer.findViewById(R.id.taskbar_view)
+        }
 
         val hotseatItems = arrayOf(createHotseatWorkspaceItem())
         popupController.setApps(
@@ -88,7 +91,7 @@ class TaskbarPopupControllerTest {
         )
         popupController.taskbarInfoList = SparseArray()
         val recentItems = createRecents(2)
-        runOnMainSync {
+        runOnTaskbarUiThreadSync {
             taskbarView.updateItems(hotseatItems, recentItems, emptyList())
             hotseatIcon =
                 taskbarView.iconViews.filterIsInstance<BubbleTextView>().first {
@@ -104,7 +107,7 @@ class TaskbarPopupControllerTest {
     @Test
     fun showForIcon_hotseatItem() {
         assertThat(hasPopupMenu()).isFalse()
-        runOnMainSync { popupController.show(hotseatIcon) }
+        runOnTaskbarUiThreadSync { popupController.show(hotseatIcon) }
         assertThat(hasPopupMenu()).isTrue()
     }
 
@@ -113,7 +116,7 @@ class TaskbarPopupControllerTest {
     fun showForIcon_recentTask() {
         whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
         assertThat(hasPopupMenu()).isFalse()
-        runOnMainSync { popupController.show(recentTaskIcon) }
+        runOnTaskbarUiThreadSync { popupController.show(recentTaskIcon) }
         assertThat(hasPopupMenu()).isTrue()
     }
 
@@ -122,7 +125,7 @@ class TaskbarPopupControllerTest {
         assertThat(hasPopupMenu()).isFalse()
         whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
 
-        runOnMainSync {
+        runOnTaskbarUiThreadSync {
             hotseatIcon.performAccessibilityAction(AccessibilityNodeInfo.ACTION_LONG_CLICK, null)
         }
         assertThat(hasPopupMenu()).isTrue()
@@ -137,7 +140,7 @@ class TaskbarPopupControllerTest {
         assertThat(hasPopupMenu()).isFalse()
         whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
 
-        runOnMainSync {
+        runOnTaskbarUiThreadSync {
             recentTaskIcon.performAccessibilityAction(AccessibilityNodeInfo.ACTION_LONG_CLICK, null)
         }
         assertThat(hasPopupMenu()).isTrue()
@@ -185,22 +188,121 @@ class TaskbarPopupControllerTest {
         Assert.assertFalse((shortcut as PinToTaskbarShortcut<*>).isPin)
     }
 
+    @Test
+    @EnableFlags(FLAG_ENABLE_TASKBAR_UI_THREAD)
+    fun createPinShortcut_itemAlreadyPinned_withUiThreadEnabled_returnsUnpinShortcut() {
+        val hotseatItems = SparseArray<ItemInfo>()
+        val appUser = android.os.Process.myUserHandle()
+        val appAIntent = Intent().setComponent(ComponentName("com.example.app", "AppAActivity"))
+
+        val itemFromAllApps =
+            createTestWorkspaceItem(
+                0,
+                "AppA",
+                appAIntent,
+                appUser,
+                LauncherSettings.Favorites.CONTAINER_ALL_APPS,
+            )
+
+        val pinnedItemInHotseat =
+            createTestWorkspaceItem(
+                1,
+                "AppA",
+                appAIntent,
+                appUser,
+                LauncherSettings.Favorites.CONTAINER_HOTSEAT,
+            )
+
+        hotseatItems.put(0, pinnedItemInHotseat)
+        popupController.taskbarInfoList = hotseatItems
+        val allAppsAppIcon = Mockito.mock(BubbleTextView::class.java)
+
+        val shortcut =
+            popupController.createPinShortcut(taskbarContext, itemFromAllApps, allAppsAppIcon)
+        Assert.assertNotNull("Shortcut should not be null", shortcut)
+        Assert.assertTrue(
+            "Shortcut should be PinToTaskbarShortcut",
+            shortcut is PinToTaskbarShortcut<*>,
+        )
+        Assert.assertFalse((shortcut as PinToTaskbarShortcut<*>).isPin)
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_TASKBAR_UI_THREAD)
+    fun setTaskbarInfoList_withUiThreadEnabled_clonesList() {
+        // Verifies that setTaskbarInfoList clones the input list when UI thread is enabled.
+        val originalList = SparseArray<ItemInfo>()
+        val item = createHotseatWorkspaceItem()
+        originalList.put(0, item)
+
+        popupController.taskbarInfoList = originalList
+
+        // Modify the original list after setting it.
+        originalList.remove(0)
+
+        // The internal list should not be affected.
+        val internalList = popupController.taskbarInfoList
+        assertThat(internalList.size()).isEqualTo(1)
+        assertThat(internalList.get(0)).isEqualTo(item)
+    }
+
+    @Test
+    @DisableFlags(FLAG_ENABLE_TASKBAR_UI_THREAD)
+    fun setTaskbarInfoList_withUiThreadDisabled_doesNotCloneList() {
+        // Verifies that setTaskbarInfoList uses the same list reference when UI thread is disabled.
+        val originalList = SparseArray<ItemInfo>()
+        val item = createHotseatWorkspaceItem()
+        originalList.put(0, item)
+
+        popupController.taskbarInfoList = originalList
+
+        // Modify the original list after setting it.
+        originalList.remove(0)
+
+        // The internal list should be affected.
+        val internalList = popupController.taskbarInfoList
+        assertThat(internalList.size()).isEqualTo(0)
+    }
+
+    @Test
+    fun getTaskbarInfoList_returnsClonedList() {
+        // Verifies that getTaskbarInfoList always returns a defensive copy.
+        val originalList = SparseArray<ItemInfo>()
+        val item = createHotseatWorkspaceItem()
+        originalList.put(0, item)
+        popupController.taskbarInfoList = originalList
+
+        val retrievedList1 = popupController.taskbarInfoList
+        val retrievedList2 = popupController.taskbarInfoList
+
+        // Verify it's a clone and we get a new instance each time.
+        assertThat(retrievedList1).isNotSameInstanceAs(retrievedList2)
+
+        // Modify the retrieved list.
+        retrievedList1.remove(0)
+
+        // Verify the internal list is not modified by getting it again.
+        val internalList = popupController.taskbarInfoList
+        assertThat(internalList.size()).isEqualTo(1)
+        assertThat(internalList.get(0)).isEqualTo(item)
+    }
+
     private fun hasTaskbarDragView(): Boolean {
-        return getOnUiThread {
-            val dragView: DragView<*>? =
-                taskbarContext.dragLayer.findViewByPredicate { it is DragView<*> }
+        return getOnTaskbarUiThread {
+            val dragView: DragView? =
+                taskbarContext.dragLayer.findViewByPredicate { it is DragView }
             dragView != null
         }
     }
 
     private fun hasPopupMenu(): Boolean {
-        return getOnUiThread {
+        return getOnTaskbarUiThread {
             AbstractFloatingView.hasOpenView(taskbarContext, AbstractFloatingView.TYPE_ACTION_POPUP)
         }
     }
 
     private fun closePopupMenu() {
-        runOnMainSync {
+        runOnTaskbarUiThreadSync {
             val popup: AbstractFloatingView =
                 AbstractFloatingView.getOpenView(
                     taskbarContext,

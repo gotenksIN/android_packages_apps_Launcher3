@@ -107,6 +107,10 @@ public abstract class SwipeUpAnimationLogic implements
                 ));
     }
 
+    protected float getCurrentShiftValue() {
+        return mCurrentShift.value;
+    }
+
     protected void initTransitionEndpoints(DeviceProfile dp) {
         mDp = dp;
         mTransitionDragLength = mGestureState.getContainerInterface()
@@ -196,7 +200,7 @@ public abstract class SwipeUpAnimationLogic implements
                     dp.getDeviceProperties().getAvailableHeightPx()
             );
             final float targetX =  primaryDimension / 2f;
-            final float targetY = secondaryDimension - dp.hotseatBarSizePx;
+            final float targetY = secondaryDimension - dp.getHotseatProfile().getBarSizePx();
             // Fallback to animate to center of screen.
             return new RectF(targetX - halfIconSize, targetY - halfIconSize,
                     targetX + halfIconSize, targetY + halfIconSize);

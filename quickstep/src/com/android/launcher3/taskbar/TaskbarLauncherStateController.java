@@ -18,6 +18,7 @@ package com.android.launcher3.taskbar;
 import static com.android.app.animation.Interpolators.EMPHASIZED;
 import static com.android.app.animation.Interpolators.FINAL_FRAME;
 import static com.android.app.animation.Interpolators.INSTANT;
+import static com.android.launcher3.Flags.enableTaskbarUiThread;
 import static com.android.launcher3.Hotseat.ALPHA_CHANNEL_TASKBAR_ALIGNMENT;
 import static com.android.launcher3.Hotseat.ALPHA_CHANNEL_TASKBAR_STASH;
 import static com.android.launcher3.LauncherState.ALL_APPS;
@@ -395,8 +396,15 @@ public class TaskbarLauncherStateController {
         animatorSet.play(applyState(duration, false));
 
         if (mTaskBarRecentsAnimationListener != null) {
+            // When enableTaskbarUiThread() is turned on, swipe up to exit app will call
+            // createAnimToLauncher() on TASKBAR_UI_THREAD, while recents animation will remain on
+            // MAIN thread. If TASKBAR_UI_THREAD is executed ahead of main thread,
+            // mTaskBarRecentsAnimationListener will be not-null here (as onRecentsAnimationFinished
+            // hasn't been triggered to clear it). In this case we should enforce
+            // finishedToApp=false (as launcehr state is not OVERVIEW) to ensure showing hotseat
+            // when UI is returned to home.
             mTaskBarRecentsAnimationListener.endGestureStateOverride(
-                    !isStateManagerInState(LauncherState.OVERVIEW), /* canceled= */ false);
+                    /* finishedToApp= */ false, /* canceled= */ false);
         }
         mTaskBarRecentsAnimationListener = new TaskBarRecentsAnimationListener(
                 callbacks, TASKBAR_UI_THREAD);
@@ -1075,10 +1083,17 @@ public class TaskbarLauncherStateController {
                 /* updateTaskbarAlpha = */ !isHiddenForBubbles);
 
         // Sync the first frame where we swap taskbar and hotseat.
+        //
+        // TODO(b/404636836) Refactor the frame sync after turning on enableTaskbarUiThread.
+        // Note that if enableTaskbarUiThread() is turned on, the current impl will 1) do thread
+        // switching and cause delay in marking the sync group ready and 2) call
+        // SurfaceSyncGroup.add() which is not thread safe for one of the taskbar/launcher view
+        // on the wrong ui thread.
         if (firstFrameVisChanged
                 && mCanSyncViews
                 && mControllers.taskbarActivityContext.isTransientTaskbar()
-                && !Utilities.isRunningInTestHarness()) {
+                && !Utilities.isRunningInTestHarness()
+                && !enableTaskbarUiThread()) {
             mLauncher.synchronizeNextDraw(mControllers.taskbarActivityContext.getDragLayer());
         }
     }

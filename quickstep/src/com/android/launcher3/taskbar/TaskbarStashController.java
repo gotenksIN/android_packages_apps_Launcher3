@@ -34,6 +34,7 @@ import static com.android.launcher3.util.FlagDebugUtils.appendFlag;
 import static com.android.launcher3.util.FlagDebugUtils.formatFlagChange;
 import static com.android.quickstep.util.SystemActionConstants.SYSTEM_ACTION_ID_TASKBAR;
 import static com.android.quickstep.util.SystemUiFlagUtils.isTaskbarHidden;
+import static com.android.systemui.shared.Flags.cueBarAceMigration;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_BUBBLES_EXPANDED;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DIALOG_SHOWING;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_IME_VISIBLE;
@@ -406,8 +407,10 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
         boolean desktopModeTaskbarPinned = LauncherPrefs.get(mActivity).get(
                 LauncherPrefs.TASKBAR_PINNING_IN_DESKTOP_MODE);
 
+        final boolean autoStashAllowed = shouldAllowTaskbarToAutoStash();
         updateStateForFlag(FLAG_AUTO_STASHED_ON_HOME,
-                mActivity.shouldShowHomeBehindDesktop() && !desktopModeTaskbarPinned);
+                autoStashAllowed && mActivity.shouldShowHomeBehindDesktop()
+                        && !desktopModeTaskbarPinned);
 
         updateStateForFlag(FLAG_STASHED_IN_OVERVIEW_FOR_TRANSLUCENT_APP, false);
         applyState(/* duration = */ 0);
@@ -422,7 +425,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
 
         mControllers.runAfterInit(() -> {
             // if taskbar should auto stash attempt to start timeout.
-            if (shouldAllowTaskbarToAutoStash()) {
+            if (autoStashAllowed) {
                 tryStartTaskbarTimeout();
             }
         });
@@ -1474,6 +1477,9 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
         mSystemUiProxy.notifyTaskbarStatus(visible, stashed);
         setUpTaskbarSystemAction(visible);
         mControllers.rotationButtonController.onTaskbarStateChange(visible, stashed);
+        if (cueBarAceMigration()) {
+            mControllers.cueBarController.onTaskbarStatusUpdated(visible, stashed);
+        }
     }
 
     private void updateTaskbarWindowForciblyShownFlag() {

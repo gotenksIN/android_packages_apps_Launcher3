@@ -21,10 +21,13 @@ import android.content.Context
 import android.net.Uri
 import android.os.SystemClock
 import android.view.CrossWindowBlurListeners
+import android.widget.ImageView
+import com.android.extensions.computercontrol.ComputerControlExtensions
 import com.android.internal.R
 import com.android.internal.policy.DesktopModeCompatPolicy
 import com.android.launcher3.AbstractFloatingViewHelper
 import com.android.launcher3.Flags.enableSystemDrag
+import com.android.launcher3.automation.AutomationRepository
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger
 import com.android.launcher3.concurrent.annotations.ThreadPool
 import com.android.launcher3.dragndrop.SystemDragController
@@ -43,6 +46,7 @@ import com.android.launcher3.icons.LauncherIconProviderImpl
 import com.android.launcher3.logging.StatsLogManager.StatsLogManagerFactory
 import com.android.launcher3.secondarydisplay.SecondaryDisplayDelegate
 import com.android.launcher3.secondarydisplay.SecondaryDisplayQuickstepDelegateImpl
+import com.android.launcher3.testing.TestInformationHandler
 import com.android.launcher3.uioverrides.QuickstepWidgetHolder.QuickstepWidgetHolderFactory
 import com.android.launcher3.uioverrides.SystemApiWrapper
 import com.android.launcher3.uioverrides.plugins.PluginManagerWrapperImpl
@@ -58,10 +62,12 @@ import com.android.launcher3.util.window.RefreshRateTracker
 import com.android.launcher3.util.window.WindowManagerProxy
 import com.android.launcher3.widget.LauncherWidgetHolder.WidgetHolderFactory
 import com.android.quickstep.AspectRatioSystemShortcut
+import com.android.quickstep.AutomationRepositoryImpl
 import com.android.quickstep.DesktopShortcut
 import com.android.quickstep.ExternalDisplayShortcut
 import com.android.quickstep.InstantAppResolverImpl
 import com.android.quickstep.LauncherRestoreEventLoggerImpl
+import com.android.quickstep.QuickstepTestInformationHandler
 import com.android.quickstep.TaskShortcutFactory
 import com.android.quickstep.logging.StatsLogCompatManager.StatsLogCompatManagerFactory
 import com.android.quickstep.util.ChoreographerFrameRateTracker
@@ -116,6 +122,11 @@ abstract class ApiWrapperModule {
     abstract fun bindRestoreEventLogger(
         impl: LauncherRestoreEventLoggerImpl
     ): LauncherRestoreEventLogger
+
+    @Binds
+    abstract fun bindTestInformationHandler(
+        impl: QuickstepTestInformationHandler
+    ): TestInformationHandler
 }
 
 @Module
@@ -176,6 +187,12 @@ object StaticObjectModule {
     }
 
     @Provides fun provideAbstractFloatingViewHelper() = AbstractFloatingViewHelper
+
+    @Provides
+    @JvmStatic
+    fun provideComputerControlExtensions(
+        @ApplicationContext context: Context
+    ): ComputerControlExtensions? = ComputerControlExtensions.getInstance(context)
 }
 
 @Module
@@ -194,7 +211,7 @@ object SystemDragModule {
         if (enableSystemDrag())
             SystemDragControllerImpl(
                 systemDragListenerFactory.orElse { launcher, params ->
-                    SystemDragListener(launcher, iconCache, params)
+                    SystemDragListener(launcher, iconCache, ::ImageView, params)
                 }
             )
         else SystemDragControllerStub()
@@ -260,4 +277,10 @@ object TaskOverlayModule {
             TaskShortcutFactory.SCREENSHOT,
             TaskShortcutFactory.MODAL,
         )
+}
+
+/** Used by both Recents and Launcher for package automation */
+@Module
+interface AutomationModule {
+    @Binds fun bindAutomatedRepository(impl: AutomationRepositoryImpl): AutomationRepository
 }

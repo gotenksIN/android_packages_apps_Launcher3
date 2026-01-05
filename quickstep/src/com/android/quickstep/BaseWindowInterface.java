@@ -53,8 +53,10 @@ public abstract class BaseWindowInterface extends
 
 
     protected BaseWindowInterface(
-            @NonNull RecentsState overviewState, @NonNull RecentsState backgroundState) {
-        super(backgroundState);
+            @NonNull RecentsState overviewState,
+            @NonNull RecentsState backgroundState,
+            @NonNull TaskAnimationManager taskAnimationManager) {
+        super(backgroundState, taskAnimationManager);
         mTargetState = overviewState;
     }
 
@@ -107,6 +109,23 @@ public abstract class BaseWindowInterface extends
         Launcher launcher = Launcher.ACTIVITY_TRACKER.getCreatedContext();
 
         return launcher != null && launcher.getWorkspace().isOverlayShown();
+    }
+
+    @Override
+    public void updateDisallowBack() {
+        super.updateDisallowBack();
+        Launcher launcher = Launcher.ACTIVITY_TRACKER.getCreatedContext();
+        if (launcher == null) {
+            return;
+        }
+        launcher.updateDisallowBack();
+    }
+
+    @Override
+    public boolean shouldHandleBackGesture() {
+        RecentsWindowManager windowManager = getCreatedContainer();
+
+        return windowManager != null && windowManager.isStarted();
     }
 
     /**

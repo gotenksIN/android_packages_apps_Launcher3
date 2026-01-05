@@ -18,12 +18,14 @@ package com.android.launcher3.taskbar
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.UserManager
 import android.text.SpannableString
 import android.text.method.LinkMovementMethod
 import android.text.style.URLSpan
 import android.view.Gravity
 import android.view.View
 import android.view.View.GONE
+import android.view.View.OnAttachStateChangeListener
 import android.view.View.VISIBLE
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.MarginLayoutParams
@@ -110,7 +112,8 @@ constructor(
         get() {
             return !Utilities.isRunningInTestHarness() &&
                 !activityContext.isPhoneMode &&
-                !activityContext.isTinyTaskbar
+                !activityContext.isTinyTaskbar &&
+                !UserManager.isDeviceInDemoMode(activityContext)
         }
 
     val isTooltipOpen: Boolean
@@ -147,10 +150,14 @@ constructor(
     val hasFeaturesEduToShow: Boolean
         get() = tooltipEduCombinator.hasFeaturesEduToShow()
 
+    private var isDestroyed = false
+
     /** Controls setting the [FLAG_AUTOHIDE_SUSPEND_EDU_OPEN] flag to false on tooltip close */
     private var releaseTaskbarBlock = true
 
     private var tooltip: TaskbarEduTooltip? = null
+
+    private var waiterForSearchEduAnchor: OnAttachStateChangeListener? = null
 
     fun init(controllers: TaskbarControllers, taskbarUiState: TaskbarUiState) {
         this.controllers = controllers
@@ -162,6 +169,16 @@ constructor(
         updateShouldShowEduOnAppLaunch()
         // We want to show the Search Edu right after pinning the taskbar, so we post it here
         activityContext.dragLayer.post { maybeShowSearchEdu() }
+    }
+
+    fun onDestroy() {
+        isDestroyed = true
+        if (waiterForSearchEduAnchor != null) {
+            controllers.taskbarViewController.allAppsButtonView.removeOnAttachStateChangeListener(
+                waiterForSearchEduAnchor
+            )
+            waiterForSearchEduAnchor = null
+        }
     }
 
     /**
@@ -396,6 +413,34 @@ constructor(
      * taskbar
      */
     fun maybeShowSearchEdu() {
+        if (isDestroyed || isTooltipOpen) {
+            return
+        }
+
+        // The EDU tooltip is anchored to all apps button view - wait until the anchor view is
+        // attached to a window to show the EDU tooltip.
+        val allAppsButton = controllers.taskbarViewController.allAppsButtonView
+        if (!allAppsButton.isAttachedToWindow) {
+            if (waiterForSearchEduAnchor == null) {
+                waiterForSearchEduAnchor =
+                    object : View.OnAttachStateChangeListener {
+                        override fun onViewAttachedToWindow(v: View) {
+                            allAppsButton.removeOnAttachStateChangeListener(this)
+                            waiterForSearchEduAnchor = null
+                            activityContext.dragLayer.post { maybeShowSearchEdu() }
+                        }
+
+                        override fun onViewDetachedFromWindow(v: View) {
+                            allAppsButton.removeOnAttachStateChangeListener(this)
+                            waiterForSearchEduAnchor = null
+                        }
+                    }
+
+                allAppsButton.addOnAttachStateChangeListener(waiterForSearchEduAnchor)
+            }
+            return
+        }
+
         if (Flags.tooltipEduCombinator()) {
             showTooltipPage(tooltipEduCombinator.getSearchEdu())
             return

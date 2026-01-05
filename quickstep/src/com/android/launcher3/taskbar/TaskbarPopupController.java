@@ -21,6 +21,7 @@ import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION;
 import static com.android.launcher3.model.data.AppInfo.COMPONENT_KEY_COMPARATOR;
 import static com.android.launcher3.model.data.AppInfo.PACKAGE_KEY_COMPARATOR;
+import static com.android.launcher3.popup.PopupEventLoggerKt.logEvent;
 import static com.android.launcher3.util.SplitConfigurationOptions.getLogEventForPosition;
 import static com.android.window.flags.Flags.enableOverflowButtonForTaskbarPinnedItems;
 
@@ -43,6 +44,7 @@ import com.android.internal.logging.InstanceId;
 import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.Flags;
+import com.android.launcher3.LauncherModel;
 import com.android.launcher3.LauncherSettings;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.ItemInfo;
@@ -52,6 +54,7 @@ import com.android.launcher3.popup.Popup;
 import com.android.launcher3.popup.PopupContainer;
 import com.android.launcher3.popup.PopupContainerWithArrow;
 import com.android.launcher3.popup.PopupController;
+import com.android.launcher3.popup.PopupEvent;
 import com.android.launcher3.popup.PopupItemDragHandler;
 import com.android.launcher3.popup.SystemShortcut;
 import com.android.launcher3.shortcuts.DeepShortcutView;
@@ -278,13 +281,13 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
             context.getDragLayer().post(() -> context.onPopupVisibilityChanged(false));
         });
 
+        logEvent(context.getStatsLogManager(), itemInfo.itemType, PopupEvent.OPEN);
+
         return container;
     }
 
     @Override
-    public void dismiss() {
-
-    }
+    public void dismiss() {}
 
     private class TaskbarPopupItemDragHandler implements
             PopupItemDragHandler {
@@ -357,6 +360,9 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
     public AppInfo getApp(ComponentKey key) {
         if (key == null) {
             return null;
+        }
+        if (LauncherModel.useModelRepositoryBinding()) {
+            return mContext.getActivityComponent().getAppsStore().getApp(key);
         }
         AppInfo tempInfo = new AppInfo();
         tempInfo.componentName = key.componentName;

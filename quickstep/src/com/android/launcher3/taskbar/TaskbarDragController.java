@@ -98,13 +98,14 @@ import java.util.function.Predicate;
 /**
  * Handles long click on Taskbar items to start a system drag and drop operation.
  */
-public class TaskbarDragController extends DragController<BaseTaskbarContext> implements
+public class TaskbarDragController extends DragController implements
         TaskbarControllers.LoggableTaskbarController {
     private static final String TAG = "TaskbarDragController";
 
     private static final boolean DEBUG_DRAG_SHADOW_SURFACE = false;
     private static final int ANIM_DURATION_RETURN_ICON_TO_TASKBAR = 300;
 
+    private final BaseTaskbarContext mActivity;
     private final int mDragIconSize;
     private final int[] mTempXY = new int[2];
 
@@ -133,6 +134,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
 
     public TaskbarDragController(BaseTaskbarContext activity) {
         super(activity);
+        mActivity = activity;
         Resources resources = mActivity.getResources();
         mDragIconSize = resources.getDimensionPixelSize(R.dimen.taskbar_icon_drag_icon_size);
     }
@@ -172,6 +174,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
     /**
      * Attempts to start a system drag and drop operation for the given View, using its tag to
      * generate the ClipDescription and Intent.
+     *
      * @return Whether {@link View#startDragAndDrop} started successfully.
      */
     public boolean startDragOnLongClick(View view) {
@@ -308,7 +311,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
         mRegistrationY = mMotionDown.y - dragLayerY;
 
         float scalePx = mDragIconSize - dragRegion.width();
-        return new DragView<>(
+        DragView dragView = new DragView(
                 mActivity,
                 drawable,
                 mRegistrationX,
@@ -316,6 +319,11 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
                 initialDragViewScale,
                 dragViewScaleOnDrop,
                 scalePx);
+        // Set the elevation so that it is drawn above other views, including bubbles and
+        // overflow container.
+        dragView.setElevation(dragView.getResources().getDimension(
+                R.dimen.taskbar_dragged_icon_elevation));
+        return dragView;
     }
 
     @Override
@@ -354,11 +362,15 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
     protected void callOnDragStart() {
         super.callOnDragStart();
         updateIsDragging();
+        if (enableTaskbarDragAndDrop()) {
+            mControllers.taskbarViewDragDropController.onTaskbarItemViewDragStart(
+                    (BubbleTextView) mDragObject.originalView);
+        }
         // TODO(297921594) clean it up when taskbar to desktop drag is implemented.
         // Pre-drag has ended, start the global system drag.
         if (mDisallowGlobalDrag
                 || mControllers.taskbarDesktopModeController
-                    .isInDesktopModeAndNotInOverview(mActivity.getDisplayId())
+                .isInDesktopModeAndNotInOverview(mActivity.getDisplayId())
                 || isTaskbarShownOnHome()) {
             AbstractFloatingView.closeAllOpenViewsExcept(mActivity, TYPE_TASKBAR_ALL_APPS);
             return;
@@ -414,7 +426,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
             ItemInfo item = (ItemInfo) tag;
             LauncherApps launcherApps = mActivity.getSystemService(LauncherApps.class);
             clipDescription = new ClipDescription(item.title,
-                    new String[] {
+                    new String[]{
                             item.itemType == LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT
                                     ? ClipDescription.MIMETYPE_APPLICATION_SHORTCUT
                                     : ClipDescription.MIMETYPE_APPLICATION_ACTIVITY
@@ -454,7 +466,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
         } else if (tag instanceof SingleTask singleTask) {
             Task task = singleTask.getTask();
             clipDescription = new ClipDescription(task.titleDescription,
-                    new String[] {
+                    new String[]{
                             ClipDescription.MIMETYPE_APPLICATION_TASK
                     });
             intent = new Intent();
@@ -568,6 +580,10 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
         updateIsDragging();
         if (!isDragging()) {
             ((BubbleTextView) mDragObject.originalView).setIconDisabled(false);
+            if (enableTaskbarDragAndDrop()) {
+                mControllers.taskbarViewDragDropController.onTaskbarItemViewDragEnd(
+                        (BubbleTextView) mDragObject.originalView);
+            }
             mControllers.taskbarAutohideSuspendController.updateFlag(
                     TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_DRAGGING, false);
             mActivity.onDragEnd();
@@ -741,7 +757,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
         ContainerInfo containerInfo = item.getContainerInfo();
         return containerInfo.getContainerCase() == EXTENDED_CONTAINERS
                 && containerInfo.getExtendedContainers().getContainerCase()
-                        == DEVICE_SEARCH_RESULT_CONTAINER;
+                == DEVICE_SEARCH_RESULT_CONTAINER;
     }
 
     private void setupReturnDragAnimator(float fromX, float fromY, View originalView,
@@ -770,6 +786,7 @@ public class TaskbarDragController extends DragController<BaseTaskbarContext> im
             final FloatProp mDy = new FloatProp(fromY, toPosition[1]);
             final FloatProp mScale = new FloatProp(1f, toScale);
             final FloatProp mAlpha = new FloatProp(1f, toAlpha, Interpolators.ACCELERATE_2);
+
             @Override
             public void onUpdate(float percent, boolean initOnly) {
                 animListener.updateDragShadow(mDx.value, mDy.value, mScale.value, mAlpha.value);

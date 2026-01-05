@@ -15,6 +15,8 @@
  */
 package com.android.launcher3.statemanager;
 
+import static com.android.launcher3.Flags.enableDesktopExplodedView;
+
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.views.ActivityContext;
 
@@ -23,13 +25,17 @@ import com.android.launcher3.views.ActivityContext;
  */
 public interface BaseState<T> {
 
-    // Flag to indicate that Launcher is non-interactive in this state
+    // Flag to indicate that the StatefulContainer is non-interactive in this state
     int FLAG_NON_INTERACTIVE = 1 << 0;
-    int FLAG_DISABLE_RESTORE = 1 << 1;
+    // Flag to disable restoring the StatefulContainer to this state
+    int FLAG_DISABLE_RESTORE_ABSOLUTE = 1 << 1;
+    // Flag to disable restoring the StatefulContainer to this state, expect when the
+    // StatefulContainer is restarting due to a UI mode change
+    int FLAG_DISABLE_RESTORE_EXCEPT_UI_MODE_CHANGE = 1 << 2;
 
     static int getFlag(int index) {
         // reserve few spots to base flags
-        return 1 << (index + 2);
+        return 1 << (index + 3);
     }
 
     /**
@@ -46,7 +52,17 @@ public interface BaseState<T> {
      * @return true if the state can be persisted across activity restarts.
      */
     default boolean shouldDisableRestore() {
-        return hasFlag(FLAG_DISABLE_RESTORE);
+        return shouldDisableRestore(/* isUiModeChange= */ false);
+    }
+
+    /**
+     * @param isUiModeChange whether the activity restart was due to a theme change
+     * @return true if the state can be persisted across activity restarts.
+     */
+    default boolean shouldDisableRestore(boolean isUiModeChange) {
+        return isUiModeChange
+                ? hasFlag(FLAG_DISABLE_RESTORE_ABSOLUTE)
+                : hasFlag(FLAG_DISABLE_RESTORE_ABSOLUTE | FLAG_DISABLE_RESTORE_EXCEPT_UI_MODE_CHANGE);
     }
 
     /**
@@ -72,6 +88,10 @@ public interface BaseState<T> {
      * For this state, whether we should show desktop exploded view in Overview.
      */
     default boolean showExplodedDesktopView() {
+        return isInOverview() && enableDesktopExplodedView();
+    }
+
+    default boolean isInOverview() {
         return false;
     }
 

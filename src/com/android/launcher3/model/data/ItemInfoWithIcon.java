@@ -143,6 +143,21 @@ public abstract class ItemInfoWithIcon extends ItemInfo {
             | FLAG_DISABLED_VERSION_LOWER | FLAG_DISABLED_FILE_SYSTEM_NOT_READY;
 
     /**
+     * Indicates that the package is currently being automated.
+     */
+    public static final int FLAG_AUTOMATED = 1 << 18;
+
+    /**
+     * Flag indicating whether App Lock is supported for the app.
+     */
+    public static final int FLAG_APP_LOCK_SUPPORTED = 1 << 19;
+
+    /**
+     * Flag indicating whether App Lock is enabled for the app.
+     */
+    public static final int FLAG_APP_LOCK_ENABLED = 1 << 20;
+
+    /**
      * Status associated with the system state of the underlying item. This is calculated every
      * time a new info is created and not persisted on the disk.
      */
@@ -301,6 +316,20 @@ public abstract class ItemInfoWithIcon extends ItemInfo {
      */
     public boolean isNonResizeable() {
         return (runtimeStatusFlags & FLAG_NOT_RESIZEABLE) != 0;
+    }
+
+    /**
+     * Returns whether App Lock is supported for the app.
+     */
+    public boolean isAppLockSupported() {
+        return (runtimeStatusFlags & FLAG_APP_LOCK_SUPPORTED) != 0;
+    }
+
+    /**
+     * Returns whether App Lock is enabled for the app.
+     */
+    public boolean isAppLockEnabled() {
+        return (runtimeStatusFlags & FLAG_APP_LOCK_ENABLED) != 0;
     }
 
     /** Creates an intent to that launches the app store at this app's page. */

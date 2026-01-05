@@ -17,12 +17,10 @@ package com.android.launcher3.taskbar
 
 import android.content.Context
 import android.util.Log
-import android.window.DesktopExperienceFlags
 import androidx.annotation.VisibleForTesting
 import com.android.internal.policy.DesktopModeCompatPolicy
 import com.android.launcher3.BubbleTextView.RunningAppState
 import com.android.launcher3.Flags
-import com.android.launcher3.Flags.enableRecentsInTaskbar
 import com.android.launcher3.Flags.enableTaskbarRecentsThemedIcons
 import com.android.launcher3.Flags.enableTaskbarUiThread
 import com.android.launcher3.graphics.ThemeManager
@@ -34,8 +32,8 @@ import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.taskbar.TaskbarControllers.LoggableTaskbarController
 import com.android.launcher3.taskbar.TaskbarPopupController.canPinAppWithContextMenu
 import com.android.launcher3.util.CancellableTask
-import com.android.launcher3.util.Executors.MAIN_EXECUTOR
 import com.android.launcher3.util.Executors.TASKBAR_UI_THREAD
+import com.android.launcher3.util.Preconditions
 import com.android.launcher3.util.SafeCloseable
 import com.android.quickstep.RecentsFilterState
 import com.android.quickstep.RecentsModel
@@ -43,6 +41,7 @@ import com.android.quickstep.util.DesktopTask
 import com.android.quickstep.util.GroupTask
 import com.android.quickstep.util.SingleTask
 import com.android.quickstep.util.SplitTask
+import com.android.systemui.shared.Flags.enableRecentsInTaskbar
 import com.android.systemui.shared.recents.model.Task
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus
 import java.io.PrintWriter
@@ -72,9 +71,6 @@ class TaskbarRecentAppsController(
                 }
             }
         }
-
-    val enableRecentTasksThrottle =
-        DesktopExperienceFlags.ENABLE_TASKBAR_RECENT_TASKS_THROTTLE_BUGFIX.isTrue
 
     // TODO(b/343532825): Add a setting to disable Recents even when the flag is on.
     var canShowRecentApps = enableRecentsInTaskbar()
@@ -358,14 +354,13 @@ class TaskbarRecentAppsController(
 
     private fun reloadRecentTasksIfNeeded() {
         if (recentsModel.isTaskListValid(taskListChangeId)) return
-        if (enableRecentTasksThrottle && loadingRecentsTasks) {
+        if (loadingRecentsTasks) {
             Log.v(TAG, "reloadRecentTasksIfNeeded: tried to reload while loading recents tasks")
             needsRecentsTasksReload = true
             return
         }
         Log.v(TAG, "reloadRecentTasksIfNeeded: load recents tasks")
-        // Only indicate that recents tasks are loading if the enableRecentTasksThrottle flag is on
-        loadingRecentsTasks = enableRecentTasksThrottle
+        loadingRecentsTasks = true
         taskListChangeId =
             recentsModel.getTasks(RecentsFilterState.EMPTY_FILTER) { tasks ->
                 TASKBAR_UI_THREAD.execute {
@@ -430,44 +425,45 @@ class TaskbarRecentAppsController(
      * Only updates the task views if the bitmap info has changed or [forceUpdate] is `true`.
      */
     private fun fetchIcons(forceUpdate: Boolean = false) {
+        Preconditions.assertTaskbarUiThread()
         if (enableRecentsInTaskbar()) {
             cancelIconLoadRequests() // Cancel any previous requests.
         }
 
         for (groupTask in shownTasks) {
             for ((i, task) in groupTask.tasks.withIndex()) {
-                MAIN_EXECUTOR.execute {
-                    val cancellableTask =
-                        if (enableTaskbarRecentsThemedIcons()) {
-                            recentsModel.iconCache.getBitmapInfoInBackground(task) { bi, d, t ->
-                                if (
-                                    !forceUpdate &&
-                                        bi === groupTask.bitmapInfos[i] &&
-                                        d == task.titleDescription &&
-                                        t == task.title
-                                ) {
-                                    return@getBitmapInfoInBackground
-                                }
-                                groupTask.bitmapInfos[i] = bi
-                                task.titleDescription = d
-                                task.title = t
-                                TASKBAR_UI_THREAD.execute {
-                                    controllers.taskbarViewController.onTaskUpdated(task, groupTask)
-                                }
+                val cancellableTask =
+                    if (enableTaskbarRecentsThemedIcons()) {
+                        recentsModel.iconCache.getBitmapInfoInBackground(task, TASKBAR_UI_THREAD) {
+                            bi,
+                            d,
+                            t ->
+                            if (
+                                !forceUpdate &&
+                                    bi === groupTask.bitmapInfos[i] &&
+                                    d == task.titleDescription &&
+                                    t == task.title
+                            ) {
+                                return@getBitmapInfoInBackground
                             }
-                        } else {
-                            recentsModel.iconCache.getIconInBackground(task) { ic, d, t ->
-                                task.icon = ic
-                                task.titleDescription = d
-                                task.title = t
-                                TASKBAR_UI_THREAD.execute {
-                                    controllers.taskbarViewController.onTaskUpdated(task, groupTask)
-                                }
-                            }
+                            groupTask.bitmapInfos[i] = bi
+                            task.titleDescription = d
+                            task.title = t
+                            controllers.taskbarViewController.onTaskUpdated(task, groupTask)
                         }
-                    if (cancellableTask != null) {
-                        TASKBAR_UI_THREAD.execute { iconLoadRequests.add(cancellableTask) }
+                    } else {
+                        recentsModel.iconCache.getIconInBackground(task, TASKBAR_UI_THREAD) {
+                            ic,
+                            d,
+                            t ->
+                            task.icon = ic
+                            task.titleDescription = d
+                            task.title = t
+                            controllers.taskbarViewController.onTaskUpdated(task, groupTask)
+                        }
                     }
+                if (cancellableTask != null) {
+                    iconLoadRequests.add(cancellableTask)
                 }
             }
         }

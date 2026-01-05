@@ -157,13 +157,6 @@ flag {
 }
 
 flag {
-    name: "enable_recents_in_taskbar"
-    namespace: "launcher"
-    description: "Replace hybrid hotseat app predictions with strictly Recent Apps"
-    bug: "315354060"
-}
-
-flag {
   name: "enable_first_screen_broadcast_archiving_extras"
   namespace: "launcher"
   description: "adds Extras to first screen broadcast for archived apps"
@@ -520,20 +513,6 @@ flag {
 }
 
 flag {
-    name: "first_page_pinned_widget_removal_toggle"
-    namespace: "launcher"
-    description: "Enable first page pinned widget removal toggle"
-    bug: "427478072"
-}
-
-flag {
-    name: "unpin_first_page_pinned_widget"
-    namespace: "launcher"
-    description: "Enable making the first page pinned widget movable"
-    bug: "427478072"
-}
-
-flag {
     name: "show_files_on_home_screen"
     namespace: "launcher"
     description: "Enables file and folder items on the home screen"
@@ -551,7 +530,7 @@ flag {
     name: "enable_system_drag_to_other_apps"
     namespace: "launcher"
     description: "Enables system-level drag-and-drop to other apps"
-    bug: "402183121"
+    bug: "440196110"
 }
 
 flag {
@@ -605,7 +584,7 @@ flag {
   name: "enable_cursor_driven_workflows"
   namespace: "launcher"
   description: "Enables mouse based workflows for interacting with launcher"
-  bug: "388897603"
+  bug: "455891793"
 }
 
 flag {
@@ -644,6 +623,16 @@ flag {
   namespace: "launcher"
   description: "Fixes issue that during drag and drop, radius clips were lost"
   bug: "326128683"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "enable_new_touchpad_gestures"
+  namespace: "launcher"
+  description: "Update touchpad gestures to match 26Q2 spec."
+  bug: "460130854"
   metadata {
     purpose: PURPOSE_BUGFIX
   }
@@ -690,13 +679,6 @@ flag {
 }
 
 flag {
-    name: "workspace_hidden_labels"
-    namespace: "launcher"
-    description: "Gives the user the option to hide app icon labels on the workspace"
-    bug: "456634299"
-}
-
-flag {
   name: "enable_app_automation_indicator"
   namespace: "launcher"
   description: "Enables indicator for active app automation in Launcher"
@@ -720,3 +702,47 @@ flag {
   }
 }
 
+flag {
+  name: "bind_model_using_repository"
+  namespace: "launcher"
+  description: "Change model binding to use repositories instead of model callbacks"
+  bug: "455016031"
+}
+
+flag {
+  name: "enable_home_screen_files_trashing"
+  namespace: "launcher"
+  description: "Replaces the 'Delete permanently' action with 'Move to trash' for home screen files"
+  bug: "424466974"
+}
+
+flag {
+  name: "enable_all_apps_edu_for_overswipe"
+  namespace: "launcher"
+  description: "Enables all apps edu when over-swipe on the last workspace page"
+  bug: "441155632"
+}
+
+flag {
+    name: "show_create_widget_btn_in_picker"
+    namespace: "launcher"
+    description: "Shows create widget button in widget picker"
+    bug: "459260964"
+}
+
+flag {
+    name: "center_spring_loaded_state_vertically"
+    namespace: "launcher"
+    description: "Vertically centers workspace grid and drop target buttons in spring loaded state"
+    bug: "443995425"
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+  name: "enable_app_lock_shortcut"
+  namespace: "launcher"
+  description: "Enables App Lock system shortcut in Launcher"
+  bug: "415167460"
+}

@@ -23,7 +23,6 @@ import static com.android.launcher3.InvariantDeviceProfile.INDEX_TWO_PANEL_PORTR
 import static com.android.launcher3.InvariantDeviceProfile.createDisplayOptionSpec;
 import static com.android.launcher3.Utilities.dpiFromPx;
 import static com.android.launcher3.deviceprofile.DevicePropertiesKt.createWindowBounds;
-import static com.android.launcher3.folder.ClippedFolderIconLayoutRule.ICON_OVERLAP_FACTOR;
 import static com.android.launcher3.icons.IconNormalizer.ICON_VISIBLE_AREA_FACTOR;
 import static com.android.launcher3.testing.shared.ResourceUtils.INVALID_RESOURCE_HANDLE;
 import static com.android.launcher3.testing.shared.ResourceUtils.pxFromDp;
@@ -56,6 +55,7 @@ import com.android.launcher3.deviceprofile.DeviceProperties;
 import com.android.launcher3.deviceprofile.DropTargetProfile;
 import com.android.launcher3.deviceprofile.FolderProfile;
 import com.android.launcher3.deviceprofile.HotseatProfile;
+import com.android.launcher3.deviceprofile.HotseatProfileInitialValues;
 import com.android.launcher3.deviceprofile.OverviewProfile;
 import com.android.launcher3.deviceprofile.TaskbarProfile;
 import com.android.launcher3.deviceprofile.WorkspaceProfile;
@@ -96,8 +96,6 @@ public class DeviceProfile {
 
     public static final DeviceProfile DEFAULT_DEVICE_PROFILE = new DeviceProfile();
 
-    public final InvariantDeviceProfile inv;
-    private final BottomSheetProfile mBottomSheetProfile;
 
     private final DisplayOptionSpec mDisplayOptionSpec;
     private final Info mInfo;
@@ -130,28 +128,25 @@ public class DeviceProfile {
     private CalculatedCellSpec mResponsiveAllAppsCellSpec;
 
     public WorkspaceProfile mWorkspaceProfile;
-
-    private final FolderProfile mFolderProfile;
+    public final InvariantDeviceProfile inv;
+    private final BottomSheetProfile mBottomSheetProfile;
+    public FolderProfile mFolderProfile;
+    private AllAppsProfile mAllAppsProfile;
+    private final OverviewProfile overviewProfile;
 
     // Hotseat
     private final HotseatProfile hotseatProfile;
+
     public int numShownHotseatIcons;
-    public int hotseatCellHeightPx;
     private int mHotseatColumnSpan;
     private int mHotseatWidthPx; // not used in vertical bar layout
-    // In portrait: size = height, in landscape: size = width
-    public int hotseatBarSizePx;
-    public int hotseatBarBottomSpacePx;
-    public int hotseatQsbSpace;
+
+
     public int hotseatQsbWidth; // only used when isQsbInline
     public int hotseatBorderSpace;
     // Space required for the bubble bar between the hotseat and the edge of the screen. If there's
     // not enough space, the hotseat will adjust itself for the bubble bar.
     private final int mBubbleBarSpaceThresholdPx;
-
-    private AllAppsProfile mAllAppsProfile;
-
-    private final OverviewProfile overviewProfile;
 
     // Split staging
     public int splitPlaceholderInset;
@@ -173,7 +168,7 @@ public class DeviceProfile {
     public final DotRenderer mDotRendererAllApps;
 
     // Taskbar
-    private final TaskbarProfile mTaskbarProfile;
+    public TaskbarProfile mTaskbarProfile;
     public boolean isTaskbarPresent;
     // Whether Taskbar will inset the bottom of apps by taskbarSize.
     public boolean isTaskbarPresentInApps;
@@ -213,7 +208,7 @@ public class DeviceProfile {
                 0,
                 0
         );
-        hotseatProfile = new HotseatProfile(false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        hotseatProfile = new HotseatProfile(false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         mTaskbarProfile = new TaskbarProfile(0, 0, 0, 0, 0, false, false);
         mFolderProfile = new FolderProfile(0, 0, 0, 0, 0, new Point(), 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0);
@@ -301,9 +296,10 @@ public class DeviceProfile {
 
         mTypeIndex = displayOptionSpec.typeIndex;
 
+        // TODO: make TaskbarModeUtil displayId aware
         mTaskbarProfile = TaskbarProfile.Factory.createTaskbarProfile(
                 res,
-                inv.taskbarModeUtil.isTransient(),
+                inv.taskbarModeUtil.isTransient() && !isExternalDisplay,
                 isTaskbarPresent,
                 mMetrics,
                 displayOptionSpec,
@@ -323,9 +319,6 @@ public class DeviceProfile {
         numShownHotseatIcons = displayOptionSpec.numShownHotseatIcons;
         mHotseatColumnSpan = inv.numColumns;
 
-        int hotseatBarBottomSpace;
-        int minQsbMargin = res.getDimensionPixelSize(R.dimen.min_qsb_margin);
-
         if (mIsResponsiveGrid) {
             float responsiveAspectRatio =
                     (float) mDeviceProperties.getWidthPx() / mDeviceProperties.getHeightPx();
@@ -338,68 +331,41 @@ public class DeviceProfile {
                             mDeviceProperties.getWidthPx())
                             : hotseatSpecsProvider.getCalculatedSpec(responsiveAspectRatio,
                                     DimensionType.HEIGHT, mDeviceProperties.getHeightPx());
-            hotseatQsbSpace = mResponsiveHotseatSpec.getHotseatQsbSpace();
-            hotseatBarBottomSpace =
-                    isVerticalBarLayout() ? 0 : mResponsiveHotseatSpec.getEdgePadding();
 
             ResponsiveCellSpecsProvider workspaceCellSpecs = ResponsiveCellSpecsProvider.create(
                     new ResourceHelper(context, displayOptionSpec.workspaceCellSpecsId));
             mResponsiveWorkspaceCellSpec = workspaceCellSpecs.getCalculatedSpec(
                     responsiveAspectRatio, mDeviceProperties.getHeightPx());
-        } else {
-            hotseatQsbSpace = pxFromDp(inv.hotseatQsbSpace[mTypeIndex], mMetrics);
-            hotseatBarBottomSpace = pxFromDp(inv.hotseatBarBottomSpace[mTypeIndex], mMetrics);
         }
 
-        hotseatProfile = HotseatProfile.Factory.createHotseatProfile(
-                getDeviceProperties(),
-                res,
-                inv,
-                isTaskbarPresent,
-                shouldApplyWidePortraitDimens,
-                isVerticalBarLayout(),
-                mResponsiveHotseatSpec,
-                // TODO(431261051) HotseatProfile is calculated before the WorkspaceProfile hence
-                //  this variable needs to be manually set here. A better way to handle this is
-                //  necessary.
-                res.getDimensionPixelSize(R.dimen.workspace_page_indicator_height)
-        );
+        int qsbHeight = res.getDimensionPixelSize(R.dimen.qsb_widget_height);
 
         // Whether QSB might be inline in appropriate orientation (e.g. landscape).
         isQsbInline = isQsbInline(
                 inv,
-                hotseatProfile,
+                qsbHeight,
                 mDeviceProperties,
                 mIsScalableGrid
         );
 
-        if (!isVerticalBarLayout()) {
-            // Have a little space between the inset and the QSB
-            if (mInsets.bottom + minQsbMargin > hotseatBarBottomSpace) {
-                int availableSpace = hotseatQsbSpace - (mInsets.bottom - hotseatBarBottomSpace);
-
-                // Only change the spaces if there is space
-                if (availableSpace > 0) {
-                    // Make sure there is enough space between hotseat/QSB and QSB/navBar
-                    if (availableSpace < minQsbMargin * 2) {
-                        minQsbMargin = availableSpace / 2;
-                        hotseatQsbSpace = minQsbMargin;
-                    } else {
-                        hotseatQsbSpace -= minQsbMargin;
-                    }
-                }
-                hotseatBarBottomSpacePx = mInsets.bottom + minQsbMargin;
-
-            } else {
-                hotseatBarBottomSpacePx = hotseatBarBottomSpace;
-            }
-        }
-
-        if (mIsResponsiveGrid) {
-            updateHotseatSizes(mResponsiveWorkspaceCellSpec.getIconSize());
-        } else {
-            updateHotseatSizes(pxFromDp(inv.iconSize[mTypeIndex], mMetrics));
-        }
+        HotseatProfileInitialValues hotseatProfileInitialValues =
+                HotseatProfileInitialValues.Factory.createHotseatProfileInitialValues(
+                        /*deviceProperties*/ getDeviceProperties(),
+                        /*res*/ res,
+                        /*inv*/ inv,
+                        /*isTaskbarPresent*/ isTaskbarPresent,
+                        /*shouldApplyWidePortraitDimens*/ shouldApplyWidePortraitDimens,
+                        /*responsiveHotseatSpec*/ mResponsiveHotseatSpec,
+                        /*insets*/ mInsets,
+                        /*typeIndex*/ mTypeIndex,
+                        /*metrics*/ mMetrics,
+                        /*isVerticalBarLayout*/ isVerticalBarLayout(),
+                        /*workspacePageIndicatorHeight*/res.getDimensionPixelSize(
+                                R.dimen.workspace_page_indicator_height
+                        ),
+                        /*responsiveWorkspaceCellSpec*/ mResponsiveWorkspaceCellSpec,
+                        /*isQsbInline*/ isQsbInline
+                );
 
         mBubbleBarSpaceThresholdPx =
                 res.getDimensionPixelSize(R.dimen.bubblebar_hotseat_adjustment_threshold);
@@ -413,11 +379,12 @@ public class DeviceProfile {
             int numFolderColumns = inv.numFolderColumns[mTypeIndex];
             int availableResponsiveWidth =
                     mDeviceProperties.getAvailableWidthPx() - (isVerticalBarLayout()
-                            ? hotseatBarSizePx : 0);
+                            ? hotseatProfileInitialValues.getBarSizePx() : 0);
             int numWorkspaceColumns = getPanelCount() * inv.numColumns;
             // don't use availableHeightPx because it subtracts mInsets.bottom
-            int availableResponsiveHeight = mDeviceProperties.getHeightPx() - mInsets.top
-                    - (isVerticalBarLayout() ? 0 : hotseatBarSizePx);
+            int availableResponsiveHeight =
+                    mDeviceProperties.getHeightPx() - mInsets.top - (isVerticalBarLayout() ? 0
+                            : hotseatProfileInitialValues.getBarSizePx());
             float responsiveAspectRatio =
                     (float) mDeviceProperties.getWidthPx() / mDeviceProperties.getHeightPx();
 
@@ -501,10 +468,10 @@ public class DeviceProfile {
                 /*insets*/ mInsets,
                 /*isFirstPass*/ true,
                 /*isSeascape*/ isSeascape(),
-                /*hotseatProfile*/ hotseatProfile,
-                /*hotseatBarBottomSpacePx*/ hotseatBarBottomSpacePx,
-                /*hotseatQsbSpace*/ hotseatQsbSpace,
-                /*hotseatBarSizePx*/ hotseatBarSizePx,
+                /*hotseatProfile*/ hotseatProfileInitialValues,
+                /*hotseatBarBottomSpacePx*/ hotseatProfileInitialValues.getBarBottomSpacePx(),
+                /*hotseatQsbSpace*/ hotseatProfileInitialValues.getQsbSpace(),
+                /*hotseatBarSizePx*/ hotseatProfileInitialValues.getBarSizePx(),
                 /*isWorkspaceItemsLabelHidden*/ isWorkspaceItemsLabelHidden
         );
 
@@ -552,8 +519,12 @@ public class DeviceProfile {
             );
         }
 
-        updateHotseatSizes(getWorkspaceIconProfile().getIconSizePx());
-
+        hotseatProfile = HotseatProfile.Factory.createHotseatProfile(
+                hotseatProfileInitialValues,
+                mWorkspaceProfile,
+                isVerticalLayout,
+                isQsbInline
+        );
         // Update widget padding:
         float minSpacing = pxFromDp(MIN_WIDGET_PADDING_DP, mMetrics);
         if (getWorkspaceIconProfile().getCellLayoutBorderSpacePx().x < minSpacing
@@ -635,7 +606,7 @@ public class DeviceProfile {
      */
     private boolean isQsbInline(
             InvariantDeviceProfile inv,
-            HotseatProfile hotseatProfile,
+            int qsbHeight,
             DeviceProperties deviceProperties,
             boolean isScalableGrid
     ) {
@@ -647,7 +618,7 @@ public class DeviceProfile {
         // In tablets we inline in both orientations but only if we have enough space in the QSB
         boolean tabletInlineQsb = inv.inlineQsb[INDEX_DEFAULT] || inv.inlineQsb[INDEX_LANDSCAPE];
         boolean canQsbInline = deviceProperties.isTwoPanels() ? twoPanelCanInline : tabletInlineQsb;
-        canQsbInline = canQsbInline && hotseatProfile.getQsbHeight() > 0;
+        canQsbInline = canQsbInline && qsbHeight > 0;
 
         return (isScalableGrid && inv.inlineQsb[mTypeIndex] && canQsbInline)
                 || inv.isFixedLandscape;
@@ -684,19 +655,14 @@ public class DeviceProfile {
                 getWorkspaceIconProfile().getIconSizePx());
         if (isQsbInline) {
             int columns = getPanelCount() * inv.numColumns;
-            return getIconToIconWidthForColumns(columns)
+            return mWorkspaceProfile.getIconToIconWidthForColumns(columns)
                     - getWorkspaceIconProfile().getIconSizePx() * numShownHotseatIcons
                     - hotseatBorderSpace * numShownHotseatIcons
                     - iconExtraSpacePx;
         } else {
-            return getIconToIconWidthForColumns(mHotseatColumnSpan) - iconExtraSpacePx;
+            return mWorkspaceProfile.getIconToIconWidthForColumns(mHotseatColumnSpan)
+                    - iconExtraSpacePx;
         }
-    }
-
-    private int getIconToIconWidthForColumns(int columns) {
-        return columns * getWorkspaceIconProfile().getCellSize().x
-                + (columns - 1) * getWorkspaceIconProfile().getCellLayoutBorderSpacePx().x
-                - getCellHorizontalSpace();
     }
 
     private int getHorizontalMarginPx(InvariantDeviceProfile idp, Resources res) {
@@ -711,25 +677,6 @@ public class DeviceProfile {
         return mIsScalableGrid
                 ? pxFromDp(idp.horizontalMargin[mTypeIndex], mMetrics)
                 : res.getDimensionPixelSize(R.dimen.dynamic_grid_left_right_margin);
-    }
-
-    /** Updates hotseatCellHeightPx and hotseatBarSizePx */
-    private void updateHotseatSizes(int hotseatIconSizePx) {
-        // Ensure there is enough space for folder icons, which have a slightly larger radius.
-        hotseatCellHeightPx = getIconSizeWithOverlap(hotseatIconSizePx);
-
-        if (isVerticalBarLayout()) {
-            hotseatBarSizePx = hotseatIconSizePx + getHotseatProfile().getBarEdgePaddingPx()
-                    + getHotseatProfile().getBarWorkspaceSpacePx();
-        } else if (isQsbInline) {
-            hotseatBarSizePx = max(hotseatIconSizePx, getHotseatProfile().getQsbVisualHeight())
-                    + hotseatBarBottomSpacePx;
-        } else {
-            hotseatBarSizePx = hotseatIconSizePx
-                    + hotseatQsbSpace
-                    + getHotseatProfile().getQsbVisualHeight()
-                    + hotseatBarBottomSpacePx;
-        }
     }
 
     /**
@@ -752,7 +699,8 @@ public class DeviceProfile {
         }
         if (isQsbInline) {
             // If QSB is inline, reduce column span until it fits.
-            int maxHotseatWidthAllowedPx = getIconToIconWidthForColumns(numWorkspaceColumns);
+            int maxHotseatWidthAllowedPx = mWorkspaceProfile
+                    .getIconToIconWidthForColumns(numWorkspaceColumns);
             int minHotseatWidthRequiredPx =
                     getHotseatProfile().getMinQsbWidthPx() + hotseatBorderSpace + mHotseatWidthPx;
             while (minHotseatWidthRequiredPx > maxHotseatWidthAllowedPx
@@ -810,7 +758,7 @@ public class DeviceProfile {
 
     private void updateHotseatWidthAndBorderSpace(int columns) {
         mHotseatColumnSpan = columns;
-        mHotseatWidthPx = getIconToIconWidthForColumns(mHotseatColumnSpan);
+        mHotseatWidthPx = mWorkspaceProfile.getIconToIconWidthForColumns(mHotseatColumnSpan);
         hotseatBorderSpace = calculateHotseatBorderSpace(mHotseatWidthPx, /* numExtraBorder= */ 0);
     }
 
@@ -865,10 +813,6 @@ public class DeviceProfile {
         }
     }
 
-    private int getIconSizeWithOverlap(int iconSize) {
-        return (int) Math.ceil(iconSize * ICON_OVERLAP_FACTOR);
-    }
-
     /**
      * This method calculates the space between the icons to achieve a certain width.
      */
@@ -882,7 +826,19 @@ public class DeviceProfile {
         return Math.min(hotseatBorderSpacePx, getHotseatProfile().getMaxIconSpacePx());
     }
 
-    private FolderProfile updateAvailableFolderCellDimensions(Resources res, Context context) {
+    public TaskbarProfile updateTaskbarProfile(Resources res) {
+        return TaskbarProfile.Factory.createTaskbarProfile(
+                res,
+                inv.taskbarModeUtil.isTransient() && !mDeviceProperties.isExternalDisplay(),
+                isTaskbarPresent,
+                mMetrics,
+                mDisplayOptionSpec,
+                mTypeIndex,
+                inv
+        );
+    }
+
+    public FolderProfile updateAvailableFolderCellDimensions(Resources res, Context context) {
         FolderProfile folderProfile = updateFolderCellSize(1f, res, context);
 
         // Responsive grid doesn't need to scale the folder
@@ -945,14 +901,6 @@ public class DeviceProfile {
     }
 
     /**
-     * Returns the left and right space on the cell, which is the cell width - icon size
-     */
-    public int getCellHorizontalSpace() {
-        return getWorkspaceIconProfile().getCellSize().x
-                - getWorkspaceIconProfile().getIconSizePx();
-    }
-
-    /**
      * Gets the number of panels within the workspace.
      */
     public int getPanelCount() {
@@ -983,10 +931,22 @@ public class DeviceProfile {
     }
 
     /**
+     * Returns the total height of the drop target bar, including its top and bottom margins and
+     * the padding below it.
+     */
+    public float getDropTargetBarHeight() {
+        return getDropTargetProfile().getBarSizePx()
+                + getDropTargetProfile().getBarTopMarginPx()
+                + getDropTargetProfile().getBarBottomMarginPx()
+                + getDropTargetProfile().getButtonWorkspaceEdgeGapPx();
+    }
+
+    /**
      * Gets the scaled bottom of the workspace in px for the spring-loaded edit state.
      */
     public float getCellLayoutSpringLoadShrunkBottom(Context context) {
-        int topOfHotseat = hotseatBarSizePx + getHotseatProfile().getSpringLoadedBarTopMarginPx();
+        int topOfHotseat = hotseatProfile.getBarSizePx()
+                + getHotseatProfile().getSpringLoadedBarTopMarginPx();
         return mDeviceProperties.getHeightPx() - (isVerticalBarLayout()
                 ? getVerticalHotseatLastItemBottomOffset(context) : topOfHotseat);
     }
@@ -1124,7 +1084,8 @@ public class DeviceProfile {
         } else if (inv.isFixedLandscape) {
             // Center the QSB vertically with hotseat
             int hotseatBarBottomPadding = getHotseatBarBottomPadding();
-            int hotseatPlusQSBWidth = getIconToIconWidthForColumns(inv.numColumns);
+            int hotseatPlusQSBWidth = mWorkspaceProfile
+                    .getIconToIconWidthForColumns(inv.numColumns);
 
             // This is needed because of b/235886078 since QSB needs to span to the icon borders
             int iconExtraSpacePx = getWorkspaceIconProfile().getIconSizePx() - getIconVisibleSizePx(
@@ -1140,7 +1101,8 @@ public class DeviceProfile {
                     remainingSpaceOnSide + mInsets.left
                             + mWorkspaceProfile.getWorkspacePadding().left
                             + mWorkspaceProfile.getCellLayoutPaddingPx().left,
-                    hotseatBarSizePx - hotseatBarBottomPadding - hotseatCellHeightPx,
+                    hotseatProfile.getBarSizePx() - hotseatBarBottomPadding
+                            - hotseatProfile.getCellHeightPx(),
                     remainingSpaceOnSide
                             + mInsets.right + mWorkspaceProfile.getWorkspacePadding().right
                             + mWorkspaceProfile.getCellLayoutPaddingPx().right,
@@ -1155,7 +1117,9 @@ public class DeviceProfile {
             // Center the QSB vertically with hotseat
             int hotseatBarBottomPadding = getHotseatBarBottomPadding();
             int hotseatBarTopPadding =
-                    hotseatBarSizePx - hotseatBarBottomPadding - hotseatCellHeightPx;
+                    hotseatProfile.getBarSizePx()
+                            - hotseatBarBottomPadding
+                            - hotseatProfile.getCellHeightPx();
 
             int hotseatWidth = getHotseatRequiredWidth();
             int startSpacing;
@@ -1271,12 +1235,13 @@ public class DeviceProfile {
     public int getQsbOffsetY() {
         if (isQsbInline) {
             return getHotseatBarBottomPadding()
-                    - ((getHotseatProfile().getQsbHeight() - hotseatCellHeightPx) / 2);
+                    - ((getHotseatProfile().getQsbHeight()
+                    - hotseatProfile.getCellHeightPx()) / 2);
         } else if (isTaskbarPresent) { // QSB on top
-            return hotseatBarSizePx - getHotseatProfile().getQsbHeight()
+            return hotseatProfile.getBarSizePx() - getHotseatProfile().getQsbHeight()
                     + getHotseatProfile().getQsbShadowHeight();
         } else {
-            return hotseatBarBottomSpacePx - getHotseatProfile().getQsbShadowHeight();
+            return hotseatProfile.getBarBottomSpacePx() - getHotseatProfile().getQsbShadowHeight();
         }
     }
 
@@ -1285,10 +1250,11 @@ public class DeviceProfile {
      */
     private int getHotseatBarBottomPadding() {
         if (isTaskbarPresent || isQsbInline) { // QSB on top or inline
-            return hotseatBarBottomSpacePx - (Math.abs(
-                    hotseatCellHeightPx - getWorkspaceIconProfile().getIconSizePx()) / 2);
+            return hotseatProfile.getBarBottomSpacePx() - (Math.abs(
+                    hotseatProfile.getCellHeightPx()
+                            - getWorkspaceIconProfile().getIconSizePx()) / 2);
         } else {
-            return hotseatBarSizePx - hotseatCellHeightPx;
+            return hotseatProfile.getBarSizePx() - hotseatProfile.getCellHeightPx();
         }
     }
 
@@ -1298,13 +1264,15 @@ public class DeviceProfile {
      */
     public int getBubbleBarVerticalCenterForHome() {
         if (shouldAlignBubbleBarWithHotseat()) {
-            return hotseatBarSizePx
+            return hotseatProfile.getBarSizePx()
                     - (isQsbInline ? 0 : getHotseatProfile().getQsbVisualHeight())
-                    - hotseatQsbSpace
-                    - (hotseatCellHeightPx / 2)
-                    + ((hotseatCellHeightPx - getWorkspaceIconProfile().getIconSizePx()) / 2);
+                    - hotseatProfile.getQsbSpace()
+                    - (hotseatProfile.getCellHeightPx() / 2)
+                    + ((hotseatProfile.getCellHeightPx()
+                    - getWorkspaceIconProfile().getIconSizePx()) / 2);
         } else {
-            return hotseatBarSizePx - (getHotseatProfile().getQsbVisualHeight() / 2);
+            return hotseatProfile.getBarSizePx()
+                    - (getHotseatProfile().getQsbVisualHeight() / 2);
         }
     }
 
@@ -1324,9 +1292,9 @@ public class DeviceProfile {
     public int getTaskbarOffsetY() {
         int taskbarIconBottomSpace =
                 (getTaskbarProfile().getHeight() - getWorkspaceIconProfile().getIconSizePx()) / 2;
-        int launcherIconBottomSpace =
-                Math.min((hotseatCellHeightPx - getWorkspaceIconProfile().getIconSizePx()) / 2,
-                        mWorkspaceProfile.getGridVisualizationPaddingY());
+        int launcherIconBottomSpace = Math.min(
+                (hotseatProfile.getCellHeightPx() - getWorkspaceIconProfile().getIconSizePx()
+                ) / 2, mWorkspaceProfile.getGridVisualizationPaddingY());
         return getHotseatBarBottomPadding() + launcherIconBottomSpace - taskbarIconBottomSpace;
     }
 
@@ -1369,13 +1337,15 @@ public class DeviceProfile {
                             + mWorkspaceProfile.getEdgeMarginPx(),
                     mInsets.top,
                     mInsets.left + mDeviceProperties.getAvailableWidthPx()
-                            - hotseatBarSizePx
+                            - hotseatProfile.getBarSizePx()
                             - mWorkspaceProfile.getEdgeMarginPx(),
                     mInsets.top + mDeviceProperties.getAvailableHeightPx()
             );
         } else {
             // Folders should only appear below the drop target bar and above the hotseat
-            int hotseatTop = isTaskbarPresent ? getTaskbarProfile().getHeight() : hotseatBarSizePx;
+            int hotseatTop = isTaskbarPresent
+                    ? getTaskbarProfile().getHeight()
+                    : hotseatProfile.getBarSizePx();
             return new Rect(
                     mInsets.left + mWorkspaceProfile.getEdgeMarginPx(),
                     mInsets.top + getDropTargetProfile().getBarSizePx()
@@ -1584,11 +1554,14 @@ public class DeviceProfile {
         writer.println(prefix + pxToDpStr("allAppsLeftRightMargin",
                 mAllAppsProfile.getLeftRightMargin()));
 
-        writer.println(prefix + pxToDpStr("hotseatBarSizePx", hotseatBarSizePx));
+        writer.println(prefix + pxToDpStr("hotseatBarSizePx",
+                hotseatProfile.getBarSizePx()));
         writer.println(prefix + "\tmHotseatColumnSpan: " + mHotseatColumnSpan);
         writer.println(prefix + pxToDpStr("mHotseatWidthPx", mHotseatWidthPx));
-        writer.println(prefix + pxToDpStr("hotseatCellHeightPx", hotseatCellHeightPx));
-        writer.println(prefix + pxToDpStr("hotseatBarBottomSpacePx", hotseatBarBottomSpacePx));
+        writer.println(prefix + pxToDpStr("hotseatCellHeightPx",
+                hotseatProfile.getCellHeightPx()));
+        writer.println(prefix + pxToDpStr("hotseatBarBottomSpacePx",
+                hotseatProfile.getBarBottomSpacePx()));
         writer.println(prefix + pxToDpStr("mHotseatBarEdgePaddingPx",
                 getHotseatProfile().getBarEdgePaddingPx()));
         writer.println(prefix + pxToDpStr("mHotseatBarWorkspaceSpacePx",
@@ -1599,7 +1572,7 @@ public class DeviceProfile {
                 getHotseatProfile().getNavButtonsLayoutWidthPx()));
         writer.println(prefix + pxToDpStr("hotseatBarEndOffset",
                 getHotseatProfile().getBarEndOffset()));
-        writer.println(prefix + pxToDpStr("hotseatQsbSpace", hotseatQsbSpace));
+        writer.println(prefix + pxToDpStr("hotseatQsbSpace", hotseatProfile.getQsbSpace()));
         writer.println(prefix + pxToDpStr("hotseatQsbHeight", getHotseatProfile().getQsbHeight()));
         writer.println(prefix + pxToDpStr("springLoadedHotseatBarTopMarginPx",
                 getHotseatProfile().getSpringLoadedBarTopMarginPx()));

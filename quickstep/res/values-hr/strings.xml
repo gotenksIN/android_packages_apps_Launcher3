@@ -55,7 +55,7 @@
     <string name="back_gesture_feedback_complete_with_overview_follow_up" msgid="9176400654037014471">"Naučili ste kako prijeći prstom zdesna da biste se vratili. Sad saznajte kako promijeniti aplikaciju."</string>
     <string name="back_gesture_feedback_complete_with_follow_up" msgid="8653374779579748392">"Napravili ste pokret za povratak. Sad saznajte kako promijeniti aplikaciju."</string>
     <string name="back_gesture_feedback_complete_without_follow_up" msgid="197189945858268342">"Napravili ste pokret za povratak"</string>
-    <string name="back_gesture_feedback_swipe_in_nav_bar" msgid="9157480023651452969">"Pazite da ne prijeđete prstom preblizu dnu zaslona"</string>
+    <string name="back_gesture_feedback_swipe_in_nav_bar" msgid="9157480023651452969">"Ne prelazite prstom preblizu dna zaslona"</string>
     <string name="back_gesture_tutorial_confirm_subtitle" msgid="5181305411668713250">"Osjetljivost pokreta povratka promijenite u postavkama"</string>
     <string name="back_gesture_intro_title" msgid="19551256430224428">"Prijeđite prstom da biste se vratili"</string>
     <string name="back_gesture_intro_subtitle" msgid="7912576483031802797">"Da biste se vratili na prethodni zaslon, prijeđite prstom od lijevog ili desnog ruba do sredine zaslona."</string>
@@ -97,10 +97,10 @@
     <string name="allset_title_expressive_fallback" msgid="2829102990606405239">"Vaš je uređaj \nspreman!"</string>
     <string name="allset_title_expressive_fixed" msgid="3564219469262883526">"Spremni ste za početak!"</string>
     <string name="allset_subtitle_expressive" msgid="419688197551192358">"Uživajte u novom uređaju <xliff:g id="DEVICE">%1$s</xliff:g>!"</string>
-    <string name="allset_subtitle_expressive_gesture_navigation" msgid="8931442349501593934">"Prijeđite prstom prema gore za početak upotrebe uređaja <xliff:g id="DEVICE">%1$s</xliff:g>"</string>
+    <string name="allset_subtitle_expressive_gesture_navigation" msgid="8931442349501593934">"Prijeđite prstom prema gore i počnite upotrebljavati <xliff:g id="DEVICE">%1$s</xliff:g>"</string>
     <string name="allset_subtitle_expressive_button_navigation" msgid="5219509605046028014">"Dodirnite za početak upotrebe uređaja <xliff:g id="DEVICE">%1$s</xliff:g>"</string>
     <string name="allset_navigation_settings_expressive" msgid="3745595273748356"><annotation id="link">"Odaberite način kretanja"</annotation></string>
-    <string name="allset_hint_expressive" msgid="756856423510976261">"Prelazak prstom prema gore"</string>
+    <string name="allset_hint_expressive" msgid="756856423510976261">"Prijeđite prstom prema gore"</string>
     <string name="allset_button_hint_expressive" msgid="667643693410494225">"Dodirnite gumb početnog zaslona"</string>
     <string name="allset_device_type_tablet" msgid="2173392009787325894">"tablet"</string>
     <string name="allset_device_type_phone" msgid="6842334562074507337">"telefon"</string>
@@ -129,7 +129,7 @@
     <string name="taskbar_edu_stashing" msgid="911857479758694381">"Polako prijeđite prstom prema gore za traku sa zadacima"</string>
     <string name="taskbar_edu_suggestions" msgid="8215044496435527982">"Primajte prijedloge aplikacija na temelju svoje rutine"</string>
     <string name="taskbar_edu_pinning" msgid="6708550858580071558">"Dugo pritisnite razdjelnik da biste prikvačili alatnu traku"</string>
-    <string name="taskbar_edu_features" msgid="3320337287472848162">"Učinite više pomoću trake sa zadacima"</string>
+    <string name="taskbar_edu_features" msgid="3320337287472848162">"Napravite više pomoću trake sa zadacima"</string>
     <string name="taskbar_edu_pinning_title" msgid="210102174154211712">"Uvijek prikazuj traku sa zadacima"</string>
     <string name="taskbar_edu_pinning_standalone" msgid="2636919474366410467">"Da bi se traka prikazivala, dodirnite i držite razdjelnik"</string>
     <string name="taskbar_edu_bubbles_standalone" msgid="4182824636656528043">"Povucite aplikaciju u kut da bi se prikazivala u plutajućem prozoru"</string>
@@ -180,4 +180,12 @@
     <string name="nudge_a11y_close" msgid="4513937143817625570">"Zatvori"</string>
     <string name="nudge_a11y_image" msgid="117910310515857252">"Pomakni sliku"</string>
     <string name="running_app_description" msgid="1309281047289078871">"<xliff:g id="APP_TITLE">%1$s</xliff:g> <xliff:g id="RUNNING_STATE">%2$s</xliff:g>"</string>
+    <string name="ambientcue_first_time_edu_icon_description" msgid="899917821554299010">"Ikona"</string>
+    <string name="ambientcue_first_time_edu_title" msgid="2018548669156363447">"Primajte korisne prijedloge"</string>
+    <string name="ambientcue_first_time_edu_text" msgid="4645551981871066999">"Upotrebljavamo umjetnu inteligenciju za proaktivno predlaganje informacija i radnji koje su relevantne za ono što radite na zaslonu"</string>
+    <string name="underlay_close_button_content_description" msgid="5386282762373529057">"Zatvori"</string>
+    <string name="ambient_cue_expand_action" msgid="3718141784327417087">"proširivanje"</string>
+    <string name="ambient_cue_icon_content_description" msgid="6470228671884918485">"Ikona prijedloga ambijenta"</string>
+    <string name="ambientcue_long_press_edu_text" msgid="2399090372677751105">"Dodirnite i zadržite da biste vidjeli kako se generiraju prijedlozi"</string>
+    <string name="ambient_cue_autofill_action" msgid="5880997492149716614">"automatsko popunjavanje"</string>
 </resources>

@@ -53,6 +53,7 @@ import com.android.launcher3.util.window.WindowManagerProxy.DesktopVisibilityLis
 import com.android.quickstep.GestureState
 import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle
 import com.android.quickstep.RotationTouchHelper
+import com.android.quickstep.SystemUiProxy
 import com.android.quickstep.TaskAnimationManager
 import com.android.quickstep.util.DesksUtils.Companion.areMultiDesksFlagsEnabled
 import com.android.quickstep.util.DesktopTask
@@ -66,6 +67,7 @@ import com.android.quickstep.views.RecentsView.TAG
 import com.android.quickstep.views.RecentsView.TASK_THUMBNAIL_SPLASH_ALPHA
 import com.android.systemui.shared.recents.model.Task
 import com.android.systemui.shared.recents.model.ThumbnailData
+import com.android.window.flags.Flags.betterDeskDeactivationInRecentsTransition
 import com.android.wm.shell.shared.GroupedTaskInfo
 import com.android.wm.shell.shared.desktopmode.DesktopState
 import dagger.assisted.Assisted
@@ -89,10 +91,13 @@ constructor(
     @DisplayId private val displayId: Int,
     private val taskAnimationManager: TaskAnimationManager,
     private val rotationTouchHelper: RotationTouchHelper,
+    private val systemUiProxy: SystemUiProxy,
 ) : DesktopVisibilityListener {
     val taskViews = TaskViewsIterable(recentsView)
 
     var keyboardFocusTask: KeyboardFocusTask = KeyboardFocusTask.Unfocused
+
+    private var isInOverview: Boolean = false
 
     /** Takes a screenshot of all [taskView] and return map of taskId to the screenshot */
     fun screenshotTasks(taskView: TaskView): Map<Int, ThumbnailData> {
@@ -499,9 +504,30 @@ constructor(
     }
 
     override fun onActiveDeskChanged(displayId: Int, newActiveDesk: Int, oldActiveDesk: Int) {
+        if (betterDeskDeactivationInRecentsTransition()) return
         if (!isInDesktopFirstMode()) return
         if (displayId != this.displayId) return
         if (oldActiveDesk != INACTIVE_DESK_ID || newActiveDesk == INACTIVE_DESK_ID) return
+        // TaskAnimationManager.onTasksAppeared already handles desktop task launching.
+        if (taskAnimationManager.isRecentsAnimationRunning) return
+        // Desktop launch will close Recents when transition is finished.
+        if (recentsView.desktopRecentsController?.isDesktopLaunchOngoing() == true) return
+
+        Log.d(
+            TAG,
+            "onActiveDeskChanged - closing RecentsView because desk $newActiveDesk is activated",
+        )
+        recentsView.stateManager.moveToRestState()
+    }
+
+    override fun onTaskAppearingInDeskWithOverviewShowing(
+        taskId: Int,
+        displayId: Int,
+        deskId: Int,
+    ) {
+        if (!betterDeskDeactivationInRecentsTransition()) return
+        if (!isInDesktopFirstMode()) return
+        if (displayId != this.displayId) return
         // TaskAnimationManager.onTasksAppeared already handles desktop task launching.
         if (taskAnimationManager.isRecentsAnimationRunning) return
         // Desktop launch will close Recents when tra]nsition is finished.
@@ -509,7 +535,8 @@ constructor(
 
         Log.d(
             TAG,
-            "onActiveDeskChanged - closing RecentsView because desk $newActiveDesk is activated",
+            "onTaskAppearingInDeskWithOverviewShowing - " +
+                "closing RecentsView because taskId $taskId appeared in deskId $deskId",
         )
         recentsView.stateManager.moveToRestState()
     }
@@ -869,6 +896,32 @@ constructor(
                 recentsView.getTaskViewByTaskIds(keyboardFocusTask.taskIds.toIntArray())
         }
 
+    /**
+     * Handle when the Delete key is presses. It can be one of the three following cases:
+     * 1. If a [TaskView] is in focus, dismiss it;
+     * 2. If a [DesktopTaskView] is in the exploded view, dismiss the selected window;
+     * 3. otherwise, do nothing.
+     */
+    fun onDeleteKeyPressed() {
+        taskViews.forEach { taskView ->
+            if (taskView.isFocused) {
+                recentsView.dismissTaskView(taskView, /* removeTask= */true)
+                return
+            } else if (taskView is DesktopTaskView) {
+                val focusedTaskId =
+                    taskView.taskContainers
+                        .firstOrNull { it.taskContentView.isFocused }
+                        ?.task
+                        ?.key
+                        ?.id
+                if (focusedTaskId != null) {
+                    recentsView.dismissTask(focusedTaskId, /* removeTask= */true)
+                    return
+                }
+            }
+        }
+    }
+
     fun isKeyboardTaskFocusPending() = keyboardFocusTask !is KeyboardFocusTask.Unfocused
 
     fun getAlternatePageWithSameScroll(page: Int): Int {
@@ -917,6 +970,17 @@ constructor(
             rotationTouchHelper.currentActiveRotation,
             rotationTouchHelper.displayRotation,
         )
+    }
+
+    /** Called when a transition to a new state finishes. */
+    fun onStateTransitionComplete(finalState: BaseState<*>) {
+        if (!betterDeskDeactivationInRecentsTransition()) return
+        if (!isInOverview && finalState.isInOverview) {
+            systemUiProxy.onOverviewShown(displayId)
+        } else if (isInOverview && !finalState.isInOverview) {
+            systemUiProxy.onOverviewHidden(displayId)
+        }
+        isInOverview = finalState.isInOverview
     }
 
     companion object {

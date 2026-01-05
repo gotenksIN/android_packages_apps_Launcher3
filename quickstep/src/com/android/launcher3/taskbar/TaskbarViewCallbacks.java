@@ -234,13 +234,10 @@ public class TaskbarViewCallbacks {
                 .updateFlag(FLAG_AUTOHIDE_SUSPEND_TASKBAR_OVERFLOW,
                         overflowView.getIsActive());
         mControllers.taskbarViewController.getOverflownAppsContainerController()
-                .toggleOverflownAppsView(
-                        overflowView,
-                        overflowView.getOverflowInfoList(),
-                        this::onOverflownAppsContainerClosed);
+                .toggleOverflownAppsView(overflowView);
     }
 
-    private void onOverflownAppsContainerClosed() {
+    protected void onOverflownAppsContainerClosed() {
         TaskbarOverflowView overflowView = mTaskbarView.getTaskbarHotseatIconsContainer() != null
                 ? mTaskbarView.getTaskbarHotseatIconsContainer().getTaskbarPinnedOverflowView()
                 : mTaskbarView.getTaskbarPinnedOverflowView();

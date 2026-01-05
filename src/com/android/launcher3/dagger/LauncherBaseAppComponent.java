@@ -28,8 +28,8 @@ import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.MainProcessInitializer;
 import com.android.launcher3.RemoveAnimationSettingsTracker;
+import com.android.launcher3.automation.AutomationRepository;
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger;
-import com.android.launcher3.compose.core.widgetpicker.WidgetPickerComposeWrapper;
 import com.android.launcher3.dragndrop.SystemDragController;
 import com.android.launcher3.folder.FolderNameSuggestionLoader;
 import com.android.launcher3.graphics.GridCustomizationsProxy;
@@ -46,6 +46,7 @@ import com.android.launcher3.model.LayoutParserFactory;
 import com.android.launcher3.model.LoaderCursor.LoaderCursorFactory;
 import com.android.launcher3.model.ModelProxyProvider;
 import com.android.launcher3.model.TestableModelState;
+import com.android.launcher3.model.repository.HomeScreenRepository;
 import com.android.launcher3.model.repository.StringCacheRepository;
 import com.android.launcher3.notification.NotificationRepository;
 import com.android.launcher3.pm.InstallSessionHelper;
@@ -78,6 +79,7 @@ import com.android.launcher3.util.window.WindowManagerProxy;
 import com.android.launcher3.widget.LauncherWidgetHolder.WidgetHolderFactory;
 import com.android.launcher3.widget.custom.CustomWidgetManager;
 import com.android.launcher3.widget.util.WidgetSizeHandler;
+import com.android.launcher3.widgetpicker.WidgetPickerComposeWrapper;
 
 import dagger.BindsInstance;
 
@@ -167,6 +169,12 @@ public interface LauncherBaseAppComponent {
 
     /** Returns the StringCacheRepoRepository */
     StringCacheRepository getStringCacheRepoRepository();
+
+    /**  Repository for automated packages information */
+    AutomationRepository getAutomationRepository();
+
+    /** Repository for workspace data */
+    HomeScreenRepository getHomeScreenRepository();
 
     /** Builder for LauncherBaseAppComponent. */
     interface Builder {

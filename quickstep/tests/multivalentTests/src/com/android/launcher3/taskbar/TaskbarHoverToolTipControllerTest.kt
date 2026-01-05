@@ -19,6 +19,7 @@ package com.android.launcher3.taskbar
 import android.view.MotionEvent
 import android.view.MotionEvent.ACTION_HOVER_ENTER
 import android.view.MotionEvent.ACTION_HOVER_EXIT
+import android.widget.FrameLayout
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.BubbleTextView
@@ -26,7 +27,7 @@ import com.android.launcher3.R
 import com.android.launcher3.apppairs.AppPairIcon
 import com.android.launcher3.folder.FolderIcon
 import com.android.launcher3.model.data.WorkspaceItemInfo
-import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnMainSync
+import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
 import com.android.launcher3.taskbar.TaskbarViewTestUtil.createHotseatAppPairsItem
 import com.android.launcher3.taskbar.TaskbarViewTestUtil.createHotseatFolderItem
 import com.android.launcher3.taskbar.TaskbarViewTestUtil.createHotseatWorkspaceItem
@@ -66,7 +67,9 @@ class TaskbarHoverToolTipControllerTest {
 
     @Before
     fun setup() {
-        runOnMainSync { taskbarView = taskbarContext.dragLayer.findViewById(R.id.taskbar_view) }
+        runOnTaskbarUiThreadSync {
+            taskbarView = taskbarContext.dragLayer.findViewById(R.id.taskbar_view)
+        }
 
         val hotseatItems =
             arrayOf(
@@ -74,7 +77,7 @@ class TaskbarHoverToolTipControllerTest {
                 createHotseatAppPairsItem(),
                 createHotseatFolderItem(),
             )
-        runOnMainSync {
+        runOnTaskbarUiThreadSync {
             taskbarView.updateItems(hotseatItems, emptyList(), emptyList())
             iconView =
                 taskbarView.iconViews.filterIsInstance<BubbleTextView>().first {
@@ -87,30 +90,30 @@ class TaskbarHoverToolTipControllerTest {
 
     @Test
     fun onHover_hoverEnterIcon_revealToolTip_hoverExitIcon_closeToolTip() {
-        runOnMainSync { iconView.dispatchGenericMotionEvent(HOVER_ENTER) }
+        runOnTaskbarUiThreadSync { iconView.dispatchGenericMotionEvent(HOVER_ENTER) }
         assertThat(isHoverToolTipOpen).isTrue()
         assertThat(autohideSuspendController.isTransientTaskbarStashingSuspended).isTrue()
-        runOnMainSync { iconView.dispatchGenericMotionEvent(HOVER_EXIT) }
+        runOnTaskbarUiThreadSync { iconView.dispatchGenericMotionEvent(HOVER_EXIT) }
         assertThat(isHoverToolTipOpen).isFalse()
         assertThat(autohideSuspendController.isTransientTaskbarStashingSuspended).isFalse()
     }
 
     @Test
     fun onHover_hoverEnterFolderIcon_revealToolTip_hoverExitFolderIcon_closeToolTip() {
-        runOnMainSync { folderIcon.dispatchGenericMotionEvent(HOVER_ENTER) }
+        runOnTaskbarUiThreadSync { folderIcon.dispatchGenericMotionEvent(HOVER_ENTER) }
         assertThat(isHoverToolTipOpen).isTrue()
         assertThat(autohideSuspendController.isTransientTaskbarStashingSuspended).isTrue()
-        runOnMainSync { folderIcon.dispatchGenericMotionEvent(HOVER_EXIT) }
+        runOnTaskbarUiThreadSync { folderIcon.dispatchGenericMotionEvent(HOVER_EXIT) }
         assertThat(isHoverToolTipOpen).isFalse()
         assertThat(autohideSuspendController.isTransientTaskbarStashingSuspended).isFalse()
     }
 
     @Test
     fun onHover_hoverEnterAppPair_revealToolTip_hoverExitAppPair_closeToolTip() {
-        runOnMainSync { appPairIcon.dispatchGenericMotionEvent(HOVER_ENTER) }
+        runOnTaskbarUiThreadSync { appPairIcon.dispatchGenericMotionEvent(HOVER_ENTER) }
         assertThat(isHoverToolTipOpen).isTrue()
         assertThat(autohideSuspendController.isTransientTaskbarStashingSuspended).isTrue()
-        runOnMainSync { appPairIcon.dispatchGenericMotionEvent(HOVER_EXIT) }
+        runOnTaskbarUiThreadSync { appPairIcon.dispatchGenericMotionEvent(HOVER_EXIT) }
         assertThat(isHoverToolTipOpen).isFalse()
         assertThat(autohideSuspendController.isTransientTaskbarStashingSuspended).isFalse()
     }
@@ -123,13 +126,13 @@ class TaskbarHoverToolTipControllerTest {
             }
         )
 
-        runOnMainSync { iconView.dispatchGenericMotionEvent(HOVER_ENTER) }
+        runOnTaskbarUiThreadSync { iconView.dispatchGenericMotionEvent(HOVER_ENTER) }
         assertThat(isHoverToolTipOpen).isFalse()
     }
 
     @Test
     fun onHover_hoverEnterFolderOpen_noToolTip() {
-        runOnMainSync {
+        runOnTaskbarUiThreadSync {
             folderIcon.folder.animateOpen()
             iconView.dispatchGenericMotionEvent(HOVER_ENTER)
         }
@@ -138,7 +141,7 @@ class TaskbarHoverToolTipControllerTest {
 
     @Test
     fun onHover_hoverEnterPopupOpen_noToolTip() {
-        runOnMainSync {
+        runOnTaskbarUiThreadSync {
             popupController.show(iconView)
             iconView.dispatchGenericMotionEvent(HOVER_ENTER)
         }
@@ -147,11 +150,47 @@ class TaskbarHoverToolTipControllerTest {
 
     @Test
     fun onHover_emptyTitle_noTooltip() {
-        runOnMainSync {
+        runOnTaskbarUiThreadSync {
             iconView.text = ""
             iconView.dispatchGenericMotionEvent(HOVER_ENTER)
         }
         assertThat(isHoverToolTipOpen).isFalse()
+    }
+
+    @Test
+    fun onHover_withGenericViewGroup_revealsAndClosesTooltip() {
+        runOnTaskbarUiThreadSync {
+            // Create a generic ViewGroup to act as the container.
+            val container = FrameLayout(taskbarContext)
+            taskbarContext.dragLayer.addView(container)
+            // Position the container to verify position calculations.
+            container.y = 100f
+
+            // Create a view to be hovered over.
+            val hoverView = BubbleTextView(taskbarContext)
+            hoverView.text = "Test App"
+            container.addView(hoverView)
+
+            // Instantiate the controller with the generic container and hover view.
+            val controller = TaskbarHoverToolTipController(taskbarContext, container, hoverView)
+            hoverView.setOnHoverListener(controller)
+
+            // Simulate hover enter event.
+            hoverView.dispatchGenericMotionEvent(HOVER_ENTER)
+
+            // Verify that the tooltip is shown.
+            assertThat(isHoverToolTipOpen).isTrue()
+            // Also verify that autohide is suspended.
+            assertThat(autohideSuspendController.isTransientTaskbarStashingSuspended).isTrue()
+
+            // Simulate hover exit event.
+            hoverView.dispatchGenericMotionEvent(HOVER_EXIT)
+
+            // Verify that the tooltip is closed.
+            assertThat(isHoverToolTipOpen).isFalse()
+            // Also verify that autohide suspension is removed.
+            assertThat(autohideSuspendController.isTransientTaskbarStashingSuspended).isFalse()
+        }
     }
 
     companion object {

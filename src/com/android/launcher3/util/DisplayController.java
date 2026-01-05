@@ -15,6 +15,7 @@
  */
 package com.android.launcher3.util;
 
+import static android.content.pm.PackageManager.FEATURE_PC;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION;
 
@@ -137,7 +138,7 @@ public class DisplayController {
         mWMProxy = wmProxy;
 
         mIsDesktopFormFactor = enableScalabilityForDesktopExperience()
-                && mAppContext.getResources().getBoolean(R.bool.desktop_form_factor);
+                && mAppContext.getPackageManager().hasSystemFeature(FEATURE_PC);
 
         DisplayManager displayManager = context.getSystemService(DisplayManager.class);
         Display defaultDisplay = displayManager.getDisplay(DEFAULT_DISPLAY);
@@ -552,7 +553,7 @@ public class DisplayController {
          * Returns {@code true} if the bounds represent a tablet.
          */
         public boolean isTablet(WindowBounds bounds) {
-            return smallestSizeDp(bounds) >= MIN_TABLET_WIDTH
+            return mIsDesktopFormFactor || smallestSizeDp(bounds) >= MIN_TABLET_WIDTH
                     // External displays should always be considered tablet.
                     || context.getDisplay().getDisplayId() != DEFAULT_DISPLAY;
         }
@@ -640,7 +641,7 @@ public class DisplayController {
      * Returns the given binary flags as a human-readable string.
      * @see #CHANGE_ALL
      */
-    public String getChangeFlagsString(int change) {
+    public static String getChangeFlagsString(int change) {
         StringJoiner result = new StringJoiner("|");
         appendFlag(result, change, CHANGE_ACTIVE_SCREEN, "CHANGE_ACTIVE_SCREEN");
         appendFlag(result, change, CHANGE_ROTATION, "CHANGE_ROTATION");

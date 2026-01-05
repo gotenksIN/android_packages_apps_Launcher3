@@ -25,13 +25,13 @@ import androidx.test.annotation.UiThreadTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.taskbar.TaskbarManager
 import com.android.launcher3.util.AllModulesForTest
 import com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR
 import com.android.launcher3.util.SandboxApplication
 import com.android.launcher3.util.SettingsCache
 import com.android.launcher3.util.SettingsCacheSandbox
 import com.android.launcher3.util.TestUtil
-import com.android.quickstep.input.QuickstepKeyGestureEventsManager
 import com.google.common.truth.Truth.assertThat
 import dagger.BindsInstance
 import dagger.Component
@@ -42,11 +42,14 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.Mock
 import org.mockito.Mockito.reset
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.verify
+import org.mockito.junit.MockitoJUnit
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doNothing
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.whenever
 
 private const val TIMEOUT = 5L
@@ -58,6 +61,7 @@ class AllAppsActionManagerTest {
     private val callbackSemaphore = Semaphore(0)
     private val bgExecutor = UI_HELPER_EXECUTOR
 
+    @get:Rule val mockto = MockitoJUnit.rule()
     @get:Rule val context = SandboxApplication()
     private val inputManager = context.spyService(InputManager::class.java)
 
@@ -65,14 +69,16 @@ class AllAppsActionManagerTest {
         SettingsCacheSandbox().also { it[USER_SETUP_COMPLETE_URI] = 1 }
     private val quickstepKeyGestureEventsManager by
         lazy(LazyThreadSafetyMode.NONE) {
-            spy(QuickstepKeyGestureEventsManager(context, settingsCacheSandbox.cache))
+            spy(context.appComponent.quickstepKeyGestureEventsManager)
         }
+
+    @Mock lateinit var taskbarManager: TaskbarManager
 
     private val allAppsActionManager by
         lazy(LazyThreadSafetyMode.NONE) {
             AllAppsActionManager(context, bgExecutor, quickstepKeyGestureEventsManager) {
                 callbackSemaphore.release()
-                PendingIntent(IIntentSender.Default())
+                taskbarManager
             }
         }
 
@@ -85,6 +91,9 @@ class AllAppsActionManagerTest {
 
         doNothing().whenever(inputManager).registerKeyGestureEventHandler(any(), any())
         doNothing().whenever(inputManager).unregisterKeyGestureEventHandler(any())
+        doReturn(PendingIntent(IIntentSender.Default()))
+            .whenever(taskbarManager)
+            .createAllAppsPendingIntent()
 
         // Trigger any property access to initialize allAppsActionManager
         allAppsActionManager.isActionRegistered

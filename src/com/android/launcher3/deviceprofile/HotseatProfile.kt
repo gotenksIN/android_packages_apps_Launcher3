@@ -16,19 +16,14 @@
 
 package com.android.launcher3.deviceprofile
 
-import android.content.res.Resources
-import com.android.launcher3.InvariantDeviceProfile
-import com.android.launcher3.R
-import com.android.launcher3.responsive.CalculatedHotseatSpec
+import com.android.launcher3.deviceprofile.HotseatProfileInitialValues.Factory.calculateHotseatBarSizePx
+import com.android.launcher3.folder.ClippedFolderIconLayoutRule.ICON_OVERLAP_FACTOR
+import kotlin.math.ceil
 
 // Remaining hotseat properties
 //    int numShownHotseatIcons - updates multiple times
-//    int hotseatCellHeightPx - updates multiple times
 //    int mHotseatColumnSpan - updates multiple times
 //    int mHotseatWidthPx - updates multiple times
-//    int hotseatBarSizePx - updates multiple times
-//    int hotseatBarBottomSpacePx - relies on var
-//    int hotseatQsbSpace - relies on var
 //    int hotseatQsbWidth - updates multiple times
 //    int hotseatBorderSpace - updates multiple times
 
@@ -46,68 +41,49 @@ data class HotseatProfile(
     val minIconSpacePx: Int,
     val minQsbWidthPx: Int,
     val maxIconSpacePx: Int,
+    val barBottomSpacePx: Int,
+    val qsbSpace: Int,
+    val cellHeightPx: Int,
+    val barSizePx: Int,
 ) {
 
     companion object Factory {
-        fun createHotseatProfile(
-            deviceProperties: DeviceProperties,
-            res: Resources,
-            inv: InvariantDeviceProfile,
-            isTaskbarPresent: Boolean,
-            shouldApplyWidePortraitDimens: Boolean,
-            isVerticalBarLayout: Boolean,
-            responsiveHotseatSpec: CalculatedHotseatSpec?,
-            workspacePageIndicatorHeight: Int,
-        ): HotseatProfile {
-            val areNavButtonsInline = isTaskbarPresent && !deviceProperties.isGestureMode
-            var inlineNavButtonsEndSpacingPx = 0
-            var navButtonsLayoutWidthPx = 0
-            var barEndOffset = 0
-            // 3 nav buttons + Spacing between nav buttons
-            if (areNavButtonsInline && !deviceProperties.isPhone) {
-                inlineNavButtonsEndSpacingPx =
-                    res.getDimensionPixelSize(inv.inlineNavButtonsEndSpacing)
-                /* 3 nav buttons + Spacing between nav buttons */
-                navButtonsLayoutWidthPx =
-                    3 * res.getDimensionPixelSize(R.dimen.taskbar_nav_buttons_size) +
-                        2 * res.getDimensionPixelSize(R.dimen.taskbar_button_space_inbetween)
-                barEndOffset = navButtonsLayoutWidthPx + inlineNavButtonsEndSpacingPx
-            }
-            val springLoadedHotseatBarTopMarginPx =
-                if (shouldApplyWidePortraitDimens)
-                    res.getDimensionPixelSize(
-                        R.dimen.spring_loaded_hotseat_top_margin_wide_portrait
-                    )
-                else res.getDimensionPixelSize(R.dimen.spring_loaded_hotseat_top_margin)
-            val hotseatBarEdgePaddingPx =
-                when {
-                    !isVerticalBarLayout -> 0
-                    responsiveHotseatSpec != null -> responsiveHotseatSpec.edgePadding
-                    else -> workspacePageIndicatorHeight
-                }
-            val hotseatBarWorkspaceSpacePx =
-                if (responsiveHotseatSpec != null) 0
-                else res.getDimensionPixelSize(R.dimen.dynamic_grid_hotseat_side_padding)
-            val hotseatQsbHeight = res.getDimensionPixelSize(R.dimen.qsb_widget_height)
-            val hotseatQsbShadowHeight = res.getDimensionPixelSize(R.dimen.qsb_shadow_height)
 
+        fun createHotseatProfile(
+            hotseatProfileInitialValues: HotseatProfileInitialValues,
+            workspaceProfile: WorkspaceProfile,
+            isVerticalBarLayout: Boolean,
+            isQsbInline: Boolean,
+        ): HotseatProfile {
             return HotseatProfile(
-                areNavButtonsInline = areNavButtonsInline,
-                navButtonsLayoutWidthPx = navButtonsLayoutWidthPx,
-                inlineNavButtonsEndSpacingPx = inlineNavButtonsEndSpacingPx,
-                barEndOffset = barEndOffset,
-                springLoadedBarTopMarginPx = springLoadedHotseatBarTopMarginPx,
-                barEdgePaddingPx = hotseatBarEdgePaddingPx,
-                barWorkspaceSpacePx = hotseatBarWorkspaceSpacePx,
-                qsbHeight = hotseatQsbHeight,
-                qsbShadowHeight = hotseatQsbShadowHeight,
-                qsbVisualHeight = hotseatQsbHeight - 2 * hotseatQsbShadowHeight,
-                minIconSpacePx = res.getDimensionPixelSize(R.dimen.min_hotseat_icon_space),
-                minQsbWidthPx = res.getDimensionPixelSize(R.dimen.min_hotseat_qsb_width),
-                maxIconSpacePx =
-                    if (areNavButtonsInline)
-                        res.getDimensionPixelSize(R.dimen.max_hotseat_icon_space)
-                    else Int.MAX_VALUE,
+                areNavButtonsInline = hotseatProfileInitialValues.areNavButtonsInline,
+                navButtonsLayoutWidthPx = hotseatProfileInitialValues.navButtonsLayoutWidthPx,
+                inlineNavButtonsEndSpacingPx =
+                    hotseatProfileInitialValues.inlineNavButtonsEndSpacingPx,
+                barEndOffset = hotseatProfileInitialValues.barEndOffset,
+                springLoadedBarTopMarginPx = hotseatProfileInitialValues.springLoadedBarTopMarginPx,
+                barEdgePaddingPx = hotseatProfileInitialValues.barEdgePaddingPx,
+                barWorkspaceSpacePx = hotseatProfileInitialValues.barWorkspaceSpacePx,
+                qsbHeight = hotseatProfileInitialValues.qsbHeight,
+                qsbShadowHeight = hotseatProfileInitialValues.qsbShadowHeight,
+                qsbVisualHeight = hotseatProfileInitialValues.qsbVisualHeight,
+                minIconSpacePx = hotseatProfileInitialValues.minIconSpacePx,
+                minQsbWidthPx = hotseatProfileInitialValues.minQsbWidthPx,
+                maxIconSpacePx = hotseatProfileInitialValues.maxIconSpacePx,
+                barBottomSpacePx = hotseatProfileInitialValues.barBottomSpacePx,
+                qsbSpace = hotseatProfileInitialValues.qsbSpace,
+                cellHeightPx = ceil(workspaceProfile.iconSizePx * ICON_OVERLAP_FACTOR).toInt(),
+                barSizePx =
+                    calculateHotseatBarSizePx(
+                        hotseatIconSizePx = workspaceProfile.iconSizePx,
+                        barEdgePaddingPx = hotseatProfileInitialValues.barEdgePaddingPx,
+                        isVerticalBarLayout = isVerticalBarLayout,
+                        barWorkspaceSpacePx = hotseatProfileInitialValues.barWorkspaceSpacePx,
+                        qsbVisualHeight = hotseatProfileInitialValues.qsbVisualHeight,
+                        barBottomSpacePx = hotseatProfileInitialValues.barBottomSpacePx,
+                        qsbSpace = hotseatProfileInitialValues.qsbSpace,
+                        isQsbInline = isQsbInline,
+                    ),
             )
         }
     }

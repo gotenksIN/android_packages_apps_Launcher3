@@ -148,12 +148,6 @@ public interface RecentsViewContainer extends ActivityContext, RecentsViewContai
     void removeEventCallback(@BaseActivity.ActivityEvent int event, Runnable callback);
 
     /**
-     * @see com.android.quickstep.util.TISBindHelper#runOnBindToTouchInteractionService(Runnable)
-     * @param r runnable to be executed upon event
-     */
-    void runOnBindToTouchInteractionService(Runnable r);
-
-    /**
      * Begins transition from overview back to homescreen
      */
     void returnToHomescreen();
@@ -174,12 +168,6 @@ public interface RecentsViewContainer extends ActivityContext, RecentsViewContai
      */
     boolean canStartHomeSafely();
 
-
-    /**
-     * Enter staged split directly from the current running app.
-     * @param leftOrTop if the staged split will be positioned left or top.
-     */
-    default void enterStageSplitFromRunningApp(boolean leftOrTop, int displayId) {}
 
     /**
      * Overwrites any logged item in Launcher that doesn't have a container with the

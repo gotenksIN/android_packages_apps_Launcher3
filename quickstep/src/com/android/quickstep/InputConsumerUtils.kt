@@ -22,9 +22,9 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import androidx.annotation.VisibleForTesting
 import com.android.launcher3.Utilities.shouldEnableMouseInteractionChanges
-import com.android.launcher3.anim.AnimatedFloat
 import com.android.launcher3.statemanager.BaseState
 import com.android.launcher3.statemanager.StatefulContainer
+import com.android.launcher3.taskbar.TaskbarApiProxy
 import com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar
 import com.android.launcher3.taskbar.TaskbarManager
 import com.android.launcher3.util.LockedUserState.Companion.get
@@ -54,7 +54,6 @@ import com.android.systemui.shared.system.InputMonitorCompat
 import com.android.wm.shell.Flags
 import com.android.wm.shell.shared.desktopmode.DesktopState
 import java.util.function.Consumer
-import java.util.function.Function
 
 /** Utility class for creating input consumers. */
 object InputConsumerUtils {
@@ -75,22 +74,20 @@ object InputConsumerUtils {
         onCompleteCallback: Consumer<OtherActivityInputConsumer>,
         inputEventReceiver: InputChannelCompat.InputEventReceiver,
         taskbarManager: TaskbarManager,
-        swipeUpProxyProvider: Function<GestureState?, AnimatedFloat?>,
         overviewCommandHelper: OverviewCommandHelper,
         event: MotionEvent,
         rotationTouchHelper: RotationTouchHelper,
         desktopState: DesktopState,
     ): InputConsumer where T : RecentsViewContainer, T : StatefulContainer<S> {
-        val taskbarApiProxy = taskbarManager.getTaskbarForDisplay(event.displayId)
-        if (
-            taskbarApiProxy?.hasBubbleControllers() == true &&
-                BubbleBarInputConsumer.isEventOnBubbles(taskbarApiProxy, event)
-        ) {
+        val tac = taskbarManager.getTaskbarForDisplay(event.displayId)
+        val bubbleControllers = tac?.bubbleControllers
+        if (bubbleControllers != null && BubbleBarInputConsumer.isEventOnBubbles(tac, event)) {
             val consumer: InputConsumer =
                 BubbleBarInputConsumer(
                     context,
-                    taskbarApiProxy,
+                    tac.taskbarUiState,
                     gestureState.displayId,
+                    bubbleControllers,
                     inputMonitorCompat,
                 )
             logInputConsumerSelectionReason(
@@ -99,7 +96,7 @@ object InputConsumerUtils {
             )
             return consumer
         }
-        val progressProxy = swipeUpProxyProvider.apply(gestureState)
+        val progressProxy = deviceState.getSwipeUpProxy(gestureState)
         if (progressProxy != null) {
             val consumer: InputConsumer =
                 ProgressDelegateInputConsumer(
@@ -206,8 +203,7 @@ object InputConsumerUtils {
         if (
             deviceState.isFullyGesturalNavMode ||
                 gestureState.isTrackpadGesture ||
-                (enableAutoStashConnectedDisplayTaskbar.isTrue &&
-                    taskbarApiProxy?.taskbarUiState?.isPrimaryDisplay == false)
+                (enableAutoStashConnectedDisplayTaskbar.isTrue && tac?.isPrimaryDisplay == false)
         ) {
             val reasonPrefix =
                 "device is in gesture navigation mode or 3-button mode with a trackpad gesture"
@@ -232,12 +228,12 @@ object InputConsumerUtils {
             }
 
             // If Taskbar is present, we listen for swipe or cursor hover events to unstash it.
-            if (taskbarApiProxy != null && base !is AssistantInputConsumer) {
+            if (tac != null && base !is AssistantInputConsumer) {
                 // Present always on large screen or on small screen w/ flag
                 val useTaskbarConsumer =
-                    (taskbarApiProxy.taskbarUiState.getDeviceProfile().isTaskbarPresent &&
-                        !taskbarApiProxy.isPhoneMode() &&
-                        !taskbarApiProxy.isInStashedLauncherState())
+                    (tac.deviceProfile.isTaskbarPresent &&
+                        !tac.isPhoneMode &&
+                        !tac.isInStashedLauncherState)
                 if (canStartSystemGesture && useTaskbarConsumer) {
                     reasonString.append(
                         "%s%s%sTaskbarActivityContext != null, " +
@@ -250,7 +246,7 @@ object InputConsumerUtils {
                         TaskbarUnstashInputConsumer(
                             base,
                             inputMonitorCompat,
-                            taskbarApiProxy,
+                            TaskbarApiProxy(tac),
                             context.getSystemService(DisplayManager::class.java),
                             overviewCommandHelper,
                             gestureState,
@@ -280,12 +276,11 @@ object InputConsumerUtils {
                 }
             }
 
-            val canNavHandleBeLongPressed =
-                taskbarApiProxy?.taskbarUiState?.isTaskbarStashedHandleViewVisible ?: true
+            val navHandle = tac?.navHandle ?: SystemUiProxy.INSTANCE[context]
             if (
                 canStartSystemGesture &&
                     !previousGestureState.isRecentsAnimationRunning &&
-                    canNavHandleBeLongPressed &&
+                    navHandle.canNavHandleBeLongPressed() &&
                     !ignoreThreeFingerTrackpadForNavHandleLongPress(gestureState)
             ) {
                 reasonString.append(
@@ -294,10 +289,7 @@ object InputConsumerUtils {
                     reasonPrefix,
                     SUBSTRING_PREFIX,
                 )
-                if (
-                    taskbarApiProxy != null &&
-                        taskbarApiProxy.taskbarUiState.isTaskbarStashedHandleViewVisible
-                ) {
+                if (tac != null && tac.navHandle.canNavHandleBeLongPressed()) {
                     reasonString.append("stashed handle is long-pressable, ")
                 }
                 reasonString.append("using NavHandleLongPressInputConsumer")
@@ -307,7 +299,7 @@ object InputConsumerUtils {
                         base,
                         inputMonitorCompat,
                         deviceState,
-                        taskbarApiProxy?.navHandle() ?: SystemUiProxy.INSTANCE[context],
+                        navHandle,
                         gestureState,
                     )
             }

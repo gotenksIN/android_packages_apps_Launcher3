@@ -31,8 +31,9 @@ import com.android.launcher3.Flags.FLAG_ENABLE_ALT_TAB_KQS_FLATENNING
 import com.android.launcher3.Flags.FLAG_ENABLE_ALT_TAB_KQS_ON_CONNECTED_DISPLAYS
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.statehandlers.DesktopVisibilityController
-import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnMainSync
+import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.waitForIdleSync
+import com.android.launcher3.taskbar.allapps.TaskbarAllAppsController
 import com.android.launcher3.taskbar.rules.AllTaskbarSandboxModules
 import com.android.launcher3.taskbar.rules.MockedRecentsModelHelper
 import com.android.launcher3.taskbar.rules.MockedRecentsModelTestRule
@@ -43,7 +44,7 @@ import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
 import com.android.launcher3.util.Executors.MAIN_EXECUTOR
 import com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR
-import com.android.launcher3.util.TestUtil.getOnUiThread
+import com.android.launcher3.util.TestUtil.getOnTaskbarUiThread
 import com.android.quickstep.RecentsModel
 import com.android.quickstep.SystemUiProxy
 import com.android.quickstep.util.DesktopTask
@@ -109,12 +110,13 @@ class KeyboardQuickSwitchControllerTest {
     @get:Rule(order = 3) val taskbarUnitTestRule = TaskbarUnitTestRule(this, context)
 
     @InjectController lateinit var keyboardQuickSwitchController: KeyboardQuickSwitchController
+    @InjectController lateinit var allAppsController: TaskbarAllAppsController
 
     private val isKqsShown: Boolean
-        get() = getOnUiThread { keyboardQuickSwitchController.isShown }
+        get() = getOnTaskbarUiThread { keyboardQuickSwitchController.isShown }
 
     private val shownTaskIds: List<Int>
-        get() = getOnUiThread { keyboardQuickSwitchController.shownTaskIds() }
+        get() = getOnTaskbarUiThread { keyboardQuickSwitchController.shownTaskIds() }
 
     @Test
     fun noRecentTasks_noShownTaskIds() {
@@ -311,6 +313,19 @@ class KeyboardQuickSwitchControllerTest {
             .isInstanceOf(SlideInRemoteTransition::class.java)
     }
 
+    @Test
+    fun testOpenAllAppsClosesKeyboardQuickSwitchView() {
+        triggerAltTab()
+
+        assertThat(allAppsController.isOpen).isFalse()
+        assertThat(isKqsShown).isTrue()
+
+        runOnTaskbarUiThreadSync { allAppsController.toggle() }
+
+        assertThat(isKqsShown).isFalse()
+        assertThat(allAppsController.isOpen).isTrue()
+    }
+
     private fun createSingleTask(taskId: Int) = SingleTask(createTask(taskId))
 
     private fun createSplitTask(taskIds: Pair<Int, Int>) =
@@ -355,17 +370,17 @@ class KeyboardQuickSwitchControllerTest {
 
     private fun updateRecentsModel(tasks: List<GroupTask>) {
         recentsModel.updateRecentTasks(tasks)
-        runOnMainSync { recentsModel.resolvePendingTaskRequests() }
+        runOnTaskbarUiThreadSync { recentsModel.resolvePendingTaskRequests() }
     }
 
-    private fun triggerAltTab() = runOnMainSync {
-        keyboardQuickSwitchController.openQuickSwitchView()
+    private fun triggerAltTab() = runOnTaskbarUiThreadSync {
+        runOnTaskbarUiThreadSync { keyboardQuickSwitchController.openQuickSwitchView() }
         recentsModel.resolvePendingTaskRequests()
     }
 
     private fun triggerAltTabAndLaunchFocusedTask() {
         triggerAltTab()
-        runOnMainSync { keyboardQuickSwitchController.launchFocusedTask() }
+        runOnTaskbarUiThreadSync { keyboardQuickSwitchController.launchFocusedTask() }
         // `keyboardQuickSwitchController.launchFocusedTask()` will post a task to activate target
         // desk to `UI_HELPER_EXECUTOR`. Flush the executor to make sure the task runs before
         // verifying mocks.

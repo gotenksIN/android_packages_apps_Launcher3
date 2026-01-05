@@ -26,6 +26,7 @@ import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 import android.app.ActivityManager;
 import android.content.ComponentName;
@@ -72,6 +73,11 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -200,6 +206,12 @@ public abstract class BaseLauncherTaplTest {
     @Rule(order = -1000) // This should be the outermost rule
     public SkipAfterTimeOutRule mSkipAfterTimeOutRule = new SkipAfterTimeOutRule();
 
+    // TODO(b/377678992): revert ag/37092345 once NexusLauncherTests-OverviewInWindowEnabled is
+    //  successfully blocking presubmit.
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    public @interface AllowInRecentsWindowTests {}
+
     protected void performInitialization() {
         reinitializeLauncherData();
         mDevice.pressHome();
@@ -294,6 +306,14 @@ public abstract class BaseLauncherTaplTest {
         Log.d(TAG, "Available memory: before=" + mMemoryBefore
                 + "MB, after=" + memoryAfter
                 + "MB, delta=" + (memoryAfter - mMemoryBefore) + "MB");
+    }
+
+    @Before
+    public void checkTestInAllowlist() {
+        Annotation annotation = getClass().getDeclaredAnnotation(AllowInRecentsWindowTests.class);
+
+        assumeTrue("Skipping unannotated test because a recents window flag is enabled",
+                !mLauncher.isRecentsWindowEnabled() || annotation != null);
     }
 
     /** Method that should be called when a test starts. */
@@ -460,7 +480,7 @@ public abstract class BaseLauncherTaplTest {
                 TestHelpers.wait(Until.hasObject(selector), DEFAULT_UI_TIMEOUT));
 
         // Wait for the Launcher to stop.
-        final LauncherInstrumentation launcherInstrumentation = new LauncherInstrumentation();
+        final LauncherInstrumentation launcherInstrumentation = new LauncherInstrumentation(true);
         launcherInstrumentation.waitForCondition(
                 "Launcher activity didn't stop",
                 DEFAULT_ACTIVITY_TIMEOUT,

@@ -16,9 +16,9 @@
 
 package com.android.launcher3.dagger;
 
-import com.android.launcher3.compose.widgetpicker.LauncherWidgetPickerModule;
 import com.android.launcher3.concurrent.ExecutorsModule;
 import com.android.launcher3.util.dagger.LauncherExecutorsModule;
+import com.android.launcher3.widgetpicker.LauncherWidgetPickerModule;
 
 import dagger.Module;
 
@@ -40,6 +40,7 @@ import dagger.Module;
                 SystemDragModule.class,
                 HomeScreenFilesModule.class,
                 DesktopModule.class,
+                AutomationModule.class,
                 TaskOverlayModule.class,
         },
         subcomponents = ActivityContextComponent.class)

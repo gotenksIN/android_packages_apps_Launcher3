@@ -17,14 +17,18 @@
 package com.android.launcher3.taskbar
 
 import android.graphics.Rect
+import android.os.Looper
 import android.view.View
 import androidx.annotation.VisibleForTesting
 import androidx.core.util.size
+import com.android.launcher3.Alarm
 import com.android.launcher3.DropTarget
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT
+import com.android.launcher3.OnAlarmListener
 import com.android.launcher3.dragndrop.DragController
 import com.android.launcher3.dragndrop.DragOptions
 import com.android.launcher3.model.data.ItemInfo
+import com.android.launcher3.model.data.TaskItemInfo.Companion.isSameItem
 import com.android.launcher3.model.data.WorkspaceItemFactory
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.util.IntSparseArrayMap
@@ -36,25 +40,222 @@ import java.util.Collections
  * location
  */
 class TaskbarViewDragDropController(
-    val activityContext: TaskbarActivityContext,
-    val pinnedAppsContainerDelegate: PinnedAppsContainerDelegate,
+    private val activityContext: TaskbarActivityContext,
+    private val taskbarPinDelegate: PinnedAppsContainerDelegate,
 ) {
-    @VisibleForTesting val pinningDropTarget = PinningDropTarget()
+    companion object {
+        private const val OPEN_OVERFLOW_DELAY_MS = 800L
+        private const val CLOSE_OVERFLOW_DELAY_MS = OPEN_OVERFLOW_DELAY_MS
+    }
+
+    @VisibleForTesting val taskbarPinningDropTarget = PinningDropTarget(taskbarPinDelegate, false)
     @VisibleForTesting val unpinDropTarget = UnpinDropTarget()
+    @VisibleForTesting var targetPinIndex = -1
+    @VisibleForTesting var overflowPinningDropTarget: PinningDropTarget? = null
     private var modelCallbacks: TaskbarModelCallbacks? = null
+
+    @VisibleForTesting val overflowContainerAlarm = Alarm(Looper.getMainLooper())
+
+    private enum class AlarmState {
+        RUNNING_OPEN,
+        RUNNING_CLOSE,
+        IDLE,
+    }
+
+    private var overflowAlarmState = AlarmState.IDLE
+    private val openOnAlarmListener = OnAlarmListener {
+        overflowAlarmState = AlarmState.IDLE
+        activityContext.controllers.taskbarViewController.openOverflowContainer()
+    }
+    private val closeOnAlarmListener = OnAlarmListener {
+        overflowAlarmState = AlarmState.IDLE
+        activityContext.controllers.taskbarViewController.closeOverflowContainer()
+    }
 
     fun setUpCallbacks(callbacks: TaskbarModelCallbacks) {
         modelCallbacks = callbacks
     }
 
-    fun addDropTargets(dragController: DragController<*>) {
-        dragController.addDropTarget(pinningDropTarget)
+    fun addDropTargets(dragController: DragController) {
+        dragController.addDropTarget(taskbarPinningDropTarget)
         dragController.addDropTarget(unpinDropTarget)
     }
 
-    fun removeDropTargets(dragController: DragController<*>) {
-        dragController.removeDropTarget(pinningDropTarget)
+    fun removeDropTargets(dragController: DragController) {
+        dragController.removeDropTarget(taskbarPinningDropTarget)
         dragController.removeDropTarget(unpinDropTarget)
+    }
+
+    fun onTaskbarItemViewDragStart(itemView: View) {
+        taskbarPinDelegate.updateItemViewVisibilityForDragState(itemView, /*isDragged */ true)
+
+        // TODO("Handle overflow icon drag start")
+    }
+
+    fun onTaskbarItemViewDragEnd(itemView: View) {
+        taskbarPinDelegate.updateItemViewVisibilityForDragState(itemView, /*isDragged */ false)
+
+        // TODO("Handle overflow icon drag end")
+    }
+
+    fun addOverflowDropTarget(
+        dragController: DragController,
+        delegate: PinnedAppsContainerDelegate,
+    ) {
+        overflowPinningDropTarget = PinningDropTarget(delegate, true)
+        dragController.addDropTarget(overflowPinningDropTarget)
+    }
+
+    fun removeOverflowDropTarget(dragController: DragController) {
+        dragController.removeDropTarget(overflowPinningDropTarget)
+        overflowPinningDropTarget = null
+    }
+
+    private fun startOpenOverflowAlarm() {
+        if (overflowAlarmState == AlarmState.RUNNING_OPEN) return
+
+        startOverflowAlarm(overflowContainerAlarm, openOnAlarmListener, OPEN_OVERFLOW_DELAY_MS)
+        overflowAlarmState = AlarmState.RUNNING_OPEN
+    }
+
+    private fun startCloseOverflowAlarm() {
+        if (overflowAlarmState == AlarmState.RUNNING_CLOSE) return
+
+        startOverflowAlarm(overflowContainerAlarm, closeOnAlarmListener, CLOSE_OVERFLOW_DELAY_MS)
+        overflowAlarmState = AlarmState.RUNNING_CLOSE
+    }
+
+    private fun startOverflowAlarm(alarm: Alarm, callback: OnAlarmListener, delay: Long) {
+        cancelOverflowAlarm()
+        alarm.setOnAlarmListener(callback)
+        alarm.setAlarm(delay)
+    }
+
+    private fun cancelOverflowAlarm() {
+        if (!overflowContainerAlarm.alarmPending()) return
+
+        overflowContainerAlarm.cancelAlarm()
+        overflowAlarmState = AlarmState.IDLE
+    }
+
+    /**
+     * Returns [targetScreenId] where the dragObject is dropped at, and [shouldShiftLeft] which is
+     * true if the dragged item's space can be made by shifting items before the dropped index to
+     * the left in the hotseat.
+     */
+    private fun getDropTargetState(
+        hotSeatItems: IntSparseArrayMap<ItemInfo>,
+        existingInfo: ItemInfo?,
+    ): Pair<Int, Boolean> {
+        var currentPinIndex = 0
+        var lastScreenId = -1
+        var shouldShiftLeft = false
+
+        for (i in 0 until hotSeatItems.size) {
+            val item = hotSeatItems.valueAt(i) ?: continue
+            if (item.isSameItem(existingInfo)) {
+                // The dragged item is already at the target position, nothing need to change.
+                if (currentPinIndex == targetPinIndex) {
+                    return Pair(item.screenId, true)
+                }
+                continue
+            }
+
+            if (item.screenId - lastScreenId > 1) {
+                shouldShiftLeft = true
+            }
+
+            lastScreenId = item.screenId
+
+            if (currentPinIndex == targetPinIndex) {
+                return Pair(
+                    if (shouldShiftLeft) lastScreenId - 1 else lastScreenId,
+                    shouldShiftLeft,
+                )
+            }
+
+            ++currentPinIndex
+        }
+
+        return Pair(if (shouldShiftLeft) lastScreenId else lastScreenId + 1, shouldShiftLeft)
+    }
+
+    /** Returns the list of items that need to shift left after reordering. */
+    private fun getItemsToShiftLeft(
+        hotseatItems: IntSparseArrayMap<ItemInfo>,
+        existingInfo: ItemInfo?,
+        targetScreenId: Int,
+    ): List<ItemInfo> {
+        val itemsToShift = mutableListOf<ItemInfo>()
+        var nextScreenIdToShift = targetScreenId
+        for (i in hotseatItems.size - 1 downTo 0) {
+            val item = hotseatItems.valueAt(i) ?: continue
+            if (item.screenId > targetScreenId) {
+                continue
+            }
+            if (!item.isSameItem(existingInfo) && item.screenId == nextScreenIdToShift) {
+                --nextScreenIdToShift
+                itemsToShift.add(item)
+            } else {
+                break
+            }
+        }
+
+        return itemsToShift
+    }
+
+    /** Returns the list of items that need to shift right after reordering. */
+    private fun getItemsToShiftRight(
+        hotseatItems: IntSparseArrayMap<ItemInfo>,
+        existingInfo: ItemInfo?,
+        targetScreenId: Int,
+    ): List<ItemInfo> {
+        val itemsToShift = mutableListOf<ItemInfo>()
+        var nextScreenIdToShift = targetScreenId
+        for (i in 0..<hotseatItems.size) {
+            val item = hotseatItems.valueAt(i) ?: continue
+
+            if (item.screenId < targetScreenId) {
+                continue
+            }
+
+            if (!item.isSameItem(existingInfo) && item.screenId == nextScreenIdToShift) {
+                itemsToShift.add(item)
+                ++nextScreenIdToShift
+            } else {
+                break
+            }
+        }
+        return itemsToShift
+    }
+
+    private fun addOrMoveItemInDatabase(
+        hotseatItems: IntSparseArrayMap<ItemInfo>,
+        newInfo: ItemInfo,
+        existingInfo: ItemInfo?,
+    ) {
+        val (targetScreenId, shouldShiftLeft) = getDropTargetState(hotseatItems, existingInfo)
+        if (existingInfo?.screenId == targetScreenId) return
+
+        val itemsToShift =
+            if (shouldShiftLeft) getItemsToShiftLeft(hotseatItems, existingInfo, targetScreenId)
+            else getItemsToShiftRight(hotseatItems, existingInfo, targetScreenId)
+
+        val writer = activityContext.modelWriter
+        for (item in itemsToShift) {
+            val newPosition = item.screenId + if (shouldShiftLeft) -1 else 1
+            writer.addOrMoveItemInDatabase(item, CONTAINER_HOTSEAT, newPosition, newPosition, 0)
+        }
+        modelCallbacks?.bindItemsUpdated(itemsToShift.toSet())
+
+        writer.addOrMoveItemInDatabase(
+            newInfo,
+            CONTAINER_HOTSEAT,
+            targetScreenId,
+            targetScreenId,
+            0,
+        )
+        modelCallbacks?.bindItemsUpdated(hashSetOf(newInfo))
     }
 
     /**
@@ -101,7 +302,7 @@ class TaskbarViewDragDropController(
             // TODO(b/447444838): For now, this makes recent apps section a drop target to unpin,
             // this should probably be updated to be a clear drop target for item removal
             // (pendng UX).
-            pinnedAppsContainerDelegate.getHitRectForUnpinRelativeToDragLayer(outRect)
+            taskbarPinDelegate.getHitRectForUnpinRelativeToDragLayer(outRect)
         }
     }
 
@@ -109,7 +310,12 @@ class TaskbarViewDragDropController(
      * Implementation of the [DropTarget] that handles drag and drop events over the hotseat items
      * area.
      */
-    inner class PinningDropTarget() : DropTarget {
+    inner class PinningDropTarget(
+        private val delegate: PinnedAppsContainerDelegate,
+        private val isOverflowDropTarget: Boolean,
+    ) : DropTarget {
+        private var draggedInfo: ItemInfo? = null
+        private val dragObjectVisualCenter = FloatArray(2)
 
         private val canPinMoreItems: Boolean
             get() {
@@ -117,20 +323,13 @@ class TaskbarViewDragDropController(
                 return hotseatItems.size < activityContext.taskbarSpecsEvaluator.maxPinnableCount
             }
 
+        /** Returns the [ItemInfo] from the dragged object. */
         private fun extractItemInfoFromDragObject(dragObject: DropTarget.DragObject?): ItemInfo? {
             return when (val dragItemInfo = dragObject?.dragInfo) {
                 is WorkspaceItemInfo -> dragItemInfo
                 is WorkspaceItemFactory -> dragItemInfo.makeWorkspaceItem(activityContext)
                 else -> null
             }
-        }
-
-        /** Returns the screenId where the dragObject is dropped at. */
-        private fun findTargetScreenId(hotSeatItems: IntSparseArrayMap<ItemInfo>): Int {
-            // TODO(b/447444838): Using the last hotSeat screenId now. Need to calculate
-            // targetScreenId based on where the object was dropped and extract them into a util
-            // function.
-            return (hotSeatItems.lastOrNull()?.screenId ?: 0) + 1
         }
 
         override fun isDropEnabled(): Boolean {
@@ -150,60 +349,55 @@ class TaskbarViewDragDropController(
             val existingInfo =
                 if (newInfo.id != ItemInfo.NO_ID && newInfo.container == CONTAINER_HOTSEAT) newInfo
                 else null
-            val targetScreenId = findTargetScreenId(hotseatItems)
 
-            // When the dragObject is from pinned items area and is moving right, shift items left
-            // to fill the gap left by the moved item.
-            val itemsToShift = mutableListOf<ItemInfo>()
-            var lastShiftedScreenId = targetScreenId - 1
-
-            if (existingInfo != null) {
-                for (i in 0..<hotseatItems.size) {
-                    val item = hotseatItems.valueAt(hotseatItems.size - i - 1) ?: continue
-
-                    if (item.screenId == lastShiftedScreenId && item != existingInfo) {
-                        itemsToShift.add(item)
-                        lastShiftedScreenId--
-                    } else if (item.screenId != targetScreenId) {
-                        break
-                    }
-                }
-            }
-
-            val writer = activityContext.modelWriter
-            for (item in itemsToShift) {
-                writer.addOrMoveItemInDatabase(
-                    item,
-                    CONTAINER_HOTSEAT,
-                    item.screenId - 1,
-                    item.screenId - 1,
-                    0,
-                )
-            }
-            modelCallbacks?.bindItemsUpdated(itemsToShift.toSet())
-
-            val newItemScreenId = targetScreenId - if (existingInfo != null) 1 else 0
-            writer.addOrMoveItemInDatabase(
-                newInfo,
-                CONTAINER_HOTSEAT,
-                newItemScreenId,
-                newItemScreenId,
-                0,
-            )
-            modelCallbacks?.bindItemsUpdated(hashSetOf(newInfo))
+            addOrMoveItemInDatabase(hotseatItems, newInfo, existingInfo)
         }
 
-        override fun onDragEnter(dragObject: DropTarget.DragObject?) {}
+        override fun onDragEnter(dragObject: DropTarget.DragObject?) {
+            if (isOverflowDropTarget) {
+                cancelOverflowAlarm()
+            }
 
-        override fun onDragOver(dragObject: DropTarget.DragObject?) {}
+            dragObject ?: return
+            draggedInfo = extractItemInfoFromDragObject(dragObject)
+            dragObject.getVisualCenter(dragObjectVisualCenter)
 
-        override fun onDragExit(dragObject: DropTarget.DragObject?) {}
+            if (!isOverflowDropTarget) {
+                delegate.reserveDropSlotForDragLocation(dragObjectVisualCenter[0].toInt())
+            } else {
+                // TODO("Implement overflow drop target")
+            }
+        }
+
+        override fun onDragOver(dragObject: DropTarget.DragObject?) {
+            dragObject ?: return
+            dragObject.getVisualCenter(dragObjectVisualCenter)
+
+            if (isOverflowDropTarget) {
+                // TODO("Implement overflow drop target")
+                return
+            }
+
+            if (delegate.isPointOnOverflowIcon(dragObjectVisualCenter)) {
+                startOpenOverflowAlarm()
+            } else {
+                startCloseOverflowAlarm()
+                delegate.reserveDropSlotForDragLocation(dragObjectVisualCenter[0].toInt())
+            }
+        }
+
+        override fun onDragExit(dragObject: DropTarget.DragObject?) {
+            startCloseOverflowAlarm()
+
+            targetPinIndex = taskbarPinDelegate.getPinIndex()
+            delegate.releaseDropSlot()
+        }
 
         override fun acceptDrop(dragObject: DropTarget.DragObject?): Boolean {
             // TODO(b/447444838): For now, only accept drops when the number of pinned items has
             // not reached limit. This will probably be modified after dropping to hotseat overflow
             // folder UX finalized.
-            return canPinMoreItems
+            return targetPinIndex >= 0 && canPinMoreItems
         }
 
         override fun prepareAccessibilityDrop() {
@@ -211,7 +405,7 @@ class TaskbarViewDragDropController(
         }
 
         override fun getHitRectRelativeToDragLayer(outRect: Rect?) {
-            pinnedAppsContainerDelegate.getHitRectForPinRelativeToDragLayer(outRect)
+            delegate.getHitRectForPinRelativeToDragLayer(outRect)
         }
     }
 
@@ -236,5 +430,23 @@ class TaskbarViewDragDropController(
          * calculated coordinates.
          */
         fun getHitRectForUnpinRelativeToDragLayer(outRect: Rect?)
+
+        /** Returns true if the given point is on the pinned overflow icon. */
+        fun isPointOnOverflowIcon(point: FloatArray): Boolean
+
+        /** Reserves the location with a placeholder indicating where the icon to be dropped. */
+        fun reserveDropSlotForDragLocation(x: Int)
+
+        /** Clears the reserved drop slot. */
+        fun releaseDropSlot()
+
+        /**
+         * Returns the index in the taskbar where the dragged item would be pinned if dropped at the
+         * current location.
+         */
+        fun getPinIndex(): Int
+
+        /** Updates the visibility of a Taskbar dragged item view based on its drag state. */
+        fun updateItemViewVisibilityForDragState(itemView: View, isDragged: Boolean)
     }
 }

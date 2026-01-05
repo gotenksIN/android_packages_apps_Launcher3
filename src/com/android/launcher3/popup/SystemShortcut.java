@@ -38,7 +38,6 @@ import com.android.launcher3.SecondaryDropTarget;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.accessibility.LauncherAccessibilityDelegate;
 import com.android.launcher3.allapps.PrivateProfileManager;
-import com.android.launcher3.compose.ComposeFacade;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
@@ -168,10 +167,7 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
         @Override
         public void onClick(View view) {
             AbstractFloatingView.closeAllOpenViews(mTarget);
-            boolean useComposePicker = ComposeFacade.INSTANCE.isComposeAvailable()
-                    && Flags.enableAppWidgetPickerRefactor();
-
-            if (useComposePicker) {
+            if (Flags.enableAppWidgetPickerRefactor()) {
                 Context context = view.getContext();
                 Intent intent = new Intent(Intent.ACTION_PICK);
                 intent.putExtra(Intent.EXTRA_PACKAGE_NAME,
@@ -618,4 +614,19 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
             }
         }
     }
+
+    public static final Factory<ActivityContext> APP_LOCK =
+            (activity, itemInfo, originalView) -> {
+                if (!android.security.Flags.appLockApis()) {
+                    return null;
+                }
+                if (itemInfo instanceof ItemInfoWithIcon itemInfoWithIcon) {
+                    if (itemInfoWithIcon.isAppLockSupported()) {
+                        return AppLockShortcut.newInstance(activity, itemInfo, originalView,
+                                itemInfoWithIcon.isAppLockEnabled());
+                    }
+                }
+                // Don't show the shortcut for items without an icon or that don't support App Lock.
+                return null;
+            };
 }

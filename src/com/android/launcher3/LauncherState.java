@@ -126,7 +126,9 @@ public abstract class LauncherState implements BaseState<LauncherState> {
      */
     public static final LauncherState NORMAL = new LauncherState(NORMAL_STATE_ORDINAL,
             LAUNCHER_STATE_HOME,
-            FLAG_DISABLE_RESTORE | FLAG_WORKSPACE_ICONS_CAN_BE_DRAGGED | FLAG_HAS_SYS_UI_SCRIM) {
+            FLAG_DISABLE_RESTORE_EXCEPT_UI_MODE_CHANGE
+                    | FLAG_WORKSPACE_ICONS_CAN_BE_DRAGGED
+                    | FLAG_HAS_SYS_UI_SCRIM) {
         @Override
         public int getTransitionDuration(ActivityContext context, boolean isToState) {
             // Arbitrary duration, when going to NORMAL we use the state we're coming from instead.
@@ -202,6 +204,13 @@ public abstract class LauncherState implements BaseState<LauncherState> {
     public ScaleAndTranslation getHotseatScaleAndTranslation(Launcher launcher) {
         // For most states, treat the hotseat as if it were part of the workspace.
         return getWorkspaceScaleAndTranslation(launcher);
+    }
+
+    /**
+     * Returns the vertical translation of the drop target bar in this state.
+     */
+    public float getDropTargetBarTranslationY(Launcher launcher) {
+        return 0;
     }
 
     /**

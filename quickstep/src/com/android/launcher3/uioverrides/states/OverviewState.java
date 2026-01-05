@@ -16,7 +16,6 @@
 package com.android.launcher3.uioverrides.states;
 
 import static com.android.app.animation.Interpolators.DECELERATE_2;
-import static com.android.launcher3.Flags.enableDesktopExplodedView;
 import static com.android.launcher3.Flags.enablePredictiveBackInOverview;
 import static com.android.launcher3.Flags.enableReplaceSharesheetAndEmptyMessageRo;
 import static com.android.launcher3.logging.StatsLogManager.LAUNCHER_STATE_OVERVIEW;
@@ -54,7 +53,9 @@ public class OverviewState extends LauncherState {
     protected static final Rect sTempRect = new Rect();
 
     private static final int STATE_FLAGS = FLAG_WORKSPACE_ICONS_CAN_BE_DRAGGED
-            | FLAG_DISABLE_RESTORE | FLAG_RECENTS_VIEW_VISIBLE | FLAG_WORKSPACE_INACCESSIBLE
+            | FLAG_DISABLE_RESTORE_EXCEPT_UI_MODE_CHANGE
+            | FLAG_RECENTS_VIEW_VISIBLE
+            | FLAG_WORKSPACE_INACCESSIBLE
             | FLAG_CLOSE_POPUPS;
 
     public OverviewState(int id) {
@@ -183,8 +184,8 @@ public class OverviewState extends LauncherState {
     }
 
     @Override
-    public boolean showExplodedDesktopView() {
-        return enableDesktopExplodedView();
+    public boolean isInOverview() {
+        return true;
     }
 
     @Override

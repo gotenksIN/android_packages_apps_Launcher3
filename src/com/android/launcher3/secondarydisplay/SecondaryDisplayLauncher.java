@@ -15,7 +15,9 @@
  */
 package com.android.launcher3.secondarydisplay;
 
+import static com.android.launcher3.LauncherModel.useModelRepositoryBinding;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS_PREDICTION;
+import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.WallpaperThemeManager.setWallpaperDependentTheme;
 
 import android.animation.Animator;
@@ -50,6 +52,7 @@ import com.android.launcher3.LauncherModel;
 import com.android.launcher3.R;
 import com.android.launcher3.allapps.ActivityAllAppsContainerView;
 import com.android.launcher3.allapps.AllAppsStore;
+import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.deviceprofile.AllAppsProfile;
 import com.android.launcher3.dragndrop.DragController;
 import com.android.launcher3.dragndrop.DragOptions;
@@ -127,6 +130,19 @@ public class SecondaryDisplayLauncher extends BaseActivity
         mDragController.addDragListener(this);
 
         mModel.addCallbacksAndLoad(this);
+
+        if (LauncherModel.useModelRepositoryBinding()) {
+            closeOnDestroy(LauncherComponentProvider.get(this)
+                    .getHomeScreenRepository()
+                    .getWorkspaceState()
+                    .forEach(MAIN_EXECUTOR, state -> {
+                        var predictionInfo = state.get(CONTAINER_ALL_APPS_PREDICTION);
+                        if (predictionInfo instanceof PredictedContainerInfo pci) {
+                            mSecondaryDisplayDelegate.setPredictedApps(pci);
+                        }
+                        return null;
+                    }));
+        }
 
         // Update status bar icon color on wallpaper changes.
         mWallpaperManager = getSystemService(WallpaperManager.class);
@@ -228,6 +244,7 @@ public class SecondaryDisplayLauncher extends BaseActivity
 
     @Override
     public void bindIncrementalDownloadProgressUpdated(AppInfo app) {
+        if (LauncherModel.useModelRepositoryBinding()) return;
         mAppsView.getAppsStore().updateProgressBar(app);
     }
 
@@ -283,6 +300,7 @@ public class SecondaryDisplayLauncher extends BaseActivity
     @Override
     public void bindAllApplications(AppInfo[] apps, int flags,
             Map<PackageUserKey, Integer> packageUserKeytoUidMap) {
+        if (LauncherModel.useModelRepositoryBinding()) return;
         Preconditions.assertUIThread();
         AllAppsStore appsStore = mAppsView.getAppsStore();
         appsStore.setApps(apps, flags, packageUserKeytoUidMap);
@@ -292,6 +310,8 @@ public class SecondaryDisplayLauncher extends BaseActivity
     @Override
     public void bindCompleteModel(
             @NonNull WorkspaceData itemIdMap, boolean isBindingSync) {
+        if (LauncherModel.useModelRepositoryBinding()) return;
+
         if (itemIdMap.get(CONTAINER_ALL_APPS_PREDICTION) instanceof PredictedContainerInfo pci) {
             mSecondaryDisplayDelegate.setPredictedApps(pci);
         }
@@ -299,6 +319,8 @@ public class SecondaryDisplayLauncher extends BaseActivity
 
     @Override
     public void bindItemsUpdated(@NonNull Set<ItemInfo> updates) {
+        if (LauncherModel.useModelRepositoryBinding()) return;
+
         for (ItemInfo updatedItem: updates) {
             if (updatedItem.container == CONTAINER_ALL_APPS_PREDICTION
                     && updatedItem instanceof PredictedContainerInfo pci) {
@@ -309,6 +331,7 @@ public class SecondaryDisplayLauncher extends BaseActivity
 
     @Override
     public StringCache getStringCache() {
+        if (useModelRepositoryBinding()) return super.getStringCache();
         return mStringCache;
     }
 

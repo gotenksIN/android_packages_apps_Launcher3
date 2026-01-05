@@ -194,6 +194,10 @@ open class StatsLogManager protected constructor(@JvmField protected val mContex
         @UiEvent(doc = "User tapped on pin system shortcut.") LAUNCHER_SYSTEM_SHORTCUT_PIN_TAP(522),
         @UiEvent(doc = "User tapped on don't suggest app system shortcut.")
         LAUNCHER_SYSTEM_SHORTCUT_DONT_SUGGEST_APP_TAP(1603),
+        @UiEvent(doc = "User tapped on system shortcut to enable App Lock")
+        LAUNCHER_SYSTEM_SHORTCUT_ENABLE_APP_LOCK_TAP(2510),
+        @UiEvent(doc = "User tapped on system shortcut to disable App Lock")
+        LAUNCHER_SYSTEM_SHORTCUT_DISABLE_APP_LOCK_TAP(2511),
         @UiEvent(doc = "User is shown All Apps education view.") LAUNCHER_ALL_APPS_EDU_SHOWN(523),
         @UiEvent(doc = "User opened a folder.") LAUNCHER_FOLDER_OPEN(551),
         @UiEvent(doc = "Hotseat education half sheet seen") LAUNCHER_HOTSEAT_EDU_SEEN(479),
@@ -617,6 +621,11 @@ open class StatsLogManager protected constructor(@JvmField protected val mContex
             doc = "User tapped or long pressed on create new folder icon inside launcher settings."
         )
         LAUNCHER_CREATE_NEW_FOLDER_BUTTON_TAP_OR_LONGPRESS(2508),
+        @UiEvent(
+            doc =
+                "User attempts to swipe over the last page. Swipe left for LTR, swipe right for RTL."
+        )
+        LAUNCHER_SWIPE_OVER_LAST_PAGE(2518),
 
         // One Grid Flags
         @UiEvent(doc = "User sets the device in Fixed Landscape")
@@ -649,6 +658,40 @@ open class StatsLogManager protected constructor(@JvmField protected val mContex
         LAUNCHER_TAP_TO_ADD_TO_HOME_SCREEN_FROM_ALL_APPS(2445),
         @UiEvent(doc = "User tapped to add a deep shortcut from the long press menu")
         LAUNCHER_TAP_TO_ADD_DEEP_SHORTCUT(2446),
+        @UiEvent(
+            doc =
+                "User opened the home screen file system item via its long-press/right-click context menu"
+        )
+        LAUNCHER_HOME_SCREEN_FILES_OPEN_VIA_CONTEXT_MENU(2542),
+        @UiEvent(
+            doc =
+                "User deleted the home screen file system item via its long-press/right-click context menu"
+        )
+        LAUNCHER_HOME_SCREEN_FILES_DELETE_VIA_CONTEXT_MENU(2543),
+        @UiEvent(doc = "User deleted the home screen file system item via drag-and-drop gesture")
+        LAUNCHER_HOME_SCREEN_FILES_DELETE_VIA_DRAG_AND_DROP(2544),
+        @UiEvent(doc = "User opened the long press menu from an app")
+        LAUNCHER_OPEN_APP_LONG_PRESS_MENU(2496),
+        @UiEvent(doc = "User opened the long press menu from an app shortcut")
+        LAUNCHER_OPEN_APP_SHORTCUT_LONG_PRESS_MENU(2497),
+        @UiEvent(doc = "User opened the long press menu from an app pair")
+        LAUNCHER_OPEN_APP_PAIR_LONG_PRESS_MENU(2498),
+        @UiEvent(doc = "User opened the long press menu from a folder")
+        LAUNCHER_OPEN_FOLDER_LONG_PRESS_MENU(2499),
+        @UiEvent(doc = "User opened the long press menu from a widget")
+        LAUNCHER_OPEN_WIDGET_LONG_PRESS_MENU(2500),
+        @UiEvent(doc = "User closed the long press menu from an app")
+        LAUNCHER_CLOSE_APP_LONG_PRESS_MENU(2545),
+        @UiEvent(doc = "User closed the long press menu from an app shortcut")
+        LAUNCHER_CLOSE_APP_SHORTCUT_LONG_PRESS_MENU(2546),
+        @UiEvent(doc = "User closed the long press menu from an app pair")
+        LAUNCHER_CLOSE_APP_PAIR_LONG_PRESS_MENU(2547),
+        @UiEvent(doc = "User closed the long press menu from a folder")
+        LAUNCHER_CLOSE_FOLDER_LONG_PRESS_MENU(2548),
+        @UiEvent(doc = "User closed the long press menu from a widget")
+        LAUNCHER_CLOSE_WIDGET_LONG_PRESS_MENU(2549),
+        @UiEvent(doc = "The total number of file items the user placed on their home screen")
+        LAUNCHER_HOME_SCREEN_FILES_COUNT(2554),
         // ADD MORE
     }
 
