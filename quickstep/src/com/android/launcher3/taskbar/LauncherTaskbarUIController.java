@@ -29,7 +29,7 @@ import static com.android.launcher3.taskbar.navbutton.SetupNavLayoutterKt.GLIF_E
 import static com.android.launcher3.taskbar.navbutton.SetupNavLayoutterKt.GLIF_EXPRESSIVE_THEME;
 import static com.android.launcher3.taskbar.navbutton.SetupNavLayoutterKt.SUW_THEME_SYSTEM_PROPERTY;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
-import static com.android.launcher3.util.Executors.TASKBAR_UI_THREAD;
+import static com.android.launcher3.util.Executors.getTaskbarUiThread;
 import static com.android.quickstep.interaction.AllSetActivity.ALL_SET_SWIPE_THRESHOLD_FOR_WORKSPACE_ANIM;
 
 import android.animation.Animator;
@@ -49,12 +49,12 @@ import com.android.launcher3.LauncherUiState;
 import com.android.launcher3.LauncherUiStateUtil;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimatedFloat;
+import com.android.launcher3.display.DisplayController;
 import com.android.launcher3.logging.InstanceId;
 import com.android.launcher3.logging.InstanceIdSequence;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.taskbar.bubbles.BubbleBarController;
 import com.android.launcher3.taskbar.bubbles.BubbleControllers;
-import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.ImmediateAnimator;
 import com.android.launcher3.util.MultiPropertyFactory;
 import com.android.launcher3.util.OnboardingPrefs;
@@ -115,7 +115,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     private SafeCloseable mIsOnTopResumeActivityListenerClosable;
     private final HomeVisibilityState.VisibilityChangeListener mVisibilityChangeListener =
             (isVisible, keyguardGoingAway) -> {
-                TASKBAR_UI_THREAD.execute(() -> onLauncherVisibilityChanged(isVisible));
+                getTaskbarUiThread().execute(() -> onLauncherVisibilityChanged(isVisible));
             };
 
     // Initialized in init.
@@ -138,7 +138,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
         super.init(taskbarControllers);
 
         mTaskbarLauncherStateController.init(mControllers, mLauncher, mLauncherUiState,
-                mControllers.getSharedState().sysuiStateFlags, TASKBAR_UI_THREAD);
+                mControllers.getSharedState().sysuiStateFlags, getTaskbarUiThread());
         final TaskbarActivityContext taskbarContext = mControllers.taskbarActivityContext;
         int displayId = taskbarContext.getDisplayId();
         BaseContainerInterface<?, ?> containerInterface = OverviewComponentObserver.INSTANCE.get(
@@ -158,7 +158,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
 
         onStashedInAppChanged(getDeviceProfile());
         mOnDeviceProfileChangeListenerClosable =
-                mLauncherUiState.getDeviceProfileRef().forEach(TASKBAR_UI_THREAD, dp -> {
+                mLauncherUiState.getDeviceProfileRef().forEach(getTaskbarUiThread(), dp -> {
                     if (mLauncherUiState.isDeviceProfileInitialized()) {
                         mOnDeviceProfileChangeListener.onDeviceProfileChanged(dp);
                     }
@@ -166,7 +166,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
         });
 
         mIsOnTopResumeActivityListenerClosable = mLauncherUiState.isTopResumedActivityRef().forEach(
-                TASKBAR_UI_THREAD, isTopResumedActivity -> {
+                getTaskbarUiThread(), isTopResumedActivity -> {
                     boolean shouldStashTaskbar = !isTopResumedActivity
                             && mControllers.taskbarActivityContext.isTransientTaskbar();
                     mControllers.taskbarStashController.updateStateForFlag(
@@ -295,7 +295,8 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
         if (taskbarContext.showLockedTaskbarOnHome()
                 && !taskbarContext.showDesktopTaskbarForFreeformDisplay()
                 && taskbarContext.isPrimaryDisplay()) {
-            DisplayController.INSTANCE.get(taskbarContext).notifyConfigChange();
+            DisplayController.INSTANCE.get(taskbarContext)
+                    .notifyConfigChange(taskbarContext.getDisplayId());
         }
 
         if (android.view.accessibility.Flags.launcherAppDisplayProgressUpdateOnVisibilityChange()) {
@@ -381,7 +382,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
         LauncherActivityInterface activityInterface =
                 LauncherActivityInterface.INSTANCE.get(mControllers.taskbarActivityContext);
         return enableTaskbarUiThread() ?
-                new TaskbarAsyncAnimator(TASKBAR_UI_THREAD,
+                new TaskbarAsyncAnimator(getTaskbarUiThread(),
                         MAIN_EXECUTOR,
                         () -> mTaskbarLauncherStateController.createAnimToLauncher(
                                 activityInterface.stateFromGestureEndTarget(

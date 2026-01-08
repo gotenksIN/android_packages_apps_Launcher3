@@ -27,9 +27,9 @@ import static android.view.MotionEvent.ACTION_UP;
 import static com.android.launcher3.LauncherPrefs.backedUpItem;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
+import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_NAVIGATION_MODE;
+import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_NIGHT_MODE;
 import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar;
-import static com.android.launcher3.util.DisplayController.CHANGE_NAVIGATION_MODE;
-import static com.android.launcher3.util.DisplayController.CHANGE_NIGHT_MODE;
 import static com.android.launcher3.util.OnboardingPrefs.HOME_BOUNCE_SEEN;
 import static com.android.launcher3.util.window.WindowManagerProxy.MIN_TABLET_WIDTH;
 import static com.android.quickstep.GestureState.DEFAULT_STATE;
@@ -49,7 +49,6 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.Choreographer;
-import android.view.Display;
 import android.view.InputDevice;
 import android.view.InputEvent;
 import android.view.MotionEvent;
@@ -60,7 +59,6 @@ import androidx.annotation.UiThread;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.app.displaylib.DisplayRepository;
-import com.android.app.displaylib.DisplaysWithDecorationsRepositoryCompat;
 import com.android.app.displaylib.PerDisplayRepository;
 import com.android.launcher3.ConstantItem;
 import com.android.launcher3.EncryptionType;
@@ -68,6 +66,7 @@ import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.concurrent.annotations.Ui;
 import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.desktop.DesktopAppLaunchTransitionManager;
+import com.android.launcher3.display.DisplayController;
 import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.statemanager.StatefulActivity;
 import com.android.launcher3.taskbar.TaskbarActivityContext;
@@ -75,7 +74,6 @@ import com.android.launcher3.taskbar.TaskbarManager;
 import com.android.launcher3.taskbar.bubbles.BubbleControllers;
 import com.android.launcher3.testing.TestLogging;
 import com.android.launcher3.testing.shared.TestProtocol;
-import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.LockedUserState;
 import com.android.launcher3.util.MSDLPlayerWrapper;
 import com.android.launcher3.util.NavigationMode;
@@ -85,7 +83,6 @@ import com.android.launcher3.util.SafeCloseable;
 import com.android.launcher3.util.ScreenOnTracker;
 import com.android.launcher3.util.ThreadSafeRunnableList;
 import com.android.launcher3.util.TraceHelper;
-import com.android.launcher3.util.coroutines.DispatcherProvider;
 import com.android.quickstep.OverviewComponentObserver.OverviewChangeListener;
 import com.android.quickstep.dagger.SysUIConnectionSingleton;
 import com.android.quickstep.fallback.RecentsState;
@@ -98,7 +95,6 @@ import com.android.quickstep.util.ActiveTrackpadList;
 import com.android.quickstep.util.ActivityPreloadUtil;
 import com.android.quickstep.util.ContextualSearchStateManager;
 import com.android.quickstep.views.RecentsViewContainer;
-import com.android.quickstep.window.RecentsWindowFlags;
 import com.android.quickstep.window.RecentsWindowManager;
 import com.android.quickstep.window.RecentsWindowSwipeHandler;
 import com.android.systemui.shared.system.InputChannelCompat.InputEventReceiver;
@@ -109,6 +105,8 @@ import com.android.systemui.shared.system.TaskStackChangeListener;
 import com.android.systemui.shared.system.TaskStackChangeListeners;
 import com.android.wm.shell.shared.desktopmode.DesktopState;
 
+import kotlinx.coroutines.CoroutineDispatcher;
+
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Locale;
@@ -117,8 +115,6 @@ import java.util.concurrent.Executor;
 
 import javax.inject.Inject;
 import javax.inject.Named;
-
-import kotlinx.coroutines.CoroutineDispatcher;
 
 /**
  * Service connected by system-UI for handling touch interaction.
@@ -200,10 +196,9 @@ public class TouchInteractionHandler extends ContextWrapper {
     private final InputConsumerController mInputConsumer;
     private final Choreographer mMainChoreographer;
 
-    private final SystemDecorationChangeObserver mSystemDecorationChangeObserver;
+    private final DisplayModel.Factory<InputResource> mDisplayModelFactory;
+    private final CoroutineDispatcher mUiCoroutineDispatcher;
     private final DisplayRepository mDisplayRepository;
-    private final DisplaysWithDecorationsRepositoryCompat mDisplaysWithDecorationsRepositoryCompat;
-    private final CoroutineDispatcher mMainCoroutineDispatcher;
     private final DesktopState mDesktopState;
 
     // This needs to be a member to be queued and potentially removed later if the service is
@@ -222,7 +217,7 @@ public class TouchInteractionHandler extends ContextWrapper {
 
     private boolean mUserUnlocked = false;
 
-    @Nullable private InputResourceDisplayModel mInputResourceDisplayModel;
+    @Nullable private DisplayModel<InputResource> mInputResourceDisplayModel;
 
     private DesktopAppLaunchTransitionManager mDesktopAppLaunchTransitionManager;
 
@@ -234,9 +229,7 @@ public class TouchInteractionHandler extends ContextWrapper {
             PerDisplayRepository<TaskAnimationManager> taskAnimationManagerRepository,
             PerDisplayRepository<RotationTouchHelper> rotationTouchHelperRepository,
             PerDisplayRepository<RecentsWindowManager> recentsWindowManagerRepository,
-            SystemDecorationChangeObserver systemDecorationChangeObserver,
-            DispatcherProvider dispatcherProvider,
-            DisplaysWithDecorationsRepositoryCompat displaysWithDecorationsRepositoryCompat,
+            @Ui CoroutineDispatcher uiCoroutineDispatcher,
             LockedUserState lockedUserState,
             ScreenOnTracker screenOnTracker,
             SystemUiProxy systemUiProxy,
@@ -246,6 +239,7 @@ public class TouchInteractionHandler extends ContextWrapper {
             AllAppsActionManager allAppsActionManager,
             TaskbarManager taskbarManager,
             ActiveTrackpadList activeTrackpadList,
+            DisplayModel.Factory<InputResource> displayModelFactory,
             @Ui Executor uiExecutor,
             @Named(CONNECTION_CLEANER) ThreadSafeRunnableList cleanupTasks
     ) {
@@ -259,9 +253,8 @@ public class TouchInteractionHandler extends ContextWrapper {
         mTaskAnimationManagerRepository = taskAnimationManagerRepository;
         mRotationTouchHelperRepository = rotationTouchHelperRepository;
         mRecentsWindowManagerRepository = recentsWindowManagerRepository;
-        mSystemDecorationChangeObserver = systemDecorationChangeObserver;
-        mMainCoroutineDispatcher = dispatcherProvider.getMain();
-        mDisplaysWithDecorationsRepositoryCompat = displaysWithDecorationsRepositoryCompat;
+        mDisplayModelFactory = displayModelFactory;
+        mUiCoroutineDispatcher = uiCoroutineDispatcher;
         mLockedUserState = lockedUserState;
         mSystemUiProxy = systemUiProxy;
         mOverviewCommandHelper = overviewCommandHelper;
@@ -333,8 +326,9 @@ public class TouchInteractionHandler extends ContextWrapper {
                 && (!mTrackpadsConnected.getConnected().getValue())) {
             return;
         }
-        mInputResourceDisplayModel = new InputResourceDisplayModel(
-                this, mSystemDecorationChangeObserver);
+        mInputResourceDisplayModel =
+                mDisplayModelFactory.newModel(mUiCoroutineDispatcher, InputResource::new);
+        mInputResourceDisplayModel.initializeDisplays();
 
         mRotationTouchHelperRepository.get(DEFAULT_DISPLAY).updateGestureTouchRegions();
     }
@@ -371,7 +365,6 @@ public class TouchInteractionHandler extends ContextWrapper {
         mOverviewComponentObserver.get().addOverviewChangeListener(mOverviewChangeListener);
         onOverviewTargetChanged(mOverviewComponentObserver.get().isHomeAndOverviewSame());
 
-        mTaskbarManager.onUserUnlocked();
         mAllAppsActionManager.onUserUnlocked();
     }
 
@@ -409,16 +402,14 @@ public class TouchInteractionHandler extends ContextWrapper {
                 mTaskbarManager.setRecentsViewContainer(newOverviewContainer);
             }
         }
-        if (RecentsWindowFlags.getEnableOverviewInWindow()) {
-            mRecentsWindowManagerRepository.forEach(
-                    /* createIfAbsent= */ false, RecentsWindowManager::onOverviewTargetChanged);
-            if (isHomeAndOverviewSame) {
-                TaskStackChangeListeners.getInstance().unregisterTaskStackListener(
-                        mHomeIntentStartedListener);
-            } else {
-                TaskStackChangeListeners.getInstance().registerTaskStackListener(
-                        mHomeIntentStartedListener);
-            }
+        mRecentsWindowManagerRepository.forEach(
+                /* createIfAbsent= */ false, RecentsWindowManager::onOverviewTargetChanged);
+        if (isHomeAndOverviewSame) {
+            TaskStackChangeListeners.getInstance().unregisterTaskStackListener(
+                    mHomeIntentStartedListener);
+        } else {
+            TaskStackChangeListeners.getInstance().registerTaskStackListener(
+                    mHomeIntentStartedListener);
         }
     }
 
@@ -472,10 +463,8 @@ public class TouchInteractionHandler extends ContextWrapper {
         }
         mDesktopAppLaunchTransitionManager = null;
         mLockedUserState.removeOnUserUnlockedRunnable(mUserUnlockedRunnable);
-        if (RecentsWindowFlags.getEnableOverviewInWindow()) {
-            TaskStackChangeListeners.getInstance().unregisterTaskStackListener(
-                    mHomeIntentStartedListener);
-        }
+        TaskStackChangeListeners.getInstance().unregisterTaskStackListener(
+                mHomeIntentStartedListener);
     }
 
     protected void onScreenOnChanged(boolean isOn) {
@@ -979,29 +968,7 @@ public class TouchInteractionHandler extends ContextWrapper {
                 mInputConsumer, MSDLPlayerWrapper.INSTANCE.get(this));
     }
 
-    /**
-     * Helper class that keeps track of external displays and prepares input monitors for each.
-     */
-    private class InputResourceDisplayModel extends DisplayModel<InputResource> {
-
-        private InputResourceDisplayModel(
-                Context context, SystemDecorationChangeObserver systemDecorationChangeObserver) {
-            super(context,
-                    systemDecorationChangeObserver,
-                    mDisplaysWithDecorationsRepositoryCompat,
-                    mMainCoroutineDispatcher,
-                    /* debug= */ false);
-            initializeDisplays();
-        }
-
-        @NonNull
-        @Override
-        public InputResource createDisplayResource(@NonNull Display display) {
-            return new InputResource(display.getDisplayId());
-        }
-    }
-
-    private class InputResource extends DisplayModel.DisplayResource {
+    public class InputResource implements DisplayModel.DisplayResource {
 
         private final int displayId;
         private @NonNull final InputMonitorCompat inputMonitorCompat;

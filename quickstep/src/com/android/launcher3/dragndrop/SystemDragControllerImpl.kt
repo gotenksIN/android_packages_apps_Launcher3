@@ -22,11 +22,8 @@ import android.graphics.Rect
 import android.view.DragEvent
 import android.view.View
 import android.view.View.DRAG_FLAG_DISABLE_DEFAULT_POINTER_ICON
-import android.view.View.DRAG_FLAG_GLOBAL
-import android.view.View.DRAG_FLAG_GLOBAL_URI_READ
-import android.view.View.DRAG_FLAG_GLOBAL_URI_WRITE
 import android.view.View.DRAG_FLAG_OPAQUE
-import com.android.launcher3.Launcher
+import com.android.launcher3.views.ActivityContext
 import kotlin.math.roundToInt
 
 /**
@@ -39,7 +36,7 @@ import kotlin.math.roundToInt
 class SystemDragControllerImpl(private val systemDragListenerFactory: SystemDragListenerFactory) :
     SystemDragController(), DragController.SystemDragHandler {
 
-    private var launcher: Launcher? = null
+    private var context: ActivityContext? = null
     private var systemDragListener: SystemDragListener? = null
 
     // NOTE: Permissions must be obtained in order to accept a system-level drop. If permissions are
@@ -50,15 +47,15 @@ class SystemDragControllerImpl(private val systemDragListenerFactory: SystemDrag
     override fun onDrag(event: DragEvent): Boolean =
         continueDrag(event) ?: startDrag(event) ?: false
 
-    override fun setLauncher(launcher: Launcher) {
-        if (this.launcher != launcher) {
-            this.launcher?.dragController?.removeSystemDragHandler(this)
-            this.launcher = launcher.also { it.dragController?.addSystemDragHandler(this) }
+    override fun setContext(context: ActivityContext) {
+        if (this.context != context) {
+            this.context?.dragController?.removeSystemDragHandler(this)
+            this.context = context.also { it.dragController?.addSystemDragHandler(this) }
         }
     }
 
     override fun startDrag(params: SystemDragParams): DragView? {
-        val dragController = launcher?.dragController ?: return null
+        val dragController = context?.dragController ?: return null
         params.dragOptions.simulatedDndStartPoint = dragController.downPoint
         return createSystemDragListener(params)?.startDrag()?.also { dragView ->
             if (!startSystemDrag(dragView, params)) {
@@ -70,7 +67,7 @@ class SystemDragControllerImpl(private val systemDragListenerFactory: SystemDrag
     private fun continueDrag(event: DragEvent): Boolean? = systemDragListener?.onDrag(event)
 
     private fun createSystemDragListener(params: SystemDragParams? = null): SystemDragListener? =
-        launcher?.run {
+        context?.run {
             systemDragListenerFactory(this, params).also { listener ->
                 systemDragListener = listener
                 listener.setCleanupCallback {
@@ -82,14 +79,14 @@ class SystemDragControllerImpl(private val systemDragListenerFactory: SystemDrag
         }
 
     private fun startDrag(event: DragEvent): Boolean? =
-        launcher?.run {
+        context?.run {
             dragController?.isDragging == false &&
                 event.action == DragEvent.ACTION_DRAG_STARTED &&
                 createSystemDragListener()?.onDrag(event) == true
         }
 
     private fun startSystemDrag(dragView: DragView, params: SystemDragParams): Boolean =
-        launcher?.dragLayer?.let { dragLayer ->
+        context?.dragLayer?.let { dragLayer ->
             val dragShadow =
                 object : View.DragShadowBuilder() {
                     val h = (params.dragImage.intrinsicHeight * params.initialDragViewScale).toInt()
@@ -127,10 +124,8 @@ class SystemDragControllerImpl(private val systemDragListenerFactory: SystemDrag
                     dragShadow,
                     /*localState=*/ null,
                     /*flags=*/ DRAG_FLAG_DISABLE_DEFAULT_POINTER_ICON or
-                        DRAG_FLAG_GLOBAL or
-                        DRAG_FLAG_GLOBAL_URI_READ or
-                        DRAG_FLAG_GLOBAL_URI_WRITE or
-                        DRAG_FLAG_OPAQUE,
+                        DRAG_FLAG_OPAQUE or
+                        params.extraDragFlags,
                 )
                 .also { result ->
                     if (result) {

@@ -33,9 +33,10 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.android.launcher3.LauncherPrefs.Companion.GRID_NAME
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.display.DisplayController
+import com.android.launcher3.display.LauncherDisplayInfo
 import com.android.launcher3.testing.shared.ResourceUtils
 import com.android.launcher3.util.AllModulesMinusWMProxy
-import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.FakePrefsModule
 import com.android.launcher3.util.NavigationMode
 import com.android.launcher3.util.SandboxContext
@@ -374,10 +375,10 @@ abstract class AbstractDeviceProfileTest {
 
         val info =
             spy(
-                DisplayController.Info(
+                LauncherDisplayInfo(
                     context,
-                    isDesktopFormFactor,
                     windowManagerProxy,
+                    isDesktopFormFactor,
                     perDisplayBoundsCache,
                     densityDpi,
                 )

@@ -43,8 +43,8 @@ import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_SECON
 import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_STASHED_IN_APP_AUTO;
 import static com.android.launcher3.taskbar.TaskbarStashController.SHOULD_BUBBLES_FOLLOW_DEFAULT_VALUE;
 import static com.android.launcher3.testing.shared.ResourceUtils.getBoolByName;
-import static com.android.launcher3.util.Executors.TASKBAR_UI_THREAD;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
+import static com.android.launcher3.util.Executors.getTaskbarUiThread;
 import static com.android.quickstep.RecentsFilterState.EMPTY_FILTER;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.quickstep.util.ExternalDisplaysKt.isExternalDisplay;
@@ -118,6 +118,8 @@ import com.android.launcher3.desktop.DesktopAppLaunchTransition;
 import com.android.launcher3.desktop.DesktopAppLaunchTransition.AppLaunchType;
 import com.android.launcher3.deviceprofile.TaskbarDeviceProfileFactory;
 import com.android.launcher3.deviceprofile.TaskbarProfile;
+import com.android.launcher3.display.DisplayController;
+import com.android.launcher3.display.LauncherDisplayInfo;
 import com.android.launcher3.folder.Folder;
 import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.graphics.ThemeManager;
@@ -169,7 +171,6 @@ import com.android.launcher3.util.ActivityOptionsWrapper;
 import com.android.launcher3.util.ApiWrapper;
 import com.android.launcher3.util.ApplicationInfoWrapper;
 import com.android.launcher3.util.AsyncView;
-import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.Executors;
 import com.android.launcher3.util.FlagDebugUtils;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
@@ -501,12 +502,12 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     @Override
     public boolean showLockedTaskbarOnHome() {
-        return DisplayController.showLockedTaskbarOnHome(this);
+        return DisplayController.getInfo(this).showLockedTaskbarOnHome;
     }
 
     @Override
     public boolean showDesktopTaskbarForFreeformDisplay() {
-        return DisplayController.showDesktopTaskbarForFreeformDisplay(this);
+        return DisplayController.getInfo(this).getShowDesktopTaskbarForFreeformDisplay();
     }
 
     @Override
@@ -517,11 +518,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     @Override
     public int getDisplayHeight() {
         return DisplayController.INSTANCE.get(this).getInfo().currentSize.y;
-    }
-
-    @Override
-    public void notifyConfigChanged() {
-        DisplayController.INSTANCE.get(this).notifyConfigChange();
     }
 
     /**
@@ -1112,7 +1108,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         options.setPendingIntentBackgroundActivityStartMode(
                 ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
         IRemoteCallback endCallback = completeRunnableListCallback(
-                callbacks, this, TASKBAR_UI_THREAD);
+                callbacks, this, getTaskbarUiThread());
         options.setOnAnimationAbortListener(endCallback);
         options.setOnAnimationFinishedListener(endCallback);
 
@@ -1905,7 +1901,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             RecentsViewInteractor recents = taskbarUIController.getRecentsViewInteractor();
 
             if (recents != null && recents.isSplitSelectionActive()) {
-                return Pair.create(TASKBAR_UI_THREAD,
+                return Pair.create(getTaskbarUiThread(),
                         () -> taskbarUIController.moveRunningTaskToSplitSelection(
                                 singleTask.getTask(), null, startingView));
             }
@@ -1931,7 +1927,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         }
 
         assert task instanceof SplitTask;
-        return Pair.create(TASKBAR_UI_THREAD,
+        return Pair.create(getTaskbarUiThread(),
                 () -> mControllers.uiController.launchSplitTasks(
                         (SplitTask) task, remoteTransition));
     }
@@ -1952,7 +1948,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                         DisplayController.INSTANCE.get(this),
                         appLaunchType,
                         cujType,
-                        TASKBAR_UI_THREAD
+                        getTaskbarUiThread()
                 ),
                 "TaskbarDesktopAppLaunch");
     }
@@ -2048,7 +2044,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                         Runnable launchTask =
                                 () -> startItemInfoActivity(itemInfos.get(0), foundTask);
                         runAfterReturningToDesktopIfInOverview(
-                                recents, launchTask, TASKBAR_UI_THREAD);
+                                recents, launchTask, getTaskbarUiThread());
                     }
                 }
         );
@@ -2103,14 +2099,14 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 ? mControllers.taskbarRecentAppsController.getNonDesktopTask(info)
                 : (singleTask == null ? null : singleTask.getTask());
         if (DesktopExperienceFlags.ENABLE_DESKTOP_FIRST_FULLSCREEN_REFOCUS_BUGFIX.isTrue()
-                && DisplayController.isInDesktopFirstMode(this) && nonDesktopTask != null) {
+                && DisplayController.getInfo(this).isInDesktopFirstMode && nonDesktopTask != null) {
             if (!DesktopExperienceFlags.ENABLE_DESKTOP_FIRST_POLICY_IN_LPM.isTrue()) {
                 // Keep the fullscreen mode in desktop-first mode.
                 return false;
             }
-            final DisplayController.Info currentDisplayInfo = DisplayController.INSTANCE.get(this)
+            final LauncherDisplayInfo currentDisplayInfo = DisplayController.INSTANCE.get(this)
                     .getInfoForDisplay(nonDesktopTask.getKey().displayId);
-            if (currentDisplayInfo != null && currentDisplayInfo.isInDesktopFirstMode()) {
+            if (currentDisplayInfo != null && currentDisplayInfo.isInDesktopFirstMode) {
                 // Keep the fullscreen mode if both current and target displays are in desktop-first
                 // mode.
                 return false;

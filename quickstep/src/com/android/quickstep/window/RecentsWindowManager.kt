@@ -74,6 +74,7 @@ import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 import com.android.launcher3.dagger.PerDisplayComponent
 import com.android.launcher3.dagger.WindowContext
 import com.android.launcher3.desktop.DesktopRecentsTransitionController
+import com.android.launcher3.display.DisplayController
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.statemanager.StateManager
 import com.android.launcher3.statemanager.StateManager.AtomicAnimationFactory
@@ -84,7 +85,6 @@ import com.android.launcher3.testing.shared.TestProtocol.LAUNCHER_ACTIVITY_STOPP
 import com.android.launcher3.testing.shared.TestProtocol.SEQUENCE_MAIN
 import com.android.launcher3.util.ActivityOptionsWrapper
 import com.android.launcher3.util.DaggerSingletonObject
-import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.LooperExecutor
 import com.android.launcher3.util.RunnableList
 import com.android.launcher3.util.SafeCloseable
@@ -119,6 +119,7 @@ import com.android.quickstep.fallback.RecentsState.Companion.MODAL_TASK
 import com.android.quickstep.fallback.RecentsState.Companion.OVERVIEW_SPLIT_SELECT
 import com.android.quickstep.fallback.toLauncherStateOrdinal
 import com.android.quickstep.recents.di.RecentsComponent
+import com.android.quickstep.split.SplitScreenAppResolver
 import com.android.quickstep.split.SplitSelectStateController
 import com.android.quickstep.util.QuickstepProtoLogGroup
 import com.android.quickstep.util.RecentsAtomicAnimationFactory
@@ -208,6 +209,7 @@ constructor(
             recentsModel,
             /* activityBackCallback= */ null,
             SplitScreenUiState(),
+            SplitScreenAppResolver(this),
         )
 
     // Callback array that corresponds to events defined in @ActivityEvent

@@ -19,13 +19,6 @@ flag {
 }
 
 flag {
-    name: "enable_overview_on_connected_displays"
-    namespace: "launcher_overview"
-    description: "Enable overview on connected displays."
-    bug: "363251602"
-}
-
-flag {
     name: "enable_overview_desktop_tile_wallpaper_background"
     namespace: "launcher_overview"
     description: "Enable wallpaper background for desktop tasks in overview."
@@ -51,13 +44,6 @@ flag {
     namespace: "launcher_overview"
     description: "Enables predictive back animation in Overview on back navigation"
     bug: "421292121"
-}
-
-flag {
-    name: "show_close_button_on_taskview_hover"
-    namespace: "launcher_overview"
-    description: "Enables showing a button to close the task in Overview when the TaskView is hovered."
-    bug: "426125944"
 }
 
 flag {

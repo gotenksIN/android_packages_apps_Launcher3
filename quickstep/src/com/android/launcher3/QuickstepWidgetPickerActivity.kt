@@ -28,7 +28,7 @@ import com.android.app.animation.Interpolators
 import com.android.internal.graphics.drawable.BackgroundBlurDrawable
 import com.android.launcher3.dagger.LauncherComponentProvider
 import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
-import com.android.launcher3.util.DisplayController
+import com.android.launcher3.display.DisplayController
 import com.android.launcher3.util.WindowBlurState
 import com.android.launcher3.widgetpicker.WidgetPickerActivity
 import com.android.launcher3.widgetpicker.WidgetPickerConfig
@@ -150,7 +150,7 @@ open class QuickstepWidgetPickerActivity : WidgetPickerActivity(), WidgetPickerP
     }
 
     private fun updateServiceState(isEnabled: Boolean) {
-        if (DisplayController.showDesktopTaskbarForFreeformDisplay(this)) {
+        if (DisplayController.getInfo(this).showDesktopTaskbarForFreeformDisplay) {
             // Avoid blocking gestures when taskbar is always shown. Gestures should still allow
             // user to return home in this case.
             return

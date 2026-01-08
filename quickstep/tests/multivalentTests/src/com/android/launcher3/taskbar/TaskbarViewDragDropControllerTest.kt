@@ -61,6 +61,7 @@ import org.mockito.kotlin.whenever
 class TaskbarViewDragDropControllerTest {
     private val TEST_APP = TaskbarViewTestUtil.createAppInfo(0)
     private val TEST_WORKSPACE_ITEM = TaskbarViewTestUtil.createHotseatWorkspaceItem(1)
+    private val TEST_OPEN_ANIMATION_DURATION = 15L
 
     private val modelWriter: ModelWriter = mock()
     private val launcherModel: LauncherModel = mock {
@@ -374,6 +375,42 @@ class TaskbarViewDragDropControllerTest {
             .addOrMoveItemInDatabase(eq(itemC), eq(CONTAINER_HOTSEAT), any(), any(), any())
     }
 
+    @Test
+    fun unpinned_onDragEnter_showsTooltip() {
+        taskbarViewDragDropController.setUpCallbacks(modelCallbacks)
+        val dragObject = createDragObjectWithView(TEST_WORKSPACE_ITEM)
+
+        getOnTaskbarUiThread {
+            taskbarViewDragDropController.unpinDropTarget.onDragEnter(dragObject)
+            animatorTestRule.advanceTimeBy(TEST_OPEN_ANIMATION_DURATION)
+        }
+
+        val tooltip = taskbarViewDragDropController.tooltipController.activeTooltipView
+        assertThat(tooltip).isNotNull()
+        assertThat((tooltip as View).alpha).isEqualTo(1f)
+    }
+
+    @Test
+    fun unpinned_onDragOver_updatesTooltipPosition() {
+        taskbarViewDragDropController.setUpCallbacks(modelCallbacks)
+        val dragObject = createDragObjectWithView(TEST_WORKSPACE_ITEM)
+
+        getOnTaskbarUiThread {
+            taskbarViewDragDropController.unpinDropTarget.onDragEnter(dragObject)
+        }
+        val tooltip = taskbarViewDragDropController.tooltipController.activeTooltipView as View
+        val initialX = tooltip.x
+
+        dragObject.x = 100
+        dragObject.y = 100
+
+        getOnTaskbarUiThread {
+            taskbarViewDragDropController.unpinDropTarget.onDragOver(dragObject)
+        }
+
+        assertThat(tooltip.x).isNotEqualTo(initialX)
+    }
+
     private fun createHotseatItem(screenId: Int, id: Int = 0): ItemInfo {
         val item = TaskbarViewTestUtil.createHotseatWorkspaceItem(id)
         item.screenId = screenId
@@ -465,6 +502,22 @@ class TaskbarViewDragDropControllerTest {
         return dragObject
     }
 
+    private fun createDragObjectWithView(info: ItemInfo): DropTarget.DragObject {
+        val dragObject = createDragObject(info)
+        val mockDragView = mock<DragView>()
+
+        whenever(mockDragView.measuredHeight).thenReturn(100)
+        whenever(mockDragView.measuredWidth).thenReturn(100)
+        whenever(mockDragView.dragRegion).thenReturn(Rect(0, 0, 100, 100))
+
+        dragObject.dragView = mockDragView
+
+        dragObject.x = 50
+        dragObject.y = 50
+
+        return dragObject
+    }
+
     private fun setUpPinnedOverflow(): TaskbarOverflowView {
         val taskbarView = getOnTaskbarUiThread {
             val view = activityContext.dragLayer.findViewById<TaskbarView>(R.id.taskbar_view)
@@ -493,17 +546,22 @@ class TaskbarViewDragDropControllerTest {
         return overflowIcon
     }
 
-    private fun mockDragViewDragRegionToViewBounds(dragObject: DropTarget.DragObject, view: View) {
+    private fun mockDragViewToOverViewBounds(dragObject: DropTarget.DragObject, view: View) {
         val iconBounds = Rect()
         activityContext.dragLayer.getDescendantRectRelativeToSelf(view, iconBounds)
-        whenever(dragObject.dragView.dragRegion).thenReturn(iconBounds)
+        whenever(dragObject.dragView.dragRegion)
+            .thenReturn(Rect(0, 0, iconBounds.width(), iconBounds.height()))
+        dragObject.x = iconBounds.left
+        dragObject.y = iconBounds.top
+        dragObject.xOffset = iconBounds.width() / 2
+        dragObject.yOffset = iconBounds.height() / 2
     }
 
     private fun dragViewOntoOverflowIconToOpenContainer(
         dragObject: DropTarget.DragObject,
         overflowIcon: TaskbarOverflowView,
     ) {
-        mockDragViewDragRegionToViewBounds(dragObject, overflowIcon)
+        mockDragViewToOverViewBounds(dragObject, overflowIcon)
 
         // Simulate dragging on the overflow icon to open the container.
         runOnTaskbarUiThreadSync {
@@ -521,7 +579,7 @@ class TaskbarViewDragDropControllerTest {
                 AbstractFloatingView.TYPE_TASKBAR_OVERFLOW,
             )
         assertThat(overflowContainer).isNotNull()
-        mockDragViewDragRegionToViewBounds(dragObject, overflowContainer)
+        mockDragViewToOverViewBounds(dragObject, overflowContainer)
         requireNotNull(taskbarViewDragDropController.overflowPinningDropTarget)
             .onDragEnter(dragObject)
     }

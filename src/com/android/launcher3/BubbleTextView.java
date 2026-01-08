@@ -84,6 +84,7 @@ import com.android.launcher3.anim.AnimatedFloat;
 import com.android.launcher3.dot.DotInfo;
 import com.android.launcher3.dragndrop.DragOptions.PreDragCondition;
 import com.android.launcher3.dragndrop.DraggableView;
+import com.android.launcher3.graphics.AutomatedIconDelegate;
 import com.android.launcher3.graphics.PreloadIconDelegate;
 import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.icons.BitmapInfo.DrawableCreationFlags;
@@ -400,12 +401,16 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         mDotParams.setDotColor(Themes.getAttrColor(context, R.attr.notificationDotColor));
 
         if (mDisplay == DISPLAY_ALL_APPS) {
-            mDotRenderer = mActivity.getDeviceProfile().mDotRendererAllApps;
+            mDotRenderer = new DotRenderer(
+                    mActivity.getDeviceProfile().getAllAppsProfile().getIconSizePx()
+            );
 
             // Do not use normalized info, as we account for normalization in iconBounds
             mDotParams.shapeInfo = IconShapeInfo.DEFAULT;
         } else {
-            mDotRenderer = mActivity.getDeviceProfile().mDotRendererWorkSpace;
+            mDotRenderer = new DotRenderer(
+                    mActivity.getDeviceProfile().getWorkspaceIconProfile().getIconSizePx()
+            );
             mDotParams.shapeInfo = ThemeManager.INSTANCE.get(context)
                     .getIconState().getIconShapeInfo();
         }
@@ -618,6 +623,14 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
                 info.newIcon(getContext(), getIconCreationFlagsForInfo(info));
         if (mIsShowingMinimalPopup) {
             iconDrawable.setAnimationEnabled(false);
+        }
+
+        // views may be recycled (Ex. folder items) and have stale ItemInfo so avoid animating.
+        boolean isRecycled = getTag() != info;
+        if (!isRecycled && getIcon() != null
+                && getIcon().getDelegate() instanceof AutomatedIconDelegate aid) {
+            aid.startExitAnimation(() -> setIcon(iconDrawable));
+            return;
         }
         setIcon(iconDrawable);
     }
@@ -1466,7 +1479,8 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
                 mIconLoadRequest.cancel();
             }
             mIconLoadRequest = LauncherAppState.getInstance(getContext()).getIconCache()
-                    .updateIconInBackground(BubbleTextView.this, info, expectedFlag);
+                    .updateIconInBackground(getContext().getMainExecutor(), BubbleTextView.this,
+                            info, expectedFlag);
         }
     }
 

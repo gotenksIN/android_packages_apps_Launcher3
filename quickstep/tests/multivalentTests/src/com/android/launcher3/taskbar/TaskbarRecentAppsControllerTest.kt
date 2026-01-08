@@ -51,7 +51,7 @@ import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.TaskItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.taskbar.TaskbarRecentAppsController.TaskState
-import com.android.launcher3.util.Executors.TASKBAR_UI_THREAD
+import com.android.launcher3.util.Executors.getTaskbarUiThread
 import com.android.launcher3.util.LauncherMultivalentJUnit
 import com.android.launcher3.util.ListenableStream
 import com.android.launcher3.util.MutableListenableRef
@@ -64,6 +64,7 @@ import com.android.quickstep.util.DesktopTask
 import com.android.quickstep.util.GroupTask
 import com.android.quickstep.util.SingleTask
 import com.android.quickstep.util.SplitTask
+import com.android.quickstep.util.TaskVisualsChangeListener
 import com.android.systemui.shared.recents.model.Task
 import com.android.wm.shell.shared.split.SplitBounds
 import com.android.wm.shell.shared.split.SplitScreenConstants
@@ -126,6 +127,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
     private var canShowRunningAndRecentAppsAtInit = true
     private var recentTasksChangedListener: RecentTasksChangedListener? = null
     private var recentTasksChangedCallback: ((Void?) -> Unit)? = null
+    private var taskVisualsChangeListener: TaskVisualsChangeListener? = null
 
     val recentShownTasks: List<Task>
         get() = recentAppsController.shownTasks.flatMap { it.tasks }
@@ -142,6 +144,18 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
         mockDeviceProfile.isTaskbarPresent = true
 
         whenever(mockRecentsModel.iconCache).thenReturn(mockIconCache)
+
+        val taskVisualsChangeListenerCaptor = argumentCaptor<TaskVisualsChangeListener>()
+        whenever(
+                mockRecentsModel.addThumbnailChangeListener(
+                    taskVisualsChangeListenerCaptor.capture()
+                )
+            )
+            .then { taskVisualsChangeListener = taskVisualsChangeListenerCaptor.lastValue }
+        whenever(mockRecentsModel.removeThumbnailChangeListener(any())).then {
+            taskVisualsChangeListener = null
+        }
+
         whenever(mockIconCache.getBitmapInfoInBackground(any(), any(), any())).thenAnswer {
             it.getArgument<GetTaskBitmapInfoCallback>(2)
                 .onBitmapInfoReceived(BITMAP_INFO_1, TASK_DESCRIPTION, TASK_TITLE)
@@ -187,7 +201,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
                 if (canShowRunningAndRecentAppsAtInit) {
                     val listenerCaptor = argumentCaptor<(Void?) -> Unit>()
                     verify(mockTaskChangesListenable)
-                        .forEach(same(TASKBAR_UI_THREAD), listenerCaptor.capture())
+                        .forEach(same(getTaskbarUiThread()), listenerCaptor.capture())
                     listenerCaptor.lastValue
                 } else {
                     verify(mockTaskChangesListenable, never()).forEach(any(), any())
@@ -1644,6 +1658,46 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
         verify(taskbarViewController, times(2)).onTaskUpdated(eq(task), any())
     }
 
+    @Test
+    fun onTaskIconChanged_updatesExistingTaskIcon() {
+        setInDesktopMode(false)
+        updateRecentTasks(
+            runningTasks = emptyList(),
+            recentTaskPackages = listOf(RECENT_PACKAGE_1, RECENT_PACKAGE_2),
+        )
+        waitForTaskbarUiThreadSync()
+        val task = recentAppsController.shownTasks.first().tasks.first()
+        verify(taskbarViewController, times(1)).onTaskUpdated(eq(task), any())
+
+        taskVisualsChangeListener?.onTaskIconChanged(
+            task.key.packageName,
+            UserHandle.of(task.key.userId),
+        )
+        waitForTaskbarUiThreadSync()
+        verify(taskbarViewController, times(2)).onTaskUpdated(eq(task), any())
+    }
+
+    @Test
+    fun onTaskIconChanged_differentUser_ignoresIconUpdate() {
+        setInDesktopMode(false)
+        updateRecentTasks(
+            runningTasks = emptyList(),
+            recentTaskPackages = listOf(RECENT_PACKAGE_1, RECENT_PACKAGE_2),
+        )
+        waitForTaskbarUiThreadSync()
+        val task = recentAppsController.shownTasks.first().tasks.first()
+        verify(taskbarViewController, times(1)).onTaskUpdated(eq(task), any())
+
+        // Trigger icon change for different user.
+        taskVisualsChangeListener?.onTaskIconChanged(
+            task.key.packageName,
+            UserHandle.of(task.key.userId + 1),
+        )
+        waitForTaskbarUiThreadSync()
+        // Icon not updated for actual user.
+        verify(taskbarViewController, times(1)).onTaskUpdated(eq(task), any())
+    }
+
     private fun prepareHotseatAndRunningAndRecentApps(
         hotseatPackages: List<String>,
         runningTasks: List<Task>,
@@ -1796,7 +1850,7 @@ class TaskbarRecentAppsControllerTest : TaskbarBaseTestCase() {
 
     private fun waitForTaskbarUiThreadSync() {
         if (enableTaskbarUiThread()) {
-            TASKBAR_UI_THREAD.submit {}.get()
+            getTaskbarUiThread().submit {}.get()
         }
     }
 

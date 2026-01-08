@@ -45,6 +45,8 @@ import static com.android.launcher3.LauncherState.OVERVIEW_SPLIT_SELECT;
 import static com.android.launcher3.Utilities.isRtl;
 import static com.android.launcher3.anim.AnimatorListeners.forEndCallback;
 import static com.android.launcher3.compat.AccessibilityManagerCompat.sendCustomAccessibilityEvent;
+import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_ACTIVE_SCREEN;
+import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_NAVIGATION_MODE;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_APP_LAUNCH_TAP;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_SPLIT_SELECTION_EXIT_HOME;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_SPLIT_SELECTION_EXIT_INTERRUPTED;
@@ -68,8 +70,6 @@ import static com.android.launcher3.testing.shared.TestProtocol.HINT_STATE_ORDIN
 import static com.android.launcher3.testing.shared.TestProtocol.HINT_STATE_TWO_BUTTON_ORDINAL;
 import static com.android.launcher3.testing.shared.TestProtocol.OVERVIEW_STATE_ORDINAL;
 import static com.android.launcher3.testing.shared.TestProtocol.QUICK_SWITCH_STATE_ORDINAL;
-import static com.android.launcher3.util.DisplayController.CHANGE_ACTIVE_SCREEN;
-import static com.android.launcher3.util.DisplayController.CHANGE_NAVIGATION_MODE;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.quickstep.split.SplitAnimationTimings.TABLET_HOME_TO_SPLIT;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
@@ -143,6 +143,8 @@ import com.android.launcher3.dagger.LauncherAppComponent;
 import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.dagger.PerDisplayComponent;
 import com.android.launcher3.desktop.DesktopRecentsTransitionController;
+import com.android.launcher3.display.DisplayController;
+import com.android.launcher3.display.LauncherDisplayInfo;
 import com.android.launcher3.hybridhotseat.HotseatPredictionController;
 import com.android.launcher3.logging.InstanceId;
 import com.android.launcher3.logging.StatsLogManager;
@@ -179,7 +181,6 @@ import com.android.launcher3.uioverrides.touchcontrollers.TaskViewRecentsTouchCo
 import com.android.launcher3.uioverrides.touchcontrollers.TransposedQuickSwitchTouchController;
 import com.android.launcher3.uioverrides.touchcontrollers.TwoButtonNavbarTouchController;
 import com.android.launcher3.util.ActivityOptionsWrapper;
-import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.IntSet;
 import com.android.launcher3.util.ListenableRef;
 import com.android.launcher3.util.NavigationMode;
@@ -207,6 +208,7 @@ import com.android.quickstep.TaskUtils;
 import com.android.quickstep.fallback.RecentsState;
 import com.android.quickstep.fallback.RecentsStateUtilsKt;
 import com.android.quickstep.recents.di.RecentsComponent;
+import com.android.quickstep.split.SplitScreenAppResolver;
 import com.android.quickstep.split.SplitSelectStateController;
 import com.android.quickstep.split.SplitToWorkspaceController;
 import com.android.quickstep.split.SplitWithKeyboardShortcutController;
@@ -225,7 +227,6 @@ import com.android.quickstep.views.OverviewActionsView;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.RecentsViewContainer;
 import com.android.quickstep.views.TaskView;
-import com.android.quickstep.window.RecentsWindowFlags;
 import com.android.quickstep.window.RecentsWindowManager;
 import com.android.systemui.animation.back.FlingOnBackAnimationCallback;
 import com.android.systemui.shared.recents.model.Task;
@@ -279,11 +280,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     private @Nullable LauncherUnfoldAnimationController mLauncherUnfoldAnimationController;
 
     private SplitSelectStateController mSplitSelectStateController;
-//<<<<<<< HEAD
-//    private SplitFromRunningTaskController mSplitFromRunningTaskController;
-//=======
     private SplitWithKeyboardShortcutController mSplitWithKeyboardShortcutController;
-//>>>>>>> 08abca23fa (Revert "Consolidate keyboard shortcut paths from desktop and ful...")
     private SplitToWorkspaceController mSplitToWorkspaceController;
     private BubbleBarLocation mBubbleBarLocation;
 
@@ -356,7 +353,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                 new SplitSelectStateController(this, getStateManager(),
                         getDepthController(), getStatsLogManager(),
                         systemUiProxy, RecentsModel.INSTANCE.get(this),
-                        () -> onStateBack(), mLauncherUiState.getSplitScreenUiState());
+                        () -> onStateBack(), mLauncherUiState.getSplitScreenUiState(),
+                        new SplitScreenAppResolver(this));
         if (DesktopModeStatus.canEnterDesktopMode(this)) {
             mDesktopRecentsTransitionController = new DesktopRecentsTransitionController(
                     getStateManager(), systemUiProxy, getIApplicationThread(),
@@ -534,7 +532,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                 APP_INFO, WellbeingModel.SHORTCUT_FACTORY, mHotseatPredictionController));
         int container = itemInfo.container;
         if (canPinAppWithContextMenu()
-                && DisplayController.showDesktopTaskbarForFreeformDisplay(this)
+                && DisplayController.getInfo(this).getShowDesktopTaskbarForFreeformDisplay()
                 && (container == CONTAINER_ALL_APPS
                 || container == CONTAINER_ALL_APPS_PREDICTION)) {
             int maxPinnableCount =
@@ -973,7 +971,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     protected void onNewIntent(Intent intent) {
-        boolean intentHasGnc = GestureNavContract.canBuildFromIntent(intent);
+        boolean intentHasGestureNavContract = GestureNavContract.canBuildFromIntent(intent);
         super.onNewIntent(intent);
         var conn = mSysUIConnectionTracker.getActiveComponent().getValue();
         if (conn != null) {
@@ -982,7 +980,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                 overviewCommandHelper.clearPendingCommands();
             }
         }
-        if (RecentsWindowFlags.getEnableOverviewInWindow() && !intentHasGnc) {
+        if (!intentHasGestureNavContract) {
             BaseContainerInterface<?, ?> defaultDisplayContainerInterface =
                     OverviewComponentObserver.INSTANCE.get(this).getContainerInterface(
                             DEFAULT_DISPLAY);
@@ -1018,9 +1016,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     protected void handleGestureContract(Intent intent) {
-        if (GestureNavContract.isContractEnabled(intent)
-                && (FeatureFlags.SEPARATE_RECENTS_ACTIVITY.get()
-                || RecentsWindowFlags.getEnableOverviewInWindow())) {
+        if (GestureNavContract.isContractEnabled(intent)) {
             super.handleGestureContract(intent);
         }
     }
@@ -1411,7 +1407,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     }
 
     @Override
-    public void onDisplayInfoChanged(DisplayController.Info info, int flags) {
+    public void onDisplayInfoChanged(LauncherDisplayInfo info, int flags) {
         super.onDisplayInfoChanged(info, flags);
         // When changing screens, force moving to rest state similar to StatefulActivity.onStop, as
         // StatefulActivity isn't called consistently.

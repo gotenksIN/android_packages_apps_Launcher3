@@ -20,6 +20,7 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_WIDGET_RESIZE_FRAM
 import static com.android.launcher3.BubbleTextView.DISPLAY_FOLDER;
 import static com.android.launcher3.Flags.enableFileSystemFoldersAsDropTargets;
 import static com.android.launcher3.Flags.enableSystemDragToOtherApps;
+import static com.android.launcher3.Flags.enableTaskbarDragAndDrop;
 import static com.android.launcher3.Flags.injectableModelItems;
 import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherAnimUtils.SPRING_LOADED_EXIT_DELAY;
@@ -62,7 +63,9 @@ import android.app.WallpaperManager;
 import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetProviderInfo;
 import android.content.ClipData;
+import android.content.ClipDescription;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Point;
 import android.graphics.PointF;
@@ -100,6 +103,7 @@ import com.android.launcher3.celllayout.CellLayoutLayoutParams;
 import com.android.launcher3.celllayout.CellPosMapper;
 import com.android.launcher3.celllayout.CellPosMapper.CellPos;
 import com.android.launcher3.config.FeatureFlags;
+import com.android.launcher3.dragndrop.BaseItemDragListener;
 import com.android.launcher3.dragndrop.DragController;
 import com.android.launcher3.dragndrop.DragLayer;
 import com.android.launcher3.dragndrop.DragOptions;
@@ -145,6 +149,7 @@ import com.android.launcher3.util.IntSet;
 import com.android.launcher3.util.IntSparseArrayMap;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.MSDLPlayerWrapper;
+import com.android.launcher3.util.ObjectWrapper;
 import com.android.launcher3.util.OverlayEdgeEffect;
 import com.android.launcher3.util.RunnableList;
 import com.android.launcher3.util.Thunk;
@@ -179,8 +184,7 @@ import java.util.function.Predicate;
 public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         implements DropTarget, DragSource, View.OnTouchListener, CellLayoutContainer,
         DragController.DragListener, Insettable, StateHandler<LauncherState>,
-        WorkspaceLayoutManager, LauncherBindableItemsContainer, LauncherOverlayCallbacks,
-        BoxSelectionHelper.BoxSelectionHost {
+        WorkspaceLayoutManager, LauncherBindableItemsContainer, LauncherOverlayCallbacks {
 
     /**
      * The value that {@link #mTransitionProgress} must be greater than for
@@ -1176,14 +1180,6 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         mLauncher.getOverlayManager().onDisallowSwipeToMinusOnePage();
     }
 
-    @Override
-    public ViewGroup getBoxSelectionHostContainer() {
-        if (Flags.enableWorkspaceSelection()) {
-            return mLauncher.getDragLayer();
-        }
-        return null;
-    }
-
     /**
      * Called directly from a CellLayout (not by the framework), after we've been added as a
      * listener via setOnInterceptTouchEventListener(). This allows us to tell the CellLayout
@@ -1771,6 +1767,44 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 new DragPreviewProvider(child), options);
     }
 
+    // Gets ClipData to used for system drag if dragging the item is expected to start a system
+    // drag. Returns null otherwise.
+    @Nullable
+    private ClipData getClipDataForSystemDrag(ItemInfo item) {
+        if (!enableSystemDragToOtherApps()) {
+            return null;
+        }
+
+        if (HomeScreenFilesUtilsKt.isFileSystemItem(item)) {
+            final HomeScreenFile file = HomeScreenFilesUtilsKt.getHomeScreenFile(item);
+            if (file == null) {
+                return null;
+            }
+            return new ClipData(
+                    /* label= */ "",
+                    new String[]{file.getMimeType()},
+                    new ClipData.Item(file.getUri()));
+
+        }
+
+        if (!enableTaskbarDragAndDrop()) {
+            return null;
+        }
+        String internalMimeType = BaseItemDragListener.getInternalMimeTypeForItem(item);
+        if (internalMimeType == null) {
+            return null;
+        }
+
+        ClipDescription clipDescription = new ClipDescription("", new String[]{internalMimeType});
+        Intent intent = new Intent();
+        Bundle wrappedItem = new Bundle();
+        wrappedItem.putBinder(BaseItemDragListener.EXTRA_WRAPPED_ITEM_INFO,
+                ObjectWrapper.wrap(item));
+        intent.putExtra(BaseItemDragListener.EXTRA_WRAPPED_ITEM_INFO, wrappedItem);
+
+        return new ClipData(clipDescription, new ClipData.Item(intent));
+    }
+
     /**
      * Core functionality for beginning a drag operation for an item that will be dropped within
      * the workspace
@@ -1855,30 +1889,27 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         }
 
         DragView dv = null;
-
         // TODO(458058227): Move this entire code block to [DragController].
-        if (enableSystemDragToOtherApps()
-                && HomeScreenFilesUtilsKt.isFileSystemItem(dragObject)) {
-            final HomeScreenFile file = HomeScreenFilesUtilsKt.getHomeScreenFile(dragObject);
-            if (file != null) {
-                dv = SystemDragController.INSTANCE.get(mLauncher).startDrag(
-                        new SystemDragParams(
-                                new ClipData(
-                                        /*label=*/ "",
-                                        new String[] { file.getMimeType() },
-                                        new ClipData.Item(file.getUri())),
-                                /*closeAllOpenViews=*/ false,
-                                requireNonNull(drawable),
-                                dragObject,
-                                dragLayerX,
-                                dragLayerY,
-                                dragOptions,
-                                dragRect,
-                                source,
-                                /*dragViewScaleOnDrop=*/ scale,
-                                requireNonNull(draggableView),
-                                /*initialDragViewScale=*/ scale * iconScale));
-            }
+        final ClipData systemDragClipData = getClipDataForSystemDrag(dragObject);
+        if (systemDragClipData != null) {
+            dv = SystemDragController.INSTANCE.get(mLauncher).startDrag(
+                    new SystemDragParams(
+                            systemDragClipData,
+                            HomeScreenFilesUtilsKt.isFileSystemItem(dragObject)
+                                    ? DRAG_FLAG_GLOBAL | DRAG_FLAG_GLOBAL_URI_READ
+                                            | DRAG_FLAG_GLOBAL_URI_WRITE
+                                    : DRAG_FLAG_GLOBAL_SAME_APPLICATION,
+                            /*closeAllOpenViews=*/ false,
+                            requireNonNull(drawable),
+                            dragObject,
+                            dragLayerX,
+                            dragLayerY,
+                            dragOptions,
+                            dragRect,
+                            source,
+                            /*dragViewScaleOnDrop=*/ scale,
+                            requireNonNull(draggableView),
+                            /*initialDragViewScale=*/ scale * iconScale));
         }
 
         if (dv == null) {
@@ -2663,11 +2694,6 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         }
     }
 
-    private boolean isDragWidget(DragObject d) {
-        return (d.dragInfo instanceof LauncherAppWidgetInfo ||
-                d.dragInfo instanceof PendingAddWidgetInfo);
-    }
-
     public void onDragOver(DragObject d) {
         handleLauncherStateForDrag(d);
 
@@ -2827,17 +2853,10 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
     private boolean shouldUseHotseatAsDropLayout(DragObject dragObject) {
         Hotseat hotseat = mLauncher.getHotseat();
-        if (hotseat == null) {
+        if (hotseat == null || !hotseat.isValidDropTarget(dragObject)) {
             return false;
         }
-
-        ShortcutAndWidgetContainer hotseatShortcuts = hotseat.getShortcutsAndWidgets();
-        if (hotseatShortcuts == null
-                || isDragWidget(dragObject)
-                || hotseatShortcuts.getVisibility() != View.VISIBLE) {
-            return false;
-        }
-        getViewBoundsRelativeToWorkspace(hotseatShortcuts, mTempRect);
+        getViewBoundsRelativeToWorkspace(hotseat.getShortcutsAndWidgets(), mTempRect);
         return mTempRect.contains(dragObject.x, dragObject.y);
     }
 

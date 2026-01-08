@@ -1442,8 +1442,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         homeCheck.mRequirements[2].mMustBeTask = true;
         homeCheck.mRequirements[2].mMustBeIndependent = true;
 
+        mLauncherOpenTransition.setFilter(homeCheck);
+
         SystemUiProxy.INSTANCE.get(mLauncher)
-                .registerRemoteTransition(mLauncherOpenTransition, homeCheck);
+                .registerRemoteTransition(mLauncherOpenTransition);
         if (mBackAnimationController != null) {
             mBackAnimationController.registerComponentCallbacks();
             if (isHomeRoleHeld()) {
@@ -1469,8 +1471,11 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             changeCheck.mRequirements[0].mMustBeIndependent = false;
             changeCheck.mRequirements[0].mActivityType = ACTIVITY_TYPE_STANDARD;
             changeCheck.mRequirements[0].mIsCrossDisplayMove = true;
+
+            mMoveDisplayTransition.setFilter(changeCheck);
+
             SystemUiProxy.INSTANCE.get(mLauncher)
-                    .registerRemoteTransition(mMoveDisplayTransition, changeCheck);
+                    .registerRemoteTransition(mMoveDisplayTransition);
         }
     }
 
@@ -2178,7 +2183,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             result.setAnimation(anim, mLauncher, mOnEndCallback::executeAllAndDestroy,
                     skipFirstFrame);
             // If app launch animation is started and TaskbarAsyncAnimator is returned (meaning
-            // taskbar stash animation will be played on TASKBAR_UI_THREAD), launcher needs to
+            // taskbar stash animation will be played on taskbar's ui thread), launcher needs to
             // explicitly trigger taskbar stash animation from main thread.
             if (taskbarStashAnimation != null && anim.isStarted()) {
                 taskbarStashAnimation.start();

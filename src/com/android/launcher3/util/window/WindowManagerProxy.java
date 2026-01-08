@@ -50,13 +50,13 @@ import android.view.WindowMetrics;
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
-import com.android.launcher3.Flags;
 import com.android.launcher3.R;
 import com.android.launcher3.dagger.LauncherAppSingleton;
 import com.android.launcher3.dagger.LauncherBaseAppComponent;
+import com.android.launcher3.display.DisplayController;
+import com.android.launcher3.display.LauncherDisplayInfo;
 import com.android.launcher3.testing.shared.ResourceUtils;
 import com.android.launcher3.util.DaggerSingletonObject;
-import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.NavigationMode;
 import com.android.launcher3.util.WindowBounds;
 
@@ -166,9 +166,9 @@ public class WindowManagerProxy {
     public WindowInsets normalizeWindowInsets(Context context,
             WindowInsets oldInsets,
             Rect outInsets) {
+        LauncherDisplayInfo info = DisplayController.getInfo(context);
         return normalizeWindowInsets(context,
-                DisplayController.showLockedTaskbarOnHome(context)
-                        || DisplayController.showDesktopTaskbarForFreeformDisplay(context),
+                info.showLockedTaskbarOnHome || info.getShowDesktopTaskbarForFreeformDisplay(),
                 oldInsets, outInsets);
     }
 
@@ -522,11 +522,6 @@ public class WindowManagerProxy {
             }
         }
         return NavigationMode.NO_BUTTON;
-    }
-
-    /** Returns whether overview on connected displays is enabled */
-    public boolean enableOverviewOnConnectedDisplays() {
-        return Flags.enableOverviewOnConnectedDisplays();
     }
 
     /**

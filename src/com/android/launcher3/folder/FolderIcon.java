@@ -34,7 +34,6 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
-import android.os.Looper;
 import android.util.AttributeSet;
 import android.util.Property;
 import android.view.LayoutInflater;
@@ -139,7 +138,7 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     boolean mAnimating = false;
 
-    private final Alarm mOpenAlarm = new Alarm(Looper.getMainLooper());
+    private final Alarm mOpenAlarm = new Alarm(getContext().getMainLooper());
 
     private boolean mForceHideDot;
     @ViewDebug.ExportedProperty(category = "launcher", deepExport = true)
@@ -239,7 +238,9 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         icon.setCustomActionsListener(WorkspaceItemCustomActionsListener.INSTANCE);
         icon.mInfo = folderInfo;
         icon.mActivity = activity;
-        icon.mDotRenderer = grid.mDotRendererWorkSpace;
+        icon.mDotRenderer = new DotRenderer(
+                grid.getWorkspaceIconProfile().getIconSizePx()
+        );
 
         icon.updateDotInfo();
         icon.setContentDescription(icon.getAccessiblityTitle(folderInfo.title));
