@@ -18,6 +18,7 @@ package com.android.launcher3.dagger
 
 import com.android.launcher3.WorkspaceSelectionManager
 import com.android.launcher3.allapps.AllAppsStore
+import com.android.launcher3.dragndrop.SystemDragController
 import com.android.launcher3.keyboard.KeyboardStateManager
 import com.android.launcher3.popup.PopupDataProvider
 import com.android.launcher3.qsb.OseWidgetOptionsProvider
@@ -35,11 +36,14 @@ interface BaseActivityContextComponent {
 
     fun getOseWidgetOptionsProvider(): OseWidgetOptionsProvider
 
+    @DisplayId fun getDisplayId(): Int
+
     val appsStore: AllAppsStore
     val popupDataProvider: PopupDataProvider
     val sharedAppsPool: AllAppsRecyclerViewPool
     val keyboardStateManager: KeyboardStateManager
     val workspaceSelectionManager: WorkspaceSelectionManager
+    val systemDragController: SystemDragController
 
     /** Builder for BaseActivityContextComponent. */
     interface Builder {
