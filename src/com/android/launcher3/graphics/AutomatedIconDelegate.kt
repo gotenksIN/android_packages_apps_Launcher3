@@ -23,9 +23,9 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Rect
-import android.graphics.RenderEffect
-import android.graphics.RenderNode
 import android.graphics.Shader
+import android.os.Looper
+import android.os.Process
 import androidx.core.animation.Animator
 import androidx.core.animation.AnimatorListenerAdapter
 import androidx.core.animation.ValueAnimator
@@ -47,11 +47,10 @@ import com.android.launcher3.icons.GraphicsUtils.resizeToContentSize
 import com.android.launcher3.icons.GraphicsUtils.transformed
 import com.android.launcher3.icons.IconShape
 import com.android.launcher3.model.data.ItemInfoWithIcon
+import com.android.launcher3.util.LooperExecutor
 
 class AutomatedIconDelegate(
     private val strokeWidthPx: Float,
-    private val glowRadiusPx: Float,
-    private val glowPadding: Int,
     private val outlineStartColor: Int,
     private val outlineMiddleColor: Int,
     private val outlineEndColor: Int,
@@ -60,6 +59,7 @@ class AutomatedIconDelegate(
     private val parentDelegate: FastBitmapDrawableDelegate,
 ) : FastBitmapDrawableDelegate by parentDelegate {
 
+    private var uiLooper: Looper? = null
     private var animationState: AnimationState = ENTER
     private var currentRotation = 0f
     private val currentIconScale: FloatValueHolder = FloatValueHolder(MAX_ICON_SCALE)
@@ -87,17 +87,6 @@ class AutomatedIconDelegate(
 
     private val shaderMatrix = Matrix()
 
-    private val glowNode =
-        RenderNode("glow").apply {
-            alpha = GLOW_ALPHA
-            val nodeWidth = iconShape.pathSize + (glowPadding * 2)
-            val nodeHeight = iconShape.pathSize + (glowPadding * 2)
-            setPosition(0, 0, nodeWidth, nodeHeight)
-            val blurEffect =
-                RenderEffect.createBlurEffect(glowRadiusPx, glowRadiusPx, Shader.TileMode.MIRROR)
-            setRenderEffect(blurEffect)
-        }
-
     private val rotationAnimator =
         ValueAnimator.ofFloat(MIN_ROTATION, MAX_ROTATION).apply {
             duration = ROTATION_DURATION
@@ -109,7 +98,7 @@ class AutomatedIconDelegate(
                     animator.cancel()
                     return@addUpdateListener
                 }
-                host.invalidateSelf()
+                safelyInvalidateHost()
             }
         }
 
@@ -124,7 +113,7 @@ class AutomatedIconDelegate(
                     animator.cancel()
                     return@addUpdateListener
                 }
-                host.invalidateSelf()
+                safelyInvalidateHost()
             }
             addListener(
                 object : AnimatorListenerAdapter() {
@@ -162,7 +151,7 @@ class AutomatedIconDelegate(
                     animation.cancel()
                     return@addUpdateListener
                 }
-                host.invalidateSelf()
+                safelyInvalidateHost()
             }
         }
 
@@ -232,7 +221,6 @@ class AutomatedIconDelegate(
         bounds: Rect,
         paint: Paint,
     ) {
-
         canvas.resizeToContentSize(bounds, iconShape.pathSize.toFloat()) {
             val center = iconShape.pathSize / 2f
             shaderMatrix.setRotate(currentRotation, center, center)
@@ -242,19 +230,6 @@ class AutomatedIconDelegate(
                 scale(currentIconScale.value, currentIconScale.value, center, center)
                 parentDelegate.drawContent(info, iconShape, canvas, fixedDelegateBounds, paint)
             }
-            if (canvas.isHardwareAccelerated) {
-                val recordingCanvas = glowNode.beginRecording()
-                try {
-                    recordingCanvas.translate(glowPadding.toFloat(), glowPadding.toFloat())
-                    recordingCanvas.drawPath(iconShape.path, strokePaint)
-                } finally {
-                    glowNode.endRecording()
-                }
-                transformed {
-                    translate(-glowPadding.toFloat(), -glowPadding.toFloat())
-                    drawRenderNode(glowNode)
-                }
-            }
             canvas.drawPath(iconShape.path, strokePaint)
         }
     }
@@ -262,6 +237,7 @@ class AutomatedIconDelegate(
     override fun onVisibilityChanged(isVisible: Boolean) {
         super.onVisibilityChanged(isVisible)
         if (isVisible) {
+            uiLooper = Looper.myLooper()
             when (animationState) {
                 ENTER ->
                     if (!firstRotationAnimator.isRunning && !scaleAnimation.isRunning) {
@@ -286,6 +262,19 @@ class AutomatedIconDelegate(
         scaleAnimation.cancel()
     }
 
+    private fun safelyInvalidateHost() {
+        uiLooper?.let {
+            if (Looper.myLooper() == it) {
+                host.invalidateSelf()
+            } else {
+                LooperExecutor(it, Process.THREAD_PRIORITY_DEFAULT).execute {
+                    host.invalidateSelf()
+                }
+            }
+            return
+        }
+    }
+
     companion object {
         private const val START_ANGLE = 13f
         private const val ROTATION_DURATION = 5000L
@@ -296,7 +285,6 @@ class AutomatedIconDelegate(
         private const val MAX_ICON_SCALE = 1f
         private const val MIN_ROTATION = 0f
         private const val MAX_ROTATION = 360f
-        private const val GLOW_ALPHA = 0.5f
         private const val PLATE_ALPHA = (76.5).toInt() // 30% alpha
 
         private val gradientPositions = floatArrayOf(0.2f, 0.5f, 0.8f)
@@ -311,10 +299,6 @@ class AutomatedIconDelegate(
             val resources = context.resources
 
             val strokeWidthPx: Float = resources.getDimension(R.dimen.automated_icon_stroke_width)
-            val glowRadiusPx: Float =
-                resources.getDimensionPixelSize(R.dimen.automated_icon_glow_radius).toFloat()
-            val glowPadding = resources.getDimension(R.dimen.automated_icon_glow_padding).toInt()
-
             val outlineStartColor =
                 boostChroma(context.getColor(R.color.materialColorTertiaryContainer))
             val outlineMiddleColor =
@@ -326,8 +310,6 @@ class AutomatedIconDelegate(
                     delegateFactory =
                         AutomatedIconDelegateFactory(
                             strokeWidthPx,
-                            glowRadiusPx,
-                            glowPadding,
                             outlineStartColor,
                             outlineMiddleColor,
                             outlineEndColor,
@@ -359,8 +341,6 @@ private enum class AnimationState {
 
 class AutomatedIconDelegateFactory(
     private val strokeWidthPx: Float,
-    private val glowRadiusPx: Float,
-    private val glowPadding: Int,
     private val outlineStartColor: Int,
     private val outlineMiddleColor: Int,
     private val outlineEndColor: Int,
@@ -376,8 +356,6 @@ class AutomatedIconDelegateFactory(
         val parent = parentFactory.newDelegate(bitmapInfo, iconShape, paint, host)
         return AutomatedIconDelegate(
             strokeWidthPx,
-            glowRadiusPx,
-            glowPadding,
             outlineStartColor,
             outlineMiddleColor,
             outlineEndColor,
