@@ -49,6 +49,7 @@ import static com.android.launcher3.BaseActivity.PENDING_INVISIBLE_BY_WALLPAPER_
 import static com.android.launcher3.Flags.appLaunchBlur;
 import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY;
+import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPWIDGET;
 import static com.android.launcher3.LauncherState.ALL_APPS;
 import static com.android.launcher3.LauncherState.BACKGROUND_APP;
 import static com.android.launcher3.LauncherState.NORMAL;
@@ -143,6 +144,7 @@ import com.android.launcher3.util.StableViewInfo;
 import com.android.launcher3.util.TaskbarAsyncAnimator;
 import com.android.launcher3.views.FloatingIconView;
 import com.android.launcher3.widget.LauncherAppWidgetHostView;
+import com.android.quickstep.HomeVisibilityState;
 import com.android.quickstep.LauncherBackAnimationController;
 import com.android.quickstep.RemoteAnimationTargets;
 import com.android.quickstep.SplitRecentsAnimUtils;
@@ -165,7 +167,7 @@ import com.android.quickstep.util.WorkspaceRevealAnim;
 import com.android.quickstep.views.FloatingWidgetView;
 import com.android.quickstep.views.RecentsView;
 import com.android.systemui.animation.RemoteAnimationRunnerCompat;
-import com.android.systemui.animation.RemoteTransitionDelegate;
+import com.android.systemui.animation.RemoteTransitionPickerDelegate;
 import com.android.systemui.shared.system.BlurUtils;
 import com.android.systemui.shared.system.InteractionJankMonitorWrapper;
 import com.android.systemui.shared.system.QuickStepContract;
@@ -291,6 +293,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
     private final SystemUiProxy mSystemUiProxy;
 
+    private HomeVisibilityState.VisibilityChangeListener mHomeVisibilityChangeListener;
+
     public QuickstepTransitionManager(QuickstepLauncher launcher) {
         mLauncher = launcher;
         mDragLayer = mLauncher.getDragLayer();
@@ -314,10 +318,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         if (Flags.fallbackRevealAnimation()) {
             // Make sure that we know whenever Launcher becomes visible AND is in its NORMAL state,
             // so we can run the reveal animation.
-            mSystemUiProxy.getHomeVisibilityState().addListener(
-                    (isVisible, keyguardGoingAway) -> {
+            mHomeVisibilityChangeListener =
+                    (isVisible, keyguardGoingAwayOrWaking) -> {
                         if (isVisible && mLauncher.isInState(NORMAL) && !mIsLauncherAnimating
-                                && !keyguardGoingAway) {
+                                && !keyguardGoingAwayOrWaking) {
                             mIsLauncherAnimating = true;
                             mFallbackRevealAnimation =
                                     new ScalingWorkspaceRevealAnim(
@@ -333,8 +337,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                                     });
                             mFallbackRevealAnimation.start();
                         }
-                    }
-            );
+                    };
+            mSystemUiProxy.getHomeVisibilityState().addListener(mHomeVisibilityChangeListener);
         }
 
         mOpeningXInterpolator = AnimationUtils.loadInterpolator(
@@ -446,7 +450,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         // app transition is created.
         TaskbarInteractor taskbarInteractor = mLauncher.getTaskbarInteractor();
         if (mLauncher.getStateManager().getState() == NORMAL
-                && taskbarInteractor != null) {
+                && taskbarInteractor != null
+                // Disable synchronization for widgets due to issues with PendingIntent.
+                && itemInfo.itemType != ITEM_TYPE_APPWIDGET) {
             taskbarInteractor.setIgnoreInAppFlagForSync(true);
             mLauncher.addEventCallback(EVENT_DESTROYED, onEndCallback::executeAllAndDestroy);
             onEndCallback.add(() -> {
@@ -501,7 +507,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         }
 
         IRemoteTransition crossDisplayMoveTransition = new MoveDisplayChangeRunner(this);
-        return new RemoteTransitionDelegate(
+        return new RemoteTransitionPickerDelegate(
                 (info) -> {
                     if (CrossDisplayMoveTransition.isCrossDisplayMove(info)) {
                         Log.d(TAG, "Handling launch as a cross display move transition");
@@ -1483,6 +1489,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         unregisterRemoteTransitions();
         mLauncher.removeOnDeviceProfileChangeListener(this);
         SystemUiProxy.INSTANCE.get(mLauncher).setStartingWindowListener(null);
+        if (Flags.fallbackRevealAnimation()) {
+            mSystemUiProxy.getHomeVisibilityState().removeListener(mHomeVisibilityChangeListener);
+            mHomeVisibilityChangeListener = null;
+        }
         if (BuildConfig.IS_STUDIO_BUILD && !mRegisteredTaskStackChangeListener.isEmpty()) {
             Log.e(TAG, "IllegalState: Failed to run onEndCallback created from"
                     + " getActivityLaunchOptions()");

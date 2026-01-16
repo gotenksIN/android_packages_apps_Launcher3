@@ -97,6 +97,7 @@ import static com.android.launcher3.popup.SystemShortcut.REMOVE;
 import static com.android.launcher3.popup.SystemShortcut.WIDGETS;
 import static com.android.launcher3.states.RotationHelper.REQUEST_LOCK;
 import static com.android.launcher3.states.RotationHelper.REQUEST_NONE;
+import static com.android.launcher3.testing.shared.TestProtocol.LAUNCHER_ACTIVITY_LOST_WINDOW_FOCUS_MESSAGE;
 import static com.android.launcher3.testing.shared.TestProtocol.LAUNCHER_ACTIVITY_STOPPED_MESSAGE;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.ItemInfoMatcher.forFolderMatch;
@@ -385,7 +386,7 @@ public class Launcher extends StatefulActivity<LauncherState>
     // User actions within AllApps state are logged with this InstanceId, to recreate AllApps
     // session on the server side.
     protected InstanceId mAllAppsSessionLogId;
-    private LauncherState mPrevLauncherState;
+    protected LauncherState mPrevLauncherState;
     private CellPosMapper mCellPosMapper = CellPosMapper.DEFAULT;
 
     private final CannedAnimationCoordinator mAnimationCoordinator =
@@ -992,6 +993,15 @@ public class Launcher extends StatefulActivity<LauncherState>
                                 isImeVisible ? SHOW : HIDE);
                     }
                 });
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (!hasFocus) {
+            AccessibilityManagerCompat.sendTestProtocolEventToTest(
+                    this, LAUNCHER_ACTIVITY_LOST_WINDOW_FOCUS_MESSAGE);
+        }
     }
 
     private void logStopAndResume(boolean isResume) {
@@ -2881,11 +2891,10 @@ public class Launcher extends StatefulActivity<LauncherState>
     }
 
     @Override
-    public void onTopResumedActivityChanged(boolean isResumed) {
-        super.onTopResumedActivityChanged(isResumed);
-        mLauncherUiState.setIsTopResumedActivity(isResumed);
+    public void onTopResumedActivityChanged(boolean isTopResumed) {
+        super.onTopResumedActivityChanged(isTopResumed);
+        mLauncherUiState.setIsTopResumedActivity(isTopResumed);
     }
-
 
     // End of Getters and Setters
 }
