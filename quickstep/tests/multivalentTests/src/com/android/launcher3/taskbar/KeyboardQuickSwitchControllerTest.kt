@@ -25,24 +25,17 @@ import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.SetFlagsRule
 import android.view.Display.DEFAULT_DISPLAY
 import android.window.RemoteTransition
-import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.launcher3.Flags.FLAG_ENABLE_ALT_TAB_KQS_FLATENNING
 import com.android.launcher3.Flags.FLAG_ENABLE_ALT_TAB_KQS_ON_CONNECTED_DISPLAYS
-import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.waitForIdleSync
-import com.android.launcher3.taskbar.allapps.TaskbarAllAppsController
-import com.android.launcher3.taskbar.rules.AllTaskbarSandboxModules
 import com.android.launcher3.taskbar.rules.MockedRecentsModelHelper
-import com.android.launcher3.taskbar.rules.MockedRecentsModelTestRule
 import com.android.launcher3.taskbar.rules.SandboxParams
-import com.android.launcher3.taskbar.rules.TaskbarSandboxComponent
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule
-import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
-import com.android.launcher3.util.Executors.MAIN_EXECUTOR
+import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext_ModifiedComponent
 import com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR
 import com.android.launcher3.util.TestUtil.getOnTaskbarUiThread
 import com.android.quickstep.RecentsModel
@@ -53,13 +46,13 @@ import com.android.quickstep.util.SingleTask
 import com.android.quickstep.util.SlideInRemoteTransition
 import com.android.quickstep.util.SplitTask
 import com.android.systemui.shared.recents.model.Task
+import com.android.tools.dagger.mutation.annotations.BindValue
+import com.android.tools.dagger.mutation.annotations.MutatedComponent
 import com.android.wm.shell.desktopmode.IDesktopTaskListener
 import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource
 import com.android.wm.shell.shared.split.SplitBounds
 import com.android.wm.shell.shared.split.SplitScreenConstants
 import com.google.common.truth.Truth.assertThat
-import dagger.BindsInstance
-import dagger.Component
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -68,11 +61,11 @@ import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.eq
-import org.mockito.kotlin.spy
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
+@MutatedComponent(target = TaskbarWindowSandboxContext_ModifiedComponent::class)
 class KeyboardQuickSwitchControllerTest {
     private var systemUiProxySpy: SystemUiProxy? = null
     private var desktopTaskListener: IDesktopTaskListener? = null
@@ -80,37 +73,26 @@ class KeyboardQuickSwitchControllerTest {
     private val taskIdCaptor = argumentCaptor<Int>()
     private val transitionCaptor = argumentCaptor<RemoteTransition>()
 
+    @BindValue val recentsModel: RecentsModel by mockRecentsModelHelper
+
     @get:Rule(order = 0) val setFlagsRule = SetFlagsRule()
     @get:Rule(order = 1)
     val context =
         TaskbarWindowSandboxContext.create(
             params =
-                SandboxParams(
-                    {
-                        spy(
-                            SystemUiProxy(
-                                ApplicationProvider.getApplicationContext(),
-                                MAIN_EXECUTOR,
-                                UI_HELPER_EXECUTOR,
-                            )
-                        ) { proxy ->
-                            systemUiProxySpy = proxy
-                            doAnswer { desktopTaskListener = it.getArgument(0) }
-                                .whenever(proxy)
-                                .setDesktopTaskListener(anyOrNull())
-                        }
-                    },
-                    builderBase =
-                        DaggerKeyboardQuickSwitchControllerComponent.builder()
-                            .bindRecentsModel(mockRecentsModelHelper.mockRecentsModel),
-                )
+                SandboxParams(builderBase = mutatedComponentBuilder()) {
+                    systemUiProxySpy = it.systemUiProxy
+                    doAnswer { i -> desktopTaskListener = i.getArgument(0) }
+                        .whenever(it.systemUiProxy)
+                        .setDesktopTaskListener(anyOrNull())
+                }
         )
 
-    @get:Rule(order = 2) val recentsModel = MockedRecentsModelTestRule(mockRecentsModelHelper)
-    @get:Rule(order = 3) val taskbarUnitTestRule = TaskbarUnitTestRule(this, context)
+    @get:Rule(order = 2) val taskbarUnitTestRule = TaskbarUnitTestRule(context)
 
-    @InjectController lateinit var keyboardQuickSwitchController: KeyboardQuickSwitchController
-    @InjectController lateinit var allAppsController: TaskbarAllAppsController
+    private val keyboardQuickSwitchController by
+        taskbarUnitTestRule.delegate { it.keyboardQuickSwitchController }
+    private val allAppsController by taskbarUnitTestRule.delegate { it.taskbarAllAppsController }
 
     private val isKqsShown: Boolean
         get() = getOnTaskbarUiThread { keyboardQuickSwitchController.isShown }
@@ -326,6 +308,20 @@ class KeyboardQuickSwitchControllerTest {
         assertThat(allAppsController.isOpen).isTrue()
     }
 
+    @Test
+    fun isShown_returnsCorrectState_whenOpenedAndClosed() {
+        // Verify KQS is not shown initially.
+        assertThat(isKqsShown).isFalse()
+
+        // Open KQS and verify it is shown.
+        triggerAltTab()
+        assertThat(isKqsShown).isTrue()
+
+        // Close KQS and verify it is not shown.
+        runOnTaskbarUiThreadSync { keyboardQuickSwitchController.closeQuickSwitchView() }
+        assertThat(isKqsShown).isFalse()
+    }
+
     private fun createSingleTask(taskId: Int) = SingleTask(createTask(taskId))
 
     private fun createSplitTask(taskIds: Pair<Int, Int>) =
@@ -369,13 +365,13 @@ class KeyboardQuickSwitchControllerTest {
     }
 
     private fun updateRecentsModel(tasks: List<GroupTask>) {
-        recentsModel.updateRecentTasks(tasks)
-        runOnTaskbarUiThreadSync { recentsModel.resolvePendingTaskRequests() }
+        mockRecentsModelHelper.updateRecentTasks(tasks)
+        runOnTaskbarUiThreadSync { mockRecentsModelHelper.resolvePendingTaskRequests() }
     }
 
     private fun triggerAltTab() = runOnTaskbarUiThreadSync {
         runOnTaskbarUiThreadSync { keyboardQuickSwitchController.openQuickSwitchView() }
-        recentsModel.resolvePendingTaskRequests()
+        mockRecentsModelHelper.resolvePendingTaskRequests()
     }
 
     private fun triggerAltTabAndLaunchFocusedTask() {
@@ -391,18 +387,5 @@ class KeyboardQuickSwitchControllerTest {
         const val OLDEST_TASK_ID = 1
         const val PREVIOUS_TASK_ID = 2
         const val RUNNING_TASK_ID = 3
-    }
-}
-
-/** KeyboardQuickSwitchControllerComponent used to bind the RecentsModel. */
-@LauncherAppSingleton
-@Component(modules = [AllTaskbarSandboxModules::class])
-interface KeyboardQuickSwitchControllerComponent : TaskbarSandboxComponent {
-
-    @Component.Builder
-    interface Builder : TaskbarSandboxComponent.Builder {
-        @BindsInstance fun bindRecentsModel(model: RecentsModel): Builder
-
-        override fun build(): KeyboardQuickSwitchControllerComponent
     }
 }
