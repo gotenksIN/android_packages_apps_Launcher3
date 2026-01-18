@@ -452,7 +452,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         if (mLauncher.getStateManager().getState() == NORMAL
                 && taskbarInteractor != null
                 // Disable synchronization for widgets due to issues with PendingIntent.
-                && itemInfo.itemType != ITEM_TYPE_APPWIDGET) {
+                && (itemInfo != null && itemInfo.itemType != ITEM_TYPE_APPWIDGET)) {
             taskbarInteractor.setIgnoreInAppFlagForSync(true);
             mLauncher.addEventCallback(EVENT_DESTROYED, onEndCallback::executeAllAndDestroy);
             onEndCallback.add(() -> {
@@ -723,7 +723,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             Hotseat hotseat = mLauncher.getHotseat();
             // Do not scale hotseat as a whole when taskbar is present, and scale QSB only if it's
             // not inline.
-            if (mDeviceProfile.isTaskbarPresent) {
+            if (mDeviceProfile.getDeviceProperties().getTaskbarConfiguration().isTaskbarPresent()) {
                 if (!mDeviceProfile.isQsbInline) {
                     viewsToAnimate.add(hotseat.getQsb());
                 }
@@ -802,7 +802,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     }
 
     private boolean shouldCropToInset(RemoteAnimationTarget target) {
-        return mDeviceProfile.isTaskbarPresent
+        return mDeviceProfile.getDeviceProperties().getTaskbarConfiguration().isTaskbarPresent()
                 && mDeviceProfile.isTaskbarPresentInApps
                 && target != null && !target.willShowImeOnTarget
                 && !isTransientTaskbar();
@@ -1696,7 +1696,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             targetRect.set(getDefaultWindowTargetRect());
         }
 
-        boolean useTaskbarHotseatParams = mDeviceProfile.isTaskbarPresent && isInHotseat;
+        boolean useTaskbarHotseatParams =
+                mDeviceProfile.getDeviceProperties().getTaskbarConfiguration().isTaskbarPresent()
+                        && isInHotseat;
         RectFSpringAnim anim = new RectFSpringAnim(useTaskbarHotseatParams
                 ? new TaskbarHotseatSpringConfig(mLauncher, closingWindowStartRectF, targetRect)
                 : new DefaultSpringConfig(mLauncher, mDeviceProfile, closingWindowStartRectF,

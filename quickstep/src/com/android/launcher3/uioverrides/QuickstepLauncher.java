@@ -161,7 +161,6 @@ import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.AtomicAnimationFactory;
 import com.android.launcher3.statemanager.StateManager.StateHandler;
 import com.android.launcher3.taskbar.TaskbarInteractor;
-import com.android.launcher3.taskbar.TaskbarManager;
 import com.android.launcher3.taskbar.TaskbarUiState;
 import com.android.launcher3.taskbar.TaskbarUiStateMonitor;
 import com.android.launcher3.taskbar.bubbles.BubbleActivityStarter;
@@ -993,9 +992,12 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                             DEFAULT_DISPLAY);
             if (defaultDisplayContainerInterface != null
                     && defaultDisplayContainerInterface.getCreatedContainer()
-                            instanceof RecentsWindowManager recentsWindowManager
-                    && recentsWindowManager.isStarted()) {
-                recentsWindowManager.getStateManager().moveToRestState(/* isAnimated= */ true);
+                    instanceof RecentsWindowManager recentsWindowManager
+                    && !recentsWindowManager.isInState(RecentsState.HIDDEN)) {
+                // Forcibly reset state so the recents surface doesn't get stuck in background app
+                // state
+                recentsWindowManager.getStateManager().goToState(
+                        RecentsState.HIDDEN, /* animated= */ true);
             }
         }
     }
@@ -1135,13 +1137,9 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     }
 
     private void onTaskbarInAppDisplayProgressUpdate(float progress, int flag) {
-        var conn = mSysUIConnectionTracker.getActiveComponent().getValue();
-        if (conn == null) return;
-        TaskbarManager taskbarManager = conn.getTaskbarManager();
-        if (!taskbarManager.hasCurrentActivityContext() || mTaskbarInteractor == null) {
-            return;
+        if (mTaskbarInteractor != null) {
+            mTaskbarInteractor.onTaskbarInAppDisplayProgressUpdate(progress, flag);
         }
-        mTaskbarInteractor.onTaskbarInAppDisplayProgressUpdate(progress, flag);
     }
 
     @AnyThread
