@@ -181,9 +181,11 @@ public class TouchInteractionHandler extends ContextWrapper {
                             return;
                         }
                     }
-                    if (recentsWindowManager.isStarted()) {
-                        recentsWindowManager.getStateManager()
-                                .moveToRestState(/* isAnimated= */ true);
+                    if (!recentsWindowManager.isInState(RecentsState.HIDDEN)) {
+                        // Forcibly reset state so the recents surface doesn't get stuck in
+                        // background app state
+                        recentsWindowManager.getStateManager().goToState(
+                                RecentsState.HIDDEN, /* animated= */ true);
                     }
                 }
             };
@@ -403,7 +405,7 @@ public class TouchInteractionHandler extends ContextWrapper {
             }
         }
         mRecentsWindowManagerRepository.forEach(
-                /* createIfAbsent= */ false, RecentsWindowManager::onOverviewTargetChanged);
+                /* createIfAbsent= */ false, RecentsWindowManager::cleanUpSurfaceControlViewHost);
         if (isHomeAndOverviewSame) {
             TaskStackChangeListeners.getInstance().unregisterTaskStackListener(
                     mHomeIntentStartedListener);
