@@ -39,7 +39,7 @@ import com.android.launcher3.LauncherAppState
 import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.LauncherPrefs.Companion.get
 import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
-import com.android.launcher3.util.DisplayController
+import com.android.launcher3.display.DisplayController
 import com.android.launcher3.util.Executors
 import com.android.launcher3.util.Executors.MAIN_EXECUTOR
 import com.android.launcher3.util.ModelTestExtensions.clearModelDb
@@ -113,7 +113,6 @@ object LauncherCustomizer {
 
     private fun applyFixedLandscape(isFixedLandscape: Boolean) {
         val idp = InvariantDeviceProfile.INSTANCE[context]
-        get(context).put(LauncherPrefs.ALLOW_ROTATION, !isFixedLandscape)
         if (idp.isFixedLandscape == isFixedLandscape) return
         val latch = CountDownLatch(1)
         val listener = OnIDPChangeListener {

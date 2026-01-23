@@ -86,7 +86,7 @@ import com.android.launcher3.taskbar.bubbles.BubbleBarController;
 import com.android.launcher3.taskbar.bubbles.BubbleBarViewController;
 import com.android.launcher3.taskbar.bubbles.BubbleControllers;
 import com.android.launcher3.taskbar.customization.TaskbarIconSpecs;
-import com.android.launcher3.taskbar.customization.TaskbarIconsContainer;
+import com.android.launcher3.taskbar.customization.containers.TaskbarPinnedAppIconContainer;
 import com.android.launcher3.taskbar.handoff.HandoffSuggestion;
 import com.android.launcher3.util.ItemInfoMatcher;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
@@ -303,8 +303,8 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
             }
         }
 
-        TaskbarViewCallbacks viewCallbacks = TaskbarViewCallbacksFactory.newInstance(
-                mActivity).create(mActivity, mControllers, mTaskbarView);
+        TaskbarViewCallbacks viewCallbacks = new TaskbarViewCallbacks(
+                mActivity, mControllers, mTaskbarView);
         mTaskbarView.init(viewCallbacks);
         // Pinning popup feature availability depends on taskbar controllers, wait for the
         // controllers state initialization before evaluating the feature.
@@ -956,7 +956,7 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
         for (int i = parent.getChildCount() - 1; i >= 0; i--) {
             View child = parent.getChildAt(i);
             boolean isQsb = child == mTaskbarView.getQsb();
-            if (child instanceof TaskbarIconsContainer tic) {
+            if (child instanceof TaskbarPinnedAppIconContainer tic) {
                 animateIconsForReveal(tic, reveal, as, isStashed, totalNumIcons, duration,
                         stashedBounds, dispatchOnAnimationStart);
                 continue;
@@ -1149,14 +1149,14 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
         boolean isToHome = mControllers.uiController.isIconAlignedWithHotseat();
         float scaleUp = ((float) launcherDp.getWorkspaceIconProfile().getIconSizePx())
                 / mTransientIconSize;
-        int borderSpacing = launcherDp.hotseatBorderSpace;
+        int borderSpacing = launcherDp.getHotseatProfile().getBorderSpace();
         Rect hotseatPadding = launcherDp.getHotseatLayoutPadding(mActivity);
         int hotseatCellSize = DeviceProfile.calculateCellWidth(
                 launcherDp.getDeviceProperties().getAvailableWidthPx()
                         - hotseatPadding.left
                         - hotseatPadding.right,
                 borderSpacing,
-                launcherDp.numShownHotseatIcons);
+                launcherDp.getHotseatProfile().getNumShownIcons());
 
         for (int i = 0; i < parent.getChildCount(); i++) {
             View child = parent.getChildAt(i);
@@ -1167,7 +1167,7 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
             // TODO(b/343522351): show recents on the home screen.
             final boolean isRecentsInHotseat = false;
 
-            if (child instanceof TaskbarIconsContainer tic) {
+            if (child instanceof TaskbarPinnedAppIconContainer tic) {
                 animateChildViews(tic, setter, launcherDp, taskbarDp, hotseatNavBarTranslationX,
                         interpolator);
                 continue;
@@ -1200,8 +1200,9 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
                 float hotseatIconCenter = isRtl
                         ? launcherDp.getDeviceProperties().getWidthPx()
                         - hotseatPadding.right + borderSpacing
-                        + launcherDp.hotseatQsbWidth / 2f
-                        : hotseatPadding.left - borderSpacing - launcherDp.hotseatQsbWidth / 2f;
+                        + launcherDp.getHotseatProfile().getQsbWidth() / 2f
+                        : hotseatPadding.left - borderSpacing
+                                - launcherDp.getHotseatProfile().getQsbWidth() / 2f;
                 if (taskbarDp.isQsbInline) {
                     hotseatIconCenter += hotseatNavBarTranslationX;
                 }
@@ -1211,7 +1212,8 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
                             INDEX_TASKBAR_PINNING_ANIM).getValue();
                 }
                 float halfQsbIconWidthDiff =
-                        (launcherDp.hotseatQsbWidth - taskbarDp.getTaskbarProfile().getIconSize())
+                        (launcherDp.getHotseatProfile().getQsbWidth()
+                                - taskbarDp.getTaskbarProfile().getIconSize())
                                 / 2f;
                 float scale = ((float) taskbarDp.getTaskbarProfile().getIconSize())
                         / launcherDp.getHotseatProfile().getQsbVisualHeight();
@@ -1251,7 +1253,8 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
                 }
                 recentTaskIndex = i - firstRecentTaskIndex;
             }
-            float positionInHotseat = getPositionInHotseat(taskbarDp.numShownHotseatIcons, child,
+            float positionInHotseat = getPositionInHotseat(
+                    taskbarDp.getHotseatProfile().getNumShownIcons(), child,
                     mIsRtl, isAllAppsButton, isTaskbarDividerView,
                     mTaskbarView.isDividerForRecents(), recentTaskIndex);
             if (positionInHotseat == ERROR_POSITION_IN_HOTSEAT_NOT_FOUND) continue;
@@ -1272,7 +1275,7 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
             }
             hotseatIconCenter += hotseatNavBarTranslationX;
             float childCenter = (child.getLeft() + child.getRight()) / 2f;
-            if (parent instanceof TaskbarIconsContainer  tic) {
+            if (parent instanceof TaskbarPinnedAppIconContainer  tic) {
                 childCenter += tic.getLeft();
             }
             childCenter += ((Reorderable) child).getTranslateDelegate().getTranslationX(

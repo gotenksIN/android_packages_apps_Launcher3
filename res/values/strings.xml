@@ -271,6 +271,25 @@
     <string name="home_screen_files_context_menu_move_to_trash_label">
         Move to trash
     </string>
+    <string name="home_screen_files_moved_to_trash_message">
+        <xliff:g id="item_name" example="file.png">%1$s</xliff:g> moved to trash
+    </string>
+    <string name="home_screen_files_move_to_trash_error_message">
+        Can\'t move to trash. Something went wrong.
+    </string>
+    <string name="home_screen_files_restore_from_trash_error_message">
+        Can\'t undo. Go to Files app to restore.
+    </string>
+
+    <!-- Label for expanding system shortcuts in popup menu-->
+    <string name="actions_popup_menu_button">Actions</string>
+    <!-- Label for expanding app shortcuts in popup menu-->
+    <string name="shortcuts_popup_menu_button">Shortcuts</string>
+    <!-- Description for loading app shortcuts-->
+    <string name="loading_shortcut">Loading shortcut</string>
+
+    <!-- Label for pausing an app [CHAR_LIMIT=20] -->
+    <string name="pause_app_label">Pause app</string>
 
     <!-- Permissions: -->
     <skip />
@@ -371,8 +390,6 @@
     <string name="msg_disabled_by_admin">Disabled by your admin</string>
 
     <!-- Strings for settings -->
-    <!-- Title for Allow Rotation setting. [CHAR LIMIT=50] -->
-    <string name="allow_rotation_title">Allow home screen rotation</string>
     <!-- Text explaining when the home screen will get rotated. [CHAR LIMIT=100] -->
     <string name="allow_rotation_desc">When phone is rotated</string>
     <!-- Title for Compose settings  [CHAR LIMIT=50] -->

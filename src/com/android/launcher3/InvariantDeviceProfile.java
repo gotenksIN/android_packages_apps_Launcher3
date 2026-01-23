@@ -18,8 +18,6 @@ package com.android.launcher3;
 
 import static com.android.launcher3.Flags.enableScalabilityForDesktopExperience;
 import static com.android.launcher3.GridType.GRID_TYPE_ANY;
-import static com.android.launcher3.GridType.GRID_TYPE_NON_ONE_GRID;
-import static com.android.launcher3.GridType.GRID_TYPE_ONE_GRID;
 import static com.android.launcher3.GridType.GRID_TYPE_DUAL_OPTIMIZED_GRID;
 import static com.android.launcher3.GridType.GRID_TYPE_LANDSCAPE_OPTIMIZED_GRID;
 import static com.android.launcher3.LauncherPrefs.DB_FILE;
@@ -29,12 +27,10 @@ import static com.android.launcher3.LauncherPrefs.GRID_NAME;
 import static com.android.launcher3.LauncherPrefs.NON_FIXED_LANDSCAPE_GRID_NAME;
 import static com.android.launcher3.LauncherPrefs.WORKSPACE_ITEMS_LABEL_HIDDEN;
 import static com.android.launcher3.Utilities.dpiFromPx;
+import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_DENSITY;
+import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_NAVIGATION_MODE;
+import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_SUPPORTED_BOUNDS;
 import static com.android.launcher3.testing.shared.ResourceUtils.INVALID_RESOURCE_HANDLE;
-import static com.android.launcher3.util.DisplayController.CHANGE_DENSITY;
-import static com.android.launcher3.util.DisplayController.CHANGE_DESKTOP_MODE;
-import static com.android.launcher3.util.DisplayController.CHANGE_NAVIGATION_MODE;
-import static com.android.launcher3.util.DisplayController.CHANGE_SUPPORTED_BOUNDS;
-import static com.android.launcher3.util.DisplayController.CHANGE_TASKBAR_PINNING;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.SimpleBroadcastReceiver.actionsFilter;
 import static com.android.launcher3.util.XmlElement.getRootElement;
@@ -66,16 +62,15 @@ import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.dagger.LauncherAppComponent;
 import com.android.launcher3.dagger.LauncherAppSingleton;
+import com.android.launcher3.display.DisplayController;
+import com.android.launcher3.display.LauncherDisplayInfo;
 import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.icons.DotRenderer;
 import com.android.launcher3.logging.FileLog;
 import com.android.launcher3.model.DeviceGridState;
-import com.android.launcher3.provider.RestoreDbTask;
 import com.android.launcher3.testing.shared.ResourceUtils;
 import com.android.launcher3.util.DaggerSingletonObject;
 import com.android.launcher3.util.DaggerSingletonTracker;
-import com.android.launcher3.util.DisplayController;
-import com.android.launcher3.util.DisplayController.Info;
 import com.android.launcher3.util.ListenableDiffAwareRef;
 import com.android.launcher3.util.LooperExecutor;
 import com.android.launcher3.util.Partner;
@@ -169,7 +164,7 @@ public class InvariantDeviceProfile {
     public int iconBitmapSize;
     public int fillResIconDpi;
     public @DeviceType int deviceType;
-    public Info displayInfo;
+    public LauncherDisplayInfo displayInfo;
 
     public PointF[] minCellSize;
 
@@ -298,12 +293,11 @@ public class InvariantDeviceProfile {
         initGrid(gridName);
         mThemeManager.generateIconShape(iconBitmapSize);
 
-        ListenableDiffAwareRef<Info, Integer> listenable = dc.getListenable();
+        ListenableDiffAwareRef<LauncherDisplayInfo, Integer> listenable = dc.getListenable();
         if (listenable != null) {
             lifeCycle.addCloseable(listenable.getChanges().forEach(MAIN_EXECUTOR, (flags) -> {
                 if ((flags & (CHANGE_DENSITY | CHANGE_SUPPORTED_BOUNDS
-                        | CHANGE_NAVIGATION_MODE | CHANGE_TASKBAR_PINNING
-                        | CHANGE_DESKTOP_MODE)) != 0) {
+                        | CHANGE_NAVIGATION_MODE)) != 0) {
                     onConfigChanged();
                 }
                 return null;
@@ -340,11 +334,11 @@ public class InvariantDeviceProfile {
     }
 
     private void initGrid(String gridName) {
-        Info displayInfo = mDisplayController.getInfo();
+        LauncherDisplayInfo displayInfo = mDisplayController.getInfo();
         List<DisplayOption> allOptions = getPredefinedDeviceProfiles(
                 displayInfo,
                 gridName,
-                (RestoreDbTask.isPending(mPrefs) && !Flags.oneGridSpecs()),
+                /* allowDisabledGrid= */ false,
                 mPrefs.get(FIXED_LANDSCAPE_MODE)
         );
 
@@ -387,7 +381,8 @@ public class InvariantDeviceProfile {
         initGrid(mPrefs.get(GRID_NAME));
     }
 
-    private void initGridForDisplayOption(Info displayInfo, DisplayOption displayOption) {
+    private void initGridForDisplayOption(
+            LauncherDisplayInfo displayInfo, DisplayOption displayOption) {
         Context context = displayInfo.context;
         enableTwoLinesInAllApps = Flags.enableTwolineToggle()
                 && Utilities.isEnglishLanguage(context)
@@ -487,12 +482,9 @@ public class InvariantDeviceProfile {
         for (WindowBounds bounds : displayInfo.supportedBounds) {
             DeviceProfile.Builder builder = newDPBuilder(displayInfo)
                     .setIsMultiDisplay(deviceType == TYPE_MULTI_DISPLAY)
-                    .setWindowBounds(bounds)
-                    .setDotRendererCache(dotRendererCache);
+                    .setWindowBounds(bounds);
             if (com.android.systemui.shared.Flags.workspaceItemsLabelHidden()) {
-                builder.setIsWorkspaceItemsLabelHidden(
-                        LauncherPrefs.get(context).get(WORKSPACE_ITEMS_LABEL_HIDDEN)
-                );
+                builder.setIsWorkspaceItemsLabelHidden(mPrefs.get(WORKSPACE_ITEMS_LABEL_HIDDEN));
             }
             localSupportedProfiles.add(builder.build());
 
@@ -515,21 +507,24 @@ public class InvariantDeviceProfile {
 
         int numMinShownHotseatIconsForTablet = supportedProfiles
                 .stream()
-                .filter(deviceProfile -> deviceProfile.getDeviceProperties().isTablet())
-                .mapToInt(deviceProfile -> deviceProfile.numShownHotseatIcons)
+                .filter(deviceProfile -> deviceProfile.getDeviceProperties().isLargeScreen())
+                .mapToInt(
+                        deviceProfile -> deviceProfile.getHotseatProfile().getNumShownIcons()
+                )
                 .min()
                 .orElse(0);
 
         supportedProfiles
                 .stream()
-                .filter(deviceProfile -> deviceProfile.getDeviceProperties().isTablet())
-                .forEach(deviceProfile -> {
-                    deviceProfile.numShownHotseatIcons = numMinShownHotseatIconsForTablet;
-                    deviceProfile.recalculateHotseatWidthAndBorderSpace();
-                });
+                .filter(deviceProfile -> deviceProfile.getDeviceProperties().isLargeScreen())
+                .forEach(deviceProfile ->
+                    deviceProfile.recalculateHotseatWidthAndBorderSpace(
+                            numMinShownHotseatIconsForTablet
+                    )
+                );
     }
 
-    DeviceProfile.Builder newDPBuilder(Info info) {
+    DeviceProfile.Builder newDPBuilder(LauncherDisplayInfo info) {
         return new DeviceProfile.Builder(this, info, mWMProxy);
     }
 
@@ -584,7 +579,7 @@ public class InvariantDeviceProfile {
     }
 
     private static List<DisplayOption> getPredefinedDeviceProfiles(
-            @NonNull Info displayInfo,
+            @NonNull LauncherDisplayInfo displayInfo,
             @Nullable String gridName,
             boolean allowDisabledGrid,
             boolean isFixedLandscapeMode
@@ -642,7 +637,7 @@ public class InvariantDeviceProfile {
      * @return the result of {@link #findBestGridSize(List, int, int)}.
      */
     private static GridSize getGridSize(ResourceHelper resourceHelper, Context context,
-            Info displayInfo) {
+            LauncherDisplayInfo displayInfo) {
         ArrayList<GridSize> gridSizes = new ArrayList<>();
 
         // Difference between grid sizes available for different display size breakpoints is more
@@ -673,7 +668,7 @@ public class InvariantDeviceProfile {
     }
 
     private static AllAppsSize getAllAppsSize(ResourceHelper resourceHelper, Context context,
-            Info displayInfo) {
+            LauncherDisplayInfo displayInfo) {
         ArrayList<AllAppsSize> allAppsSizes = new ArrayList<>();
 
         boolean matchAgainstDefaultDpSize = displayInfo.getDeviceType() == TYPE_DESKTOP
@@ -732,7 +727,7 @@ public class InvariantDeviceProfile {
         return selectedGridSize;
     }
 
-    private static int[] findMinWidthAndHeightPxForDevice(Info displayInfo) {
+    private static int[] findMinWidthAndHeightPxForDevice(LauncherDisplayInfo displayInfo) {
         int minDisplayWidthPx = Integer.MAX_VALUE;
         int minDisplayHeightPx = Integer.MAX_VALUE;
         for (CachedDisplayInfo display: displayInfo.getAllDisplays()) {
@@ -794,7 +789,8 @@ public class InvariantDeviceProfile {
     /**
      * @return all the grid options that can be shown on the device
      */
-    public static List<GridOption> parseAllDefinedGridOptions(Context context, Info displayInfo) {
+    public static List<GridOption> parseAllDefinedGridOptions(
+            Context context, LauncherDisplayInfo displayInfo) {
         List<GridOption> result = new ArrayList<>();
         try (XmlResourceParser parser = context.getResources().getXml(R.xml.device_profiles)) {
             for (XmlElement gridOptionEl :
@@ -865,17 +861,18 @@ public class InvariantDeviceProfile {
     }
 
     private static DisplayOption invDistWeightedInterpolate(
-            Info displayInfo, List<DisplayOption> points, @DeviceType int deviceType) {
+            LauncherDisplayInfo displayInfo, List<DisplayOption> points,
+            @DeviceType int deviceType) {
         int minWidthPx = Integer.MAX_VALUE;
         int minHeightPx = Integer.MAX_VALUE;
         for (WindowBounds bounds : displayInfo.supportedBounds) {
-            boolean isTablet = displayInfo.isTablet(bounds);
-            if (isTablet && deviceType == TYPE_MULTI_DISPLAY) {
+            boolean isLargeScreen = displayInfo.isLargeScreen(bounds);
+            if (isLargeScreen && deviceType == TYPE_MULTI_DISPLAY) {
                 // For split displays, take half width per page
                 minWidthPx = Math.min(minWidthPx, bounds.availableSize.x / 2);
                 minHeightPx = Math.min(minHeightPx, bounds.availableSize.y);
 
-            } else if (!isTablet && bounds.isLandscape()) {
+            } else if (!isLargeScreen && bounds.isLandscape()) {
                 // We will use transposed layout in this case
                 minWidthPx = Math.min(minWidthPx, bounds.availableSize.y);
                 minHeightPx = Math.min(minHeightPx, bounds.availableSize.x);
@@ -921,7 +918,7 @@ public class InvariantDeviceProfile {
 
     public DeviceProfile createDeviceProfileForSecondaryDisplay(Context displayContext) {
         // Disable transpose layout and use external display so that the icons are scaled properly
-        return newDPBuilder(new Info(displayContext, mWMProxy))
+        return newDPBuilder(new LauncherDisplayInfo(displayContext, mWMProxy))
                 .setIsMultiDisplay(false)
                 .setExternalDisplay(true)
                 .setWindowBounds(mWMProxy.getRealBounds(
@@ -1004,7 +1001,8 @@ public class InvariantDeviceProfile {
     }
 
     /** Returns {@link DisplayOptionSpec} for the provided displayInfo. */
-    static DisplayOptionSpec createDisplayOptionSpec(Info displayInfo, boolean isLandscape) {
+    static DisplayOptionSpec createDisplayOptionSpec(
+            LauncherDisplayInfo displayInfo, boolean isLandscape) {
         // Get predefined profiles for provided displayInfo without using any main device's pref.
         List<DisplayOption> allOptions = getPredefinedDeviceProfiles(displayInfo,
                 /* gridName= */ null,
@@ -1139,7 +1137,7 @@ public class InvariantDeviceProfile {
         // should be aligned with.
         private final int mAllAppsAlignedWithWorkspaceRow;
 
-        public GridOption(Context context, XmlElement el, Info displayInfo) {
+        public GridOption(Context context, XmlElement el, LauncherDisplayInfo displayInfo) {
             TypedArray a = el.obtainAttrs(context, R.styleable.GridDisplayOption);
             name = a.getString(R.styleable.GridDisplayOption_name);
             gridTitle = a.getString(R.styleable.GridDisplayOption_gridTitle);
@@ -1338,7 +1336,7 @@ public class InvariantDeviceProfile {
          */
         public boolean filterByFlag(int deviceType, boolean isFixedLandscape) {
             if (deviceType == TYPE_DESKTOP) {
-                if (Flags.orientationEnabledDesktopGridSpec()) {
+                if (Flags.orientationFriendlyDesktopGridSpec()) {
                     return (gridType & GRID_TYPE_DUAL_OPTIMIZED_GRID)
                             == GRID_TYPE_DUAL_OPTIMIZED_GRID;
                 }
@@ -1352,15 +1350,7 @@ public class InvariantDeviceProfile {
 
             // Here we return true if fixed landscape mode should be on.
             if (mIsFixedLandscape || isFixedLandscape) {
-                return mIsFixedLandscape && isFixedLandscape && Flags.oneGridSpecs();
-            }
-
-            // If the grid type is one grid we return true when the flag is on, if the grid type
-            // is non-one grid we return true when the flag is off. Otherwise, we return true.
-            if (gridType == GRID_TYPE_ONE_GRID) {
-                return Flags.oneGridSpecs();
-            } else if (gridType == GRID_TYPE_NON_ONE_GRID) {
-                return !Flags.oneGridSpecs();
+                return mIsFixedLandscape && isFixedLandscape;
             }
 
             return true;

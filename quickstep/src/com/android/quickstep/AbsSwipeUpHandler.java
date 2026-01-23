@@ -77,7 +77,6 @@ import android.animation.AnimatorSet;
 import android.animation.ValueAnimator;
 import android.app.ActivityManager;
 import android.app.TaskInfo;
-import android.app.WindowConfiguration;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
@@ -102,7 +101,6 @@ import android.view.ViewTreeObserver.OnScrollChangedListener;
 import android.view.WindowInsets;
 import android.view.animation.Interpolator;
 import android.widget.Toast;
-import android.window.DesktopExperienceFlags;
 import android.window.DesktopModeFlags;
 import android.window.PictureInPictureSurfaceTransaction;
 import android.window.TransitionInfo;
@@ -129,6 +127,7 @@ import com.android.launcher3.anim.AnimationSuccessListener;
 import com.android.launcher3.anim.AnimatorPlaybackController;
 import com.android.launcher3.compat.AccessibilityManagerCompat;
 import com.android.launcher3.dagger.LauncherComponentProvider;
+import com.android.launcher3.display.DisplayController;
 import com.android.launcher3.dragndrop.DragView;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.logging.StatsLogManager.StatsLogger;
@@ -141,7 +140,6 @@ import com.android.launcher3.taskbar.TaskbarUiState;
 import com.android.launcher3.taskbar.TaskbarUiStateMonitor;
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
-import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.MSDLPlayerWrapper;
 import com.android.launcher3.util.NavigationMode;
 import com.android.launcher3.util.SafeCloseable;
@@ -1140,7 +1138,6 @@ public abstract class AbsSwipeUpHandler<
             RecentsAnimationTargets targets, @Nullable TransitionInfo transitionInfo) {
         super.onRecentsAnimationStart(controller, targets, transitionInfo);
         boolean forDesktop;
-        if (DesktopModeStatus.enableMultipleDesktops(mContext)) {
             GroupedTaskInfo groupedTaskInfo;
             if (mGestureState.getRunningTask() != null
                     && (groupedTaskInfo =
@@ -1150,9 +1147,6 @@ public abstract class AbsSwipeUpHandler<
             } else {
                 forDesktop = false;
             }
-        } else {
-            forDesktop = targets.hasDesktopTasks(mContext);
-        }
         if (forDesktop) {
             mRemoteTargetHandles = mTargetGluer.assignTargetsForDesktop(targets, transitionInfo);
         } else {
@@ -1913,8 +1907,7 @@ public abstract class AbsSwipeUpHandler<
                         // Swipe to home animation finished, notify DesktopVisibilityController
                         // to recreate Taskbar
                         if (isInDesktopMode && mGestureState.getEndTarget() == HOME) {
-                            desktopVisibilityController.onLauncherAnimationFromDesktopEnd(
-                                    mGestureState.getDisplayId());
+                            desktopVisibilityController.onLauncherAnimationFromDesktopEnd();
                         }
                     }
                 });
@@ -1951,8 +1944,7 @@ public abstract class AbsSwipeUpHandler<
                     && runningTaskTarget.leash != null
                     && runningTaskTarget.leash.isValid();
             final boolean swipeUpInDesktopWindowing =
-                    DesktopExperienceFlags.ENABLE_DESKTOP_WINDOWING_PIP.isTrue()
-                            && runningTaskTarget != null
+                    runningTaskTarget != null
                             && runningTaskTarget.taskInfo.getWindowingMode()
                             == WINDOWING_MODE_FREEFORM;
             boolean appCanEnterPip = !mDeviceState.isPipActive()
@@ -2238,16 +2230,6 @@ public abstract class AbsSwipeUpHandler<
             // No destination bounds returned from SystemUI, bail early.
             return null;
         }
-        final Rect appBounds = new Rect();
-        final WindowConfiguration winConfig = taskInfo.configuration.windowConfiguration;
-        // Adjust the appBounds for TaskBar by using the calculated window crop Rect
-        // from TaskViewSimulator and fallback to the bounds in TaskInfo when it's originated
-        // from windowing modes other than full-screen.
-        if (winConfig.getWindowingMode() == WindowConfiguration.WINDOWING_MODE_FULLSCREEN) {
-            mRemoteTargetHandles[0].getTaskViewSimulator().getCurrentCropRect().round(appBounds);
-        } else {
-            appBounds.set(winConfig.getBounds());
-        }
         final SwipePipToHomeAnimator.Builder builder = new SwipePipToHomeAnimator.Builder()
                 .setContext(mContext)
                 .setTaskId(runningTaskTarget.taskId)
@@ -2256,7 +2238,7 @@ public abstract class AbsSwipeUpHandler<
                 .setLeash(fadeOutTarget != null ? fadeOutTarget.leash : runningTaskTarget.leash)
                 .setSourceRectHint(
                         runningTaskTarget.taskInfo.pictureInPictureParams.getSourceRectHint())
-                .setAppBounds(appBounds)
+                .setAppBounds(taskInfo.configuration.windowConfiguration.getBounds())
                 .setHomeToWindowPositionMap(homeToWindowPositionMap)
                 .setStartBounds(startRect)
                 .setDestinationBounds(destinationBounds)
@@ -2390,31 +2372,12 @@ public abstract class AbsSwipeUpHandler<
     protected AnimationSuccessListener getWindowAnimationToHomeListener() {
         return new AnimationSuccessListener() {
 
-            @Nullable private TaskView runningTaskView;
-
-            @Override
-            public void onAnimationStart(Animator animation) {
-                super.onAnimationStart(animation);
-                runningTaskView = mRecentsView == null ? null : mRecentsView.getRunningTaskView();
-
-                if (runningTaskView != null) {
-                    runningTaskView.setClickable(false);
-                }
-            }
-
             @Override
             public void onAnimationEnd(Animator animation) {
                 super.onAnimationEnd(animation);
-                final View taskView = runningTaskView;
-                runningTaskView = null;
                 if (mRecentsView != null) {
                     final RECENTS_VIEW rv = mRecentsView;
-                    rv.post(() -> {
-                        rv.resetTaskVisuals();
-                        if (taskView != null) {
-                            taskView.setClickable(true);
-                        }
-                    });
+                    rv.post(rv::resetTaskVisuals);
                 }
             }
 
@@ -3232,7 +3195,8 @@ public abstract class AbsSwipeUpHandler<
 
     // Scaling of RecentsView during quick switch based on amount of recents scroll
     private float getScaleProgressDueToScroll() {
-        if (mContainer == null || !mContainer.getDeviceProfile().getDeviceProperties().isTablet() || mRecentsView == null
+        if (mContainer == null || mRecentsView == null
+                || !mContainer.getDeviceProfile().getDeviceProperties().isLargeScreen()
                 || !shouldLinkRecentsViewScroll()) {
             return 0;
         }

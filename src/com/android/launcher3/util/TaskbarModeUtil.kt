@@ -22,6 +22,7 @@ import com.android.launcher3.config.FeatureFlags.enableTaskbarPinning
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.display.DisplayController
 import com.android.launcher3.util.window.WindowManagerProxy
 import javax.inject.Inject
 
@@ -49,7 +50,7 @@ constructor(
             } else if (enableTaskbarPinning()) {
                 // If Launcher is visible on the freeform display, ensure the taskbar is pinned.
                 if (
-                    displayController.info.showLockedTaskbarOnHome() &&
+                    displayController.info.showLockedTaskbarOnHome &&
                         displayController.info.isHomeVisible
                 ) {
                     false

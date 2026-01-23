@@ -24,10 +24,6 @@ import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Bundle
 import android.os.Process
-import android.os.UserHandle
-import android.platform.test.annotations.DisableFlags
-import android.platform.test.annotations.EnableFlags
-import android.platform.test.flag.junit.SetFlagsRule
 import android.provider.DocumentsContract
 import android.provider.DocumentsContract.EXTERNAL_STORAGE_PROVIDER_AUTHORITY
 import android.provider.DocumentsContract.EXTRA_URI
@@ -40,12 +36,10 @@ import android.provider.MediaStore.Files.FileColumns.RELATIVE_PATH
 import android.provider.MediaStore.Files.FileColumns._ID
 import androidx.core.net.toUri
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.android.launcher3.Flags.FLAG_ENABLE_FILES_ON_HOME_SCREEN_DECOUPLED_INIT
 import com.android.launcher3.R
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider.Companion.HOME_SCREEN_FOLDER_RELATIVE_PATH
 import com.android.launcher3.testutil.rule.LazyInitRule.Companion.lazyRule
 import com.android.launcher3.util.Executors.MAIN_EXECUTOR
-import com.android.launcher3.util.ListenableStream
 import com.android.launcher3.util.SandboxApplication
 import com.android.launcher3.util.TestUtil
 import com.google.common.truth.Truth.assertThat
@@ -82,7 +76,6 @@ import org.mockito.kotlin.whenever
 class HomeScreenFilesProviderTest {
 
     @get:Rule val contextSpy = lazyRule { spy(SandboxApplication()) }
-    @get:Rule val flags = SetFlagsRule()
     @get:Rule var mockitoRule: MockitoRule = MockitoJUnit.rule()
 
     private val context: SandboxApplication by contextSpy
@@ -303,6 +296,17 @@ class HomeScreenFilesProviderTest {
 
     @Test
     fun testMoveToHomeScreen() {
+        testMoveToHomeScreen(relativeFolderPath = null)
+    }
+
+    @Test
+    fun testMoveToHomeScreenFolder() {
+        testMoveToHomeScreen(relativeFolderPath = "Folder")
+    }
+
+    private fun testMoveToHomeScreen(relativeFolderPath: String?) {
+        val relativePath = "$HOME_SCREEN_FOLDER_RELATIVE_PATH${relativeFolderPath ?: ""}"
+
         val espUri = createExternalStorageProviderUri("externalRelativePath", "externalDisplayName")
         val mediaStoreUri = createExternalPrimaryMediaStoreUri(1L)
         val mediaStoreUriResolvedFromEsp = createExternalPrimaryMediaStoreUri(2L)
@@ -337,12 +341,10 @@ class HomeScreenFilesProviderTest {
                 contentResolver.update(
                     /*uri=*/ anyOrNull(),
                     /*contentValues=*/ eq(
-                        ContentValues().apply {
-                            put(RELATIVE_PATH, HOME_SCREEN_FOLDER_RELATIVE_PATH)
-                        }
+                        ContentValues().apply { put(RELATIVE_PATH, relativePath) }
                     ),
                     /*where=*/ eq("$RELATIVE_PATH != ?"),
-                    /*selectionArgs=*/ eq(arrayOf(HOME_SCREEN_FOLDER_RELATIVE_PATH)),
+                    /*selectionArgs=*/ eq(arrayOf(relativePath)),
                 )
             )
             .thenAnswer { invocation ->
@@ -363,7 +365,10 @@ class HomeScreenFilesProviderTest {
                 /*expectedTestUriResult=*/ false,
             ),
             provider
-                .moveToHomeScreen(listOf(espUri, mediaStoreUri, mediaStoreUri, testUri))
+                .moveToHomeScreen(
+                    listOf(espUri, mediaStoreUri, mediaStoreUri, testUri),
+                    relativeFolderPath,
+                )
                 .map(CompletableFuture<Boolean>::get),
         )
     }
@@ -379,16 +384,12 @@ class HomeScreenFilesProviderTest {
                     argThat { x -> x.getString("file_path") == "/test/Home screen/file.png" },
                 )
             )
-            .thenAnswer { invocation ->
-                Bundle().apply {
-                    putString("file_path", invocation.getArgument<Bundle>(3).getString("file_path"))
-                }
-            }
+            .thenReturn(Bundle().apply { putString("file_path", "/new/path/in/trash") })
         whenever(contentResolver.acquireUnstableContentProviderClient(MediaStore.AUTHORITY))
             .thenReturn(contentProviderClient)
 
-        val uri = Uri.parse("content://media/external_primary/file/1")
-        provider.delete(uri, "file.png", permanent = false)
+        val future = provider.moveToTrash("file.png")
+        assertThat(future.get()).isEqualTo("/new/path/in/trash")
     }
 
     @Test
@@ -406,14 +407,54 @@ class HomeScreenFilesProviderTest {
         whenever(contentResolver.acquireUnstableContentProviderClient(MediaStore.AUTHORITY))
             .thenReturn(contentProviderClient)
 
-        val uri = Uri.parse("content://media/external_primary/file/1")
-        provider.delete(uri, "file.png", permanent = false)
+        val future = provider.moveToTrash("file.png")
+        assertThat(future.get()).isNull()
+    }
+
+    @Test
+    fun testRestoreFromTrash() {
+        whenever(
+                contentProviderClient.call(
+                    eq(MediaStore.AUTHORITY),
+                    eq("mark_file_as_restored"),
+                    anyOrNull(),
+                    argThat { x -> x.getString("file_path") == "/path/in/trash" },
+                )
+            )
+            .thenAnswer { invocation ->
+                Bundle().apply {
+                    putString("file_path", invocation.getArgument<Bundle>(3).getString("file_path"))
+                }
+            }
+        whenever(contentResolver.acquireUnstableContentProviderClient(MediaStore.AUTHORITY))
+            .thenReturn(contentProviderClient)
+
+        val future = provider.restoreFromTrash("/path/in/trash")
+        assertThat(future.get()).isTrue()
+    }
+
+    @Test
+    fun testRestoreFromTrashHandlesException() {
+        whenever(
+                contentProviderClient.call(
+                    eq(MediaStore.AUTHORITY),
+                    eq("mark_file_as_restored"),
+                    anyOrNull(),
+                    argThat { x -> x.getString("file_path") == "/path/in/trash" },
+                )
+            )
+            .thenThrow(UnsupportedOperationException())
+        whenever(contentResolver.acquireUnstableContentProviderClient(MediaStore.AUTHORITY))
+            .thenReturn(contentProviderClient)
+
+        val future = provider.restoreFromTrash("/path/in/trash")
+        assertThat(future.get()).isFalse()
     }
 
     @Test
     fun testDeletePermanently() {
         val uri = Uri.parse("content://media/external_primary/file/1")
-        provider.delete(uri, "unused", permanent = true)
+        provider.deletePermanently(uri)
 
         verify(contentResolver, times(1))
             .delete(
@@ -424,105 +465,7 @@ class HomeScreenFilesProviderTest {
     }
 
     @Test
-    @DisableFlags(FLAG_ENABLE_FILES_ON_HOME_SCREEN_DECOUPLED_INIT)
-    fun testQueryWhenExternalStorageDirectoryMountsAfterCall() {
-        // Unmount external storage directory prior to [provider] init.
-        whenever(environmentWrapper.isExternalStorageDirectoryMounted()).thenReturn(false)
-
-        // Init [provider].
-        clearInvocations(context)
-        clearInvocations(contentResolver)
-        provider = createProvider()
-
-        // Invoke [#query()].
-        testQuery(
-            expectResults = true,
-            afterQueryCallback = {
-                // Mount external storage directory.
-                whenever(environmentWrapper.isExternalStorageDirectoryMounted()).thenReturn(true)
-
-                // Notify external storage directory mounted.
-                val observerCaptor = argumentCaptor<ContentObserver>()
-                verify(contentResolver)
-                    .registerContentObserver(
-                        eq(Uri.parse("content://media/external_primary/file")),
-                        eq(true),
-                        observerCaptor.capture(),
-                    )
-                observerCaptor.firstValue.dispatchChange(
-                    /*selfChange=*/ false,
-                    Uri.parse("content://media/external_primary"),
-                    ContentResolver.NOTIFY_SYNC_TO_NETWORK,
-                )
-            },
-        )
-    }
-
-    @Test
-    fun testQueryWhenExternalStorageDirectoryMountsBeforeCall() {
-        // Unmount external storage directory prior to [provider] init.
-        whenever(environmentWrapper.isExternalStorageDirectoryMounted()).thenReturn(false)
-
-        // Init [provider].
-        clearInvocations(context)
-        clearInvocations(contentResolver)
-        provider = createProvider()
-
-        // Invoke [#query()].
-        testQuery(
-            expectResults = true,
-            beforeQueryCallback = {
-                // Mount external storage directory.
-                whenever(environmentWrapper.isExternalStorageDirectoryMounted()).thenReturn(true)
-
-                // Notify external storage directory mounted.
-                val observerCaptor = argumentCaptor<ContentObserver>()
-                verify(contentResolver)
-                    .registerContentObserver(
-                        eq(Uri.parse("content://media/external_primary/file")),
-                        eq(true),
-                        observerCaptor.capture(),
-                    )
-                observerCaptor.firstValue.dispatchChange(
-                    /*selfChange=*/ false,
-                    Uri.parse("content://media/external_primary"),
-                    ContentResolver.NOTIFY_SYNC_TO_NETWORK,
-                )
-            },
-        )
-    }
-
-    @Test
-    fun testQueryWhenExternalStorageDirectoryMountsBeforeInit() {
-        // Init [provider].
-        clearInvocations(context)
-        clearInvocations(contentResolver)
-        provider = createProvider()
-
-        // Invoke [#query()].
-        testQuery(expectResults = true)
-    }
-
-    @Test
-    @DisableFlags(FLAG_ENABLE_FILES_ON_HOME_SCREEN_DECOUPLED_INIT)
-    fun testQueryWhenExternalStorageDirectoryMountTimesOutDuringCall() {
-        // Unmount external storage directory prior to [provider] init.
-        whenever(environmentWrapper.isExternalStorageDirectoryMounted()).thenReturn(false)
-
-        // Init [provider].
-        clearInvocations(context)
-        clearInvocations(contentResolver)
-        provider = createProvider()
-
-        // Invoke [#query()].
-        testQuery(expectResults = false)
-    }
-
-    private fun testQuery(
-        expectResults: Boolean,
-        beforeQueryCallback: (() -> Unit)? = null,
-        afterQueryCallback: (() -> Unit)? = null,
-    ) {
+    fun testQuery() {
         val expectedUri = Uri.parse("content://media/external_primary/file")
         val expectedProjection = arrayOf(_ID, DISPLAY_NAME, MIME_TYPE, DATA)
 
@@ -547,16 +490,7 @@ class HomeScreenFilesProviderTest {
                 return@thenAnswer answer
             }
 
-        beforeQueryCallback?.invoke()
-        val query = provider.query()
-        afterQueryCallback?.invoke()
-
-        val result = query.get()
-        if (!expectResults) {
-            assertTrue(result.isEmpty())
-            return
-        }
-
+        val result = provider.query().get()
         assertThat(result.size).isEqualTo(2)
 
         val uri1 = Uri.parse("content://media/external_primary/file/1")
@@ -583,125 +517,54 @@ class HomeScreenFilesProviderTest {
     }
 
     @Test
-    @DisableFlags(FLAG_ENABLE_FILES_ON_HOME_SCREEN_DECOUPLED_INIT)
-    fun testNotifiesChangeCallback() {
-        val stream = provider.fileChanges
-        val callback = mock<(HomeScreenFilesProvider.FileChange) -> Unit>()
-        testNotifiesCallback(stream, callback)
-        /*invocationMatcher=*/ {
-            argument,
-            expectedDisplayName,
-            expectedFlags,
-            expectedIsDirectory,
-            expectedMimeType,
-            expectedUri,
-            expectedUser ->
-            with(argument) {
-                flags == expectedFlags &&
-                    uri == expectedUri &&
-                    with(file.get()!!) {
-                        displayName == expectedDisplayName &&
-                            isDirectory == expectedIsDirectory &&
-                            mimeType == expectedMimeType &&
-                            uri == expectedUri &&
-                            user == expectedUser
-                    }
-            }
-        }
-    }
-
-    @Test
-    @EnableFlags(FLAG_ENABLE_FILES_ON_HOME_SCREEN_DECOUPLED_INIT)
     fun testNotifiesUpdateCallback() {
-        val stream = provider.updates
-        val callback = mock<(HomeScreenFilesUpdate) -> Unit>()
-        testNotifiesCallback(stream, callback)
-        /*invocationMatcher=*/ {
-            argument,
-            expectedDisplayName,
-            /*expectedFlags=*/ _,
-            expectedIsDirectory,
-            expectedMimeType,
-            expectedUri,
-            expectedUser ->
-            with(argument) {
-                !isDelayedInit &&
-                    user == expectedUser &&
-                    filesByUri.get() ==
-                        mapOf(
-                            expectedUri to
-                                HomeScreenFile(
-                                    expectedUri,
-                                    expectedDisplayName,
-                                    expectedMimeType,
-                                    expectedIsDirectory,
-                                    expectedUser,
-                                )
-                        )
-            }
-        }
-    }
+        val expectedData = "/storage/emulated/0/Desktop/test.png"
+        val expectedDisplayName = "NEW_test.png"
+        val expectedMimeType = "image/png"
+        val expectedUri = Uri.parse("content://media/external_primary/file/1")
 
-    private inline fun <reified T> testNotifiesCallback(
-        stream: ListenableStream<T>,
-        noinline callback: (T) -> Unit,
-        noinline invocationMatcher:
-            (
-                argument: T,
-                expectedDisplayName: String,
-                expectedFlags: Int,
-                expectedIsDirectory: Boolean,
-                expectedMimeType: String,
-                expectedUri: Uri,
-                expectedUser: UserHandle,
-            ) -> Boolean,
-    ) {
-        whenever(
-                contentResolver.query(
-                    eq(Uri.parse("content://media/external_primary/file/1")),
-                    any(),
-                    any(),
-                    any(),
-                    isNull(),
-                    isNull(),
-                )
-            )
+        whenever(contentResolver.query(eq(expectedUri), any(), any(), any(), isNull(), isNull()))
             .thenAnswer {
                 val answer = MatrixCursor(arrayOf(DISPLAY_NAME, MIME_TYPE, DATA))
-                answer.addRow(
-                    arrayOf("NEW_test.png", "image/png", "/storage/emulated/0/Desktop/test.png")
-                )
+                answer.addRow(arrayOf(expectedDisplayName, expectedMimeType, expectedData))
                 return@thenAnswer answer
             }
 
+        val callback = mock<(HomeScreenFilesUpdate) -> Unit>()
         val immediateExecutor = Executor { r -> r.run() }
-        val unregisterCallback = stream.forEach(immediateExecutor) { callback(it) }
+        val unregisterCallback = provider.updates.forEach(immediateExecutor) { callback(it) }
         val underlyingContentObserverCaptor = argumentCaptor<ContentObserver>()
+
         verify(contentResolver, times(1))
             .registerContentObserver(
                 eq(Uri.parse("content://media/external_primary/file")),
-                eq(true),
+                /* notifyForDescendants= */ eq(true),
                 underlyingContentObserverCaptor.capture(),
             )
 
         underlyingContentObserverCaptor.firstValue.dispatchChange(
-            false,
-            Uri.parse("content://media/external_primary/file/1"),
+            /* selfChange= */ false,
+            expectedUri,
             ContentResolver.NOTIFY_INSERT,
         )
+
+        val expectedIsDirectory = false
+        val expectedUser = Process.myUserHandle()
+        val expectedFile =
+            HomeScreenFile(
+                expectedUri,
+                expectedDisplayName,
+                expectedMimeType,
+                expectedIsDirectory,
+                expectedUser,
+            )
 
         verify(callback, times(1))
             .invoke(
                 argThat {
-                    invocationMatcher(
-                        /*argument=*/ this,
-                        /*expectedDisplayName=*/ "NEW_test.png",
-                        /*expectedFlags=*/ ContentResolver.NOTIFY_INSERT,
-                        /*expectedIsDirectory=*/ false,
-                        /*expectedMimeType=*/ "image/png",
-                        /*expectedUri=*/ "content://media/external_primary/file/1".toUri(),
-                        /*expectedUser=*/ Process.myUserHandle(),
-                    )
+                    filesByUri.get() == mapOf(expectedUri to expectedFile) &&
+                        !isDelayedInit &&
+                        user == expectedUser
                 }
             )
 

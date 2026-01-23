@@ -20,14 +20,14 @@ import static android.view.Display.DEFAULT_DISPLAY;
 
 import static com.android.launcher3.Flags.FLAG_ENABLE_LATER_IS_LOCKED_CHECK;
 import static com.android.launcher3.Flags.FLAG_HIDE_AUTOMATED_TASKS_IN_OVERVIEW;
-import static com.android.window.flags.Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND;
+import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
+import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import static junit.framework.TestCase.assertNull;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doReturn;
@@ -43,20 +43,15 @@ import android.app.TaskInfo;
 import android.companion.virtual.VirtualDeviceManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.Resources;
 import android.graphics.Rect;
-import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
-import com.android.internal.R;
 import com.android.launcher3.automation.AutomationRepository;
 import com.android.launcher3.util.DaggerSingletonTracker;
-import com.android.launcher3.util.Executors;
-import com.android.launcher3.util.LooperExecutor;
 import com.android.quickstep.util.DesktopTask;
 import com.android.quickstep.util.GroupTask;
 import com.android.quickstep.util.SingleTask;
@@ -64,6 +59,7 @@ import com.android.quickstep.util.SplitTask;
 import com.android.quickstep.views.TaskViewType;
 import com.android.systemui.shared.recents.model.Task;
 import com.android.wm.shell.shared.GroupedTaskInfo;
+import com.android.wm.shell.shared.desktopmode.FakeDesktopState;
 import com.android.wm.shell.shared.split.SplitBounds;
 import com.android.wm.shell.shared.split.SplitScreenConstants;
 
@@ -94,8 +90,6 @@ public class RecentTasksListTest {
     @Mock
     private Context mContext;
     @Mock
-    private Resources mResources;
-    @Mock
     private SystemUiProxy mSystemUiProxy;
     @Mock
     private TopTaskTracker mTopTaskTracker;
@@ -111,21 +105,17 @@ public class RecentTasksListTest {
 
     @Before
     public void setup() {
-        LooperExecutor mainThreadExecutor = Executors.MAIN_EXECUTOR;
-
-        // Set desktop mode supported
-        when(mContext.getResources()).thenReturn(mResources);
-        when(mResources.getBoolean(R.bool.config_isDesktopModeSupported)).thenReturn(true);
-        when(mResources.getBoolean(R.bool.config_canInternalDisplayHostDesktops))
-                .thenReturn(true);
         doReturn(mVirtualDeviceManager).when(mContext).getSystemService(VirtualDeviceManager.class);
         doReturn(mKeyguardManager).when(mContext).getSystemService(KeyguardManager.class);
         when(mVirtualDeviceManager.getDeviceIdForDisplayId(anyInt()))
                 .thenReturn(Context.DEVICE_ID_DEFAULT);
 
-        mRecentTasksList = new RecentTasksList(mContext, mainThreadExecutor,
+        FakeDesktopState desktopState = new FakeDesktopState();
+        desktopState.setCanEnterDesktopMode(true);
+
+        mRecentTasksList = new RecentTasksList(mContext, MAIN_EXECUTOR,
                 mSystemUiProxy, mTopTaskTracker, mock(DaggerSingletonTracker.class),
-                mAutomationRepository);
+                mAutomationRepository, UI_HELPER_EXECUTOR, desktopState);
     }
 
     @Test
@@ -203,12 +193,11 @@ public class RecentTasksListTest {
         RecentTasksList.TaskLoadResult taskList = mRecentTasksList.loadTasksInBackground(
                 Integer.MAX_VALUE, -1, false);
 
-        assertThat(taskList.mRequestId).isEqualTo(-1);
+        assertThat(taskList.getRequestId()).isEqualTo(-1);
         assertThat(taskList).isEmpty();
     }
 
     @Test
-    @EnableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
     public void loadTasksInBackground_freeformTask_multiDesksInMultiDisplays() throws Exception {
         List<TaskInfo> tasksInDefaultDesk1 = Arrays.asList(
                 createRecentTaskInfo(/* taskId = */ 1, DEFAULT_DISPLAY),
@@ -308,40 +297,6 @@ public class RecentTasksListTest {
     }
 
     @Test
-    @DisableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
-    public void loadTasksInBackground_freeformTask_createsDesktopTaskPerDisplay() throws Exception {
-        List<TaskInfo> tasks = Arrays.asList(
-                createRecentTaskInfo(1 /* taskId */, DEFAULT_DISPLAY),
-                createRecentTaskInfo(4 /* taskId */, DEFAULT_DISPLAY),
-                createRecentTaskInfo(5 /* taskId */, 1 /* displayId */),
-                createRecentTaskInfo(6 /* taskId */, 1 /* displayId */));
-        GroupedTaskInfo recentTaskInfos = GroupedTaskInfo.forDeskTasks(
-                0 /* deskId */, DEFAULT_DISPLAY, tasks,
-                Collections.emptySet() /* minimizedTaskIds */);
-        when(mSystemUiProxy.getRecentTasks(anyInt(), anyInt()))
-                .thenReturn(new ArrayList<>(Collections.singletonList(recentTaskInfos)));
-
-        List<GroupTask> taskList = mRecentTasksList.loadTasksInBackground(
-                Integer.MAX_VALUE /* numTasks */, -1 /* requestId */, false /* loadKeysOnly */);
-
-        assertEquals(2, taskList.size());
-        assertEquals(TaskViewType.DESKTOP, taskList.get(0).taskViewType);
-        List<Task> actualFreeformTasksDefaultDisplay = taskList.get(0).getTasks();
-        assertEquals(2, actualFreeformTasksDefaultDisplay.size());
-        assertEquals(1, actualFreeformTasksDefaultDisplay.get(0).key.id);
-        assertFalse(actualFreeformTasksDefaultDisplay.get(0).isMinimized);
-        assertEquals(4, actualFreeformTasksDefaultDisplay.get(1).key.id);
-        assertFalse(actualFreeformTasksDefaultDisplay.get(1).isMinimized);
-
-        List<Task> actualFreeformTasksExternalDisplay = taskList.get(1).getTasks();
-        assertEquals(2, actualFreeformTasksExternalDisplay.size());
-        assertEquals(5, actualFreeformTasksExternalDisplay.get(0).key.id);
-        assertFalse(actualFreeformTasksExternalDisplay.get(0).isMinimized);
-        assertEquals(6, actualFreeformTasksExternalDisplay.get(1).key.id);
-        assertFalse(actualFreeformTasksExternalDisplay.get(1).isMinimized);
-    }
-
-    @Test
     public void loadTasksInBackground_freeformTask_onlyMinimizedTasks_createDesktopTask()
             throws Exception {
         List<TaskInfo> tasks = Arrays.asList(
@@ -371,7 +326,7 @@ public class RecentTasksListTest {
     }
 
     @Test
-    @EnableFlags({FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND, FLAG_HIDE_AUTOMATED_TASKS_IN_OVERVIEW})
+    @EnableFlags(FLAG_HIDE_AUTOMATED_TASKS_IN_OVERVIEW)
     public void loadTasksInBackground_desktopTask_filterOutAutomatedTasks() throws Exception {
         List<TaskInfo> tasksInDefaultDesk1 = Arrays.asList(
                 createRecentTaskInfo(/* taskId = */ 1, DEFAULT_DISPLAY, /* isAutomated= */false),
@@ -407,7 +362,7 @@ public class RecentTasksListTest {
 
 
     @Test
-    @EnableFlags({FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND, FLAG_HIDE_AUTOMATED_TASKS_IN_OVERVIEW})
+    @EnableFlags(FLAG_HIDE_AUTOMATED_TASKS_IN_OVERVIEW)
     public void loadTasksInBackground_splitTask_filterOutAutomatedTasks() throws Exception {
         GroupedTaskInfo recentTaskInfo1 = GroupedTaskInfo.forSplitTasks(
                 createRecentTaskInfo(/* taskId = */ 1, DEFAULT_DISPLAY, /* isAutomated= */false),
@@ -471,7 +426,7 @@ public class RecentTasksListTest {
 
 
     @Test
-    @EnableFlags({FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND, FLAG_HIDE_AUTOMATED_TASKS_IN_OVERVIEW})
+    @EnableFlags(FLAG_HIDE_AUTOMATED_TASKS_IN_OVERVIEW)
     public void loadTasksInBackground_singleTask_filterOutAutomatedTasks() throws Exception {
         GroupedTaskInfo recentTaskInfo1 = GroupedTaskInfo.forFullscreenTasks(
                 createRecentTaskInfo(/* taskId = */ 1, DEFAULT_DISPLAY, /* isAutomated= */false));

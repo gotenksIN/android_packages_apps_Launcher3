@@ -104,9 +104,11 @@
     <string name="dismiss_prediction_label" msgid="3357562989568808658">"Föreslå inte app"</string>
     <string name="pin_prediction" msgid="4196423321649756498">"Fäst förslag"</string>
     <string name="bubble" msgid="3072951361014076670">"Bubbla"</string>
+    <string name="enable_app_lock" msgid="9190316880781005775">"Lås appen"</string>
+    <string name="disable_app_lock" msgid="9071912028491244470">"Ta bort låset"</string>
     <string name="widget_settings" msgid="5280157748464495511">"Inställningar"</string>
-    <string name="pin_to_taskbar" msgid="5914002252642242332">"Fäst i aktivitetsfält"</string>
-    <string name="unpin_from_taskbar" msgid="1025883383457627426">"Lossa från aktivitetsfält"</string>
+    <string name="add_to_taskbar" msgid="1442306985857150792">"Lägg till i aktivitetsfältet"</string>
+    <string name="remove_from_taskbar" msgid="5817026706030273018">"Ta bort från aktivitetsfältet"</string>
     <string name="no_room_in_taskbar" msgid="6885243748717395469">"Inget utrymme i aktivitetsfältet"</string>
     <string name="app_added_to_taskbar" msgid="6348755169793615171">"Appen har lagts till i aktivitetsfältet"</string>
     <string name="app_removed_from_taskbar" msgid="3471754847898675396">"Appen har tagits bort från aktivitetsfältet"</string>
@@ -114,6 +116,15 @@
     <string name="home_screen_files_context_menu_open_in_app_label" msgid="7930552598671791537">"Öppna"</string>
     <string name="home_screen_files_context_menu_delete_permanently_label" msgid="8660443461874174185">"Radera permanent"</string>
     <string name="home_screen_files_context_menu_move_to_trash_label" msgid="1145655050674479315">"Flytta till papperskorgen"</string>
+    <!-- no translation found for home_screen_files_moved_to_trash_message (381256565590274395) -->
+    <skip />
+    <!-- no translation found for home_screen_files_move_to_trash_error_message (3836240816166417826) -->
+    <skip />
+    <!-- no translation found for home_screen_files_restore_from_trash_error_message (994941644161090497) -->
+    <skip />
+    <string name="actions_popup_menu_button" msgid="2442187572711557413">"Åtgärder"</string>
+    <string name="shortcuts_popup_menu_button" msgid="766598805805882499">"Genvägar"</string>
+    <string name="loading_shortcut" msgid="2638272014233830958">"Läser in genväg"</string>
     <string name="permlab_install_shortcut" msgid="5632423390354674437">"installera genvägar"</string>
     <string name="permdesc_install_shortcut" msgid="923466509822011139">"Tillåter att en app lägger till genvägar utan åtgärd från användaren."</string>
     <string name="permlab_read_settings" msgid="5136500343007704955">"läsa inställningar och genvägar på startskärmen"</string>
@@ -150,7 +161,6 @@
     <string name="edit_home_screen" msgid="8947858375782098427">"Redigera startskärm"</string>
     <string name="settings_button_text" msgid="8873672322605444408">"Startinställningar"</string>
     <string name="msg_disabled_by_admin" msgid="6898038085516271325">"Inaktiverat av administratören"</string>
-    <string name="allow_rotation_title" msgid="7222049633713050106">"Tillåt rotering av startskärmen"</string>
     <string name="allow_rotation_desc" msgid="8662546029078692509">"När telefonen vrids"</string>
     <string name="compose_developer_options_section" msgid="8211460486549952595">"Jetpack Compose"</string>
     <string name="enable_composition_tracing_title" msgid="8989606591739368424">"Aktivera kompositionsspårning"</string>

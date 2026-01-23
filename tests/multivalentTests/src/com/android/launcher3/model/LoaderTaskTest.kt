@@ -15,7 +15,6 @@ import android.platform.test.flag.junit.SetFlagsRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.launcher3.Flags
-import com.android.launcher3.Flags.FLAG_ENABLE_FILES_ON_HOME_SCREEN_DECOUPLED_INIT
 import com.android.launcher3.LauncherModel
 import com.android.launcher3.LauncherModel.LoaderTransaction
 import com.android.launcher3.LauncherPrefs
@@ -58,7 +57,6 @@ import com.android.launcher3.util.LauncherModelHelper.TEST_ACTIVITY3
 import com.android.launcher3.util.LauncherModelHelper.TEST_ACTIVITY4
 import com.android.launcher3.util.LauncherModelHelper.TEST_ACTIVITY5
 import com.android.launcher3.util.LauncherModelHelper.TEST_PACKAGE
-import com.android.launcher3.util.LooperIdleLock
 import com.android.launcher3.util.ModelTestExtensions.setModelLayout
 import com.android.launcher3.util.MutableListenableRef
 import com.android.launcher3.util.SandboxApplication
@@ -125,7 +123,6 @@ class LoaderTaskTest {
 
     @Mock private lateinit var launcherBinder: BaseLauncherBinder
     @Mock private lateinit var transaction: LoaderTransaction
-    @Mock private lateinit var idleLock: LooperIdleLock
     @Mock private lateinit var iconCacheUpdateHandler: IconCacheUpdateHandler
     @Mock private lateinit var settingsCache: SettingsCache
 
@@ -175,8 +172,6 @@ class LoaderTaskTest {
             .query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull())
 
         `when`(launcherModel.modelDelegate).thenReturn(modelDelegate)
-        `when`(launcherBinder.newIdleLock(any())).thenReturn(idleLock)
-        `when`(idleLock.awaitLocked(1000)).thenReturn(false)
         `when`(iconCache.getUpdateHandler()).thenReturn(iconCacheUpdateHandler)
 
         val listenableRef = MutableListenableRef(false)
@@ -633,8 +628,7 @@ class LoaderTaskTest {
     }
 
     @Test
-    @EnableFlags(FLAG_ENABLE_FILES_ON_HOME_SCREEN_DECOUPLED_INIT)
-    fun `When flag on then home screen files delayed init task is enqueued`() {
+    fun `When home screen files init is delayed then task is enqueued`() {
         // When.
         testComponent
             .getLoaderTaskFactory()
@@ -647,23 +641,6 @@ class LoaderTaskTest {
 
         // Then.
         verify(launcherModel).enqueueModelUpdateTask(any<HomeScreenFilesUpdateTask>())
-    }
-
-    @Test
-    @DisableFlags(FLAG_ENABLE_FILES_ON_HOME_SCREEN_DECOUPLED_INIT)
-    fun `When flag off then home screen files delayed init task is not enqueued`() {
-        // When.
-        testComponent
-            .getLoaderTaskFactory()
-            .newLoaderTask(launcherBinder)
-            .runSyncOnBackgroundThread()
-
-        // NOTE: The update task would be enqueued only after home screen files become available.
-        val homeScreenFilesProvider = HomeScreenFilesProvider.INSTANCE.get(context)
-        homeScreenFilesProvider.onReady().thenCompose { homeScreenFilesProvider.query() }.get()
-
-        // Then.
-        verify(launcherModel, times(0)).enqueueModelUpdateTask(any<HomeScreenFilesUpdateTask>())
     }
 
     @LauncherAppSingleton

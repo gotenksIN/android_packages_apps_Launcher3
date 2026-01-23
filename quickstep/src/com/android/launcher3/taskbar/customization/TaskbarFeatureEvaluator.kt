@@ -25,10 +25,11 @@ import com.android.launcher3.config.FeatureFlags.enableTaskbarPinning
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.display.DisplayController
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.util.DaggerSingletonObject
-import com.android.launcher3.util.DisplayController
-import com.android.launcher3.util.NavigationMode.*
+import com.android.launcher3.util.NavigationMode.NO_BUTTON
+import com.android.launcher3.util.NavigationMode.THREE_BUTTONS
 import com.android.systemui.shared.Flags.enableRecentsInTaskbar
 import javax.inject.Inject
 
@@ -56,8 +57,8 @@ constructor(
             if (
                 displayController.info.navigationMode != NO_BUTTON ||
                     desktopVisibilityController.isInDesktopMode(primaryDisplayId) ||
-                    displayController.info.showDesktopTaskbarForFreeformDisplay() ||
-                    (displayController.info.showLockedTaskbarOnHome() &&
+                    displayController.info.showDesktopTaskbarForFreeformDisplay ||
+                    (displayController.info.showLockedTaskbarOnHome &&
                         displayController.info.isHomeVisible)
             ) {
                 false
@@ -71,7 +72,7 @@ constructor(
         get() =
             if (
                 desktopVisibilityController.isInDesktopModeAndNotInOverview(primaryDisplayId) ||
-                    displayController.info.showDesktopTaskbarForFreeformDisplay()
+                    displayController.info.showDesktopTaskbarForFreeformDisplay
             ) {
                 true
             } else if (desktopVisibilityController.isInDesktopMode(primaryDisplayId)) {
@@ -89,7 +90,7 @@ constructor(
     val supportsTransitionToTransientTaskbar: Boolean
         get() =
             !hasNavButtons &&
-                !DisplayController.showDesktopTaskbarForFreeformDisplay(context) &&
+                !DisplayController.getInfo(context).showDesktopTaskbarForFreeformDisplay &&
                 !desktopVisibilityController.isInDesktopMode(primaryDisplayId)
 
     companion object {

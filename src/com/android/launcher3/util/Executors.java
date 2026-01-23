@@ -86,9 +86,8 @@ public class Executors {
 
     public static final Executor IMMEDIATE_EXECUTOR = Runnable::run;
 
-    public static final LooperExecutor TASKBAR_UI_THREAD = enableTaskbarUiThread()
-            ? new LooperExecutor("TASKBAR_UI_THREAD", THREAD_PRIORITY_FOREGROUND)
-            : MAIN_EXECUTOR;
+    private static final LooperExecutor TASKBAR_UI_THREAD =
+            new LooperExecutor("TASKBAR_UI_THREAD", THREAD_PRIORITY_FOREGROUND);
 
     /**
      * A background executor for using time sensitive actions where user is waiting for response.
@@ -135,8 +134,13 @@ public class Executors {
                 UI_HELPER_EXECUTOR,
                 DATA_HELPER_EXECUTOR,
                 THREAD_POOL_EXECUTOR,
-                ORDERED_BG_EXECUTOR
+                ORDERED_BG_EXECUTOR,
+                TASKBAR_UI_THREAD
         );
+    }
+
+    public static LooperExecutor getTaskbarUiThread() {
+        return enableTaskbarUiThread() ? TASKBAR_UI_THREAD : MAIN_EXECUTOR;
     }
 
     /**

@@ -457,7 +457,7 @@ public class Launcher extends StatefulActivity<LauncherState>
         mWidgetPickerDataProvider = new WidgetPickerDataProvider();
         PillColorProvider.getInstance(mWorkspace.getContext()).registerObserver();
 
-        SystemDragController.INSTANCE.get(this).setLauncher(this);
+        SystemDragController.INSTANCE.get(this).setContext(this);
         ItemInstallQueue.INSTANCE.get(this).setIconUISurface(this);
 
         boolean internalStateHandled = ACTIVITY_TRACKER.handleCreate(this);
@@ -659,12 +659,7 @@ public class Launcher extends StatefulActivity<LauncherState>
     }
 
     private void updateFixedLandscape() {
-        // When the flag oneGridSpecs is on we want to disable ALLOW_ROTATION which is replaced
-        // by FIXED_LANDSCAPE_MODE, ALLOW_ROTATION will only be used on Tablets and foldables
-        // afterwards.
-        if (getDeviceProfile().getDeviceProperties().isPhone()) {
-            LauncherPrefs.get(this).put(LauncherPrefs.ALLOW_ROTATION, false);
-        } else if (getDeviceProfile().getDeviceProperties().isTablet()) {
+        if (getDeviceProfile().getDeviceProperties().isLargeScreen()) {
             // Tablet do not use fixed landscape mode, make sure it can't be activated by mistake
             LauncherPrefs.get(this).put(FIXED_LANDSCAPE_MODE, false);
         }
@@ -696,7 +691,7 @@ public class Launcher extends StatefulActivity<LauncherState>
             mCellPosMapper = new TwoPanelCellPosMapper(mDeviceProfile.inv.numColumns);
         } else {
             mCellPosMapper = new CellPosMapper(mDeviceProfile.isVerticalBarLayout(),
-                    mDeviceProfile.numShownHotseatIcons);
+                    mDeviceProfile.getHotseatProfile().getNumShownIcons());
         }
         mModelWriter = mModel.getWriter(true, this, modelCallbacks);
         updateFixedLandscape();
@@ -1638,7 +1633,9 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     @Override
     public DropTargetHandler getDropTargetHandler() {
-        return new DropTargetHandler(this);
+        return new DropTargetHandler(this,
+                LauncherComponentProvider.get(this).getHomeScreenFilesProvider(),
+                this.getMainExecutor());
     }
 
     @Override

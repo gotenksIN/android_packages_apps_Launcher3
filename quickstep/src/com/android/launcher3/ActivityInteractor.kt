@@ -17,7 +17,6 @@
 package com.android.launcher3
 
 import androidx.annotation.AnyThread
-import com.android.launcher3.DeviceProfile.OnDeviceProfileChangeListener
 import com.android.launcher3.Flags.enableUnfoldStateAnimation
 import com.android.launcher3.statemanager.StatefulActivity
 import com.android.launcher3.util.Executors.MAIN_EXECUTOR
@@ -25,7 +24,6 @@ import com.android.launcher3.util.SafeCloseable
 import com.android.quickstep.SystemUiProxy
 import com.android.quickstep.views.RecentsViewContainerInteractor
 import com.android.systemui.unfold.UnfoldTransitionProgressProvider
-import com.android.systemui.unfold.UnfoldTransitionProgressProvider.TransitionProgressListener
 import java.util.concurrent.Executor
 import javax.annotation.concurrent.ThreadSafe
 
@@ -61,52 +59,6 @@ open class ActivityInteractor(private val statefulActivity: StatefulActivity<*>)
             SystemUiProxy.INSTANCE.get(statefulActivity).unfoldTransitionProvider
         } else {
             null
-        }
-    }
-
-    @AnyThread
-    fun addUnfoldTransitionCallback(
-        callback: TransitionProgressListener,
-        callbackExecutor: Executor,
-    ): SafeCloseable? {
-        val unfoldTransitionProvider = getUnfoldTransitionProvider() ?: return null
-        val wrappedCallback =
-            object : TransitionProgressListener {
-                override fun onTransitionStarted() {
-                    callbackExecutor.execute { callback.onTransitionStarted() }
-                }
-
-                override fun onTransitionProgress(progress: Float) {
-                    callbackExecutor.execute { callback.onTransitionProgress(progress) }
-                }
-
-                override fun onTransitionFinishing() {
-                    callbackExecutor.execute { callback.onTransitionFinishing() }
-                }
-
-                override fun onTransitionFinished() {
-                    callbackExecutor.execute { callback.onTransitionFinished() }
-                }
-            }
-        MAIN_EXECUTOR.execute { unfoldTransitionProvider.addCallback(wrappedCallback) }
-        return SafeCloseable {
-            MAIN_EXECUTOR.execute { unfoldTransitionProvider.removeCallback(wrappedCallback) }
-        }
-    }
-
-    @AnyThread
-    fun addOnDeviceProfileChangeListener(
-        listener: OnDeviceProfileChangeListener,
-        callbackExecutor: Executor,
-    ): SafeCloseable {
-        val wrappedListener = OnDeviceProfileChangeListener { dp ->
-            callbackExecutor.execute { listener.onDeviceProfileChanged(dp) }
-        }
-        MAIN_EXECUTOR.execute { statefulActivity.addOnDeviceProfileChangeListener(wrappedListener) }
-        return SafeCloseable {
-            MAIN_EXECUTOR.execute {
-                statefulActivity.removeOnDeviceProfileChangeListener(wrappedListener)
-            }
         }
     }
 }

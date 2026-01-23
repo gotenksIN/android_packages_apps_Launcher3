@@ -34,7 +34,7 @@ import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_RE
 import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_SPACE;
 import static com.android.launcher3.taskbar.TaskbarViewController.ALPHA_INDEX_KEYGUARD;
 import static com.android.launcher3.taskbar.TaskbarViewController.ALPHA_INDEX_SMALL_SCREEN;
-import static com.android.launcher3.util.Executors.TASKBAR_UI_THREAD;
+import static com.android.launcher3.util.Executors.getTaskbarUiThread;
 import static com.android.launcher3.util.FlagDebugUtils.appendFlag;
 import static com.android.launcher3.util.MultiPropertyFactory.MULTI_PROPERTY_VALUE;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_A11Y_BUTTON_CLICKABLE;
@@ -533,7 +533,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         if (android.view.accessibility.Flags.navbarFlipOrderOption()) {
             mSettingCacheSafeCloseable = SettingsCache.INSTANCE.get(mContext)
                     .getListenableRef(mButtonOrderChangedUri).forEach(
-                            TASKBAR_UI_THREAD, (isEnabled) -> {
+                            getTaskbarUiThread(), (isEnabled) -> {
                                 getLayoutterForCurrentState().layoutButtons(
                                         mContext, isA11yButtonPersistent());
                                 return null;
@@ -1088,7 +1088,8 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
 
         // If SUW is on a large screen device that is landscape (or has a square aspect
         // ratio) the back button has to be placed accordingly
-        if ((deviceProfile.getDeviceProperties().isTablet() && deviceProfile.getDeviceProperties().isLandscape())
+        if ((deviceProfile.getDeviceProperties().isLargeScreen()
+                && deviceProfile.getDeviceProperties().isLandscape())
                 || (deviceProfile.getDeviceProperties().getAspectRatio() > SQUARE_ASPECT_RATIO_BOTTOM_BOUND
                 && deviceProfile.getDeviceProperties().getAspectRatio() < SQUARE_ASPECT_RATIO_UPPER_BOUND)) {
             navButtonsLayoutParams.setMarginStart(

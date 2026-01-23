@@ -74,6 +74,7 @@ import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 import com.android.launcher3.dagger.PerDisplayComponent
 import com.android.launcher3.dagger.WindowContext
 import com.android.launcher3.desktop.DesktopRecentsTransitionController
+import com.android.launcher3.display.DisplayController
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.statemanager.StateManager
 import com.android.launcher3.statemanager.StateManager.AtomicAnimationFactory
@@ -84,7 +85,6 @@ import com.android.launcher3.testing.shared.TestProtocol.LAUNCHER_ACTIVITY_STOPP
 import com.android.launcher3.testing.shared.TestProtocol.SEQUENCE_MAIN
 import com.android.launcher3.util.ActivityOptionsWrapper
 import com.android.launcher3.util.DaggerSingletonObject
-import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.LooperExecutor
 import com.android.launcher3.util.RunnableList
 import com.android.launcher3.util.SafeCloseable
@@ -113,13 +113,13 @@ import com.android.quickstep.fallback.FallbackWindowRecentsView
 import com.android.quickstep.fallback.RecentsDragLayer
 import com.android.quickstep.fallback.RecentsState
 import com.android.quickstep.fallback.RecentsState.Companion.BACKGROUND_APP
-import com.android.quickstep.fallback.RecentsState.Companion.BG_LAUNCHER
 import com.android.quickstep.fallback.RecentsState.Companion.DEFAULT
+import com.android.quickstep.fallback.RecentsState.Companion.HIDDEN
 import com.android.quickstep.fallback.RecentsState.Companion.MODAL_TASK
 import com.android.quickstep.fallback.RecentsState.Companion.OVERVIEW_SPLIT_SELECT
 import com.android.quickstep.fallback.toLauncherStateOrdinal
 import com.android.quickstep.recents.di.RecentsComponent
-import com.android.quickstep.split.SplitFromRunningTaskController
+import com.android.quickstep.split.SplitScreenAppResolver
 import com.android.quickstep.split.SplitSelectStateController
 import com.android.quickstep.util.QuickstepProtoLogGroup
 import com.android.quickstep.util.RecentsAtomicAnimationFactory
@@ -181,7 +181,7 @@ constructor(
     private var surfaceControlViewHost: SurfaceControlViewHost? = null
     private var layoutInflater: LayoutInflater = LayoutInflater.from(this).cloneInContext(this)
     private var stateManager: StateManager<RecentsState, RecentsWindowManager> =
-        StateManager<RecentsState, RecentsWindowManager>(this, BG_LAUNCHER)
+        StateManager<RecentsState, RecentsWindowManager>(this, HIDDEN)
     private var systemUiController: SystemUiController? = null
 
     private var overviewOverlay: SurfaceControl? = null
@@ -199,7 +199,6 @@ constructor(
     private var oldConfiguration: Configuration? = null
     private var oldRotation: Int = -1
 
-    private val splitFromRunningTaskController = SplitFromRunningTaskController(this)
     private val splitSelectStateController: SplitSelectStateController =
         SplitSelectStateController(
             /* container= */ this,
@@ -210,7 +209,7 @@ constructor(
             recentsModel,
             /* activityBackCallback= */ null,
             SplitScreenUiState(),
-            splitFromRunningTaskController,
+            SplitScreenAppResolver(this),
         )
 
     // Callback array that corresponds to events defined in @ActivityEvent
@@ -257,7 +256,10 @@ constructor(
     private val homeVisibilityState = systemUiProxy.homeVisibilityState
     private val homeVisibilityListener =
         object : HomeVisibilityState.VisibilityChangeListener {
-            override fun onHomeVisibilityChanged(isHomeVisible: Boolean) {
+            override fun onHomeVisibilityChanged(
+                isHomeVisible: Boolean,
+                keyguardGoingAway: Boolean,
+            ) {
                 if (fallbackWindowInterface.isInLiveTileMode || isHomeVisible) {
                     return
                 }
@@ -283,6 +285,9 @@ constructor(
                 // therefore also need to post this request onto the recents view.
                 // (see OverviewCommandHelper#updateRecentsViewFocus)
                 if (!useInputReportedFocusForAccessibility()) {
+                    return
+                }
+                if (recentsView?.keyboardFocusTaskView == null) {
                     return
                 }
                 recentsView?.post { requestInputFocus(focused = true) }
@@ -321,8 +326,7 @@ constructor(
                 displayId != DEFAULT_DISPLAY &&
                 desktopState.canEnterDesktopModeOrShowAppHandle
         ) {
-            splitSelectStateController.initSplitFromRunningTaskController(this)
-            splitFromRunningTaskController.init(splitSelectStateController)
+            splitSelectStateController.initSplitFromDesktopController(this)
         }
 
         displayController.getListenable(displayId)?.let {
@@ -468,7 +472,6 @@ constructor(
         if (isShowing()) {
             return
         }
-
         createWindowView()
         windowRootView.visibility = View.VISIBLE
 
@@ -483,7 +486,6 @@ constructor(
             AbstractFloatingView.closeAllOpenViews(this, /* animate= */ false)
             recentsView?.viewRootImpl?.touchModeChanged(true)
             windowRootView.visibility = View.GONE
-            requestInputFocus(focused = false)
             AccessibilityManagerCompat.sendTestProtocolEventToTest(
                 this,
                 LAUNCHER_ACTIVITY_STOPPED_MESSAGE,
@@ -554,7 +556,7 @@ constructor(
         return homeOverlay
     }
 
-    private fun requestInputFocus(focused: Boolean) {
+    fun requestInputFocus(focused: Boolean) {
         if (!useInputReportedFocusForAccessibility()) {
             return
         }
@@ -715,8 +717,7 @@ constructor(
                 result: LauncherAnimationRunner.AnimationResult? ->
                 result ?: return@RemoteAnimationFactory
                 val controller =
-                    getStateManager()
-                        .createAnimationToNewWorkspace(BG_LAUNCHER, HOME_APPEAR_DURATION)
+                    getStateManager().createAnimationToNewWorkspace(HIDDEN, HOME_APPEAR_DURATION)
                 controller.dispatchOnStart()
                 val targets =
                     RemoteAnimationTargets(
@@ -735,8 +736,7 @@ constructor(
                     anim,
                     this@RecentsWindowManager,
                     {
-                        getStateManager().goToState(BG_LAUNCHER, true)
-                        hideRecentsWindow()
+                        getStateManager().moveToRestState(/* isAnimated= */ true)
                         onHomeAnimationComplete?.run()
                     },
                     true, /* skipFirstFrame */
@@ -754,7 +754,6 @@ constructor(
             )
         options.launchDisplayId = displayId
         OverviewComponentObserver.startHomeIntentSafely(this, options.toBundle(), TAG, displayId)
-        stateManager.moveToRestState()
     }
 
     private fun isShowing() = windowView?.parent != null && windowRootView.isVisible
@@ -839,7 +838,7 @@ constructor(
     override fun goToRecentsState(
         recentsState: RecentsState,
         animated: Boolean,
-        listener: Animator.AnimatorListener,
+        listener: Animator.AnimatorListener?,
     ) {
         stateManager.goToState(recentsState, animated, listener)
     }

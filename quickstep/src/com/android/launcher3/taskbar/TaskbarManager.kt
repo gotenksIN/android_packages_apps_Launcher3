@@ -16,9 +16,7 @@
 
 package com.android.launcher3.taskbar
 
-import android.app.PendingIntent
 import androidx.annotation.VisibleForTesting
-import com.android.app.displaylib.DisplayDecorationListener
 import com.android.launcher3.AsyncAnimatorPlaybackController
 import com.android.launcher3.statemanager.StatefulActivity
 import com.android.launcher3.util.ListenableStream
@@ -30,13 +28,11 @@ import javax.annotation.concurrent.ThreadSafe
 
 /** Expose threadsafe APIs of [TaskbarManagerImpl] to launcher. */
 @ThreadSafe
-interface TaskbarManager : DisplayDecorationListener {
+interface TaskbarManager {
 
     fun createLauncherStartFromSuwAnim(duration: Int): AsyncAnimatorPlaybackController?
 
     fun shouldForceAllSetFallbackAnimation(): Boolean
-
-    fun onUserUnlocked()
 
     fun updateTaskbarsVisibility()
 
@@ -90,11 +86,7 @@ interface TaskbarManager : DisplayDecorationListener {
 
     fun getTaskbarForDisplay(displayId: Int): TaskbarActivityContext?
 
-    fun createAllAppsPendingIntent(): PendingIntent
-
     fun getPrimaryDisplayId(): Int
-
-    fun debugPrimaryTaskbar(debugReason: String, verbose: Boolean)
 
     @VisibleForTesting fun getCurrentActivityContext(): TaskbarActivityContext?
 

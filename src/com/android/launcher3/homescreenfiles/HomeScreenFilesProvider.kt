@@ -16,9 +16,6 @@
 
 package com.android.launcher3.homescreenfiles
 
-import android.content.ContentResolver.NOTIFY_DELETE
-import android.content.ContentResolver.NOTIFY_INSERT
-import android.content.ContentResolver.NOTIFY_UPDATE
 import android.net.Uri
 import android.os.UserHandle
 import androidx.annotation.VisibleForTesting
@@ -26,7 +23,6 @@ import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.util.DaggerSingletonObject
 import com.android.launcher3.util.ListenableStream
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.Future
 
 /** Represents a single file or folder item queried by [HomeScreenFilesProvider]. */
 data class HomeScreenFile(
@@ -60,48 +56,50 @@ interface HomeScreenFilesProvider {
      */
     fun canMoveToHomeScreen(uriList: List<Uri>?): Boolean
 
+    // NOTE: [@JvmOverloads] cannot be used with interfaces.
+    fun moveToHomeScreen(uriList: List<Uri>): List<CompletableFuture<Boolean>> =
+        moveToHomeScreen(uriList = uriList, relativeFolderPath = null)
+
     /**
      * Attempts to asynchronously move all URIs in the specified list to the home screen.
      *
      * @param uriList The list of URIs to move.
+     * @param relativeFolderPath If specified, URIs will be moved to
+     *   [HOME_SCREEN_FOLDER_RELATIVE_PATH]/{relativeFolderPath}.
      * @return List of futures indicating the success or failure of each move attempt. Futures are
      *   provided in the same order as the original list of URIs.
      */
-    fun moveToHomeScreen(uriList: List<Uri>): List<CompletableFuture<Boolean>>
+    fun moveToHomeScreen(
+        uriList: List<Uri>,
+        relativeFolderPath: String?,
+    ): List<CompletableFuture<Boolean>>
 
     /**
-     * Deletes a single file or folder in the [HOME_SCREEN_FOLDER_RELATIVE_PATH] folder.
+     * Permanently deletes a single file or folder in the [HOME_SCREEN_FOLDER_RELATIVE_PATH] folder.
      *
      * @param uri The URI of the item to be deleted.
-     * @param name The name of the item to be deleted.
-     * @param permanent If `true`, the item is deleted permanently and cannot be restored. If
-     *   `false`, the item is moved to trash and can be restored later.
      */
-    fun delete(uri: Uri, name: String, permanent: Boolean)
+    fun deletePermanently(uri: Uri)
+
+    /**
+     * Moves a single file or folder in the [HOME_SCREEN_FOLDER_RELATIVE_PATH] folder to trash.
+     *
+     * @param name The name of the item to be deleted.
+     * @return The new path of the item after being moved to trash, or `null` if the operation
+     *   failed.
+     */
+    fun moveToTrash(name: String): CompletableFuture<String?>
+
+    /**
+     * Restores a single file or folder from trash to its original location.
+     *
+     * @param trashPath The path of the item in trash.
+     * @return The flag indicating if the operation succeeded (true) or failed (false).
+     */
+    fun restoreFromTrash(trashPath: String): CompletableFuture<Boolean>
 
     /** Returns all eligible file items to be shown on the home screen. */
     fun query(): CompletableFuture<Map<Uri, HomeScreenFile>>
-
-    /**
-     * Information about a change to a file item shown on the home screen.
-     *
-     * @param uri The URI of the item that was changed.
-     * @param flags The bitmask describing the type of the file change (one of [NOTIFY_INSERT],
-     *   [NOTIFY_UPDATE], [NOTIFY_DELETE]).
-     * @param file Complete information about the file that is being changed.
-     * @param uriAlias An alias for the URI of the item that was changed, possibly in a different
-     *   content provider authority. Note that an alias will only be available if the URI was moved
-     *   via call to [#moveToHomeScreen()].
-     */
-    data class FileChange(
-        val uri: Uri,
-        val flags: Int,
-        val file: Future<HomeScreenFile?>,
-        val uriAlias: Uri?,
-    )
-
-    /** A stream of changes to file items shown on the home screen. */
-    val fileChanges: ListenableStream<FileChange>
 
     companion object {
         @JvmField

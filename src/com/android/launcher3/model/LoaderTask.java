@@ -16,7 +16,6 @@
 
 package com.android.launcher3.model;
 
-import static com.android.launcher3.Flags.enableFilesOnHomeScreenDecoupledInit;
 import static com.android.launcher3.Flags.enableLauncherBrMetricsFixed;
 import static com.android.launcher3.LauncherPrefs.IS_FIRST_LOAD_AFTER_RESTORE;
 import static com.android.launcher3.icons.CacheableShortcutInfo.convertShortcutsToCacheableShortcuts;
@@ -94,7 +93,6 @@ import com.android.launcher3.pm.PackageInstallInfo;
 import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.pm.UserCache.CachedUserInfo;
 import com.android.launcher3.pm.UserManagerState;
-import com.android.launcher3.provider.LauncherDbUtils;
 import com.android.launcher3.shortcuts.ShortcutKey;
 import com.android.launcher3.shortcuts.ShortcutRequest;
 import com.android.launcher3.shortcuts.ShortcutRequest.QueryResult;
@@ -102,7 +100,6 @@ import com.android.launcher3.util.ApiWrapper;
 import com.android.launcher3.util.IOUtils;
 import com.android.launcher3.util.IntArray;
 import com.android.launcher3.util.IntSet;
-import com.android.launcher3.util.LooperIdleLock;
 import com.android.launcher3.util.PackageManagerHelper;
 import com.android.launcher3.util.PackageUserKey;
 import com.android.launcher3.util.SettingsCache;
@@ -245,25 +242,12 @@ public class LoaderTask implements Runnable {
         mPrefs = prefs;
         mAutomationRepo = automationRepo;
 
-        // NOTE: When files on home screen initialization is decoupled from the loader task we must
-        // wait for the provider to become ready before querying for file system items.
+        // NOTE: Wait for the provider to become ready before querying for file system items.
         mHomeScreenFilesQueryResult =
-                enableFilesOnHomeScreenDecoupledInit()
-                        ? homeScreenFilesProvider.onReady()
-                            .thenCompose((unused) -> mStopped
-                                    ? CompletableFuture.completedFuture(Collections.emptyMap())
-                                    : homeScreenFilesProvider.query())
-                        : homeScreenFilesProvider.query();
-    }
-
-    protected synchronized void waitForIdle() {
-        // Wait until the either we're stopped or the other threads are done.
-        // This way we don't start loading all apps until the workspace has settled
-        // down.
-        LooperIdleLock idleLock = mLauncherBinder.newIdleLock(this);
-        // Just in case mFlushingWorkerThread changes but we aren't woken up,
-        // wait no longer than 1sec at a time
-        while (!mStopped && idleLock.awaitLocked(1000));
+                homeScreenFilesProvider.onReady()
+                    .thenCompose((unused) -> mStopped
+                            ? CompletableFuture.completedFuture(Collections.emptyMap())
+                            : homeScreenFilesProvider.query());
     }
 
     private synchronized void verifyNotStopped() throws CancellationException {
@@ -329,17 +313,15 @@ public class LoaderTask implements Runnable {
         // NOTE: Model task must be enqueued after the loader has finished. Since MODEL_EXECUTOR
         // runs the task immediately if the caller is on the same thread, using a different executor
         // (THREAD_POOL_EXECUTOR) ensures the task runs after the current code-block is complete.
-        if (enableFilesOnHomeScreenDecoupledInit()) {
-            final CompletableFuture<Void> unused =
-                    mHomeScreenFilesQueryResult.thenRunAsync(() ->
-                        mModel.enqueueModelUpdateTask(
-                                mHomeScreenFilesUpdateTask.create(
-                                        new HomeScreenFilesUpdate(
-                                                mHomeScreenFilesQueryResult,
-                                                Process.myUserHandle(),
-                                                /*isDelayedInit=*/true))),
-                        THREAD_POOL_EXECUTOR);
-        }
+        final CompletableFuture<Void> unused =
+                mHomeScreenFilesQueryResult.thenRunAsync(() ->
+                    mModel.enqueueModelUpdateTask(
+                            mHomeScreenFilesUpdateTask.create(
+                                    new HomeScreenFilesUpdate(
+                                            mHomeScreenFilesQueryResult,
+                                            Process.myUserHandle(),
+                                            /*isDelayedInit=*/true))),
+                    THREAD_POOL_EXECUTOR);
 
         if (!mParams.getLoadNonWorkspaceItems()) {
             logASplit("Skipping remaining items");
@@ -350,8 +332,6 @@ public class LoaderTask implements Runnable {
         // Notify the installer packages of packages with active installs on the first screen.
         sendFirstScreenActiveInstallsBroadcast();
 
-        // Take a break
-        waitForIdle();
         logASplit("step 1 loading workspace complete");
         verifyNotStopped();
 
@@ -382,8 +362,6 @@ public class LoaderTask implements Runnable {
         updateHandler.updateIcons(allShortcuts, CacheableShortcutCachingLogic.INSTANCE,
                 mModel::onPackageIconsUpdated);
 
-        // Take a break
-        waitForIdle();
         logASplit("step 2 loading AllApps complete");
         verifyNotStopped();
 
@@ -398,8 +376,6 @@ public class LoaderTask implements Runnable {
                 CacheableShortcutCachingLogic.INSTANCE,
                 (pkgs, user) -> { });
 
-        // Take a break
-        waitForIdle();
         logASplit("step 3 loading all shortcuts complete");
         verifyNotStopped();
 
@@ -509,8 +485,7 @@ public class LoaderTask implements Runnable {
 
             mShortcutKeyToPinnedShortcuts = new HashMap<>();
             final LoaderCursor c = mLoaderCursorFactory.createLoaderCursor(
-                    dbController.query(null, selection, null,
-                            LauncherDbUtils.getLoaderCursorQuerySortOrder()),
+                    dbController.query(null, selection, null, null),
                     mUserManagerState,
                     mIsRestoreFromBackup ? restoreEventLogger : null);
             final Bundle extras = c.getExtras();

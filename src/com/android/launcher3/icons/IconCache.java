@@ -84,6 +84,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -194,8 +195,11 @@ public class IconCache extends BaseIconCache {
      * @return a request ID that can be used to cancel the request.
      */
     @AnyThread
-    public CancellableTask updateIconInBackground(final ItemInfoUpdateReceiver caller,
-            final ItemInfoWithIcon info, final CacheLookupFlag lookupFlag) {
+    public CancellableTask updateIconInBackground(
+            final Executor uiExecutor,
+            final ItemInfoUpdateReceiver caller,
+            final ItemInfoWithIcon info,
+            final CacheLookupFlag lookupFlag) {
         Supplier<ItemInfoWithIcon> task;
         if (info instanceof AppInfo || info instanceof WorkspaceItemInfo) {
             task = () -> {
@@ -225,7 +229,7 @@ public class IconCache extends BaseIconCache {
         }
 
         CancellableTask<ItemInfoWithIcon> request = new CancellableTask<>(
-                task, MAIN_EXECUTOR, caller::reapplyItemInfo, endRunnable);
+                task, uiExecutor, caller::reapplyItemInfo, endRunnable);
         Utilities.postAsyncCallback(workerHandler, request);
         return request;
     }
@@ -305,18 +309,20 @@ public class IconCache extends BaseIconCache {
             bitmapInfo = getDefaultIcon(user);
         }
         if (isDefaultIcon(bitmapInfo, user)) return;
-        info.bitmap = bitmapInfo.withBadgeInfo(getShortcutInfoBadge(si.getShortcutInfo()));
+        info.bitmap = bitmapInfo.withBadgeInfo(
+                getShortcutInfoBadge(si.getShortcutInfo(), lookupFlags));
     }
 
     /**
      * Returns the badging info for the shortcut
      */
-    public BitmapInfo getShortcutInfoBadge(ShortcutInfo shortcutInfo) {
-        return getShortcutInfoBadgeItem(shortcutInfo).bitmap;
+    public BitmapInfo getShortcutInfoBadge(ShortcutInfo shortcutInfo, CacheLookupFlag lookupFlags) {
+        return getShortcutInfoBadgeItem(shortcutInfo, lookupFlags).bitmap;
     }
 
     @VisibleForTesting
-    protected ItemInfoWithIcon getShortcutInfoBadgeItem(ShortcutInfo shortcutInfo) {
+    protected ItemInfoWithIcon getShortcutInfoBadgeItem(
+            ShortcutInfo shortcutInfo, CacheLookupFlag lookupFlags) {
         // Check for badge override first.
         String pkg = shortcutInfo.getPackage();
         String override = shortcutInfo.getExtras() == null ? null
@@ -335,12 +341,12 @@ public class IconCache extends BaseIconCache {
                 appInfo.intent = new Intent(Intent.ACTION_MAIN)
                         .addCategory(Intent.CATEGORY_LAUNCHER)
                         .setComponent(cn);
-                getTitleAndIcon(appInfo, DEFAULT_LOOKUP_FLAG);
+                getTitleAndIcon(appInfo, lookupFlags);
                 return appInfo;
             }
         }
         PackageItemInfo pkgInfo = new PackageItemInfo(pkg, shortcutInfo.getUserHandle());
-        getTitleAndIconForApp(pkgInfo, DEFAULT_LOOKUP_FLAG);
+        getTitleAndIconForApp(pkgInfo, lookupFlags);
         return pkgInfo;
     }
 

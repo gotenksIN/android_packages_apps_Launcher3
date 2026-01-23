@@ -27,9 +27,9 @@ import com.android.launcher3.Utilities.boundToRange
 import com.android.launcher3.Utilities.debugLog
 import com.android.launcher3.Utilities.isRtl
 import com.android.launcher3.anim.AnimatorPlaybackController
+import com.android.launcher3.display.DisplayController
 import com.android.launcher3.touch.BaseSwipeDetector
 import com.android.launcher3.touch.SingleAxisSwipeDetector
-import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.FlingBlockCheck
 import com.android.launcher3.util.TouchController
 import com.android.quickstep.views.RecentsView
@@ -41,9 +41,8 @@ import kotlin.math.abs
 class TaskViewLaunchTouchController<CONTAINER>(
     private val container: CONTAINER,
     private val taskViewRecentsTouchContext: TaskViewRecentsTouchContext,
-) : TouchController, SingleAxisSwipeDetector.Listener where
-CONTAINER : Context,
-CONTAINER : RecentsViewContainer {
+) : TouchController, SingleAxisSwipeDetector.Listener
+    where CONTAINER : Context, CONTAINER : RecentsViewContainer {
     private val tempRect = Rect()
     private val flingBlockCheck = FlingBlockCheck()
     private val recentsView: RecentsView<*, *> = container.getOverviewPanel()
@@ -87,12 +86,6 @@ CONTAINER : RecentsViewContainer {
                 false
             }
 
-            // Disable swiping if the task overlay is modal.
-            taskViewRecentsTouchContext.isRecentsModal -> {
-                debugLog(TAG, "Not intercepting touch in modal overlay.")
-                false
-            }
-
             // Do not allow launch while recents is scrolling.
             !recentsView.scroller.isFinished -> {
                 debugLog(TAG, "Not intercepting touch, recents scrolling.")
@@ -100,7 +93,7 @@ CONTAINER : RecentsViewContainer {
             }
 
             else ->
-                taskViewRecentsTouchContext.isRecentsInteractive.also { isRecentsInteractive ->
+                taskViewRecentsTouchContext.isTaskViewInteractive.also { isRecentsInteractive ->
                     if (!isRecentsInteractive) {
                         debugLog(TAG, "Not intercepting touch, recents not interactive.")
                     }

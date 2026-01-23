@@ -31,9 +31,11 @@ import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.LauncherPrefs.Companion.TASKBAR_PINNING
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.display.DisplayController
+import com.android.launcher3.display.LauncherDisplayInfo
+import com.android.launcher3.display.LauncherDisplayInfo.Companion.CHANGE_DENSITY
+import com.android.launcher3.display.LauncherDisplayInfo.Companion.CHANGE_ROTATION
 import com.android.launcher3.testutil.rule.LazyInitRule.Companion.lazyRule
-import com.android.launcher3.util.DisplayController.CHANGE_DENSITY
-import com.android.launcher3.util.DisplayController.CHANGE_ROTATION
 import com.android.launcher3.util.Executors.IMMEDIATE_EXECUTOR
 import com.android.launcher3.util.window.CachedDisplayInfo
 import com.android.launcher3.util.window.WindowManagerProxy
@@ -163,7 +165,7 @@ class DisplayControllerTest {
             }
         whenever(resources.configuration).thenReturn(configuration)
 
-        displayController.onConfigurationChanged(configuration)
+        displayController.notifyConfigChange(DEFAULT_DISPLAY)
 
         verify(displayInfoChangeListener).invoke(eq(CHANGE_ROTATION))
     }
@@ -174,55 +176,55 @@ class DisplayControllerTest {
         val configuration = Configuration(configuration).apply { fontScale = 1.2f }
         whenever(resources.configuration).thenReturn(configuration)
 
-        displayController.onConfigurationChanged(configuration)
+        displayController.notifyConfigChange(DEFAULT_DISPLAY)
 
         verify(displayInfoChangeListener).invoke(eq(CHANGE_DENSITY))
     }
 
     @Test
-    fun isTablet_defaultDisplayTabletSize_returnsTrue() {
+    fun isLargeScreen_defaultDisplayLargeScreenSize_returnsTrue() {
         val bounds =
             WindowBounds(
                 Rect(0, 0, WindowManagerProxy.MIN_TABLET_WIDTH, 800),
                 Rect(),
                 Surface.ROTATION_0,
             )
-        val info = setupInfoForTabletTest(bounds, DEFAULT_DISPLAY, 160, false)
+        val info = setupInfoForLargeScreenTest(bounds, DEFAULT_DISPLAY, 160, false)
 
-        assertThat(info.isTablet(bounds)).isTrue()
+        assertThat(info.isLargeScreen(bounds)).isTrue()
     }
 
     @Test
-    fun isTablet_desktopFormFactorTabletSize_returnsTrue() {
+    fun isLargeScreen_desktopFormFactorLargeScreenSize_returnsTrue() {
         val bounds =
             WindowBounds(
                 Rect(0, 0, WindowManagerProxy.MIN_TABLET_WIDTH, 800),
                 Rect(),
                 Surface.ROTATION_0,
             )
-        val info = setupInfoForTabletTest(bounds, DEFAULT_DISPLAY, 160, true)
+        val info = setupInfoForLargeScreenTest(bounds, DEFAULT_DISPLAY, 160, true)
 
-        assertThat(info.isTablet(bounds)).isTrue()
+        assertThat(info.isLargeScreen(bounds)).isTrue()
     }
 
     @Test
-    fun isTablet_defaultDisplayPhoneSize_returnsFalse() {
+    fun isLargeScreen_defaultDisplayPhoneSize_returnsFalse() {
         val bounds = WindowBounds(Rect(0, 0, 400, 800), Rect(), Surface.ROTATION_0)
-        val info = setupInfoForTabletTest(bounds, DEFAULT_DISPLAY, 160, false)
+        val info = setupInfoForLargeScreenTest(bounds, DEFAULT_DISPLAY, 160, false)
 
-        assertThat(info.isTablet(bounds)).isFalse()
+        assertThat(info.isLargeScreen(bounds)).isFalse()
     }
 
     @Test
-    fun isTablet_desktopFormFactorPhoneSize_returnsTrue() {
+    fun isLargeScreen_desktopFormFactorPhoneSize_returnsTrue() {
         val bounds = WindowBounds(Rect(0, 0, 400, 800), Rect(), Surface.ROTATION_0)
-        val info = setupInfoForTabletTest(bounds, DEFAULT_DISPLAY, 160, true)
+        val info = setupInfoForLargeScreenTest(bounds, DEFAULT_DISPLAY, 160, true)
 
-        assertThat(info.isTablet(bounds)).isTrue()
+        assertThat(info.isLargeScreen(bounds)).isTrue()
     }
 
     @Test
-    fun isTablet_externalDisplayTabletSize_returnsTrue() {
+    fun isLargeScreen_externalDisplayLargeScreenSize_returnsTrue() {
         val externalDisplayId = DEFAULT_DISPLAY + 1
         val bounds =
             WindowBounds(
@@ -230,36 +232,36 @@ class DisplayControllerTest {
                 Rect(),
                 Surface.ROTATION_0,
             )
-        val info = setupInfoForTabletTest(bounds, externalDisplayId, 160, false)
+        val info = setupInfoForLargeScreenTest(bounds, externalDisplayId, 160, false)
 
-        assertThat(info.isTablet(bounds)).isTrue()
+        assertThat(info.isLargeScreen(bounds)).isTrue()
     }
 
     @Test
-    fun isTablet_externalDisplayPhoneSize_returnsTrue() {
+    fun isLargeScreen_externalDisplayPhoneSize_returnsTrue() {
         val externalDisplayId = DEFAULT_DISPLAY + 1
         val bounds = WindowBounds(Rect(0, 0, 400, 800), Rect(), Surface.ROTATION_0)
-        val info = setupInfoForTabletTest(bounds, externalDisplayId, 160, false)
+        val info = setupInfoForLargeScreenTest(bounds, externalDisplayId, 160, false)
 
-        assertThat(info.isTablet(bounds)).isTrue()
+        assertThat(info.isLargeScreen(bounds)).isTrue()
     }
 
     @Test
-    fun isTablet_desktopFormFactor_externalDisplayPhoneSize_returnsTrue() {
+    fun isLargeScreen_desktopFormFactor_externalDisplayPhoneSize_returnsTrue() {
         val externalDisplayId = DEFAULT_DISPLAY + 1
         val bounds = WindowBounds(Rect(0, 0, 400, 800), Rect(), Surface.ROTATION_0)
-        val info = setupInfoForTabletTest(bounds, externalDisplayId, 160, true)
+        val info = setupInfoForLargeScreenTest(bounds, externalDisplayId, 160, true)
 
-        assertThat(info.isTablet(bounds)).isTrue()
+        assertThat(info.isLargeScreen(bounds)).isTrue()
     }
 
     /** Helper function to create a DisplayController.Info object. */
-    private fun setupInfoForTabletTest(
+    private fun setupInfoForLargeScreenTest(
         bounds: WindowBounds,
         displayId: Int,
         densityDpi: Int,
         isDesktopFormFactor: Boolean,
-    ): DisplayController.Info {
+    ): LauncherDisplayInfo {
         val width = bounds.bounds.width()
         val height = bounds.bounds.height()
 
@@ -286,10 +288,10 @@ class DisplayControllerTest {
         whenever(windowManagerProxy.getRealBounds(any(), any())).thenReturn(bounds)
 
         // Create a new Info object with the mocked dependencies
-        return DisplayController.Info(
+        return LauncherDisplayInfo(
             context,
-            isDesktopFormFactor,
             windowManagerProxy,
+            isDesktopFormFactor,
             windowManagerProxy.estimateInternalDisplayBounds(context),
             DisplayMetrics.DENSITY_DEVICE_STABLE,
         )

@@ -17,7 +17,6 @@
 package com.android.launcher3.deviceprofile
 
 import android.content.res.Resources
-import android.graphics.Rect
 import com.android.app.animation.Interpolators.LINEAR
 import com.android.launcher3.R
 import com.android.launcher3.Utilities
@@ -36,7 +35,6 @@ data class BottomSheetProfile(
 
         fun createBottomSheetProfile(
             deviceProperties: DeviceProperties,
-            insets: Rect,
             res: Resources,
             edgeMarginPx: Int,
             workspaceProfile: WorkspaceProfile,
@@ -45,7 +43,7 @@ data class BottomSheetProfile(
             // In large screens, in portrait mode, a bottom sheet can appear too elongated, so, we
             // apply additional padding.
             val applyExtraTopPadding =
-                deviceProperties.isTablet &&
+                deviceProperties.isLargeScreen &&
                     !deviceProperties.isLandscape &&
                     (deviceProperties.aspectRatio > MIN_ASPECT_RATIO_FOR_EXTRA_TOP_PADDING)
             val derivedTopPadding: Int = deviceProperties.heightPx / 6
@@ -72,10 +70,10 @@ data class BottomSheetProfile(
                     }
                 }
             val bottomSheetTopPadding =
-                insets.top + // statusbar height
+                deviceProperties.insets.top + // statusbar height
                     (if (applyExtraTopPadding) derivedTopPadding else 0) +
                     // phones need edgeMarginPx additional padding
-                    (if (deviceProperties.isTablet) 0 else edgeMarginPx).toInt()
+                    (if (deviceProperties.isLargeScreen) 0 else edgeMarginPx).toInt()
             return BottomSheetProfile(
                 bottomSheetTopPadding = bottomSheetTopPadding,
                 bottomSheetOpenDuration = res.getInteger(R.integer.config_bottomSheetOpenDuration),

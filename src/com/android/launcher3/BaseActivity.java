@@ -16,7 +16,7 @@
 
 package com.android.launcher3;
 
-import static com.android.launcher3.util.DisplayController.CHANGE_ROTATION;
+import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_ROTATION;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.FlagDebugUtils.appendFlag;
 import static com.android.launcher3.util.FlagDebugUtils.formatFlagChange;
@@ -46,14 +46,14 @@ import androidx.savedstate.SavedStateRegistryController;
 import com.android.launcher3.DeviceProfile.OnDeviceProfileChangeListener;
 import com.android.launcher3.dagger.ActivityContextComponent;
 import com.android.launcher3.dagger.LauncherComponentProvider;
+import com.android.launcher3.display.DisplayController;
+import com.android.launcher3.display.LauncherDisplayInfo;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.testing.TestInformationHandler;
 import com.android.launcher3.testing.TestLogging;
 import com.android.launcher3.testing.shared.TestProtocol;
 import com.android.launcher3.util.ActivityOptionsWrapper;
-import com.android.launcher3.util.DisplayController;
-import com.android.launcher3.util.DisplayController.Info;
 import com.android.launcher3.util.LifecycleHelper;
 import com.android.launcher3.util.ListenableDiffAwareRef;
 import com.android.launcher3.util.RunnableList;
@@ -108,7 +108,7 @@ public abstract class BaseActivity extends Activity implements ActivityContext {
     private final SavedStateRegistryController mSavedStateRegistryController =
             SavedStateRegistryController.create(this);
     private final LifecycleRegistry mLifecycleRegistry = new LifecycleRegistry(this);
-    private final WeakCleanupSet mCleanupSet = new WeakCleanupSet(this);
+    private final WeakCleanupSet mCleanupSet = new WeakCleanupSet(this, getUiExecutor());
 
     protected volatile DeviceProfile mDeviceProfile;
     protected SystemUiController mSystemUiController;
@@ -271,7 +271,7 @@ public abstract class BaseActivity extends Activity implements ActivityContext {
         registerBackDispatcher();
 
         // TODO: b/362720616 - Investigate the impact of adding listener using correct displayId.
-        ListenableDiffAwareRef<Info, Integer> listenable =
+        ListenableDiffAwareRef<LauncherDisplayInfo, Integer> listenable =
                 DisplayController.INSTANCE.get(this).getListenable();
         if (listenable != null) {
             SafeCloseable safeCloseable = listenable.forEachChange(
@@ -531,7 +531,7 @@ public abstract class BaseActivity extends Activity implements ActivityContext {
         return wrapper;
     }
 
-    protected void onDisplayInfoChanged(Info info, int flags) {
+    protected void onDisplayInfoChanged(LauncherDisplayInfo info, int flags) {
         if ((flags & CHANGE_ROTATION) != 0 && mDeviceProfile.isVerticalBarLayout()) {
             reapplyUi();
         }

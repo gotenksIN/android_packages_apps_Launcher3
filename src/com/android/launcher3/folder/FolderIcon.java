@@ -34,7 +34,6 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
-import android.os.Looper;
 import android.util.AttributeSet;
 import android.util.Property;
 import android.view.LayoutInflater;
@@ -86,6 +85,10 @@ import com.android.launcher3.popup.IconViewController;
 import com.android.launcher3.popup.Poppable;
 import com.android.launcher3.popup.PoppableType;
 import com.android.launcher3.popup.PopupController;
+import com.android.launcher3.touch.CustomActionsListener;
+import com.android.launcher3.touch.CustomEventsTouchHandler;
+import com.android.launcher3.touch.CustomTouchDelegate;
+import com.android.launcher3.touch.WorkspaceItemCustomActionsListener;
 import com.android.launcher3.util.MultiPropertyFactory;
 import com.android.launcher3.util.MultiTranslateDelegate;
 import com.android.launcher3.util.Themes;
@@ -102,7 +105,7 @@ import java.util.function.Predicate;
  * An icon that can appear on in the workspace representing an {@link Folder}.
  */
 public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion,
-        DraggableView, Reorderable, Poppable, IconViewController {
+        DraggableView, Reorderable, Poppable, IconViewController, CustomTouchDelegate {
 
     private final MultiTranslateDelegate mTranslateDelegate = new MultiTranslateDelegate(this);
     @Thunk ActivityContext mActivity;
@@ -110,6 +113,9 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     public FolderInfo mInfo;
 
     private final CheckLongPressHelper mLongPressHelper;
+    // TODO(b/465247812): Remove this and overridden functions in favor of Kotlin interface
+    //  delegation, upon file conversion to Kotlin.
+    private final CustomEventsTouchHandler mCustomEventsTouchHandler;
 
     static final int DROP_IN_ANIMATION_DURATION = 400;
 
@@ -132,7 +138,7 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     boolean mAnimating = false;
 
-    private final Alarm mOpenAlarm = new Alarm(Looper.getMainLooper());
+    private final Alarm mOpenAlarm = new Alarm(getContext().getMainLooper());
 
     private boolean mForceHideDot;
     @ViewDebug.ExportedProperty(category = "launcher", deepExport = true)
@@ -171,6 +177,14 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         super(context, attrs);
 
         mLongPressHelper = new CheckLongPressHelper(this);
+        mCustomEventsTouchHandler = new CustomEventsTouchHandler(this, (event) -> {
+            // Call the superclass onTouchEvent first, because sometimes it changes the state to
+            // isPressed() on an ACTION_UP
+            super.onTouchEvent(event);
+            mLongPressHelper.onTouchEvent(event);
+            // Keep receiving the rest of the events
+            return true;
+        }, this::shouldIgnoreTouchDown);
         mPreviewLayoutRule = new ClippedFolderIconLayoutRule();
         mPreviewItemManager = new PreviewItemManager(this);
         mDotParams = new DotRenderer.DrawParams();
@@ -221,9 +235,12 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
         icon.setTag(folderInfo);
         icon.setOnClickListener(activity.getItemOnClickListener());
+        icon.setCustomActionsListener(WorkspaceItemCustomActionsListener.INSTANCE);
         icon.mInfo = folderInfo;
         icon.mActivity = activity;
-        icon.mDotRenderer = grid.mDotRendererWorkSpace;
+        icon.mDotRenderer = new DotRenderer(
+                grid.getWorkspaceIconProfile().getIconSizePx()
+        );
 
         icon.updateDotInfo();
         icon.setContentDescription(icon.getAccessiblityTitle(folderInfo.title));
@@ -710,26 +727,16 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (event.getAction() == MotionEvent.ACTION_DOWN
-                && shouldIgnoreTouchDown(event.getX(), event.getY())) {
-            return false;
-        }
-
-        // Call the superclass onTouchEvent first, because sometimes it changes the state to
-        // isPressed() on an ACTION_UP
-        super.onTouchEvent(event);
-        mLongPressHelper.onTouchEvent(event);
-        // Keep receiving the rest of the events
-        return true;
+        return onDelegateTouchEvent(event);
     }
 
     /**
      * Returns true if the touch down at the provided position be ignored
      */
-    protected boolean shouldIgnoreTouchDown(float x, float y) {
+    protected boolean shouldIgnoreTouchDown(MotionEvent event) {
         mTouchArea.set(getPaddingLeft(), getPaddingTop(), getWidth() - getPaddingRight(),
                 getHeight() - getPaddingBottom());
-        return !mTouchArea.contains((int) x, (int) y);
+        return !mTouchArea.contains((int) event.getX(), (int) event.getY());
     }
 
     @Override
@@ -822,6 +829,22 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     @Override
     public MultiPropertyFactory<AnimatedFloat>.MultiProperty getFloatingViewTextAlpha() {
         return mFolderName.getFloatingViewTextAlpha();
+    }
+
+    @Override
+    public boolean onDelegateTouchEvent(@NonNull MotionEvent event) {
+        return mCustomEventsTouchHandler.onDelegateTouchEvent(event);
+    }
+
+    @Nullable
+    @Override
+    public CustomActionsListener getCustomActionsListener() {
+        return mCustomEventsTouchHandler.getCustomActionsListener();
+    }
+
+    @Override
+    public void setCustomActionsListener(@Nullable CustomActionsListener listener) {
+        mCustomEventsTouchHandler.setCustomActionsListener(listener);
     }
 
     /**

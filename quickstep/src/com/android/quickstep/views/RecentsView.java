@@ -57,7 +57,6 @@ import static com.android.launcher3.util.MultiPropertyFactory.MULTI_PROPERTY_VAL
 import static com.android.launcher3.util.SystemUiController.UI_STATE_FULLSCREEN_TASK;
 import static com.android.quickstep.BaseContainerInterface.getTaskDimension;
 import static com.android.quickstep.TaskUtils.checkCurrentOrManagedUserId;
-import static com.android.quickstep.util.DesksUtils.areMultiDesksFlagsEnabled;
 import static com.android.quickstep.util.ExternalDisplaysKt.isExternalDisplay;
 import static com.android.quickstep.util.LogUtils.splitFailureMessage;
 import static com.android.quickstep.views.OverviewActionsView.HIDDEN_ACTIONS_IN_MENU;
@@ -68,7 +67,6 @@ import static com.android.quickstep.views.OverviewActionsView.HIDDEN_NO_TASKS;
 import static com.android.quickstep.views.OverviewActionsView.HIDDEN_SPLIT_SELECT_ACTIVE;
 import static com.android.quickstep.views.RecentsViewUtils.DESK_EXPLODE_PROGRESS;
 import static com.android.quickstep.views.TaskView.SPLIT_ALPHA;
-import static com.android.quickstep.window.RecentsWindowFlags.enableOverviewOnConnectedDisplays;
 import static com.android.wm.shell.Flags.enableCreateAnyBubble;
 
 import static java.util.Objects.requireNonNull;
@@ -125,7 +123,6 @@ import android.widget.ListView;
 import android.widget.OverScroller;
 import android.widget.Toast;
 import android.window.DesktopExperienceFlags;
-import android.window.DesktopModeFlags;
 import android.window.PictureInPictureSurfaceTransaction;
 import android.window.TransitionInfo;
 
@@ -645,7 +642,7 @@ public abstract class RecentsView<
                                 if (taskRemoved) {
                                     dismissTask(taskId, /* removeTask= */false);
                                 }
-                            }, RecentsFilterState.getFilter(mContainer.getDisplayId()));
+                            }, RecentsFilterState.getDisplayIdFilter(mContainer.getDisplayId()));
                         }
                     }));
         }
@@ -656,7 +653,8 @@ public abstract class RecentsView<
             if (!mHandleTaskStackChanges) {
                 return;
             }
-            if (newDisplayId != mContainer.getDisplayId()) {
+            final int mappedDisplayId = mRecentsModel.getRecentsDisplayId(newDisplayId);
+            if (mappedDisplayId != mContainer.getDisplayId()) {
                 dismissTask(taskId, /* removeTask= */ false);
             }
         }
@@ -875,7 +873,7 @@ public abstract class RecentsView<
                 .inflate(R.layout.overview_clear_all_button, this, false);
         mClearAllButton.setOnClickListener(this::dismissAllTasks);
 
-        mIsMultipleDesktopFrontendEnabled = mDesktopState.isMultipleDesktopFrontendEnabledOnDisplay(
+        mIsMultipleDesktopFrontendEnabled = mDesktopState.isDesktopModeSupportedOnDisplay(
                 mContainer.getDisplay());
         if (mIsMultipleDesktopFrontendEnabled) {
             mAddDesktopButton = (AddDesktopButton) LayoutInflater.from(context).inflate(
@@ -1135,6 +1133,7 @@ public abstract class RecentsView<
         mDesktopTaskViewPool.cancelOngoingInitializations();
         mOrientationState.setRotationChangeListener(null);
         mHelper.onDestroy();
+        mUtils.destroy();
     }
 
     @Override
@@ -1536,7 +1535,7 @@ public abstract class RecentsView<
     @Override
     protected void onPageBeginTransition() {
         super.onPageBeginTransition();
-        if (!mContainer.getDeviceProfile().getDeviceProperties().isTablet()) {
+        if (!mContainer.getDeviceProfile().getDeviceProperties().isLargeScreen()) {
             mActionsView.updateDisabledFlags(OverviewActionsView.DISABLED_SCROLLING, true);
         }
         if (mOverviewStateEnabled) { // only when in overview
@@ -1548,7 +1547,7 @@ public abstract class RecentsView<
     protected void onPageEndTransition() {
         super.onPageEndTransition();
         ActiveGestureProtoLogProxy.logOnPageEndTransition(getNextPage());
-        if (!mContainer.getDeviceProfile().getDeviceProperties().isTablet()) {
+        if (!mContainer.getDeviceProfile().getDeviceProperties().isLargeScreen()) {
             mActionsView.updateDisabledFlags(OverviewActionsView.DISABLED_SCROLLING, false);
         }
         if (getNextPage() > 0) {
@@ -1560,7 +1559,7 @@ public abstract class RecentsView<
     @Override
     protected boolean isSignificantMove(float absoluteDelta, int pageOrientedSize) {
         DeviceProfile deviceProfile = mContainer.getDeviceProfile();
-        if (!deviceProfile.getDeviceProperties().isTablet()) {
+        if (!deviceProfile.getDeviceProperties().isLargeScreen()) {
             return super.isSignificantMove(absoluteDelta, pageOrientedSize);
         }
 
@@ -1820,8 +1819,7 @@ public abstract class RecentsView<
         // Track the current DesktopTaskView through [deskId] as a desk can be empty without any
         // tasks.
         int currentTaskViewDeskId = INACTIVE_DESK_ID;
-        if (areMultiDesksFlagsEnabled()
-                && currentTaskView instanceof DesktopTaskView desktopTaskView) {
+        if (currentTaskView instanceof DesktopTaskView desktopTaskView) {
             currentTaskViewDeskId = desktopTaskView.getDeskId();
         } else if (currentTaskView != null) {
             currentTaskIds = currentTaskView.getTaskIds();
@@ -1838,8 +1836,7 @@ public abstract class RecentsView<
 
         // Track the running TaskView through [deskId] as a desk can be empty without any tasks.
         int runningTaskViewDeskId = INACTIVE_DESK_ID;
-        if (areMultiDesksFlagsEnabled()
-                && runningTaskView instanceof DesktopTaskView desktopTaskView) {
+        if (runningTaskView instanceof DesktopTaskView desktopTaskView) {
             runningTaskViewDeskId = desktopTaskView.getDeskId();
         } else if (runningTaskView != null) {
             runningTaskIds = runningTaskView.getTaskIds();
@@ -1869,9 +1866,6 @@ public abstract class RecentsView<
 
         // Move Desktop Tasks to the end of the list
         taskGroups = mUtils.sortDesktopTasksToFront(taskGroups);
-        if (!enableOverviewOnConnectedDisplays()) {
-            taskGroups = mUtils.sortExternalDisplayTasksToFront(taskGroups);
-        }
 
         if (mAddDesktopButton != null) {
             // Add `mAddDesktopButton` as the first child.
@@ -2120,7 +2114,8 @@ public abstract class RecentsView<
         DeviceProfile dp = mContainer.getDeviceProfile();
         setOverviewGridEnabled(
                 getStateManager().getState().displayOverviewTasksAsGrid(dp));
-        mActionsView.updateHiddenFlags(HIDDEN_ACTIONS_IN_MENU, dp.getDeviceProperties().isTablet());
+        mActionsView.updateHiddenFlags(HIDDEN_ACTIONS_IN_MENU,
+                dp.getDeviceProperties().isLargeScreen());
         setPageSpacing(dp.getOverviewProfile().getPageSpacing());
 
         // Propagate DeviceProfile change event.
@@ -2269,7 +2264,7 @@ public abstract class RecentsView<
      */
     private float getTaskAlignmentTranslationY() {
         DeviceProfile deviceProfile = mContainer.getDeviceProfile();
-        if (deviceProfile.getDeviceProperties().isTablet()) {
+        if (deviceProfile.getDeviceProperties().isLargeScreen()) {
             return deviceProfile.getOverviewProfile().getRowSpacing();
         }
         return 0f;
@@ -2372,7 +2367,7 @@ public abstract class RecentsView<
 
     @Override
     protected int getDestinationPage(int scaledScroll) {
-        if (!mContainer.getDeviceProfile().getDeviceProperties().isTablet()) {
+        if (!mContainer.getDeviceProfile().getDeviceProperties().isLargeScreen()) {
             return super.getDestinationPage(scaledScroll);
         }
         if (!isPageScrollsInitialized()) {
@@ -2594,7 +2589,7 @@ public abstract class RecentsView<
         if (!mRecentsModel.isTaskListValid(mAppliedTaskListChangeId)) {
             mRecentsModel.getTasks(
                     this::applyLoadPlan,
-                    RecentsFilterState.getFilter(mContainer.getDisplayId()));
+                    RecentsFilterState.getDisplayIdFilter(mContainer.getDisplayId()));
             Log.d(TAG, "reloadIfNeeded - getTasks: " + mAppliedTaskListChangeId);
             mRecentsViewModel.refreshAllTaskData();
         } else {
@@ -3255,8 +3250,8 @@ public abstract class RecentsView<
         getPagedOrientationHandler().getInitialSplitPlaceholderBounds(mSplitPlaceholderSize,
                 mSplitPlaceholderInset, mContainer.getDeviceProfile(),
                 mSplitSelectStateController.getActiveSplitStagePosition(), mTempRect);
-        SplitAnimationTimings timings =
-                AnimUtils.getDeviceOverviewToSplitTimings(mContainer.getDeviceProfile().getDeviceProperties().isTablet());
+        SplitAnimationTimings timings = AnimUtils.getDeviceOverviewToSplitTimings(
+                mContainer.getDeviceProfile().getDeviceProperties().isLargeScreen());
 
         RectF startingTaskRect = new RectF();
         safeRemoveDragLayerView(mSplitSelectStateController.getFirstFloatingTaskView());
@@ -3377,24 +3372,16 @@ public abstract class RecentsView<
     }
 
     protected void removeGroupTaskInternal(@NonNull GroupTask groupTask) {
+        Log.d(TAG, "removeGroupTaskInternal: groupTask=" + groupTask);
         UI_HELPER_EXECUTOR
                 .getHandler()
                 .post(
                         () -> {
                             if (groupTask instanceof DesktopTask desktopTask) {
-                                if (areMultiDesksFlagsEnabled()) {
-                                    SystemUiProxy.INSTANCE
-                                            .get(getContext())
-                                            .removeDesk(desktopTask.getDeskId(),
-                                                    DesktopModeTransitionSource.RECENTS);
-                                } else if (DesktopModeFlags
-                                        .ENABLE_DESKTOP_WINDOWING_BACK_NAVIGATION.isTrue()) {
-                                    SystemUiProxy.INSTANCE
-                                            .get(getContext())
-                                            .removeDefaultDeskInDisplay(
-                                                    mContainer.getDisplay().getDisplayId(),
-                                                    DesktopModeTransitionSource.RECENTS);
-                                }
+                                SystemUiProxy.INSTANCE
+                                        .get(getContext())
+                                        .removeDesk(desktopTask.getDeskId(),
+                                                DesktopModeTransitionSource.RECENTS);
                             } else {
                                 for (Task task : groupTask.getTasks()) {
                                     ActivityManagerWrapper.getInstance().removeTask(task.key.id);
@@ -3867,7 +3854,7 @@ public abstract class RecentsView<
                 ? getHorizontalOffsetSize(midpoint - 1, midpoint, offset)
                 : 0;
         int rightOffsetReferenceIndex;
-        if (areMultiDesksFlagsEnabled() && midpoint == INVALID_PAGE) {
+        if (midpoint == INVALID_PAGE) {
             rightOffsetReferenceIndex = getFirstViewIndex();
         } else {
             rightOffsetReferenceIndex = midpoint + 1;
@@ -4150,7 +4137,6 @@ public abstract class RecentsView<
         initiateSplitSelect(taskContainer, defaultSplitPosition, LAUNCHER_OVERVIEW_ACTIONS_SPLIT);
     }
 
-    /** TODO(b/266477929): Consolidate this call w/ the one below */
     public void initiateSplitSelect(TaskContainer taskContainer,
             @StagePosition int stagePosition,
             StatsLogManager.EventEnum splitEvent) {
@@ -4197,7 +4183,7 @@ public abstract class RecentsView<
             return;
         }
         SplitAnimationTimings timings = AnimUtils.getDeviceOverviewToSplitTimings(
-                mContainer.getDeviceProfile().getDeviceProperties().isTablet());
+                mContainer.getDeviceProfile().getDeviceProperties().isLargeScreen());
         getTaskViews().forEachWithIndexInParent((index, taskView) -> {
             if (taskView instanceof DesktopTaskView) {
                 // Setting pivot to scale down from screen centre.
@@ -4288,7 +4274,7 @@ public abstract class RecentsView<
         builder.addOnFrameListener((animator) -> {
             SplitAnimationTimings splitTimings =
                     AnimUtils.getDeviceOverviewToSplitTimings(
-                            mContainer.getDeviceProfile().getDeviceProperties().isTablet());
+                            mContainer.getDeviceProfile().getDeviceProperties().isLargeScreen());
             if (animator.getAnimatedFraction() > splitTimings.getGridSlideStartOffset()
                     && !hasRunDismiss.get()) {
                 RecentsDismissUtils.SpringSet dismissSpringSet =
@@ -4360,8 +4346,8 @@ public abstract class RecentsView<
         Rect firstTaskStartingBounds = new Rect();
         Rect firstTaskEndingBounds = mTempRect;
 
-        boolean isTablet = mContainer.getDeviceProfile().getDeviceProperties().isTablet();
-        SplitAnimationTimings timings = AnimUtils.getDeviceSplitToConfirmTimings(isTablet);
+        boolean isLargeScreen = mContainer.getDeviceProfile().getDeviceProperties().isLargeScreen();
+        SplitAnimationTimings timings = AnimUtils.getDeviceSplitToConfirmTimings(isLargeScreen);
         PendingAnimation pendingAnimation = new PendingAnimation(timings.getDuration());
 
         int halfDividerSize = getResources()
@@ -4448,7 +4434,7 @@ public abstract class RecentsView<
         if (mSplitHiddenTaskViewIndex == -1) {
             return;
         }
-        if (!mContainer.getDeviceProfile().getDeviceProperties().isTablet()) {
+        if (!mContainer.getDeviceProfile().getDeviceProperties().isLargeScreen()) {
             int pageToSnapTo = mCurrentPage;
             if (mSplitHiddenTaskViewIndex <= pageToSnapTo) {
                 pageToSnapTo += 1;
@@ -4498,7 +4484,7 @@ public abstract class RecentsView<
         int direction = orientationHandler.getSplitTranslationDirectionFactor(
                 splitPosition, deviceProfile);
 
-        if (deviceProfile.getDeviceProperties().isTablet() && deviceProfile.isLeftRightSplit) {
+        if (deviceProfile.getDeviceProperties().isLargeScreen() && deviceProfile.isLeftRightSplit) {
             // Only shift TaskViews if there is not enough space on the side of
             // mLastComputedTaskSize to minimize motion.
             int sideSpace = mIsRtl
@@ -4898,13 +4884,8 @@ public abstract class RecentsView<
             return;
         }
 
-        boolean forDesktop;
-        if (mDesktopState.enableMultipleDesktops()) {
-            forDesktop = mActiveGestureGroupedTaskInfo != null
-                    && mActiveGestureGroupedTaskInfo.isBaseType(GroupedTaskInfo.TYPE_DESK);
-        } else {
-            forDesktop = recentsAnimationTargets.hasDesktopTasks(mContext);
-        }
+        boolean forDesktop = mActiveGestureGroupedTaskInfo != null
+                && mActiveGestureGroupedTaskInfo.isBaseType(GroupedTaskInfo.TYPE_DESK);
         RemoteTargetGluer gluer = new RemoteTargetGluer(getContext(), getContainerInterface(),
                 recentsAnimationTargets, forDesktop);
         if (forDesktop) {

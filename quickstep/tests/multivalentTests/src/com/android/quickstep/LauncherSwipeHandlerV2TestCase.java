@@ -39,7 +39,7 @@ import org.mockito.Mock;
 
 @SmallTest
 @RunWith(LauncherMultivalentJUnit.class)
-@Ignore
+@Ignore("b/467431341")
 public class LauncherSwipeHandlerV2TestCase extends AbsSwipeUpHandlerTestCase<
         LauncherState,
         QuickstepLauncher,
@@ -101,5 +101,17 @@ public class LauncherSwipeHandlerV2TestCase extends AbsSwipeUpHandlerTestCase<
     @Override
     protected LauncherState getBaseState() {
         return LauncherState.NORMAL;
+    }
+
+    @NonNull
+    @Override
+    protected LauncherState[] getAllStates() {
+        return LauncherState.values();
+    }
+
+    @NonNull
+    @Override
+    protected LauncherState getOverviewState() {
+        return LauncherState.OVERVIEW;
     }
 }

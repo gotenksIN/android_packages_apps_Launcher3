@@ -32,9 +32,7 @@ import com.android.launcher3.pm.InstallSessionHelper
 import com.android.launcher3.provider.RestoreDbTask
 import com.android.launcher3.provider.RestoreDbTask.Companion.FIRST_LOAD_AFTER_RESTORE_KEY
 import com.android.launcher3.settings.SettingsActivity
-import com.android.launcher3.states.RotationHelper
 import com.android.launcher3.util.DaggerSingletonObject
-import com.android.launcher3.util.DisplayController
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
@@ -54,7 +52,7 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
             .getSharedPreferences(BOOT_AWARE_PREFS_KEY, MODE_PRIVATE)
     }
 
-    open protected fun getSharedPrefs(item: Item): SharedPreferences =
+    protected open fun getSharedPrefs(item: Item): SharedPreferences =
         item.run {
             if (encryptionType == EncryptionType.DEVICE_PROTECTED) deviceProtectedSharedPrefs
             else encryptedContext.getSharedPreferences(sharedPrefFile, MODE_PRIVATE)
@@ -303,11 +301,6 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
                 encryptionType = EncryptionType.ENCRYPTED,
                 type = String::class.java,
             )
-        @JvmField
-        val ALLOW_ROTATION =
-            backedUpItem(RotationHelper.ALLOW_ROTATION_PREFERENCE_KEY, Boolean::class.java) {
-                RotationHelper.getAllowRotationDefaultValue(DisplayController.INSTANCE.get(it).info)
-            }
 
         @JvmField val ENABLE_COMPOSITION_TRACING = backedUpItem(COMPOSITION_TRACING_PREF_KEY, false)
 

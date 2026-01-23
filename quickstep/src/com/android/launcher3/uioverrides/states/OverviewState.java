@@ -31,9 +31,9 @@ import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.LauncherUiState;
 import com.android.launcher3.R;
+import com.android.launcher3.display.DisplayController;
 import com.android.launcher3.statehandlers.DepthController;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
-import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.ScrimColors;
@@ -58,7 +58,7 @@ public class OverviewState extends LauncherState {
             | FLAG_WORKSPACE_INACCESSIBLE
             | FLAG_CLOSE_POPUPS;
 
-    public OverviewState(int id) {
+    protected OverviewState(int id) {
         this(id, STATE_FLAGS);
     }
 
@@ -180,7 +180,7 @@ public class OverviewState extends LauncherState {
 
     @Override
     public boolean displayOverviewTasksAsGrid(DeviceProfile deviceProfile) {
-        return deviceProfile.getDeviceProperties().isTablet();
+        return deviceProfile.getDeviceProperties().isLargeScreen();
     }
 
     @Override
@@ -267,5 +267,9 @@ public class OverviewState extends LauncherState {
      */
     public static OverviewState newSplitSelectState(int id) {
         return new SplitScreenSelectState(id);
+    }
+
+    public static OverviewState newOverviewState(int id) {
+        return new OverviewState(id, STATE_FLAGS | FLAG_IS_TASK_VIEW_INTERACTIVE);
     }
 }

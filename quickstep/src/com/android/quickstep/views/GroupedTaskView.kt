@@ -24,8 +24,6 @@ import android.view.View
 import android.view.ViewStub
 import com.android.internal.jank.Cuj
 import com.android.launcher3.Flags.enableRefactorDigitalWellbeingToast
-import com.android.launcher3.Flags.enableRefactorTaskContentView
-import com.android.launcher3.Flags.showCloseButtonOnTaskviewHover
 import com.android.launcher3.R
 import com.android.launcher3.Utilities
 import com.android.launcher3.util.RunnableList
@@ -102,14 +100,7 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
     override fun inflateViewStubs() {
         super.inflateViewStubs()
         findViewById<ViewStub>(R.id.bottomright_task_content_view)
-            ?.apply {
-                inflatedId =
-                    if (enableRefactorTaskContentView()) R.id.bottomright_task_content_view
-                    else R.id.bottomright_snapshot
-                layoutResource =
-                    if (enableRefactorTaskContentView()) R.layout.task_content_view
-                    else R.layout.task_thumbnail
-            }
+            ?.apply { layoutResource = R.layout.task_content_view }
             ?.inflate()
         if (!enableRefactorDigitalWellbeingToast()) {
             findViewById<ViewStub>(R.id.bottomRight_digital_wellbeing_toast)
@@ -143,8 +134,7 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
                 createTaskContainer(
                     splitTask.bottomRightTask,
                     R.id.bottomright_task_content_view,
-                    if (enableRefactorTaskContentView()) R.id.snapshot
-                    else R.id.bottomright_snapshot,
+                    R.id.snapshot,
                     R.id.bottomRight_icon,
                     R.id.bottomRight_digital_wellbeing_toast,
                     STAGE_POSITION_BOTTOM_OR_RIGHT,
@@ -187,7 +177,7 @@ class GroupedTaskView @JvmOverloads constructor(context: Context, attrs: Attribu
     }
 
     private fun calculateSpaceForTaskDismissButton() =
-        if (showCloseButtonOnTaskviewHover() && groupedTaskViewModel.showTaskDismissButton()) {
+        if (groupedTaskViewModel.showTaskDismissButton()) {
             val taskDismissBtnWidth =
                 resources.getDimensionPixelSize(R.dimen.task_dismiss_button_width)
             val taskDismissBtnMargin =

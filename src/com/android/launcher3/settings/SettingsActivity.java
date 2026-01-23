@@ -23,7 +23,6 @@ import static androidx.preference.PreferenceFragmentCompat.ARG_PREFERENCE_ROOT;
 import static com.android.launcher3.BuildConfig.IS_STUDIO_BUILD;
 import static com.android.launcher3.InvariantDeviceProfile.TYPE_MULTI_DISPLAY;
 import static com.android.launcher3.InvariantDeviceProfile.TYPE_TABLET;
-import static com.android.launcher3.states.RotationHelper.ALLOW_ROTATION_PREFERENCE_KEY;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 
 import android.app.Activity;
@@ -53,17 +52,16 @@ import androidx.preference.PreferenceScreen;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.launcher3.BuildConfig;
-import com.android.launcher3.Flags;
 import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.LauncherFiles;
 import com.android.launcher3.R;
-import com.android.launcher3.states.RotationHelper;
-import com.android.launcher3.util.DisplayController;
+import com.android.launcher3.display.DisplayController;
+import com.android.launcher3.display.LauncherDisplayInfo;
 import com.android.launcher3.util.SafeCloseable;
 import com.android.launcher3.util.SettingsCache;
 
 /**
- * Settings activity for Launcher. Currently implements the following setting: Allow rotation
+ * Settings activity for Launcher.
  */
 public class SettingsActivity extends FragmentActivity
         implements OnPreferenceStartFragmentCallback, OnPreferenceStartScreenCallback {
@@ -303,33 +301,20 @@ public class SettingsActivity extends FragmentActivity
          * will remove that preference from the list.
          */
         protected boolean initPreference(Preference preference) {
-            DisplayController.Info info = DisplayController.INSTANCE.get(getContext()).getInfo();
+            LauncherDisplayInfo info = DisplayController.INSTANCE.get(getContext()).getInfo();
             switch (preference.getKey()) {
                 case NOTIFICATION_DOTS_PREFERENCE_KEY:
                     return BuildConfig.NOTIFICATION_DOTS_ENABLED;
-                case ALLOW_ROTATION_PREFERENCE_KEY:
-                    if (Flags.oneGridSpecs()) {
-                        return false;
-                    }
-                    if (info.isTablet(info.realBounds)) {
-                        // Launcher supports rotation by default. No need to show this setting.
-                        return false;
-                    }
-                    // Initialize the UI once
-                    preference.setDefaultValue(RotationHelper.getAllowRotationDefaultValue(info));
-                    return true;
                 case DEVELOPER_OPTIONS_KEY:
                     if (IS_STUDIO_BUILD) {
                         preference.setOrder(0);
                     }
                     return mDeveloperOptionsEnabled;
                 case FIXED_LANDSCAPE_MODE:
-                    if (!Flags.oneGridSpecs()
-                            // adding this condition until fixing b/378972567
-                            || InvariantDeviceProfile.INSTANCE.get(getContext()).deviceType
-                            == TYPE_MULTI_DISPLAY
-                            || InvariantDeviceProfile.INSTANCE.get(getContext()).deviceType
-                            == TYPE_TABLET) {
+                    if ((InvariantDeviceProfile.INSTANCE.get(getContext()).deviceType
+                                    == TYPE_MULTI_DISPLAY)
+                            || (InvariantDeviceProfile.INSTANCE.get(getContext()).deviceType
+                                    == TYPE_TABLET)) {
                         return false;
                     }
                     // When the setting changes rotate the screen accordingly to showcase the result
@@ -344,7 +329,7 @@ public class SettingsActivity extends FragmentActivity
                                 return true;
                             }
                     );
-                    return !info.isTablet(info.realBounds);
+                    return !info.isLargeScreen(info.realBounds);
                 case WORKSPACE_ITEMS_LABEL_HIDDEN:
                     return com.android.systemui.shared.Flags.workspaceItemsLabelHidden();
             }

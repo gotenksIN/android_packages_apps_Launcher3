@@ -182,7 +182,7 @@ public final class TestProtocol {
 
     public static final String PERMANENT_DIAG_TAG = "TaplTarget";
 
-    public static final String REQUEST_FLAG_ENABLE_MULTIPLE_DESKTOPS = "enable-multiple-desks";
+    public static final String REQUEST_FLAG_IS_DESKTOP_MODE_SUPPORTED = "is-desktop-mode-supported";
 
     public static final String REQUEST_GET_ACTIVE_DESK_ID = "get-active-desk-id";
 
@@ -215,6 +215,8 @@ public final class TestProtocol {
 
     public static final String REQUEST_ENABLE_REGISTER_EVENT_NOT_FROM_TEST =
             "enable_register_event_not_from_test";
+
+    public static final String REQUEST_INFO_DISPLAY_ID = "display_id";
 
     /** Logs {@link Log#d(String, String)} if {@link #sDebugTracing} is true. */
     public static void testLogD(String tag, String message) {

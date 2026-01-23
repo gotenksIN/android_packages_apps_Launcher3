@@ -56,6 +56,7 @@ import static com.android.launcher3.LauncherState.OVERVIEW;
 import static com.android.launcher3.Utilities.mapBoundToRange;
 import static com.android.launcher3.config.FeatureFlags.SEPARATE_RECENTS_ACTIVITY;
 import static com.android.launcher3.testing.shared.TestProtocol.WALLPAPER_OPEN_ANIMATION_FINISHED_MESSAGE;
+import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.MultiPropertyFactory.MULTI_PROPERTY_VALUE;
 import static com.android.launcher3.util.window.RefreshRateTracker.getSingleFrameMs;
 import static com.android.launcher3.views.FloatingIconView.SHAPE_PROGRESS_DURATION;
@@ -263,6 +264,15 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     private final RemoteAnimationCoordinateTransfer mCoordinateTransfer;
     private final LatencyTracker mLatencyTracker;
 
+    // Preemptive animation run whenever Launcher reappears and its mode is NORMAL (unless coming
+    // from Keyguard). This animation is only triggered if another reveal animation is not already
+    // running, and is cancelled if another animation starts as part of transition handling. The
+    // reason for this backup is that sometimes the transition is animated by a different process
+    // (e.g. System UI), but we still want the contents of Launcher to animate instead of just
+    // popping in statically.
+    private ScalingWorkspaceRevealAnim mFallbackRevealAnimation;
+    private boolean mIsLauncherAnimating = false;
+
     private LauncherBackAnimationController mBackAnimationController;
     private final AnimatorListenerAdapter mForceInvisibleListener = new AnimatorListenerAdapter() {
         @Override
@@ -300,6 +310,32 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
         if (ENABLE_SHELL_STARTING_SURFACE) {
             mSystemUiProxy.setStartingWindowListener(mStartingWindowListener);
+        }
+
+        if (Flags.fallbackRevealAnimation()) {
+            // Make sure that we know whenever Launcher becomes visible AND is in its NORMAL state,
+            // so we can run the reveal animation.
+            mSystemUiProxy.getHomeVisibilityState().addListener(
+                    (isVisible, keyguardGoingAway) -> {
+                        if (isVisible && mLauncher.isInState(NORMAL) && !mIsLauncherAnimating
+                                && !keyguardGoingAway) {
+                            mIsLauncherAnimating = true;
+                            mFallbackRevealAnimation =
+                                    new ScalingWorkspaceRevealAnim(
+                                            mLauncher, null /* siblingAnimation */,
+                                            null /* windowTargetRect */, true /* playAlphaReveal */,
+                                            true /* playBlur */);
+                            mFallbackRevealAnimation.getAnimators().addListener(
+                                    new AnimatorListenerAdapter() {
+                                        @Override
+                                        public void onAnimationEnd(Animator animation) {
+                                            mIsLauncherAnimating = false;
+                                        }
+                                    });
+                            mFallbackRevealAnimation.start();
+                        }
+                    }
+            );
         }
 
         mOpeningXInterpolator = AnimationUtils.loadInterpolator(
@@ -401,7 +437,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
               new RemoteAnimationAdapter(appLaunchRunner, duration, statusBarTransitionDelay),
               new RemoteTransition(appLaunchRemoteTransition, mLauncher.getIApplicationThread(),
                     "QuickstepLaunch"));
-        IRemoteCallback endCallback = completeRunnableListCallback(onEndCallback, mLauncher);
+        IRemoteCallback endCallback = completeRunnableListCallback(
+                onEndCallback, mLauncher, MAIN_EXECUTOR);
         options.setOnAnimationAbortListener(endCallback);
         options.setOnAnimationFinishedListener(endCallback);
         options.setLaunchCookie(StableViewInfo.toLaunchCookie(itemInfo));
@@ -638,7 +675,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             final View appsView = mLauncher.getAppsView();
             final float startAlpha = appsView.getAlpha();
             final float startScale = SCALE_PROPERTY.get(appsView);
-            if (mDeviceProfile.getDeviceProperties().isTablet()) {
+            if (mDeviceProfile.getDeviceProperties().isLargeScreen()) {
 
                 // AllApps should not fade at all in tablets.
                 alphas = new float[]{1, 1};
@@ -1405,8 +1442,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         homeCheck.mRequirements[2].mMustBeTask = true;
         homeCheck.mRequirements[2].mMustBeIndependent = true;
 
+        mLauncherOpenTransition.setFilter(homeCheck);
+
         SystemUiProxy.INSTANCE.get(mLauncher)
-                .registerRemoteTransition(mLauncherOpenTransition, homeCheck);
+                .registerRemoteTransition(mLauncherOpenTransition);
         if (mBackAnimationController != null) {
             mBackAnimationController.registerComponentCallbacks();
             if (isHomeRoleHeld()) {
@@ -1432,8 +1471,11 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             changeCheck.mRequirements[0].mMustBeIndependent = false;
             changeCheck.mRequirements[0].mActivityType = ACTIVITY_TYPE_STANDARD;
             changeCheck.mRequirements[0].mIsCrossDisplayMove = true;
+
+            mMoveDisplayTransition.setFilter(changeCheck);
+
             SystemUiProxy.INSTANCE.get(mLauncher)
-                    .registerRemoteTransition(mMoveDisplayTransition, changeCheck);
+                    .registerRemoteTransition(mMoveDisplayTransition);
         }
     }
 
@@ -1908,6 +1950,15 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
         boolean playWorkspaceReveal = true;
         boolean skipAllAppsScale = false;
+
+        if (Flags.fallbackRevealAnimation()) {
+            if (mFallbackRevealAnimation != null) {
+                mFallbackRevealAnimation.cancelAnimations();
+                mFallbackRevealAnimation = null;
+            }
+            mIsLauncherAnimating = true;
+        }
+
         if (mLauncher.isInState(OVERVIEW)) {
             playWorkspaceReveal = false;
         } else if (!playFallBackAnimation) {
@@ -1936,6 +1987,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             @Override
             public void onAnimationEnd(Animator animation) {
                 super.onAnimationEnd(animation);
+                mIsLauncherAnimating = false;
                 AccessibilityManagerCompat.sendTestProtocolEventToTest(
                         mLauncher, WALLPAPER_OPEN_ANIMATION_FINISHED_MESSAGE);
             }
@@ -2131,7 +2183,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             result.setAnimation(anim, mLauncher, mOnEndCallback::executeAllAndDestroy,
                     skipFirstFrame);
             // If app launch animation is started and TaskbarAsyncAnimator is returned (meaning
-            // taskbar stash animation will be played on TASKBAR_UI_THREAD), launcher needs to
+            // taskbar stash animation will be played on taskbar's ui thread), launcher needs to
             // explicitly trigger taskbar stash animation from main thread.
             if (taskbarStashAnimation != null && anim.isStarted()) {
                 taskbarStashAnimation.start();

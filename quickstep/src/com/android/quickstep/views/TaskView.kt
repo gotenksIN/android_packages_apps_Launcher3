@@ -51,9 +51,9 @@ import com.android.app.tracing.traceSection
 import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.Flags.enableDesktopExplodedView
 import com.android.launcher3.Flags.enableRefactorDigitalWellbeingToast
-import com.android.launcher3.Flags.enableRefactorTaskContentView
 import com.android.launcher3.R
 import com.android.launcher3.Utilities
+import com.android.launcher3.Utilities.getTrimmedStackTrace
 import com.android.launcher3.concurrent.annotations.LightweightBackground
 import com.android.launcher3.concurrent.annotations.LightweightBackgroundPriority
 import com.android.launcher3.concurrent.annotations.Ui
@@ -107,7 +107,6 @@ import com.android.quickstep.views.IconAppChipView.AppChipStatus
 import com.android.quickstep.views.OverviewActionsView.DISABLED_NO_THUMBNAIL
 import com.android.quickstep.views.OverviewActionsView.DISABLED_ROTATED
 import com.android.quickstep.views.RecentsView.UNBOUND_TASK_VIEW_ID
-import com.android.quickstep.window.RecentsWindowFlags.enableOverviewOnConnectedDisplays
 import com.android.systemui.shared.recents.model.Task
 import com.android.systemui.shared.system.ActivityManagerWrapper
 import com.android.wm.shell.shared.split.SplitScreenConstants
@@ -145,12 +144,12 @@ constructor(
     val snapshotViews: Array<View>
         get() = taskContainers.map { it.snapshotView }.toTypedArray()
 
-    val taskContentViews: Array<View>
+    val taskContentViews: Array<TaskContentView>
         get() = taskContainers.map { it.taskContentView }.toTypedArray()
 
     val isGridTask: Boolean
         /** Returns whether the task is part of overview grid and not being focused. */
-        get() = container.deviceProfile.deviceProperties.isTablet && !isLargeTile
+        get() = container.deviceProfile.deviceProperties.isLargeScreen && !isLargeTile
 
     val isRunningTask: Boolean
         get() = this === recentsView?.runningTaskView
@@ -165,9 +164,7 @@ constructor(
         get() = displayId.isExternalDisplay
 
     val isLargeTile: Boolean
-        get() =
-            type == TaskViewType.DESKTOP ||
-                (isExternalDisplay && !enableOverviewOnConnectedDisplays())
+        get() = type == TaskViewType.DESKTOP
 
     val recentsView: RecentsView<*, *>?
         get() = parent as? RecentsView<*, *>
@@ -711,7 +708,7 @@ constructor(
             pivotX = modalPivot.x
             pivotY = modalPivot.y
         } else {
-            if (container.deviceProfile.deviceProperties.isTablet) {
+            if (container.deviceProfile.deviceProperties.isLargeScreen) {
                 pivotX =
                     (if (layoutDirection == LAYOUT_DIRECTION_RTL) 0 else right - left).toFloat()
                 pivotY = 0f
@@ -779,10 +776,7 @@ constructor(
 
                 // Add DWB accessibility action at the end of the list
                 taskContainers.forEach {
-                    if (
-                        enableRefactorDigitalWellbeingToast() &&
-                            it.taskContentView is TaskContentView
-                    ) {
+                    if (enableRefactorDigitalWellbeingToast()) {
                         it.taskContentView.getSupportedAccessibilityActions().forEach(::addAction)
                     } else {
                         it.digitalWellBeingToast?.getDWBAccessibilityAction()?.let(::addAction)
@@ -808,7 +802,7 @@ constructor(
     override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
         // TODO(b/343708271): Add support for multiple tasks per action.
         taskContainers.forEach {
-            if (enableRefactorDigitalWellbeingToast() && it.taskContentView is TaskContentView) {
+            if (enableRefactorDigitalWellbeingToast()) {
                 if (it.taskContentView.handleAccessibilityAction(action)) {
                     return true
                 }
@@ -843,11 +837,8 @@ constructor(
     protected open fun inflateViewStubs() {
         findViewById<ViewStub>(R.id.task_content_view)
             ?.apply {
-                inflatedId =
-                    if (enableRefactorTaskContentView()) R.id.task_content_view else R.id.snapshot
-                layoutResource =
-                    if (enableRefactorTaskContentView()) R.layout.task_content_view
-                    else R.layout.task_thumbnail
+                inflatedId = R.id.task_content_view
+                layoutResource = R.layout.task_content_view
             }
             ?.inflate()
 
@@ -1078,20 +1069,10 @@ constructor(
 
             taskContainers.forEach { container ->
                 container.bind()
-                if (enableRefactorTaskContentView()) {
-                    (container.taskContentView as TaskContentView).apply {
-                        cornerRadius = thumbnailFullscreenParams.currentCornerRadius
-                        taskCornerRadius = thumbnailFullscreenParams.taskCornerRadius
-                        doOnSizeChange { width, height ->
-                            updateThumbnailValidity(container)
-                            val thumbnailPosition = updateThumbnailMatrix(container, width, height)
-                            container.refreshOverlay(thumbnailPosition)
-                        }
-                    }
-                } else {
-                    container.snapshotView.cornerRadius =
-                        thumbnailFullscreenParams.currentCornerRadius
-                    container.snapshotView.doOnSizeChange { width, height ->
+                container.taskContentView.apply {
+                    cornerRadius = thumbnailFullscreenParams.currentCornerRadius
+                    taskCornerRadius = thumbnailFullscreenParams.taskCornerRadius
+                    doOnSizeChange { width, height ->
                         updateThumbnailValidity(container)
                         val thumbnailPosition = updateThumbnailMatrix(container, width, height)
                         container.refreshOverlay(thumbnailPosition)
@@ -1126,15 +1107,8 @@ constructor(
     ): TaskContainer =
         traceSection("TaskView.createTaskContainer") {
             val iconView = findViewById<IconAppChipView>(iconViewId)
-            val taskContentView =
-                if (enableRefactorTaskContentView()) findViewById<View>(taskContentViewId)
-                else findViewById(thumbnailViewId)
-            val snapshotView =
-                if (enableRefactorTaskContentView()) {
-                    taskContentView.findViewById(thumbnailViewId)
-                } else {
-                    taskContentView as TaskThumbnailView
-                }
+            val taskContentView = findViewById<TaskContentView>(taskContentViewId)
+            val snapshotView = taskContentView.findViewById<TaskThumbnailView>(thumbnailViewId)!!
 
             val digitalWellBeingToast: DigitalWellBeingToast? =
                 if (enableRefactorDigitalWellbeingToast()) {
@@ -1192,7 +1166,7 @@ constructor(
         val boxTranslationY: Float
         val expectedWidth: Int
         val expectedHeight: Int
-        if (container.deviceProfile.deviceProperties.isTablet) {
+        if (container.deviceProfile.deviceProperties.isLargeScreen) {
             val boxWidth: Int
             val boxHeight: Int
 
@@ -1287,6 +1261,19 @@ constructor(
 
     private fun onClick() {
         if (confirmSecondSplitSelectApp()) {
+            Log.d(
+                TAG,
+                "${taskIds.contentToString()} - onClick - ignoring click: " +
+                    "this task click selected the second app in split selection",
+            )
+            return
+        }
+        if (recentsView?.stateManager?.state?.isTaskViewInteractive != true) {
+            Log.d(
+                TAG,
+                "${taskIds.contentToString()} - onClick - ignoring click: the state manager is " +
+                    "not in an interactive state (state=${recentsView?.stateManager?.state})",
+            )
             return
         }
         launchWithAnimation()
@@ -1298,6 +1285,11 @@ constructor(
 
     /** Launch of the current task (both live and inactive tasks) with an animation. */
     fun launchWithAnimation(): RunnableList? {
+        Log.d(
+            TAG,
+            "${taskIds.contentToString()} - launchWithAnimation - initiating launch, " +
+                "partial trace: ${getTrimmedStackTrace("TaskView.launchWithAnimation")}",
+        )
         return if (isRunningTask && recentsView?.remoteTargetHandles != null) {
                 launchAsLiveTile(recentsView?.remoteTargetHandles!!)
             } else {
@@ -1584,7 +1576,9 @@ constructor(
             // Don't show menu when selecting second split screen app
             return true
         }
-        if (!container.deviceProfile.deviceProperties.isTablet && !recentsView.isClearAllHidden) {
+        if (
+            !container.deviceProfile.deviceProperties.isLargeScreen && !recentsView.isClearAllHidden
+        ) {
             recentsView.snapToPage(recentsView.indexOfChild(this))
             return false
         }
@@ -1678,7 +1672,7 @@ constructor(
     private fun onSettledProgressUpdated(settledProgress: Float) {
         getTaskIcons().forEach { (icon, _) -> icon.settledProgressAlpha = settledProgress }
         taskContainers.forEach {
-            if (enableRefactorDigitalWellbeingToast() && it.taskContentView is TaskContentView) {
+            if (enableRefactorDigitalWellbeingToast()) {
                 it.taskContentView.onParentAnimationProgress(settledProgress)
             } else {
                 it.digitalWellBeingToast?.bannerOffsetPercentage = 1f - settledProgress
@@ -1799,12 +1793,7 @@ constructor(
     protected open fun updateFullscreenParams() {
         updateFullscreenParams(thumbnailFullscreenParams)
         taskContainers.forEach {
-            if (enableRefactorTaskContentView()) {
-                (it.taskContentView as TaskContentView).cornerRadius =
-                    thumbnailFullscreenParams.currentCornerRadius
-            } else {
-                it.snapshotView.cornerRadius = thumbnailFullscreenParams.currentCornerRadius
-            }
+            it.taskContentView.cornerRadius = thumbnailFullscreenParams.currentCornerRadius
             it.overlay.setFullscreenParams(thumbnailFullscreenParams)
         }
     }
@@ -1814,10 +1803,9 @@ constructor(
     }
 
     private fun onModalnessUpdated(modalness: Float) {
-        isClickable = modalness == 0f
         getTaskIcons().forEach { (icon, _) -> icon.modalAlpha = 1f - modalness }
         taskContainers.forEach {
-            if (enableRefactorDigitalWellbeingToast() && it.taskContentView is TaskContentView) {
+            if (enableRefactorDigitalWellbeingToast()) {
                 it.taskContentView.onParentAnimationProgress(1f - modalness)
             } else {
                 it.digitalWellBeingToast?.bannerOffsetPercentage = modalness

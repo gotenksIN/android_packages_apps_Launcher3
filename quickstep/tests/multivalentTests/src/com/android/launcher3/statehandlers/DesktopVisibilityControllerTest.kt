@@ -26,12 +26,10 @@ import com.android.launcher3.Flags.FLAG_ENABLE_TASKBAR_UI_THREAD
 import com.android.launcher3.LauncherState
 import com.android.launcher3.statehandlers.DesktopVisibilityController.TaskbarDesktopModeListener
 import com.android.launcher3.util.DaggerSingletonTracker
+import com.android.launcher3.util.window.WindowManagerProxy.DesktopVisibilityListener
 import com.android.quickstep.SystemUiProxy
-import com.android.window.flags.Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND
-import com.android.window.flags.Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND
 import com.android.wm.shell.desktopmode.DisplayDeskState
 import com.android.wm.shell.desktopmode.IDesktopTaskListener
-import com.android.wm.shell.shared.desktopmode.DesktopModeStatus
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -66,14 +64,12 @@ class DesktopVisibilityControllerTest {
     @Before
     fun setUp() {
         whenever(context.resources).thenReturn(mock())
-        whenever(DesktopModeStatus.enableMultipleDesktops(context)).thenReturn(true)
         desktopVisibilityController =
             DesktopVisibilityController(context, systemUiProxy, lifeCycleTracker)
         verify(systemUiProxy).setDesktopTaskListener(listenerCaptor.capture())
     }
 
     @Test
-    @EnableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND, FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND)
     fun noCrashWhenCheckingNonExistentDisplay() {
         assertThat(desktopVisibilityController.isInDesktopMode(displayId = 500)).isFalse()
         assertThat(desktopVisibilityController.isInDesktopModeAndNotInOverview(displayId = 300))
@@ -81,13 +77,11 @@ class DesktopVisibilityControllerTest {
     }
 
     @Test
-    @EnableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND, FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND)
     fun taskListenerConnects() {
         connectTaskListener()
     }
 
     @Test
-    @EnableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND, FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND)
     fun getActiveDeskIdIsAreCorrect() {
         connectTaskListener()
 
@@ -98,7 +92,6 @@ class DesktopVisibilityControllerTest {
     }
 
     @Test
-    @EnableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND, FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND)
     fun isInDesktopModeIsCorrect() {
         connectTaskListener()
 
@@ -108,7 +101,6 @@ class DesktopVisibilityControllerTest {
     }
 
     @Test
-    @EnableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND, FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND)
     fun launcherStateChangeUpdatesState() {
         connectTaskListener()
 
@@ -130,11 +122,7 @@ class DesktopVisibilityControllerTest {
     }
 
     @Test
-    @EnableFlags(
-        FLAG_ENABLE_TASKBAR_UI_THREAD,
-        FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND,
-        FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND
-    )
+    @EnableFlags(FLAG_ENABLE_TASKBAR_UI_THREAD)
     fun concurrentAccess_whenUiThreadEnabled_doesNotCrash() {
         val listener = listenerCaptor.lastValue!!
         val executor = Executors.newFixedThreadPool(10)
@@ -196,7 +184,6 @@ class DesktopVisibilityControllerTest {
         assertThat(errors).isEmpty()
     }
 
-    @EnableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND, FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND)
     fun taskbarCornerRoundingListener_isNotifiedWithCorrectDisplayId() {
         // Arrange
         val taskbarListener = mock<TaskbarDesktopModeListener>()
@@ -216,7 +203,6 @@ class DesktopVisibilityControllerTest {
     }
 
     @Test
-    @EnableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND, FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND)
     fun taskbarCornerRoundingListener_isNotCalledAfterUnregister() {
         // Arrange
         val taskbarListener = mock<TaskbarDesktopModeListener>()
@@ -231,6 +217,25 @@ class DesktopVisibilityControllerTest {
 
         // Assert
         verify(taskbarListener, never()).onTaskbarCornerRoundingUpdate(any(), any())
+    }
+
+    @Test
+    fun onTaskAppearingInDeskWithOverviewShowing_notifiesListener() {
+        // Arrange: Register a mock listener to observe notifications.
+        val desktopVisibilityListener = mock<DesktopVisibilityListener>()
+        desktopVisibilityController.registerDesktopVisibilityListener(desktopVisibilityListener)
+        val desktopTaskListener = listenerCaptor.lastValue!!
+        val taskId = 123
+        val displayId = 456
+        val deskId = 789
+
+        // Act: Trigger the callback from the shell listener.
+        desktopTaskListener.onTaskAppearingInDeskWithOverviewShowing(taskId, displayId, deskId)
+        getInstrumentation().waitForIdleSync()
+
+        // Assert: Verify the listener was called with the correct parameters.
+        verify(desktopVisibilityListener)
+            .onTaskAppearingInDeskWithOverviewShowing(taskId, displayId, deskId)
     }
 
     private fun connectTaskListener() {

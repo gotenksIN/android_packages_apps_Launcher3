@@ -34,8 +34,6 @@ import com.android.launcher3.statehandlers.DesktopVisibilityController.Companion
 import com.android.launcher3.util.DaggerSingletonTracker
 import com.android.quickstep.TopTaskTracker.HISTORY_SIZE
 import com.android.quickstep.util.FakeTaskFactory
-import com.android.window.flags.Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND
-import com.android.window.flags.Flags.FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND
 import com.android.wm.shell.Flags.FLAG_ENABLE_SHELL_TOP_TASK_TRACKING
 import com.android.wm.shell.shared.GroupedTaskInfo
 import com.android.wm.shell.shared.GroupedTaskInfo.TYPE_DESK
@@ -159,7 +157,6 @@ class TopTaskTrackerTest {
 
     @Test
     @DisableFlags(FLAG_ENABLE_SHELL_TOP_TASK_TRACKING)
-    @EnableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND, FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
     fun getPlaceholderGroupedTaskInfo_shellTopTaskTrackingDisabled_withDesktopEnabled_noActiveDesk() {
         doReturn(true).whenever(mockResources).getBoolean(eq(R.bool.config_isDesktopModeSupported))
         doReturn(true)
@@ -180,7 +177,6 @@ class TopTaskTrackerTest {
 
     @Test
     @DisableFlags(FLAG_ENABLE_SHELL_TOP_TASK_TRACKING)
-    @EnableFlags(FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND, FLAG_ENABLE_MULTIPLE_DESKTOPS_BACKEND)
     fun getPlaceholderGroupedTaskInfo_shellTopTaskTrackingDisabled_withDesktopEnabled_withActiveDesk() {
         doReturn(true).whenever(mockResources).getBoolean(eq(R.bool.config_isDesktopModeSupported))
         doReturn(true)
@@ -198,25 +194,6 @@ class TopTaskTrackerTest {
         assertThat(result!!.isBaseType(TYPE_DESK)).isTrue()
         assertThat(result.deskId).isEqualTo(activeDeskId)
         assertThat(result.getTaskInfoList()).isEqualTo(tasks)
-    }
-
-    @Test
-    @DisableFlags(FLAG_ENABLE_SHELL_TOP_TASK_TRACKING, FLAG_ENABLE_MULTIPLE_DESKTOPS_FRONTEND)
-    fun getPlaceholderGroupedTaskInfo_shellTopTaskTrackingDisabled_withDesktopDisabled_withActiveDesk() {
-        doReturn(true).whenever(mockResources).getBoolean(eq(R.bool.config_isDesktopModeSupported))
-        doReturn(true)
-            .whenever(mockResources)
-            .getBoolean(eq(R.bool.config_canInternalDisplayHostDesktops))
-        val taskInfo = createTaskInfo(1, DEFAULT_DISPLAY, WINDOWING_MODE_FREEFORM)
-        val tasks = listOf(taskInfo)
-        val cachedTaskInfo =
-            TopTaskTracker.CachedTaskInfo(tasks, mockContext, DEFAULT_DISPLAY, INACTIVE_DESK_ID)
-        val result = cachedTaskInfo.getPlaceholderGroupedTaskInfo(null)
-
-        assertThat(result).isNotNull()
-        assertThat(result!!.isBaseType(TYPE_DESK)).isTrue()
-        assertThat(result.deskId).isEqualTo(INACTIVE_DESK_ID)
-        assertThat(result.taskInfo1).isEqualTo(taskInfo)
     }
 
     @Test
@@ -362,34 +339,7 @@ class TopTaskTrackerTest {
     }
 
     @Test
-    @DisableFlags(
-        FLAG_ENABLE_SHELL_TOP_TASK_TRACKING,
-        "com.android.launcher3.enable_overview_on_connected_displays",
-    )
-    fun handleTaskMovedToFront_nonDefaultDisplayTask_flagDisabled_keepsDefaultDisplayTaskOnTop() {
-        // Arrange: Add a task on the default display.
-        val taskOnDefaultDisplay = createTaskInfo(taskId = 1, displayId = DEFAULT_DISPLAY)
-        topTaskTracker.handleTaskMovedToFront(taskOnDefaultDisplay)
-
-        // Add a task on a secondary display.
-        val taskOnSecondaryDisplay = createTaskInfo(taskId = 2, displayId = SECONDARY_DISPLAY_ID)
-
-        // Act: Move the task on the secondary display to the front.
-        topTaskTracker.handleTaskMovedToFront(taskOnSecondaryDisplay)
-
-        // Assert: The task on the default display should be moved back to the top of the list
-        // because the flag is disabled.
-        val cachedInfo =
-            topTaskTracker.getCachedTopTask(/* filterOnlyVisibleRecents= */ false, DEFAULT_DISPLAY)
-        val tasks = cachedInfo.mAllCachedTasks!!
-        assertThat(tasks).hasSize(2)
-        assertThat(tasks[0].taskId).isEqualTo(taskOnDefaultDisplay.taskId)
-        assertThat(tasks[1].taskId).isEqualTo(taskOnSecondaryDisplay.taskId)
-    }
-
-    @Test
     @DisableFlags(FLAG_ENABLE_SHELL_TOP_TASK_TRACKING)
-    @EnableFlags("com.android.launcher3.enable_overview_on_connected_displays")
     fun handleTaskMovedToFront_nonDefaultDisplayTask_flagEnabled_doesNotReorder() {
         // Arrange: Add a task on the default display.
         val taskOnDefaultDisplay = createTaskInfo(taskId = 1, displayId = DEFAULT_DISPLAY)
@@ -415,32 +365,6 @@ class TopTaskTrackerTest {
                 .getCachedTopTask(/* filterOnlyVisibleRecents= */ false, DEFAULT_DISPLAY)
                 .getLegacyBaseTask()
         assertThat(topTaskDefault?.taskId).isEqualTo(taskOnDefaultDisplay.taskId)
-    }
-
-    @Test
-    @DisableFlags(
-        FLAG_ENABLE_SHELL_TOP_TASK_TRACKING,
-        "com.android.launcher3.enable_overview_on_connected_displays",
-    )
-    fun handleTaskMovedToFront_defaultDisplayTask_flagDisabled_noReorder() {
-        // Arrange: Add a task on a secondary display.
-        val taskOnSecondaryDisplay = createTaskInfo(taskId = 1, displayId = SECONDARY_DISPLAY_ID)
-        topTaskTracker.handleTaskMovedToFront(taskOnSecondaryDisplay)
-
-        // Add a task on the default display.
-        val taskOnDefaultDisplay = createTaskInfo(taskId = 2, displayId = DEFAULT_DISPLAY)
-
-        // Act: Move the task on the default display to the front.
-        topTaskTracker.handleTaskMovedToFront(taskOnDefaultDisplay)
-
-        // Assert: The task on the default display should be at the top, and no special reordering
-        // should occur as the top task is already on the default display.
-        val cachedInfo =
-            topTaskTracker.getCachedTopTask(/* filterOnlyVisibleRecents= */ false, DEFAULT_DISPLAY)
-        val tasks = cachedInfo.mAllCachedTasks!!
-        assertThat(tasks).hasSize(2)
-        assertThat(tasks[0].taskId).isEqualTo(taskOnDefaultDisplay.taskId)
-        assertThat(tasks[1].taskId).isEqualTo(taskOnSecondaryDisplay.taskId)
     }
 
     private fun createTaskInfo(

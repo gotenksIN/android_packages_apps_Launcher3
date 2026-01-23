@@ -34,11 +34,11 @@ import com.android.launcher3.LauncherState;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.Workspace;
 import com.android.launcher3.appprediction.AppsDividerView;
+import com.android.launcher3.display.DisplayController;
 import com.android.launcher3.hybridhotseat.HotseatPredictionController;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.StateListener;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
-import com.android.launcher3.util.DisplayController;
 import com.android.quickstep.views.AllAppsEduView;
 
 /**
@@ -83,7 +83,7 @@ public class QuickstepOnboardingPrefs {
                 public void onStateTransitionComplete(LauncherState finalState) {
                     HotseatPredictionController client = launcher.getHotseatPredictionController();
                     if (mFromAllApps && finalState == NORMAL && client.hasPredictions()) {
-                        if (!launcher.getDeviceProfile().getDeviceProperties().isTablet()
+                        if (!launcher.getDeviceProfile().getDeviceProperties().isLargeScreen()
                                 && HOTSEAT_DISCOVERY_TIP_COUNT.increment(launcher)) {
                             client.showEdu();
                             stateManager.removeStateListener(this);

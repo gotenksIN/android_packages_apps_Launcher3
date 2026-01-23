@@ -104,9 +104,11 @@
     <string name="dismiss_prediction_label" msgid="3357562989568808658">"एप सिफारिस नगर्नुहोस्"</string>
     <string name="pin_prediction" msgid="4196423321649756498">"सिफारिस गरिएको एप पिन गर्नुहोस्"</string>
     <string name="bubble" msgid="3072951361014076670">"बबल"</string>
+    <string name="enable_app_lock" msgid="9190316880781005775">"एप लक गर्नुहोस्"</string>
+    <string name="disable_app_lock" msgid="9071912028491244470">"लक हटाउनुहोस्"</string>
     <string name="widget_settings" msgid="5280157748464495511">"सेटिङ"</string>
-    <string name="pin_to_taskbar" msgid="5914002252642242332">"टास्कबारमा पिन गर्नुहोस्"</string>
-    <string name="unpin_from_taskbar" msgid="1025883383457627426">"टास्कबारबाट अनपिन गर्नुहोस्"</string>
+    <string name="add_to_taskbar" msgid="1442306985857150792">"टास्कबारमा हाल्नुहोस्"</string>
+    <string name="remove_from_taskbar" msgid="5817026706030273018">"टास्कबारबाट हटाउनुहोस्"</string>
     <string name="no_room_in_taskbar" msgid="6885243748717395469">"टास्कबारमा ठाउँ छैन"</string>
     <string name="app_added_to_taskbar" msgid="6348755169793615171">"टास्कबारमा एप हालियो"</string>
     <string name="app_removed_from_taskbar" msgid="3471754847898675396">"टास्कबारबाट एप हटाइयो"</string>
@@ -114,6 +116,15 @@
     <string name="home_screen_files_context_menu_open_in_app_label" msgid="7930552598671791537">"खोल्नुहोस्"</string>
     <string name="home_screen_files_context_menu_delete_permanently_label" msgid="8660443461874174185">"सदाका लागि मेटाउनुहोस्"</string>
     <string name="home_screen_files_context_menu_move_to_trash_label" msgid="1145655050674479315">"ट्र्यासमा सार्नुहोस्"</string>
+    <!-- no translation found for home_screen_files_moved_to_trash_message (381256565590274395) -->
+    <skip />
+    <!-- no translation found for home_screen_files_move_to_trash_error_message (3836240816166417826) -->
+    <skip />
+    <!-- no translation found for home_screen_files_restore_from_trash_error_message (994941644161090497) -->
+    <skip />
+    <string name="actions_popup_menu_button" msgid="2442187572711557413">"कारबाहीहरू"</string>
+    <string name="shortcuts_popup_menu_button" msgid="766598805805882499">"सर्टकटहरू"</string>
+    <string name="loading_shortcut" msgid="2638272014233830958">"सर्टकट लोड गरिँदै छ"</string>
     <string name="permlab_install_shortcut" msgid="5632423390354674437">"सर्टकट स्थापना गर्नेहोस्"</string>
     <string name="permdesc_install_shortcut" msgid="923466509822011139">"प्रयोगकर्ताको हस्तक्षेप बिना एउटा एपलाई सर्टकटमा थप्नको लागि अनुमति दिनुहोस्।"</string>
     <string name="permlab_read_settings" msgid="5136500343007704955">"होम स्क्रिनका सेटिङ र सर्टकटहरू रिड गर्नुहोस्"</string>
@@ -150,7 +161,6 @@
     <string name="edit_home_screen" msgid="8947858375782098427">"होम स्क्रिन बदल्नुहोस्"</string>
     <string name="settings_button_text" msgid="8873672322605444408">"होम पेजका सेटिङहरू"</string>
     <string name="msg_disabled_by_admin" msgid="6898038085516271325">"तपाईँको प्रशासकद्वारा असक्षम गरिएको"</string>
-    <string name="allow_rotation_title" msgid="7222049633713050106">"होम स्क्रिन रोटेट हुन दिइयोस्"</string>
     <string name="allow_rotation_desc" msgid="8662546029078692509">"फोन घुमाउँदा"</string>
     <string name="compose_developer_options_section" msgid="8211460486549952595">"Jetpack कम्पोज"</string>
     <string name="enable_composition_tracing_title" msgid="8989606591739368424">"कम्पोजिसन ट्रेसिङ अन गर्नुहोस्"</string>

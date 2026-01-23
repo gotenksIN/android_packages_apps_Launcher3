@@ -225,21 +225,6 @@ flag {
     }
 }
 
-
-flag {
-    name: "one_grid_specs"
-    namespace: "launcher"
-    description: "Defines the new specs for grids based on OneGrid"
-    bug: "364711064"
-}
-
-flag {
-    name: "one_grid_mounted_mode"
-    namespace: "launcher"
-    description: "Support a fixed landscape mode for handheld devices"
-    bug: "364711735"
-}
-
 flag {
     name: "one_grid_rotation_handling"
     namespace: "launcher"
@@ -379,13 +364,6 @@ flag {
 }
 
 flag {
-  name: "enable_gesture_nav_on_connected_displays"
-  namespace: "lse_desktop_experience"
-  description: "Enables gesture navigation handling on connected displays"
-  bug: "382130680"
-}
-
-flag {
   name: "enable_taskbar_behind_shade"
   namespace: "lse_desktop_experience"
   description: "Keeps taskbar behind notification shade when its pulled down"
@@ -400,16 +378,6 @@ flag {
   namespace: "launcher"
   description: "Enable more grid scale options on the launcher for desktop experience"
   bug: "375491272"
-}
-
-flag {
-  name: "remove_apps_refresh_on_right_click"
-  namespace: "launcher"
-  description: "Remove predicted apps refresh on right click"
-  bug: "343650193"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
 }
 
 flag {
@@ -496,16 +464,6 @@ flag {
 }
 
 flag {
-  name: "enable_taskbar_recents_themed_icons"
-  namespace: "launcher"
-  description: "Have recent icons in Taskbar respect icon theme preferences"
-  bug: "407950127"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
   name: "enable_taskbar_drag_and_drop"
   namespace: "launcher"
   description: "Enable dragging and dropping app icons on the taskbar."
@@ -588,6 +546,13 @@ flag {
 }
 
 flag {
+  name: "enable_workspace_selection"
+  namespace: "launcher"
+  description: "Enables item selection workflows in the workspace"
+  bug: "430287769"
+}
+
+flag {
   name: "migrate_browser_icon_on_setup"
   namespace: "launcher"
   description: "Migrates browser icon to user choice during user setup"
@@ -639,23 +604,10 @@ flag {
 }
 
 flag {
-  name: "orientation_enabled_desktop_grid_spec"
+  name: "orientation_friendly_desktop_grid_spec"
   namespace: "launcher"
   description: "Uses a desktop grid spec that specifies grid dimensions that look reasonably well when the device is used in portrait mode"
   bug: "444244391"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
-    name: "enable_files_on_home_screen_decoupled_init"
-    namespace: "launcher"
-    description: "Enables decoupling of files on home screen initialization from the loader task"
-    bug: "444563784"
-    metadata {
-        purpose: PURPOSE_BUGFIX
-    }
 }
 
 flag {
@@ -686,20 +638,17 @@ flag {
 }
 
 flag {
+    name: "fallback_reveal_animation"
+    namespace: "launcher"
+    description: "Introduces a Launcher reveal animation that runs as a backup when a different process takes care of the overall transition animation."
+    bug: "202516970"
+}
+
+flag {
     name: "enable_swipe_up_magnetic_detach"
     namespace: "launcher"
     description: "Enables the magnetic detach effect to the swipe up from app gestures"
     bug: "455552698"
-}
-
-flag {
-  name: "disable_system_level_drag_event_handling_in_button_drop_target"
-  namespace: "launcher"
-  description: "Disables system-level drag event handling in ButtonDropTarget as it may interfere with Launcher's own drag and drop."
-  bug: "456188853"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
 }
 
 flag {
@@ -745,4 +694,46 @@ flag {
   namespace: "launcher"
   description: "Enables App Lock system shortcut in Launcher"
   bug: "415167460"
+}
+
+flag {
+  name: "enable_transactional_model_writer"
+  namespace: "launcher"
+  description: "Enables the new transactional model writer for Launcher persistence."
+  bug: "457449059"
+}
+
+flag {
+    name: "enable_file_system_folders_as_drop_targets"
+    namespace: "launcher"
+    description: "Enables file system folders as drop targets for other file system type items"
+    bug: "457783085"
+}
+
+flag {
+  name: "enable_hotseat_drop_target_validity_checks"
+  namespace: "launcher"
+  description: "Enables hotseat drop target validity checks rather than blindly handling all drag events"
+  bug: "456188504"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+    name: "enable_taskbar_a11y_more_options_button"
+    namespace: "launcher"
+    description: "Enables the 'More Options' button for accessibility features in the Taskbar"
+    bug: "440427169"
+}
+
+flag {
+  name: "enable_widget_picker_blur"
+  namespace: "launcher"
+  description: "Enables blur in the widget picker"
+  bug: "436344835"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }

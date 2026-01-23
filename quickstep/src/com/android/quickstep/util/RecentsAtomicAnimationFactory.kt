@@ -42,6 +42,7 @@ import com.android.launcher3.LauncherState.OVERVIEW
 import com.android.launcher3.LauncherState.OVERVIEW_SPLIT_SELECT
 import com.android.launcher3.QuickstepTransitionManager
 import com.android.launcher3.anim.SpringAnimationBuilder
+import com.android.launcher3.display.DisplayController
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.statemanager.BaseState
 import com.android.launcher3.statemanager.StateManager.AtomicAnimationFactory
@@ -62,7 +63,6 @@ import com.android.launcher3.states.StateAnimationConfig.ANIM_WORKSPACE_SCALE
 import com.android.launcher3.states.StateAnimationConfig.ANIM_WORKSPACE_TRANSLATE
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator
 import com.android.launcher3.touch.AllAppsSwipeController
-import com.android.launcher3.util.DisplayController
 import com.android.launcher3.util.NavigationMode
 import com.android.quickstep.split.SplitAnimationTimings
 import com.android.quickstep.views.RecentsView
@@ -72,10 +72,11 @@ import kotlin.math.min
 
 open class RecentsAtomicAnimationFactory<CONTAINER, STATE_TYPE : BaseState<STATE_TYPE>>(
     protected val container: CONTAINER
-) : AtomicAnimationFactory<STATE_TYPE>(MY_ANIM_COUNT) where
-CONTAINER : Context,
-CONTAINER : RecentsViewContainer,
-CONTAINER : StatefulContainer<STATE_TYPE> {
+) : AtomicAnimationFactory<STATE_TYPE>(MY_ANIM_COUNT)
+    where
+        CONTAINER : Context,
+        CONTAINER : RecentsViewContainer,
+        CONTAINER : StatefulContainer<STATE_TYPE> {
 
     override fun createStateElementAnimation(index: Int, vararg values: Float): Animator =
         when (index) {
@@ -246,7 +247,7 @@ CONTAINER : StatefulContainer<STATE_TYPE> {
             AllAppsSwipeController.applyNormalToAllAppsAnimConfig(config)
         } else if (fromState == OVERVIEW && toState == OVERVIEW_SPLIT_SELECT) {
             val timings =
-                if (container.deviceProfile.deviceProperties.isTablet)
+                if (container.deviceProfile.deviceProperties.isLargeScreen)
                     SplitAnimationTimings.TABLET_OVERVIEW_TO_SPLIT
                 else SplitAnimationTimings.PHONE_OVERVIEW_TO_SPLIT
             config.setInterpolator(

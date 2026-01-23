@@ -30,7 +30,7 @@ import com.android.launcher3.dragndrop.DragView
 import com.android.launcher3.model.ModelWriter
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.popup.ArrowPopup.CLOSE_DURATION_U
-import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnMainSync
+import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
 import com.android.launcher3.taskbar.TaskbarViewTestUtil.createHotseatItems
 import com.android.launcher3.taskbar.rules.AllTaskbarSandboxModules
 import com.android.launcher3.taskbar.rules.SandboxParams
@@ -61,6 +61,7 @@ import org.mockito.kotlin.whenever
 class TaskbarViewDragDropControllerTest {
     private val TEST_APP = TaskbarViewTestUtil.createAppInfo(0)
     private val TEST_WORKSPACE_ITEM = TaskbarViewTestUtil.createHotseatWorkspaceItem(1)
+    private val TEST_OPEN_ANIMATION_DURATION = 15L
 
     private val modelWriter: ModelWriter = mock()
     private val launcherModel: LauncherModel = mock {
@@ -213,9 +214,9 @@ class TaskbarViewDragDropControllerTest {
     @Test
     fun pinned_onDrop_reorderRightToLeft_shiftsItemsRight() {
         // Setup: Items [A(0), B(1), C(2)]
-        val itemA = createHotseatItem(0)
-        val itemB = createHotseatItem(1)
-        val itemC = createHotseatItem(2)
+        val itemA = createHotseatItem(0, 0)
+        val itemB = createHotseatItem(1, 1)
+        val itemC = createHotseatItem(2, 2)
 
         val hotseatInfos = IntSparseArrayMap<ItemInfo>()
         hotseatInfos.append(0, itemA)
@@ -242,10 +243,10 @@ class TaskbarViewDragDropControllerTest {
     @Test
     fun pinned_onDrop_reorderRightToLeft_shiftsStopAtEmptyItems() {
         // Setup: Items [A(0), B(1), C(3), D(4)]
-        val itemA = createHotseatItem(0)
-        val itemB = createHotseatItem(1)
-        val itemC = createHotseatItem(3)
-        val itemD = createHotseatItem(4)
+        val itemA = createHotseatItem(0, 0)
+        val itemB = createHotseatItem(1, 1)
+        val itemC = createHotseatItem(3, 2)
+        val itemD = createHotseatItem(4, 3)
 
         val hotseatInfos = IntSparseArrayMap<ItemInfo>()
         hotseatInfos.append(0, itemA)
@@ -374,8 +375,44 @@ class TaskbarViewDragDropControllerTest {
             .addOrMoveItemInDatabase(eq(itemC), eq(CONTAINER_HOTSEAT), any(), any(), any())
     }
 
-    private fun createHotseatItem(screenId: Int): ItemInfo {
-        val item = TaskbarViewTestUtil.createHotseatWorkspaceItem()
+    @Test
+    fun unpinned_onDragEnter_showsTooltip() {
+        taskbarViewDragDropController.setUpCallbacks(modelCallbacks)
+        val dragObject = createDragObjectWithView(TEST_WORKSPACE_ITEM)
+
+        getOnTaskbarUiThread {
+            taskbarViewDragDropController.unpinDropTarget.onDragEnter(dragObject)
+            animatorTestRule.advanceTimeBy(TEST_OPEN_ANIMATION_DURATION)
+        }
+
+        val tooltip = taskbarViewDragDropController.tooltipController.activeTooltipView
+        assertThat(tooltip).isNotNull()
+        assertThat((tooltip as View).alpha).isEqualTo(1f)
+    }
+
+    @Test
+    fun unpinned_onDragOver_updatesTooltipPosition() {
+        taskbarViewDragDropController.setUpCallbacks(modelCallbacks)
+        val dragObject = createDragObjectWithView(TEST_WORKSPACE_ITEM)
+
+        getOnTaskbarUiThread {
+            taskbarViewDragDropController.unpinDropTarget.onDragEnter(dragObject)
+        }
+        val tooltip = taskbarViewDragDropController.tooltipController.activeTooltipView as View
+        val initialX = tooltip.x
+
+        dragObject.x = 100
+        dragObject.y = 100
+
+        getOnTaskbarUiThread {
+            taskbarViewDragDropController.unpinDropTarget.onDragOver(dragObject)
+        }
+
+        assertThat(tooltip.x).isNotEqualTo(initialX)
+    }
+
+    private fun createHotseatItem(screenId: Int, id: Int = 0): ItemInfo {
+        val item = TaskbarViewTestUtil.createHotseatWorkspaceItem(id)
         item.screenId = screenId
         return item
     }
@@ -398,7 +435,7 @@ class TaskbarViewDragDropControllerTest {
 
         // Simulate dragging out of the overflow icon.
         dragObject.x = -100
-        runOnMainSync {
+        runOnTaskbarUiThreadSync {
             taskbarViewDragDropController.taskbarPinningDropTarget.onDragOver(dragObject)
             assertThat(taskbarViewDragDropController.overflowContainerAlarm.alarmPending()).isTrue()
             taskbarViewDragDropController.overflowContainerAlarm.finishAlarm()
@@ -419,7 +456,7 @@ class TaskbarViewDragDropControllerTest {
         assertThat(taskbarViewController.isOverflowContainerShowing).isTrue()
 
         // Then simulate dragging into the overflow container.
-        runOnMainSync {
+        runOnTaskbarUiThreadSync {
             taskbarViewDragDropController.taskbarPinningDropTarget.onDragExit(dragObject)
             assertThat(taskbarViewDragDropController.overflowContainerAlarm.alarmPending()).isTrue()
             dragViewIntoOverflowContainer(dragObject)
@@ -442,7 +479,7 @@ class TaskbarViewDragDropControllerTest {
         assertThat(taskbarViewController.isOverflowContainerShowing).isTrue()
 
         // Simulate dragging into the overflow container and then dragging out from it.
-        runOnMainSync {
+        runOnTaskbarUiThreadSync {
             taskbarViewDragDropController.taskbarPinningDropTarget.onDragExit(dragObject)
             dragViewIntoOverflowContainer(dragObject)
             assertThat(taskbarViewDragDropController.overflowContainerAlarm.alarmPending())
@@ -462,6 +499,22 @@ class TaskbarViewDragDropControllerTest {
         val dragObject = DropTarget.DragObject(context)
         dragObject.dragInfo = info
         dragObject.dragView = mock<DragView>()
+        return dragObject
+    }
+
+    private fun createDragObjectWithView(info: ItemInfo): DropTarget.DragObject {
+        val dragObject = createDragObject(info)
+        val mockDragView = mock<DragView>()
+
+        whenever(mockDragView.measuredHeight).thenReturn(100)
+        whenever(mockDragView.measuredWidth).thenReturn(100)
+        whenever(mockDragView.dragRegion).thenReturn(Rect(0, 0, 100, 100))
+
+        dragObject.dragView = mockDragView
+
+        dragObject.x = 50
+        dragObject.y = 50
+
         return dragObject
     }
 
@@ -493,20 +546,25 @@ class TaskbarViewDragDropControllerTest {
         return overflowIcon
     }
 
-    private fun mockDragViewDragRegionToViewBounds(dragObject: DropTarget.DragObject, view: View) {
+    private fun mockDragViewToOverViewBounds(dragObject: DropTarget.DragObject, view: View) {
         val iconBounds = Rect()
         activityContext.dragLayer.getDescendantRectRelativeToSelf(view, iconBounds)
-        whenever(dragObject.dragView.dragRegion).thenReturn(iconBounds)
+        whenever(dragObject.dragView.dragRegion)
+            .thenReturn(Rect(0, 0, iconBounds.width(), iconBounds.height()))
+        dragObject.x = iconBounds.left
+        dragObject.y = iconBounds.top
+        dragObject.xOffset = iconBounds.width() / 2
+        dragObject.yOffset = iconBounds.height() / 2
     }
 
     private fun dragViewOntoOverflowIconToOpenContainer(
         dragObject: DropTarget.DragObject,
         overflowIcon: TaskbarOverflowView,
     ) {
-        mockDragViewDragRegionToViewBounds(dragObject, overflowIcon)
+        mockDragViewToOverViewBounds(dragObject, overflowIcon)
 
         // Simulate dragging on the overflow icon to open the container.
-        runOnMainSync {
+        runOnTaskbarUiThreadSync {
             taskbarViewDragDropController.taskbarPinningDropTarget.onDragEnter(dragObject)
             taskbarViewDragDropController.taskbarPinningDropTarget.onDragOver(dragObject)
             assertThat(taskbarViewDragDropController.overflowContainerAlarm.alarmPending()).isTrue()
@@ -521,7 +579,7 @@ class TaskbarViewDragDropControllerTest {
                 AbstractFloatingView.TYPE_TASKBAR_OVERFLOW,
             )
         assertThat(overflowContainer).isNotNull()
-        mockDragViewDragRegionToViewBounds(dragObject, overflowContainer)
+        mockDragViewToOverViewBounds(dragObject, overflowContainer)
         requireNotNull(taskbarViewDragDropController.overflowPinningDropTarget)
             .onDragEnter(dragObject)
     }

@@ -17,11 +17,11 @@
 package com.android.launcher3.taskbar
 
 import com.android.launcher3.Flags.refactorTaskbarUiState
+import com.android.launcher3.display.DisplayController
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.statehandlers.DesktopVisibilityController.TaskbarDesktopModeListener
 import com.android.launcher3.taskbar.TaskbarBackgroundRenderer.Companion.MAX_ROUNDNESS
-import com.android.launcher3.util.DisplayController
-import com.android.launcher3.util.Executors.TASKBAR_UI_THREAD
+import com.android.launcher3.util.Executors.getTaskbarUiThread
 import com.android.launcher3.util.SafeCloseable
 
 /** Handles Taskbar in Desktop Windowing mode. */
@@ -51,7 +51,7 @@ class TaskbarDesktopModeController(
         if (refactorTaskbarUiState()) {
             displayInfoChangeSafeCloseable =
                 DisplayController.INSTANCE.get(taskbarActivityContext).listenable?.forEach(
-                    TASKBAR_UI_THREAD
+                    getTaskbarUiThread()
                 ) { _ ->
                     updateTaskbarUiState()
                 }
@@ -100,9 +100,9 @@ class TaskbarDesktopModeController(
     }
 
     private fun updateTaskbarUiState() {
+        val info = DisplayController.getInfo(taskbarActivityContext)
         taskbarUiState.showDesktopTaskbarForFreeformDisplay =
-            DisplayController.showDesktopTaskbarForFreeformDisplay(taskbarActivityContext)
-        taskbarUiState.showLockedTaskbarOnHome =
-            DisplayController.showLockedTaskbarOnHome(taskbarActivityContext)
+            info.showDesktopTaskbarForFreeformDisplay
+        taskbarUiState.showLockedTaskbarOnHome = info.showLockedTaskbarOnHome
     }
 }

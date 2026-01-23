@@ -22,7 +22,6 @@ import static android.window.DesktopModeFlags.ENABLE_TASKBAR_OVERFLOW;
 
 import static com.android.launcher3.BubbleTextView.DISPLAY_TASKBAR;
 import static com.android.launcher3.Flags.enableLauncherIconShapes;
-import static com.android.launcher3.Flags.enableTaskbarRecentsThemedIcons;
 import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APP_GROUP;
@@ -84,8 +83,9 @@ import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.taskbar.TaskbarOverflowView.OverflowType;
 import com.android.launcher3.taskbar.customization.TaskbarAllAppsButtonContainer;
 import com.android.launcher3.taskbar.customization.TaskbarDividerContainer;
-import com.android.launcher3.taskbar.customization.TaskbarIconsContainer;
 import com.android.launcher3.taskbar.customization.TaskbarSpecsEvaluator;
+import com.android.launcher3.taskbar.customization.containers.TaskbarPinnedAppIconContainer;
+import com.android.launcher3.taskbar.customization.viewfactory.TaskbarPinnedAppsIconsViewFactory;
 import com.android.launcher3.taskbar.handoff.HandoffSuggestion;
 import com.android.launcher3.util.LauncherBindableItemsContainer.ItemOperator;
 import com.android.launcher3.util.Themes;
@@ -148,7 +148,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
     @Nullable private TaskbarDividerContainer mTaskbarDividerContainer;
 
     // Only non-null when taskbar customization is enabled.
-    @Nullable private TaskbarIconsContainer mHotseatIconsContainer;
+    @Nullable private TaskbarPinnedAppIconContainer mHotseatIconsContainer;
 
     // Only non-null when device supports having a Taskbar Overflow button for pinned items.
     @Nullable private TaskbarOverflowView mTaskbarPinnedOverflowView;
@@ -158,6 +158,8 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
 
     // Only non-null when there is an ongoing task icon in animation.
     @Nullable private Animator mOngoingRecentIconAnimation;
+
+    private final TaskbarPinnedAppsIconsViewFactory mItemViewFactory;
 
     private int mMaxNumIconsLimitForTest = -1;
 
@@ -169,14 +171,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
 
     private int mNumbersOfTaskbarIconsOverflowing = 0;
 
-    // Ghost view as the placeholder of the drop target.
-    private View mDropTargetGhostView;
-
-    // Index of the drop target in the pinned apps area.
-    private int mDropSpotIndex = -1;
-
-    // Original index of the dragged child to hide, ignoring the inserted ghost view.
-    private int mIndexOfChildHiddenForDrag = -1;
+    private PinnedAppsDragHelper mDragDelegate;
 
     public int getIgnoreTaskbarIconCount() {
         return mIgnoreTaskbarIconCount;
@@ -257,7 +252,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
 
         if (Flags.enableTaskbarIconContainer()) {
             mHotseatIconsContainer =
-                    TaskbarIconsContainer.create(context, mItemMarginLeftRight);
+                    TaskbarPinnedAppIconContainer.create(context, mItemMarginLeftRight);
         }
 
         mItemPadding = dpToPx(specsEvaluator.getTaskbarIconPadding(), mActivityContext);
@@ -273,6 +268,8 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         mAllAppsButtonTranslationOffset = (int) getResources().getDimension(
                 mAllAppsButtonContainer.getAllAppsButtonTranslationXOffset(
                         mActivityContext.isTransientTaskbar()));
+
+        mItemViewFactory = new TaskbarPinnedAppsIconsViewFactory(mActivityContext, this);
 
         if (enableTaskbarPinning() || enableRecentsInTaskbar()) {
             mTaskbarDividerContainer = (TaskbarDividerContainer) inflate(
@@ -297,8 +294,8 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
     private int calculateMaxNumIcons() {
         DeviceProfile deviceProfile = mActivityContext.getDeviceProfile();
         int availableWidth = deviceProfile.getDeviceProperties().getWidthPx();
-        int defaultEdgeMargin =
-                (int) getResources().getDimension(deviceProfile.inv.inlineNavButtonsEndSpacing);
+        int defaultEdgeMargin = getResources().getDimensionPixelSize(
+                deviceProfile.inv.inlineNavButtonsEndSpacing);
         int spaceForBubbleBar =
                 Math.round(mControllerCallbacks.getBubbleBarMaxCollapsedWidthIfVisible());
 
@@ -408,7 +405,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         mShouldTryStartAlign = mActivityContext.shouldStartAlignTaskbar();
         ViewGroup.LayoutParams lp = mQsb.getLayoutParams();
         if (lp != null) {
-            lp.width = dp.hotseatQsbWidth;
+            lp.width = dp.getHotseatProfile().getQsbWidth();
             lp.height = dp.getHotseatProfile().getQsbHeight();
         }
     }
@@ -449,6 +446,141 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         }
 
         mMaxNumIcons = calculateMaxNumIcons();
+
+        mDragDelegate = new PinnedAppsDragHelper(getContext(), this, mIconTouchSize) {
+            @Override
+            public int calculateGhostViewIndex(int onScreenLocationX) {
+                getHitRectForPinRelativeToDragLayer(sTmpRect);
+                // RTL in HotseatIconsContainer has different logic in TaskbarView.
+                int direction = (mIsRtl && mHotseatIconsContainer != null) ? -1 : 1;
+
+                int iconAreaStartX = direction == -1 ? (sTmpRect.right - mPinnedHitRectBuffer)
+                        : (sTmpRect.left + mPinnedHitRectBuffer);
+                if (mHotseatIconsContainer == null) {
+                    iconAreaStartX += mAllAppsButtonContainer.getSpaceNeeded() * direction;
+                }
+                int clampedX = Math.max(sTmpRect.left, Math.min(sTmpRect.right, onScreenLocationX));
+                int relativeX = (clampedX - iconAreaStartX) * direction;
+                int slotWidth = mIconTouchSize + (2 * mItemMarginLeftRight);
+
+                return Math.max(0, relativeX / slotWidth);
+            }
+
+            @NonNull
+            @Override
+            public ViewGroup.LayoutParams createGhostViewLayoutParams(int iconSize) {
+                TaskbarLayoutParams lp = new TaskbarLayoutParams(iconSize, iconSize);
+                lp.setMargins(mItemMarginLeftRight, 0, mItemMarginLeftRight, 0);
+                return lp;
+            }
+
+            @Override
+            public int calculateDropIndexInContainer(int dropIndex, int hiddenChildIndex) {
+                int dropSpotOffset = mActivityContext.getDeviceProfile().isQsbInline ? 2 : 1;
+                int targetIndex = Math.min(dropIndex, indexOfChild(mTaskbarPinnedOverflowView) - 1)
+                        + dropSpotOffset;
+                if (hiddenChildIndex > -1 && hiddenChildIndex < targetIndex) {
+                    targetIndex++;
+                }
+                return Math.min(targetIndex, mNextViewIndex);
+            }
+
+            @Override
+            public void reserveDropSlotForDragLocation(int onScreenLocationX) {
+                if (mHotseatIconsContainer != null) {
+                    int index = calculateGhostViewIndex(onScreenLocationX);
+                    mHotseatIconsContainer.reserveDropSlot(index);
+                    setDropSpotIndex(index);
+                    onDragStateChanged();
+                    return;
+                }
+                super.reserveDropSlotForDragLocation(onScreenLocationX);
+            }
+
+            @Override
+            public void onDragStateChanged() {
+                rearrangeItemsForDrag();
+            }
+
+            @Override
+            public boolean isPointOnOverflowIcon(@NonNull float[] point) {
+                return false;
+            }
+
+            @Override
+            public void getHitRectForPinRelativeToDragLayer(@Nullable Rect outRect) {
+                TaskbarView.this.getHitRectForPinRelativeToDragLayer(outRect);
+            }
+        };
+    }
+
+    protected void rearrangeItemsForDrag() {
+        if (mHotseatIconsContainer != null) {
+            mHotseatIconsContainer.rearrangeItemsForDrag();
+            return;
+        }
+
+        if (getNumOfVisibleIconsInPinnedSection()
+                == mActivityContext.getTaskbarSpecsEvaluator().getNumShownHotseatIcons()) {
+            return;
+        }
+
+        if (getNumOfVisibleIconsInPinnedSection()
+                > mActivityContext.getTaskbarSpecsEvaluator().getNumShownHotseatIcons()) {
+            TaskbarOverflowView overflowView = getTaskbarPinnedOverflowView();
+            if (overflowView == null || !isOverflowViewShowing()) {
+                // TODO: Group the extra icons to an overflow view.
+                return;
+            }
+
+            int overflowIdx = indexOfChild(overflowView);
+            View viewToMove = null;
+            for (int i = overflowIdx - 1; i >= 0; i--) {
+                View child = getChildAt(i);
+                if (child.getVisibility() == View.VISIBLE
+                        && !(child instanceof TaskbarDropTargetGhostView)) {
+                    viewToMove = child;
+                    break;
+                }
+            }
+
+            List<ItemInfo> newOverflowItems = new ArrayList<>(overflowView.getOverflowInfoList());
+            if (viewToMove != null && viewToMove.getTag() instanceof ItemInfo) {
+                newOverflowItems.addFirst((ItemInfo) viewToMove.getTag());
+                removeAndRecycle(viewToMove);
+            }
+            overflowView.setItems(newOverflowItems.stream().map(
+                    item -> new ItemInfoWrapper(item, mActivityContext)).toList());
+        } else {
+            TaskbarOverflowView overflowView = getTaskbarPinnedOverflowView();
+            if (overflowView == null || !isOverflowViewShowing()) {
+                return;
+            }
+
+            List<ItemInfo> overflowItems = overflowView.getOverflowInfoList();
+            if (overflowItems.isEmpty()) {
+                return;
+            }
+
+            // Update the Taskbar pinned overflow view.
+            List<ItemInfo> newOverflowItems = new ArrayList<>(overflowItems);
+            ItemInfo itemToMove = newOverflowItems.removeFirst();
+            overflowView.setItems(newOverflowItems.stream().map(
+                    item -> new ItemInfoWrapper(item, mActivityContext)).toList());
+
+            // Create the view for the item to move.
+            int index = indexOfChild(overflowView);
+            View newView = mItemViewFactory.getView(itemToMove, index);
+            if (newView instanceof BubbleTextView btv
+                    && itemToMove instanceof WorkspaceItemInfo wii) {
+                btv.applyFromWorkspaceItem(wii);
+            }
+
+            // Move the first icon in the overflow icon to the end of the pinned section.
+            TaskbarLayoutParams lp = new TaskbarLayoutParams(mIconTouchSize, mIconTouchSize);
+            newView.setPadding(mItemPadding, mItemPadding, mItemPadding, mItemPadding);
+            addView(newView, index, lp);
+        }
     }
 
     void updatePinningPopupEventHandlers() {
@@ -538,7 +670,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         } else if (mHotseatIconsContainer == null) {
             updateHotseatItems(hotseatItemInfos, forceUpdateHotseat);
         } else {
-            mHotseatIconsContainer.updateIcons(hotseatItemInfos, forceUpdateHotseat);
+            mHotseatIconsContainer.updateIcons(Arrays.asList(hotseatItemInfos), forceUpdateHotseat);
         }
 
 
@@ -552,7 +684,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         if (mIsRtl && mHotseatIconsContainer == null) {
             updateHotseatItems(hotseatItemInfos, forceUpdateHotseat);
         } else if (mIsRtl && mHotseatIconsContainer != null) {
-            mHotseatIconsContainer.updateIcons(hotseatItemInfos, forceUpdateHotseat);
+            mHotseatIconsContainer.updateIcons(Arrays.asList(hotseatItemInfos), forceUpdateHotseat);
         } else {
             updateRecents(recentTasks, hotseatItemLength);
             updateHandoffSuggestions(handoffSuggestions);
@@ -1178,7 +1310,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         final int itemCount = parent.getChildCount();
         for (int itemIdx = 0; itemIdx < itemCount; itemIdx++) {
             View item = parent.getChildAt(itemIdx);
-            if (item instanceof TaskbarIconsContainer tic) {
+            if (item instanceof TaskbarPinnedAppIconContainer tic) {
                 mapOverItems(tic, op);
             }
             if (item.getTag() instanceof ItemInfo itemInfo && op.evaluate(itemInfo, item)) {
@@ -1199,22 +1331,14 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         // TODO(b/344038728): use FastBitmapDrawable instead of Drawable, to get disabled state
         //  while dragging.
         BitmapInfo bitmapInfo = groupTask.getBitmapInfos().get(0);
-        final Drawable taskIcon;
-        if (enableTaskbarRecentsThemedIcons()) {
-            ThemeManager themeManager = ThemeManager.INSTANCE.get(mActivityContext);
-            @DrawableCreationFlags int creationFlags =
-                    themeManager.isIconThemeEnabled() ? FLAG_THEMED : 0;
-            @Nullable IconShape iconShape =
-                    enableLauncherIconShapes() ? themeManager.getIconShapeData().getValue() : null;
-            taskIcon = Optional.ofNullable(bitmapInfo)
-                    .map(bi -> bi.newIcon(mActivityContext, creationFlags, iconShape))
-                    .orElse(null);
-        } else {
-            taskIcon = Optional.ofNullable(task.icon)
-                    .map(Drawable::getConstantState)
-                    .map(cs -> cs.newDrawable().mutate())
-                    .orElse(null);
-        }
+        ThemeManager themeManager = ThemeManager.INSTANCE.get(mActivityContext);
+        @DrawableCreationFlags int creationFlags =
+                themeManager.isIconThemeEnabled() ? FLAG_THEMED : 0;
+        @Nullable IconShape iconShape =
+                enableLauncherIconShapes() ? themeManager.getIconShapeData().getValue() : null;
+        final Drawable taskIcon = Optional.ofNullable(bitmapInfo)
+                .map(bi -> bi.newIcon(mActivityContext, creationFlags, iconShape))
+                .orElse(null);
 
         btv.applyIconAndLabel(taskIcon, task.title, task.titleDescription);
         btv.setTag(singleTask);
@@ -1360,10 +1484,10 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
                 int qsbEnd;
                 if (layoutRtl) {
                     qsbStart = iconEnd + mItemMarginLeftRight;
-                    qsbEnd = qsbStart + deviceProfile.hotseatQsbWidth;
+                    qsbEnd = qsbStart + deviceProfile.getHotseatProfile().getQsbWidth();
                 } else {
                     qsbEnd = iconEnd - mItemMarginLeftRight;
-                    qsbStart = qsbEnd - deviceProfile.hotseatQsbWidth;
+                    qsbStart = qsbEnd - deviceProfile.getHotseatProfile().getQsbWidth();
                 }
                 int qsbTop = (bottom - top - deviceProfile.getHotseatProfile().getQsbHeight()) / 2;
                 int qsbBottom = qsbTop + deviceProfile.getHotseatProfile().getQsbHeight();
@@ -1378,7 +1502,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
                 int iconStart = iconEnd - mTaskbarDividerContainer.getSpaceNeeded();
                 child.layout(iconStart, mIconLayoutBounds.top, iconEnd, mIconLayoutBounds.bottom);
                 iconEnd = iconStart + mItemMarginLeftRight;
-            } else if (child instanceof TaskbarIconsContainer tic) {
+            } else if (child instanceof TaskbarPinnedAppIconContainer tic) {
                 iconEnd -= mItemMarginLeftRight;
                 int iconStart = iconEnd - tic.getSpaceNeeded();
                 child.layout(iconStart, mIconLayoutBounds.top, iconEnd, mIconLayoutBounds.bottom);
@@ -1473,7 +1597,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         int numContainers = 0;
         int numIconsInContainers = 0;
         for (int i = getChildCount() - 1; i >= 0; --i) {
-            if (getChildAt(i) instanceof TaskbarIconsContainer tic) {
+            if (getChildAt(i) instanceof TaskbarPinnedAppIconContainer tic) {
                 numContainers++;
                 numIconsInContainers += tic.getChildCount();
             }
@@ -1521,7 +1645,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         // If mHotseatIconsContainer is not null, need to subtract the number of invisible icons
         // inside mHotseatIconsContainer.
         int count = getTotalNumberOfIcons()
-                - (mIndexOfChildHiddenForDrag >= 0 ? 1 : 0)
+                - (mDragDelegate.hasHiddenChild() ? 1 : 0)
                 - ((mHotseatIconsContainer != null)
                         ? mHotseatIconsContainer.getChildCount()
                                 - mHotseatIconsContainer.getVisibleChildCount()
@@ -1544,7 +1668,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         int insertionPoint = 0;
         for (int i = 0; i < count; i++) {
             if (getChildAt(i) == mQsb) continue;
-            if (getChildAt(i) instanceof TaskbarIconsContainer tic) {
+            if (getChildAt(i) instanceof TaskbarPinnedAppIconContainer tic) {
                 int ticCount = tic.getChildCount();
                 if (mIsRtl) {
                     for (int j = ticCount - 1; j >= 0; j--) {
@@ -1560,6 +1684,26 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             icons[insertionPoint++] = getChildAt(i);
         }
         return icons;
+    }
+
+    private int getNumOfVisibleIconsInPinnedSection() {
+        ViewGroup parent = this;
+        if (mHotseatIconsContainer != null) {
+            parent = mHotseatIconsContainer;
+        }
+        final int totalChild = parent.getChildCount();
+        int count = 0;
+        for (int i = 0; i < totalChild; i++) {
+            View icon = parent.getChildAt(i);
+            if (icon.getVisibility() == View.GONE) {
+                continue;
+            }
+            if (icon instanceof TaskbarDropTargetGhostView || icon.getTag() instanceof ItemInfo
+                    || icon instanceof TaskbarOverflowView) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
@@ -1602,7 +1746,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
     @Nullable
     public TaskbarOverflowView getTaskbarPinnedOverflowView() {
         if (mHotseatIconsContainer != null) {
-            return mHotseatIconsContainer.getTaskbarPinnedOverflowView();
+            return mHotseatIconsContainer.getOverflowView();
         }
         return mTaskbarPinnedOverflowView;
     }
@@ -1611,7 +1755,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
      * Returns the taskbar overflow view for pinned apps in the taskbar.
      */
     @Nullable
-    public TaskbarIconsContainer getTaskbarHotseatIconsContainer() {
+    public TaskbarPinnedAppIconContainer getTaskbarHotseatIconsContainer() {
         return mHotseatIconsContainer;
     }
 
@@ -1718,65 +1862,9 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         return p instanceof TaskbarLayoutParams;
     }
 
-    private int calculateDropSpot(int onScreenLocationX) {
-        getHitRectForPinRelativeToDragLayer(sTmpRect);
-        // RTL in HotseatIconsContainer has different logic in TaskbarView.
-        int direction = (mIsRtl && mHotseatIconsContainer != null) ? -1 : 1;
-
-        int iconAreaStartX = direction == -1 ? (sTmpRect.right - mPinnedHitRectBuffer)
-                : (sTmpRect.left + mPinnedHitRectBuffer);
-        if (mHotseatIconsContainer == null) {
-            iconAreaStartX += mAllAppsButtonContainer.getSpaceNeeded() * direction;
-        }
-        int clampedX = Math.max(sTmpRect.left, Math.min(sTmpRect.right, onScreenLocationX));
-        int relativeX = (clampedX - iconAreaStartX) * direction;
-        int slotWidth = mIconTouchSize + (2 * mItemMarginLeftRight);
-
-        return Math.max(0, relativeX / slotWidth);
-    }
-
     @Override
     public void reserveDropSlotForDragLocation(int x) {
-        int newDropIndexInContainer = calculateDropSpot(x);
-        if (mHotseatIconsContainer != null) {
-            mHotseatIconsContainer.reserveDropSlot(newDropIndexInContainer);
-            mDropSpotIndex = newDropIndexInContainer;
-            return;
-        }
-        // If the ghost view is already at the correct spot, do nothing.
-        if (mDropTargetGhostView != null
-                && mDropSpotIndex == newDropIndexInContainer) {
-            return;
-        }
-
-        // Otherwise, remove the old placeholder and create a new one at the correct spot.
-        releaseDropSlot();
-
-        mDropSpotIndex = newDropIndexInContainer;
-        if (mDropSpotIndex < 0) {
-            return;
-        }
-
-        if (isOverflowViewShowing()) {
-            mDropSpotIndex = Math.min(mDropSpotIndex, indexOfChild(mTaskbarPinnedOverflowView) - 1);
-        }
-
-        if (mDropTargetGhostView == null) {
-            mDropTargetGhostView = new TaskbarDropTargetGhostView(getContext(), mIconTouchSize);
-        }
-
-        TaskbarLayoutParams lp = new TaskbarLayoutParams(mIconTouchSize, mIconTouchSize);
-        lp.setMargins(mItemMarginLeftRight, 0, mItemMarginLeftRight, 0);
-
-        // Include the offset of the all apps button and qsb.
-        int dropSpotOffset = mActivityContext.getDeviceProfile().isQsbInline ? 2 : 1;
-        // Skip the index of the hidden original child.
-        if (mIndexOfChildHiddenForDrag > -1
-                && mIndexOfChildHiddenForDrag < dropSpotOffset + newDropIndexInContainer) {
-            dropSpotOffset += 1;
-        }
-        addView(mDropTargetGhostView,
-                Math.min(newDropIndexInContainer + dropSpotOffset, mNextViewIndex), lp);
+        mDragDelegate.reserveDropSlotForDragLocation(x);
     }
 
     @Override
@@ -1785,40 +1873,27 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             mHotseatIconsContainer.updateItemViewVisibilityForDragState(itemView, isDragged);
             return;
         }
-
-        int indexOfDraggedView = indexOfChild(itemView);
-        if (indexOfDraggedView < 0) {
-            mIndexOfChildHiddenForDrag = -1;
-            return;
-        }
-
-        mIndexOfChildHiddenForDrag = isDragged ? indexOfDraggedView : -1;
-        itemView.setVisibility(isDragged ? View.GONE : View.VISIBLE);
+        mDragDelegate.updateItemViewVisibilityForDragState(itemView, isDragged);
     }
 
     @Override
     public void releaseDropSlot() {
-        mDropSpotIndex = -1;
-
         if (mHotseatIconsContainer != null) {
             mHotseatIconsContainer.releaseDropSlot();
+            mDragDelegate.onDragStateChanged();
             return;
         }
-
-        if (mDropTargetGhostView != null
-                && mDropTargetGhostView.getParent() instanceof ViewGroup parent) {
-            parent.removeView(mDropTargetGhostView);
-        }
+        mDragDelegate.releaseDropSlot();
     }
 
     @Override
     public int getPinIndex() {
         // RTL in HotseatIconsContainer has different logic so the index starts from right to left.
-        if (mIsRtl && mHotseatIconsContainer != null && mDropSpotIndex != -1) {
-            return mHotseatIconsContainer.getVisibleChildCount() - mDropSpotIndex - 1;
+        if (mIsRtl && mHotseatIconsContainer != null && mDragDelegate.getPinIndex() != -1) {
+            return mHotseatIconsContainer.getVisibleChildCount() - mDragDelegate.getPinIndex() - 1;
         }
 
-        return mDropSpotIndex;
+        return mDragDelegate.getPinIndex();
     }
 
     @Override
@@ -1864,43 +1939,6 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         // Adding a padding to the left and right bound for dropping leftmost/rightmost to reorder.
         outRect.left -= mPinnedHitRectBuffer;
         outRect.right += mPinnedHitRectBuffer;
-    }
-
-    @Override
-    public void getHitRectForUnpinRelativeToDragLayer(Rect outRect) {
-        // Use the recent apps (unpin) area as the bounds.
-        mActivityContext.getDragLayer().getDescendantRectRelativeToSelf(this, outRect);
-        int taskbarLeftInDragLayer = outRect.left;
-
-        if (mIsRtl) {
-            // Unpin area is from the start of the taskbar to the divider.
-            if (mAddedDividerForRecents && mTaskbarDividerContainer != null) {
-                outRect.right = taskbarLeftInDragLayer + mTaskbarDividerContainer.getLeft();
-            } else {
-                // No recent apps. Create a buffer area to the left of the pinned icons.
-                outRect.right = taskbarLeftInDragLayer + mUnpinnedHitRectBuffer;
-            }
-        } else {
-            View[] iconViews = getIconViews();
-            int iconsEnd = taskbarLeftInDragLayer
-                    + (iconViews.length > 0
-                            ? iconViews[iconViews.length - 1].getRight()
-                            : 0);
-
-            if (mAddedDividerForRecents && mTaskbarDividerContainer != null) {
-                // Use the area between Divider and right end of the last icon as the bound.
-                outRect.left += mTaskbarDividerContainer.getRight();
-                outRect.right = iconsEnd;
-            } else {
-                // No recent apps. Create a buffer area to the left of the pinned icons.
-                outRect.left = iconsEnd;
-                if (mHotseatIconsContainer != null) {
-                    outRect.left += mAllAppsButtonTranslationOffset
-                            + mAllAppsButtonContainer.getRight();
-                }
-                outRect.right = outRect.left + mUnpinnedHitRectBuffer;
-            }
-        }
     }
 
     @Override

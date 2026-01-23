@@ -22,48 +22,54 @@ import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Rect
 import android.os.UserHandle
+import android.platform.test.annotations.EnableFlags
+import android.platform.test.flag.junit.SetFlagsRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.launcher3.LauncherState
 import com.android.launcher3.SplitScreenUiState
 import com.android.launcher3.logging.StatsLogManager
 import com.android.launcher3.logging.StatsLogManager.StatsLogger
+import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.ResolvedTargetInfo
 import com.android.launcher3.statehandlers.DepthController
 import com.android.launcher3.statemanager.StateManager
 import com.android.launcher3.statemanager.StatefulActivity
+import com.android.launcher3.util.ComponentKey
 import com.android.quickstep.RecentsModel
 import com.android.quickstep.SystemUiProxy
+import com.android.quickstep.split.SplitSelectStateController.SplitFromDesktopController
 import com.android.quickstep.util.GroupTask
 import com.android.quickstep.util.SplitTask
 import com.android.quickstep.views.RecentsView
 import com.android.quickstep.views.RecentsViewContainer
 import com.android.systemui.shared.recents.model.Task
+import com.android.wm.shell.Flags.FLAG_RESOLVE_TRAMPOLINE_DESTINATION_PACKAGES
 import com.android.wm.shell.shared.split.SplitBounds
 import com.android.wm.shell.shared.split.SplitScreenConstants.SNAP_TO_2_50_50
 import java.util.function.Consumer
 import java.util.function.Predicate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.any
-import org.mockito.Mockito.doReturn
-import org.mockito.Mockito.spy
-import org.mockito.Mockito.`when`
+import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
 class SplitSelectStateControllerTest {
+
+    @get:Rule val setFlagsRule = SetFlagsRule()
 
     private val systemUiProxy: SystemUiProxy = mock()
     private val depthController: DepthController<*, *> = mock()
@@ -73,9 +79,10 @@ class SplitSelectStateControllerTest {
     private val context: RecentsViewContainer = mock()
     private val recentsModel: RecentsModel = mock()
     private val pendingIntent: PendingIntent = mock()
-    private val splitFromRunningTaskController: SplitFromRunningTaskController = mock()
+    private val splitFromDesktopController: SplitFromDesktopController = mock()
     private val recentsView: RecentsView<*, *> = mock()
     private val splitScreenUiState: SplitScreenUiState = SplitScreenUiState()
+    private val mSplitScreenAppResolver: SplitScreenAppResolver = mock()
 
     private lateinit var splitSelectStateController: SplitSelectStateController
 
@@ -90,9 +97,13 @@ class SplitSelectStateControllerTest {
 
     @Before
     fun setup() {
-        `when`(statsLogManager.logger()).thenReturn(statsLogger)
-        `when`(statsLogger.withInstanceId(any())).thenReturn(statsLogger)
-        `when`(statsLogger.withItemInfo(any())).thenReturn(statsLogger)
+        whenever(statsLogManager.logger()).thenReturn(statsLogger)
+        whenever(statsLogger.withInstanceId(any())).thenReturn(statsLogger)
+        whenever(statsLogger.withItemInfo(any())).thenReturn(statsLogger)
+        whenever(mSplitScreenAppResolver.getResolvedDestinationPackage(any(), any()))
+            .thenReturn(null)
+        whenever(mSplitScreenAppResolver.isTaskAppSingleInstance(any(), any(), any(), any(), any()))
+            .thenReturn(false)
         splitSelectStateController =
             SplitSelectStateController(
                 context,
@@ -103,7 +114,7 @@ class SplitSelectStateControllerTest {
                 recentsModel,
                 null, /*activityBackCallback*/
                 splitScreenUiState,
-                mock()
+                mSplitScreenAppResolver,
             )
     }
 
@@ -442,34 +453,30 @@ class SplitSelectStateControllerTest {
 
         // Send our mocked tasks
         consumer.accept(tasks)
+
+        verify(mSplitScreenAppResolver, never()).getResolvedDestinationPackage(any(), any())
     }
 
     @Test
-    fun activeTasks_matchPackageMultipleSearchShouldFindTask() {
-        val matchingOriginalPackage = "original_hotdog"
-        val matchingDestinationPackage = "hotdog"
-        val matchingClass = "juice"
-        val originalComponentName = ComponentName(matchingOriginalPackage, matchingClass)
+    @EnableFlags(FLAG_RESOLVE_TRAMPOLINE_DESTINATION_PACKAGES)
+    fun activeTasks_trampolineMultipleSearchShouldIgnore() {
         val noMatchingResolvedTargetInfo =
             ResolvedTargetInfo(null, ComponentName("no", "match"), primaryUserHandle)
+        val matchingPackage = "hotdog"
+        val matchingClass = "juice"
         val matchingResolvedTargetInfo =
-            ResolvedTargetInfo(null, originalComponentName, primaryUserHandle)
-
-        val spySplitSelectStateController: SplitSelectStateController =
-            spy(splitSelectStateController)
-        doReturn(true)
-            .whenever(spySplitSelectStateController)
-            .resolveTrampolineDestinationPackages()
-        doReturn(matchingDestinationPackage)
-            .whenever(spySplitSelectStateController)
-            .getResolvedDestinationPackage(any())
+            ResolvedTargetInfo(
+                null,
+                ComponentName(matchingPackage, matchingClass),
+                primaryUserHandle,
+            )
 
         val groupTask1 =
             generateSplitTask(ComponentName("hotdog", "pie"), ComponentName("pumpkin", "pie"))
         val groupTask2 =
             generateSplitTask(
                 ComponentName("pomegranate", "juice"),
-                ComponentName(matchingDestinationPackage, matchingClass),
+                ComponentName(matchingPackage, matchingClass),
             )
         val tasks: ArrayList<GroupTask> = ArrayList()
         tasks.add(groupTask2)
@@ -480,11 +487,11 @@ class SplitSelectStateControllerTest {
         val taskConsumer =
             Consumer<Array<Task>> {
                 assertEquals("Expected array length 2", 2, it.size)
-                assertNotNull("No tasks should have matched", it[1] /*task*/)
+                assertNull("No tasks should have matched", it[0] /*task*/)
                 assertEquals(
                     "ComponentName package mismatched",
                     it[1].key.baseIntent.component?.packageName,
-                    matchingDestinationPackage,
+                    matchingPackage,
                 )
                 assertEquals(
                     "ComponentName class mismatched",
@@ -497,7 +504,99 @@ class SplitSelectStateControllerTest {
         // Capture callback from recentsModel#getTasks()
         val consumer =
             argumentCaptor<Consumer<List<GroupTask>>> {
-                    spySplitSelectStateController.findLastActiveTasksAndRunCallback(
+                    splitSelectStateController.findLastActiveTasksAndRunCallback(
+                        listOf(noMatchingResolvedTargetInfo, matchingResolvedTargetInfo),
+                        false /* findExactPairMatch */,
+                        taskConsumer,
+                    )
+                    verify(recentsModel).getTasks(any(), capture())
+                }
+                .lastValue
+
+        // Send our mocked tasks
+        consumer.accept(tasks)
+    }
+
+    @Test
+    @EnableFlags(FLAG_RESOLVE_TRAMPOLINE_DESTINATION_PACKAGES)
+    fun activeTasks_trampolineMultipleSearchShouldFindTask() {
+        val matchingOriginalPackage = "original"
+        val matchingDestinationPackage = "destination"
+        val matchingClass = "juice"
+        val originalComponentName = ComponentName(matchingOriginalPackage, matchingClass)
+        val noMatchingResolvedTargetInfo =
+            ResolvedTargetInfo(null, ComponentName("no", "match"), primaryUserHandle)
+        val matchingResolvedTargetInfo =
+            ResolvedTargetInfo(null, originalComponentName, primaryUserHandle)
+
+        val task11 = generateSingleTask(ComponentName("hotdog", "pie"))
+        val task12 = generateSingleTask(ComponentName("pumpkin", "pie"))
+        val groupTask1 = generateSplitTask(task11, task12)
+
+        val task21 = generateSingleTask(ComponentName("pomegranate", "juice"))
+        val taskMatching =
+            generateSingleTask(ComponentName(matchingDestinationPackage, matchingClass))
+        val groupTask2 = generateSplitTask(task21, taskMatching)
+        val mockAppInfo: AppInfo = mock()
+
+        whenever(
+                mSplitScreenAppResolver.getResolvedDestinationPackage(
+                    any(),
+                    eq(originalComponentName),
+                )
+            )
+            .thenReturn(matchingDestinationPackage)
+        whenever(
+                mSplitScreenAppResolver.resolveAppInfoByComponent(
+                    eq(
+                        ComponentKey(
+                            taskMatching.key.component,
+                            UserHandle.of(taskMatching.key.userId),
+                        )
+                    )
+                )
+            )
+            .thenReturn(mockAppInfo)
+        whenever(
+                mSplitScreenAppResolver.isTaskAppSingleInstance(
+                    eq(taskMatching),
+                    any(),
+                    eq(mockAppInfo),
+                    eq(matchingDestinationPackage),
+                    any(),
+                )
+            )
+            .thenReturn(true)
+
+        val tasks: ArrayList<GroupTask> = ArrayList()
+        tasks.add(groupTask2)
+        tasks.add(groupTask1)
+
+        // Assertions happen in the callback we get from what we pass into
+        // #findLastActiveTasksAndRunCallback
+        val taskConsumer =
+            Consumer<Array<Task>> {
+                assertEquals("Expected array length 2", 2, it.size)
+                assertNull("First search (no match) should be null", it[0])
+
+                assertEquals(
+                    "ComponentName package mismatched",
+                    matchingDestinationPackage,
+                    it[1].key.baseIntent.component?.packageName,
+                )
+
+                assertEquals(
+                    "ComponentName class mismatched",
+                    matchingClass,
+                    it[1].key.baseIntent.component?.className,
+                )
+                assertEquals("Task object mismatch", it[1], groupTask2.bottomRightTask)
+            }
+
+        // Capture callback from recentsModel#getTasks()
+        val consumer =
+            argumentCaptor<Consumer<List<GroupTask>>> {
+                    splitSelectStateController.findLastActiveTasksAndRunCallback(
                         listOf(noMatchingResolvedTargetInfo, matchingResolvedTargetInfo),
                         false, /* findExactPairMatch */
                         taskConsumer,
@@ -559,7 +658,7 @@ class SplitSelectStateControllerTest {
                         false /* findExactPairMatch */,
                         taskConsumer,
                     )
-                    verify(recentsModel).getTasks(any(), capture())
+                    verify(recentsModel).getTasks(any<Predicate<GroupTask>>(), capture())
                 }
                 .lastValue
 
@@ -750,13 +849,13 @@ class SplitSelectStateControllerTest {
     @Test
     fun splitSelectStateControllerDestroyed_SplitFromDesktopControllerAlsoDestroyed() {
         // Initiate split from desktop controller
-        splitSelectStateController.initSplitFromRunningTaskController(splitFromRunningTaskController)
+        splitSelectStateController.initSplitFromDesktopController(splitFromDesktopController)
 
         // Simulate default controller being destroyed
         splitSelectStateController.onDestroy()
 
         // Verify desktop controller is also destroyed
-        verify(splitFromRunningTaskController).onDestroy()
+        verify(splitFromDesktopController).onDestroy()
     }
 
     @Test
@@ -843,5 +942,32 @@ class SplitSelectStateControllerTest {
                 /* snapPosition = */ SNAP_TO_2_50_50,
             ),
         )
+    }
+
+    /** Generates a [SplitTask] with [Task]. */
+    private fun generateSplitTask(task1: Task, task2: Task): SplitTask {
+        return SplitTask(
+            task1,
+            task2,
+            SplitBounds(
+                /* leftTopBounds = */ Rect(),
+                /* rightBottomBounds = */ Rect(),
+                /* leftTopTaskId = */ task1.key.id,
+                /* rightBottomTaskId = */ task2.key.id,
+                /* snapPosition = */ SNAP_TO_2_50_50,
+            ),
+        )
+    }
+
+    /** Generates a [Task] with default userId. */
+    private fun generateSingleTask(taskComponentName: ComponentName): Task {
+        val task = Task()
+        val taskInfo = ActivityManager.RunningTaskInfo()
+        taskInfo.taskId = getUniqueId()
+        val intent = Intent()
+        intent.component = taskComponentName
+        taskInfo.baseIntent = intent
+        task.key = Task.TaskKey(taskInfo)
+        return task
     }
 }

@@ -41,6 +41,7 @@ import com.android.launcher3.ShortcutAndWidgetContainer.TranslationProvider;
 import com.android.launcher3.celllayout.CellLayoutLayoutParams;
 import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.model.data.ItemInfo;
+import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.util.HorizontalInsettableView;
 import com.android.launcher3.util.LauncherBindableItemsContainer.ItemOperator;
 import com.android.launcher3.util.MultiPropertyFactory;
@@ -48,6 +49,7 @@ import com.android.launcher3.util.MultiPropertyFactory.MultiProperty;
 import com.android.launcher3.util.MultiTranslateDelegate;
 import com.android.launcher3.util.MultiValueAlpha;
 import com.android.launcher3.views.ActivityContext;
+import com.android.launcher3.widget.PendingAddWidgetInfo;
 
 import java.io.PrintWriter;
 import java.lang.annotation.Retention;
@@ -150,6 +152,14 @@ public class Hotseat extends CellLayout implements Insettable {
         return mHasVerticalHotseat;
     }
 
+    /** Returns whether the hotseat is a valid drop target for the specified drag object. */
+    public boolean isValidDropTarget(DropTarget.DragObject dragObject) {
+        final ShortcutAndWidgetContainer shortcutAndWidgetContainer = getShortcutsAndWidgets();
+        return shortcutAndWidgetContainer != null
+                && shortcutAndWidgetContainer.getVisibility() == View.VISIBLE
+                && !isDragWidget(dragObject);
+    }
+
     public void resetLayout(boolean hasVerticalHotseat) {
         ActivityContext activityContext = ActivityContext.lookupContext(getContext());
         boolean bubbleBarEnabled = activityContext.isBubbleBarEnabled();
@@ -165,7 +175,8 @@ public class Hotseat extends CellLayout implements Insettable {
                 if (mQsb instanceof HorizontalInsettableView) {
                     HorizontalInsettableView insettableQsb = (HorizontalInsettableView) mQsb;
                     final float insetFraction =
-                            (float) dp.getWorkspaceIconProfile().getIconSizePx() / dp.hotseatQsbWidth;
+                            (float) dp.getWorkspaceIconProfile().getIconSizePx()
+                                    / dp.getHotseatProfile().getQsbWidth();
                     // post this to the looper so that QSB has a chance to redraw itself, e.g.
                     // after device rotation
                     mQsb.post(() -> insettableQsb.setHorizontalInsets(insetFraction));
@@ -180,9 +191,9 @@ public class Hotseat extends CellLayout implements Insettable {
 
         resetCellSize(dp);
         if (hasVerticalHotseat) {
-            setGridSize(1, dp.numShownHotseatIcons);
+            setGridSize(1, dp.getHotseatProfile().getNumShownIcons());
         } else {
-            setGridSize(dp.numShownHotseatIcons, 1);
+            setGridSize(dp.getHotseatProfile().getNumShownIcons(), 1);
         }
     }
 
@@ -230,7 +241,9 @@ public class Hotseat extends CellLayout implements Insettable {
         if (mQsb instanceof HorizontalInsettableView horizontalInsettableQsb) {
             final float currentInsetFraction = horizontalInsettableQsb.getHorizontalInsets();
             final float targetInsetFraction = shouldAdjustQsb
-                    ? (float) dp.getWorkspaceIconProfile().getIconSizePx() / dp.hotseatQsbWidth : 0;
+                    ? (float) dp.getWorkspaceIconProfile().getIconSizePx() / dp.getHotseatProfile()
+                    .getQsbWidth()
+                    : 0;
             ValueAnimator qsbAnimator =
                     ValueAnimator.ofFloat(currentInsetFraction, targetInsetFraction);
             qsbAnimator.addUpdateListener(animation -> {
@@ -323,8 +336,10 @@ public class Hotseat extends CellLayout implements Insettable {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 
         DeviceProfile dp = mActivity.getDeviceProfile();
-        mQsb.measure(makeMeasureSpec(dp.hotseatQsbWidth, MeasureSpec.EXACTLY),
-                makeMeasureSpec(dp.getHotseatProfile().getQsbHeight(), MeasureSpec.EXACTLY));
+        mQsb.measure(
+                makeMeasureSpec(dp.getHotseatProfile().getQsbWidth(), MeasureSpec.EXACTLY),
+                makeMeasureSpec(dp.getHotseatProfile().getQsbHeight(), MeasureSpec.EXACTLY)
+        );
     }
 
     @Override
@@ -335,7 +350,7 @@ public class Hotseat extends CellLayout implements Insettable {
         int left;
         DeviceProfile dp = mActivity.getDeviceProfile();
         if (dp.isQsbInline) {
-            int qsbSpace = dp.hotseatBorderSpace;
+            int qsbSpace = dp.getHotseatProfile().getBorderSpace();
             left = Utilities.isRtl(getResources()) ? r - getPaddingRight() + qsbSpace
                     : l + getPaddingLeft() - qsbMeasuredWidth - qsbSpace;
         } else {
@@ -409,6 +424,11 @@ public class Hotseat extends CellLayout implements Insettable {
                 "ALPHA_CHANNEL_PREVIEW_RENDERER",
                 "ALPHA_CHANNEL_TASKBAR_STASH"
         );
+    }
+
+    private boolean isDragWidget(DropTarget.DragObject d) {
+        return (d.dragInfo instanceof LauncherAppWidgetInfo
+                || d.dragInfo instanceof PendingAddWidgetInfo);
     }
 
 }

@@ -63,6 +63,7 @@ import com.android.launcher3.WorkspaceLayoutManager;
 import com.android.launcher3.celllayout.CellLayoutLayoutParams;
 import com.android.launcher3.celllayout.CellPosMapper;
 import com.android.launcher3.dagger.LauncherComponentProvider;
+import com.android.launcher3.display.DisplayController;
 import com.android.launcher3.dragndrop.SimpleDragLayer;
 import com.android.launcher3.graphics.FragmentWithPreview;
 import com.android.launcher3.model.BgDataModel;
@@ -71,7 +72,6 @@ import com.android.launcher3.model.data.WorkspaceChangeEvent.UpdateEvent;
 import com.android.launcher3.model.data.WorkspaceData;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.util.BaseContext;
-import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.IntSet;
 import com.android.launcher3.util.ItemInflater;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
@@ -408,7 +408,7 @@ public class LauncherPreviewRenderer extends BaseContext
     private void populateHotseatPredictions(WorkspaceData itemIdMap) {
         List<ItemInfo> predictions = itemIdMap.getPredictedContents(CONTAINER_HOTSEAT_PREDICTION);
         int predictionIndex = 0;
-        for (int rank = 0; rank < mDp.numShownHotseatIcons; rank++) {
+        for (int rank = 0; rank < mDp.getHotseatProfile().getNumShownIcons(); rank++) {
             if (predictions.size() <= predictionIndex) continue;
 
             int cellX = mHotseat.getCellXFromOrder(rank);

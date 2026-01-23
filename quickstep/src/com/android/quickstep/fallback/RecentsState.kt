@@ -28,6 +28,7 @@ import com.android.launcher3.anim.PendingAnimation
 import com.android.launcher3.statemanager.BaseState
 import com.android.launcher3.statemanager.BaseState.FLAG_DISABLE_RESTORE_ABSOLUTE
 import com.android.launcher3.statemanager.BaseState.FLAG_DISABLE_RESTORE_EXCEPT_UI_MODE_CHANGE
+import com.android.launcher3.statemanager.BaseState.FLAG_IS_TASK_VIEW_INTERACTIVE
 import com.android.launcher3.util.Themes
 import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.views.ScrimColors
@@ -51,6 +52,7 @@ open class RecentsState(@JvmField val ordinal: Int, private val mFlags: Int) :
             HOME_STATE_ORDINAL -> "RECENTS_HOME"
             BG_LAUNCHER_ORDINAL -> "RECENTS_BG_LAUNCHER"
             OVERVIEW_SPLIT_SELECT_ORDINAL -> "RECENTS_SPLIT_SELECT"
+            HIDDEN_ORDINAL -> "RECENTS_HIDDEN"
             else -> "RECENTS Unknown Ordinal-$ordinal"
         }
 
@@ -94,7 +96,7 @@ open class RecentsState(@JvmField val ordinal: Int, private val mFlags: Int) :
 
     /** For this state, whether tasks should layout as a grid rather than a list. */
     override fun displayOverviewTasksAsGrid(deviceProfile: DeviceProfile) =
-        hasFlag(FLAG_SHOW_AS_GRID) && deviceProfile.deviceProperties.isTablet
+        hasFlag(FLAG_SHOW_AS_GRID) && deviceProfile.deviceProperties.isLargeScreen
 
     override fun showTaskThumbnailSplash() = hasFlag(FLAG_TASK_THUMBNAIL_SPLASH)
 
@@ -213,6 +215,11 @@ open class RecentsState(@JvmField val ordinal: Int, private val mFlags: Int) :
             floatArrayOf(NO_SCALE, 1f)
     }
 
+    private class HiddenState(id: Int, flags: Int) : RecentsState(id, flags) {
+        override fun getOverviewScaleAndOffset(container: RecentsViewContainer) =
+            floatArrayOf(NO_SCALE, 1f)
+    }
+
     override fun equals(other: Any?) =
         when (other) {
             is RecentsState -> other === this
@@ -246,8 +253,9 @@ open class RecentsState(@JvmField val ordinal: Int, private val mFlags: Int) :
         const val HOME_STATE_ORDINAL = 3
         const val BG_LAUNCHER_ORDINAL = 4
         const val OVERVIEW_SPLIT_SELECT_ORDINAL = 5
+        const val HIDDEN_ORDINAL = 6
 
-        private val sAllStates = arrayOfNulls<RecentsState>(6)
+        private val sAllStates = arrayOfNulls<RecentsState>(7)
 
         @JvmField
         val DEFAULT: RecentsState =
@@ -261,7 +269,8 @@ open class RecentsState(@JvmField val ordinal: Int, private val mFlags: Int) :
                     FLAG_LIVE_TILE or
                     FLAG_RECENTS_VIEW_VISIBLE or
                     FLAG_ADD_DESK_BUTTON or
-                    FLAG_IS_IN_OVERVIEW),
+                    FLAG_IS_IN_OVERVIEW or
+                    FLAG_IS_TASK_VIEW_INTERACTIVE),
             )
         @JvmField
         val MODAL_TASK: RecentsState =
@@ -286,8 +295,12 @@ open class RecentsState(@JvmField val ordinal: Int, private val mFlags: Int) :
                     FLAG_RECENTS_VIEW_VISIBLE or
                     FLAG_TASK_THUMBNAIL_SPLASH),
             )
-        @JvmField val HOME: RecentsState = RecentsState(HOME_STATE_ORDINAL, 0)
-        @JvmField val BG_LAUNCHER: RecentsState = BgLauncherState(BG_LAUNCHER_ORDINAL, 0)
+        @Deprecated("Use HIDDEN instead for RecentsWindowManager")
+        @JvmField
+        val HOME: RecentsState = RecentsState(HOME_STATE_ORDINAL, 0)
+        @Deprecated("Use HIDDEN instead for RecentsWindowManager")
+        @JvmField
+        val BG_LAUNCHER: RecentsState = BgLauncherState(BG_LAUNCHER_ORDINAL, 0)
         @JvmField
         val OVERVIEW_SPLIT_SELECT: RecentsState =
             RecentsState(
@@ -299,9 +312,12 @@ open class RecentsState(@JvmField val ordinal: Int, private val mFlags: Int) :
                     FLAG_DISABLE_RESTORE_EXCEPT_UI_MODE_CHANGE or
                     FLAG_IS_IN_OVERVIEW),
             )
+        @JvmField val HIDDEN: RecentsState = HiddenState(HIDDEN_ORDINAL, flags = 0)
 
         /** Returns the corresponding RecentsState from ordinal provided */
         @JvmStatic fun stateFromOrdinal(ordinal: Int) = sAllStates[ordinal]!!
+
+        @JvmStatic fun values() = sAllStates.copyOf(sAllStates.size)
 
         private const val NO_OFFSET = 0f
         private const val NO_SCALE = 1f

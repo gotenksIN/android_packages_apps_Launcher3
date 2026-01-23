@@ -24,13 +24,18 @@ import android.app.PendingIntent
 import android.app.assist.ActivityId
 import android.content.Intent
 import android.graphics.Rect
+import android.os.Bundle
 import android.provider.Settings
 import android.service.personalcontext.hint.BundleHint
+import android.service.personalcontext.hint.ContextHint
+import android.service.personalcontext.hint.ConversationEvent.ConversationUpdateEvent
+import android.service.personalcontext.hint.ConversationHint
 import android.service.personalcontext.insight.ActionableInsight
 import android.service.personalcontext.insight.ContextInsight
+import android.service.personalcontext.insight.DisplayInsight
 import android.service.personalcontext.insight.InsightActionDetails
+import android.service.personalcontext.insight.InsightCollection
 import android.util.Log
-import android.view.autofill.AutofillId
 import android.view.autofill.AutofillManager
 import androidx.annotation.VisibleForTesting
 import com.android.launcher3.R
@@ -123,10 +128,10 @@ constructor(
 
     // IME and Occlusion are hard to track from Launcher for other apps.
     private val _isImeVisible = MutableListenableRef(false)
-    override val isImeVisible: ListenableRef<Boolean> = _isImeVisible
+    override val isImeVisible: MutableListenableRef<Boolean> = _isImeVisible
 
     private val _isOccludedBySystemUi = MutableListenableRef(false)
-    override val isOccludedBySystemUi: ListenableRef<Boolean> = _isOccludedBySystemUi
+    override val isOccludedBySystemUi: MutableListenableRef<Boolean> = _isOccludedBySystemUi
 
     private val _isAmbientCueEnabled = MutableListenableRef(isAmbientCueSettingEnabled())
     override val isAmbientCueEnabled: ListenableRef<Boolean> = _isAmbientCueEnabled
@@ -218,13 +223,22 @@ constructor(
         pw.println("$prefix  frontTaskPackageName: ${frontTaskPackageName.value}")
     }
 
+    private fun ContextInsight.flatten(): List<ContextInsight> {
+        return if (this is InsightCollection) {
+            this.insights.flatMap { it.flatten() }
+        } else {
+            listOf(this)
+        }
+    }
+
     override fun onInsightReceived(insight: List<ContextInsight>) {
         uiExecutor.execute {
             if (insight.isEmpty()) {
                 updateActions(emptyList())
                 return@execute
             }
-            val actions = insight.flatMap { mapInsightToActions(it) }
+            val actions = insight.flatMap { it.flatten() }
+                .flatMap { mapInsightToActions(it) }
             if (actions.isNotEmpty()) {
                 isDeactivated.dispatchValue(false)
             }
@@ -232,33 +246,108 @@ constructor(
         }
     }
 
-    private fun mapInsightToActions(insight: ContextInsight): List<ActionModel> {
-        if (insight is ActionableInsight) {
-            val originHints = insight.originHints
-            if (originHints.isNotEmpty()) {
-                originHints.forEach { hint ->
-                    if (hint.contextHint is BundleHint) {
-                        if ((hint.contextHint as BundleHint).dataBundle.getBoolean(
-                                RENDER_IN_CUE_BAR, false)) {
-                            return mapActionableInsight(insight)
-                        }
-                    }
-                }
+    @VisibleForTesting
+    fun mapInsightToActions(insight: ContextInsight): List<ActionModel> {
+        Log.i(TAG, "insight: $insight")
+        val hintToMap = insight.originHints.firstOrNull { hint ->
+            when (val contextHint = hint.contextHint) {
+                is BundleHint ->
+                    contextHint.dataBundle.getBoolean(RENDER_IN_CUE_BAR, false)
+                is ConversationHint ->
+                    true // ConversationHint always renders
+                else ->
+                    false
             }
-        }
-        return emptyList()
+        } ?: return emptyList()
+        return mapContextInsightToAction(insight, hintToMap.contextHint)
     }
 
-    private fun mapActionableInsight(insight: ActionableInsight): List<ActionModel> {
-        val display = insight.displayDetails
-        val action = insight.actionDetails
-        val attribution = display.subtitle?.toString()
-        val iconDrawable = display.icon?.loadDrawable(context)
-            ?: context.getDrawable(R.drawable.ic_paste_spark)!!
+    @VisibleForTesting
+    fun mapContextInsightToAction(insight: ContextInsight, contextHint: ContextHint):
+            List<ActionModel> {
+        // Keep check here in case this method is called independently like in tests.
+        if (insight is InsightCollection) {
+            return insight.insights.flatMap { child ->
+                mapContextInsightToAction(child, contextHint)
+            }
+        }
+        val display = when (insight) {
+            is ActionableInsight -> insight.displayDetails
+            is DisplayInsight -> insight.details
+            else -> return emptyList()
+        }
+        val actionType: String
+        var activityId =
+            if (contextHint is ConversationHint) {
+                val conversationEvent = contextHint.conversationEvent
+                (conversationEvent as? ConversationUpdateEvent)?.conversationData?.activityId
+            } else if (contextHint is BundleHint){
+                contextHint.dataBundle.getParcelable<ActivityId>(EXTRA_ACTIVITY_ID)
+            } else {
+                null
+            }
+        val onPerformAction: () -> Unit
+        val extras: Bundle? // Only ActionableInsight has action/extras
         val title = display.title.toString()
-        val extras = action.createActionIntent()?.extras
-        val activityId = extras?.getParcelable<ActivityId>(EXTRA_ACTIVITY_ID)
-        val actionType = extras?.getString(EXTRA_ACTION_TYPE)
+        when (insight) {
+            is ActionableInsight -> {
+                actionType = MA_ACTION_TYPE_NAME
+                val action = insight.actionDetails
+                val actionIntent = action.createActionIntent()
+                extras = actionIntent?.extras
+                if (activityId == null) {
+                    activityId = extras?.getParcelable(EXTRA_ACTIVITY_ID)
+                }
+                onPerformAction = {
+                    when {
+                        // 1. Remote Action Send
+                        action.hasActionType(InsightActionDetails.ACTION_TYPE_REMOTE_ACTION) -> {
+                            action.remoteAction?.actionIntent?.let { launchPendingIntent(it) }
+                        }
+                        // 2. Start Activity Intent
+                        action.hasActionType(InsightActionDetails.ACTION_TYPE_INTENT) -> {
+                            actionIntent?.let { intent ->
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
+                            }
+                        }
+                    }
+                    ambientCueLogger.setFulfilledWithMaStatus()
+                }
+            }
+            is DisplayInsight -> {
+                actionType = MR_ACTION_TYPE_NAME
+                extras = null // Display insights have no action extras
+                val autofillId =
+                    if (contextHint is ConversationHint) {
+                        val conversationEvent = contextHint.conversationEvent
+                        (conversationEvent as? ConversationUpdateEvent)?.conversationData
+                            ?.inputBoxAutofillId
+                    } else {
+                        null
+                    }
+                onPerformAction = {
+                    val token = activityId?.token
+                    if (token != null && autofillId != null) {
+                        autofillManager?.autofillRemoteApp(autofillId, title, token,
+                            activityId.taskId,)
+                    }
+                    Log.d(TAG, "DisplayInsight ActionModel performed. Logging MR status.")
+                    ambientCueLogger.setFulfilledWithMrStatus()
+                }
+            }
+            else -> {
+                // Safe return if a new unhandled insight appears.
+                return emptyList()
+            }
+        }
+        val attribution = display.subtitle?.toString()
+        val iconDrawable = try {
+            display.icon?.loadDrawable(context)
+        } catch (e: Exception) {
+            Log.e(TAG, "Resource loading failed for ID: ${display.icon?.resId}", e)
+            null
+        } ?: context.getDrawable(R.drawable.ic_paste_spark)!!
         val oneTapEnabled = extras?.getBoolean(EXTRA_ONE_TAP_ENABLED)
         val oneTapDelayMs = extras?.getLong(
             EXTRA_ONE_TAP_DELAY_MS,
@@ -272,32 +361,7 @@ constructor(
             ),
             label = title,
             attribution = attribution,
-            onPerformAction = {
-                val autofillId = extras?.getParcelable<AutofillId>(EXTRA_AUTOFILL_ID)
-                val token = activityId?.token
-                if (token != null && autofillId != null) {
-                    autofillManager?.autofillRemoteApp(
-                        autofillId,
-                        title,
-                        token,
-                        activityId.taskId,
-                    )
-                } else if (action.hasActionType(
-                        InsightActionDetails.ACTION_TYPE_REMOTE_ACTION)) {
-                    action.remoteAction?.actionIntent?.send()
-                } else if (action.hasActionType(InsightActionDetails.ACTION_TYPE_INTENT)) {
-                    action.createActionIntent()?.let { intent ->
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
-                    }
-                }
-                if (actionType == MA_ACTION_TYPE_NAME) {
-                    ambientCueLogger.setFulfilledWithMaStatus()
-                }
-                if (actionType == MR_ACTION_TYPE_NAME) {
-                    ambientCueLogger.setFulfilledWithMrStatus()
-                }
-            },
+            onPerformAction = onPerformAction,
             onPerformLongClick = {
                 Log.i(TAG, "AmbientCueRepositoryImpl: onPerformLongClick")
                 // TODO: b/458508340 Proper design for attribution/feedback.
@@ -341,7 +405,7 @@ constructor(
         private const val EXTRA_ONE_TAP_ENABLED = "oneTapEnabled"
         private const val EXTRA_ONE_TAP_DELAY_MS = "oneTapDelayMs"
         private const val DEFAULT_ONE_TAP_DELAY_MS = 200L
-        private const val RENDER_IN_CUE_BAR = "renderInCueBar"
+        const val RENDER_IN_CUE_BAR = "renderInCueBar"
 
         // Timeout to hide cuebar if it wasn't interacted with
         private const val TAG = "AmbientCueRepository"

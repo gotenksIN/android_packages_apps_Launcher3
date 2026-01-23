@@ -104,9 +104,11 @@
     <string name="dismiss_prediction_label" msgid="3357562989568808658">"ॲप सुचवू नका"</string>
     <string name="pin_prediction" msgid="4196423321649756498">"पूर्वानुमान पिन करा"</string>
     <string name="bubble" msgid="3072951361014076670">"बबल"</string>
+    <string name="enable_app_lock" msgid="9190316880781005775">"अ‍ॅप लॉक करा"</string>
+    <string name="disable_app_lock" msgid="9071912028491244470">"लॉक काढून टाका"</string>
     <string name="widget_settings" msgid="5280157748464495511">"सेटिंग्ज"</string>
-    <string name="pin_to_taskbar" msgid="5914002252642242332">"टास्कबार वर पिन करा"</string>
-    <string name="unpin_from_taskbar" msgid="1025883383457627426">"टास्कबार वरून अनपिन करा"</string>
+    <string name="add_to_taskbar" msgid="1442306985857150792">"टास्कबार वर जोडा"</string>
+    <string name="remove_from_taskbar" msgid="5817026706030273018">"टास्कबार वरून काढून टाका"</string>
     <string name="no_room_in_taskbar" msgid="6885243748717395469">"टास्कबार मध्ये जागा नाही"</string>
     <string name="app_added_to_taskbar" msgid="6348755169793615171">"अ‍ॅप टास्कबार मध्ये जोडले आहे"</string>
     <string name="app_removed_from_taskbar" msgid="3471754847898675396">"अ‍ॅप टास्कबार मधून काढून टाकले आहे"</string>
@@ -114,6 +116,15 @@
     <string name="home_screen_files_context_menu_open_in_app_label" msgid="7930552598671791537">"उघडा"</string>
     <string name="home_screen_files_context_menu_delete_permanently_label" msgid="8660443461874174185">"कायमस्‍वरूपी हटवा"</string>
     <string name="home_screen_files_context_menu_move_to_trash_label" msgid="1145655050674479315">"ट्रॅशमध्ये हलवा"</string>
+    <!-- no translation found for home_screen_files_moved_to_trash_message (381256565590274395) -->
+    <skip />
+    <!-- no translation found for home_screen_files_move_to_trash_error_message (3836240816166417826) -->
+    <skip />
+    <!-- no translation found for home_screen_files_restore_from_trash_error_message (994941644161090497) -->
+    <skip />
+    <string name="actions_popup_menu_button" msgid="2442187572711557413">"कृती"</string>
+    <string name="shortcuts_popup_menu_button" msgid="766598805805882499">"शॉर्टकट"</string>
+    <string name="loading_shortcut" msgid="2638272014233830958">"शॉर्टकट लोड करत आहे"</string>
     <string name="permlab_install_shortcut" msgid="5632423390354674437">"शॉर्टकट इंस्टॉल करा"</string>
     <string name="permdesc_install_shortcut" msgid="923466509822011139">"वापरकर्ता हस्तक्षेपाशिवाय शॉर्टकट जोडण्यास अ‍ॅप ला अनुमती देते."</string>
     <string name="permlab_read_settings" msgid="5136500343007704955">"होम सेटिंग्ज आणि शॉर्टकट वाचा"</string>
@@ -150,7 +161,6 @@
     <string name="edit_home_screen" msgid="8947858375782098427">"होम स्क्रीन संपादित करा"</string>
     <string name="settings_button_text" msgid="8873672322605444408">"होम सेटिंग्‍ज"</string>
     <string name="msg_disabled_by_admin" msgid="6898038085516271325">"आपल्या प्रशासकाने अक्षम केले"</string>
-    <string name="allow_rotation_title" msgid="7222049633713050106">"होम स्क्रीन फिरवण्‍याची अनुमती द्या"</string>
     <string name="allow_rotation_desc" msgid="8662546029078692509">"फोन फिरवला जातो तेव्हा"</string>
     <string name="compose_developer_options_section" msgid="8211460486549952595">"Jetpack Compose"</string>
     <string name="enable_composition_tracing_title" msgid="8989606591739368424">"कंपोझिशन ट्रेसिंग सुरू करा"</string>

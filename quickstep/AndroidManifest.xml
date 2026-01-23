@@ -85,7 +85,7 @@
             android:exported="true"
             android:permission="android.permission.BIND_INSIGHT_RENDERER_SERVICE">
             <intent-filter>
-                <action android:name="android.service.personalcontext.RendererService" />
+                <action android:name="android.service.personalcontext.renderer.InsightRendererService" />
             </intent-filter>
         </service>
 
@@ -176,6 +176,16 @@
             </intent-filter>
         </activity>
 
+        <activity android:name="com.android.launcher3.QuickstepAddItemActivity"
+            android:theme="@style/AddItemActivityTheme"
+            android:excludeFromRecents="true"
+            android:autoRemoveFromRecents="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.content.pm.action.CONFIRM_PIN_SHORTCUT" />
+                <action android:name="android.content.pm.action.CONFIRM_PIN_APPWIDGET" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>

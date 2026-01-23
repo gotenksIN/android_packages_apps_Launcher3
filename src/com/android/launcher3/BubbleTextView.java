@@ -84,6 +84,7 @@ import com.android.launcher3.anim.AnimatedFloat;
 import com.android.launcher3.dot.DotInfo;
 import com.android.launcher3.dragndrop.DragOptions.PreDragCondition;
 import com.android.launcher3.dragndrop.DraggableView;
+import com.android.launcher3.graphics.AutomatedIconDelegate;
 import com.android.launcher3.graphics.PreloadIconDelegate;
 import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.icons.BitmapInfo.DrawableCreationFlags;
@@ -103,13 +104,15 @@ import com.android.launcher3.popup.PoppableType;
 import com.android.launcher3.popup.Popup;
 import com.android.launcher3.popup.PopupController;
 import com.android.launcher3.search.StringMatcherUtility;
+import com.android.launcher3.touch.CustomActionsListener;
+import com.android.launcher3.touch.CustomEventsTouchHandler;
+import com.android.launcher3.touch.CustomTouchDelegate;
 import com.android.launcher3.util.CancellableTask;
 import com.android.launcher3.util.IntArray;
 import com.android.launcher3.util.MultiPropertyFactory;
 import com.android.launcher3.util.MultiTranslateDelegate;
 import com.android.launcher3.util.SafeCloseable;
 import com.android.launcher3.util.ShortcutUtil;
-import com.android.launcher3.util.TaskbarModeUtil;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.FloatingIconViewCompanion;
@@ -124,7 +127,8 @@ import java.util.Locale;
  * too aggressive.
  */
 public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
-        FloatingIconViewCompanion, DraggableView, Reorderable, Poppable, IconViewController {
+        FloatingIconViewCompanion, DraggableView, Reorderable, Poppable, IconViewController,
+        CustomTouchDelegate {
 
     public static final String TAG = "BubbleTextView";
 
@@ -176,6 +180,9 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     protected int mDisplay;
 
     private final CheckLongPressHelper mLongPressHelper;
+    // TODO(b/465247812): Remove this and overridden functions in favor of Kotlin interface
+    //  delegation, upon file conversion to Kotlin.
+    private final CustomEventsTouchHandler mCustomEventsTouchHandler;
 
     private boolean mLayoutHorizontal;
     private final boolean mIsRtl;
@@ -258,6 +265,22 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     @Override
     public MultiPropertyFactory<AnimatedFloat>.MultiProperty getFloatingViewTextAlpha() {
         return mTextAlphaMultiPropertyFactory.get(TEXT_ALPHA_INDEX_TRANSITION);
+    }
+
+    @Override
+    public boolean onDelegateTouchEvent(@NonNull MotionEvent event) {
+        return mCustomEventsTouchHandler.onDelegateTouchEvent(event);
+    }
+
+    @Nullable
+    @Override
+    public CustomActionsListener getCustomActionsListener() {
+        return mCustomEventsTouchHandler.getCustomActionsListener();
+    }
+
+    @Override
+    public void setCustomActionsListener(@Nullable CustomActionsListener listener) {
+        mCustomEventsTouchHandler.setCustomActionsListener(listener);
     }
 
     /**
@@ -359,16 +382,35 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
 
         mLongPressHelper = new CheckLongPressHelper(this);
 
+        // CustomEventsTouchHandler is initialized with a default touch handler to ensure standard
+        // touch behaviors (like long presses and clicks) are preserved when no custom actions
+        // listener is set. Additionally, it utilizes `shouldIgnoreTouchDown` to filter out
+        // touch events in non-interactive padding areas, preventing unintended interactions.
+        mCustomEventsTouchHandler = new CustomEventsTouchHandler(this, (event) -> {
+            if (isLongClickable()) {
+                super.onTouchEvent(event);
+                mLongPressHelper.onTouchEvent(event);
+                // Keep receiving the rest of the events
+                return true;
+            } else {
+                return super.onTouchEvent(event);
+            }
+        }, this::shouldIgnoreTouchDown);
+
         mDotParams = new DotRenderer.DrawParams();
         mDotParams.setDotColor(Themes.getAttrColor(context, R.attr.notificationDotColor));
 
         if (mDisplay == DISPLAY_ALL_APPS) {
-            mDotRenderer = mActivity.getDeviceProfile().mDotRendererAllApps;
+            mDotRenderer = new DotRenderer(
+                    mActivity.getDeviceProfile().getAllAppsProfile().getIconSizePx()
+            );
 
             // Do not use normalized info, as we account for normalization in iconBounds
             mDotParams.shapeInfo = IconShapeInfo.DEFAULT;
         } else {
-            mDotRenderer = mActivity.getDeviceProfile().mDotRendererWorkSpace;
+            mDotRenderer = new DotRenderer(
+                    mActivity.getDeviceProfile().getWorkspaceIconProfile().getIconSizePx()
+            );
             mDotParams.shapeInfo = ThemeManager.INSTANCE.get(context)
                     .getIconState().getIconShapeInfo();
         }
@@ -582,6 +624,14 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         if (mIsShowingMinimalPopup) {
             iconDrawable.setAnimationEnabled(false);
         }
+
+        // views may be recycled (Ex. folder items) and have stale ItemInfo so avoid animating.
+        boolean isRecycled = getTag() != info;
+        if (!isRecycled && getIcon() != null
+                && getIcon().getDelegate() instanceof AutomatedIconDelegate aid) {
+            aid.startExitAnimation(() -> setIcon(iconDrawable));
+            return;
+        }
         setIcon(iconDrawable);
     }
 
@@ -741,33 +791,21 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        // ignore events if they happen in padding area
-        if (event.getAction() == MotionEvent.ACTION_DOWN
-                && shouldIgnoreTouchDown(event.getX(), event.getY())) {
-            return false;
-        }
-        if (isLongClickable()) {
-            super.onTouchEvent(event);
-            mLongPressHelper.onTouchEvent(event);
-            // Keep receiving the rest of the events
-            return true;
-        } else {
-            return super.onTouchEvent(event);
-        }
+        return onDelegateTouchEvent(event);
     }
 
     /**
      * Returns true if the touch down at the provided position be ignored
      */
-    protected boolean shouldIgnoreTouchDown(float x, float y) {
+    protected boolean shouldIgnoreTouchDown(MotionEvent event) {
         if (mDisplay == DISPLAY_TASKBAR) {
             // Allow touching within padding on taskbar, given icon sizes are smaller.
             return false;
         }
-        return y < getPaddingTop()
-                || x < getPaddingLeft()
-                || y > getHeight() - getPaddingBottom()
-                || x > getWidth() - getPaddingRight();
+        return event.getY() < getPaddingTop()
+                || event.getX() < getPaddingLeft()
+                || event.getY() > getHeight() - getPaddingBottom()
+                || event.getX() > getWidth() - getPaddingRight();
     }
 
     void setStayPressed(boolean stayPressed) {
@@ -1441,7 +1479,8 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
                 mIconLoadRequest.cancel();
             }
             mIconLoadRequest = LauncherAppState.getInstance(getContext()).getIconCache()
-                    .updateIconInBackground(BubbleTextView.this, info, expectedFlag);
+                    .updateIconInBackground(getContext().getMainExecutor(), BubbleTextView.this,
+                            info, expectedFlag);
         }
     }
 

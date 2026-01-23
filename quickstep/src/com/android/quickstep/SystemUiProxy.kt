@@ -88,9 +88,9 @@ import com.android.wm.shell.bubbles.IBubbles
 import com.android.wm.shell.bubbles.IBubblesListener
 import com.android.wm.shell.common.pip.IPip
 import com.android.wm.shell.common.pip.IPipAnimationListener
-import com.android.wm.shell.desktopmode.IDesktopMode
 import com.android.wm.shell.desktopmode.IDesktopTaskListener
 import com.android.wm.shell.desktopmode.IMoveToDesktopCallback
+import com.android.wm.shell.desktopmode.api.IDesktopMode
 import com.android.wm.shell.draganddrop.IDragAndDrop
 import com.android.wm.shell.onehanded.IOneHanded
 import com.android.wm.shell.onehanded.IOneHanded.Stub
@@ -186,7 +186,7 @@ constructor(
     private var recentTasksListener: IRecentTasksListener? = null
     private var unfoldAnimationListener: IUnfoldTransitionListener? = null
     private var desktopTaskListener: IDesktopTaskListener? = null
-    private val remoteTransitions = LinkedHashMap<RemoteTransition, TransitionFilter>()
+    private val remoteTransitions = LinkedHashSet<RemoteTransition>()
 
     // Save bubble bar state in case service is not bound yet when it is updated. SysUI relies on
     // this to suppress the floating bubbles UI.
@@ -337,9 +337,7 @@ constructor(
             launcherActivityClass,
             launcherUnlockAnimationController,
         )
-        LinkedHashMap(remoteTransitions).forEach { (remoteTransition, filter) ->
-            registerRemoteTransition(remoteTransition, filter)
-        }
+        LinkedHashSet(remoteTransitions).forEach { registerRemoteTransition(it) }
         setupTransactionQueue()
         registerRecentTasksListener(recentTasksListener)
         setBackToLauncherCallback(backToLauncherCallback, backToLauncherRunner)
@@ -834,8 +832,7 @@ constructor(
             DesktopExperienceFlags.ENABLE_NON_DEFAULT_DISPLAY_SPLIT_BUGFIX.isTrue &&
                 listener != null
         ) {
-            val removeSuccess = splitSelectListeners.remove(listener)
-            Log.d("b/36737459", "removed splitSelectListener? $removeSuccess")
+            splitSelectListeners.remove(listener)
             if (splitSelectListeners.isEmpty()) {
                 executeWithErrorLog({ "Failed call unregisterSplitSelectListener" }) {
                     splitScreen?.unregisterSplitSelectListener(splitSelectListenerTracker)
@@ -998,12 +995,12 @@ constructor(
     //
     // Remote transitions
     //
-    fun registerRemoteTransition(remoteTransition: RemoteTransition?, filter: TransitionFilter) {
+    fun registerRemoteTransition(remoteTransition: RemoteTransition?) {
         remoteTransition ?: return
         executeWithErrorLog({ "Failed call registerRemoteTransition" }) {
-            shellTransitions?.registerRemote(filter, remoteTransition)
+            shellTransitions?.registerRemote(remoteTransition)
         }
-        remoteTransitions.putIfAbsent(remoteTransition, filter)
+        remoteTransitions.add(remoteTransition)
     }
 
     fun unregisterRemoteTransition(remoteTransition: RemoteTransition?) {

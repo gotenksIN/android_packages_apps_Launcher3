@@ -25,6 +25,7 @@ import android.view.View
 import android.view.ViewGroup.OnHierarchyChangeListener
 import com.android.launcher3.DragSource
 import com.android.launcher3.DropTarget.DragObject
+import com.android.launcher3.Flags.enableHotseatDropTargetValidityChecks
 import com.android.launcher3.LauncherAnimUtils
 import com.android.launcher3.LauncherSettings.Favorites
 import com.android.launcher3.WorkspaceLayoutManager
@@ -126,7 +127,7 @@ class HybridHotseatOrganizer(
             return
         }
 
-        val hotseatCount = activity.getDeviceProfile().numShownHotseatIcons
+        val hotseatCount = activity.getDeviceProfile().getHotseatProfile().numShownIcons
 
         pauseFlags = pauseFlags or FLAG_FILL_IN_PROGRESS
         for (rank in 0..<hotseatCount) {
@@ -263,6 +264,12 @@ class HybridHotseatOrganizer(
     }
 
     override fun onDragStart(dragObject: DragObject, options: DragOptions?) {
+        if (
+            enableHotseatDropTargetValidityChecks() &&
+                hotseat?.isValidDropTarget(dragObject) != true
+        ) {
+            return
+        }
         removePredictedApps(outlineDrawings, dragObject)
         if (outlineDrawings.isEmpty()) return
         for (outlineDrawing in outlineDrawings) {
@@ -273,6 +280,11 @@ class HybridHotseatOrganizer(
     }
 
     override fun onDragEnd() {
+        if (
+            enableHotseatDropTargetValidityChecks() && (pauseFlags and FLAG_DRAG_IN_PROGRESS) == 0
+        ) {
+            return
+        }
         pauseFlags = pauseFlags and FLAG_DRAG_IN_PROGRESS.inv()
         fillGapsWithPrediction(true)
     }
@@ -301,12 +313,13 @@ class HybridHotseatOrganizer(
                 ((view.getTag() as? WorkspaceItemInfo)?.container ==
                     Favorites.CONTAINER_HOTSEAT_PREDICTION)
 
-        private fun getStateString(flags: Int): String {
-            val str = StringJoiner("|")
-            appendFlag(str, flags, FLAG_DRAG_IN_PROGRESS, "FLAG_DRAG_IN_PROGRESS")
-            appendFlag(str, flags, FLAG_FILL_IN_PROGRESS, "FLAG_FILL_IN_PROGRESS")
-            appendFlag(str, flags, FLAG_REMOVING_PREDICTED_ICON, "FLAG_REMOVING_PREDICTED_ICON")
-            return str.toString()
-        }
+        private fun getStateString(flags: Int): String =
+            StringJoiner("|")
+                .apply {
+                    appendFlag(flags, FLAG_DRAG_IN_PROGRESS, "FLAG_DRAG_IN_PROGRESS")
+                    appendFlag(flags, FLAG_FILL_IN_PROGRESS, "FLAG_FILL_IN_PROGRESS")
+                    appendFlag(flags, FLAG_REMOVING_PREDICTED_ICON, "FLAG_REMOVING_PREDICTED_ICON")
+                }
+                .toString()
     }
 }

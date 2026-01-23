@@ -20,7 +20,6 @@ import static android.view.View.VISIBLE;
 import static android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
 import static android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS;
 
-import static com.android.app.animation.Interpolators.ACCELERATE;
 import static com.android.app.animation.Interpolators.FAST_OUT_SLOW_IN;
 import static com.android.app.animation.Interpolators.LINEAR;
 import static com.android.app.animation.Interpolators.clampToProgress;
@@ -74,6 +73,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import androidx.core.graphics.ColorUtils;
 
 import com.android.launcher3.AsyncAnimatorPlaybackController;
@@ -149,9 +149,10 @@ public class AllSetActivity extends Activity {
     private static final String KEY_BACKGROUND_ANIMATION_TOGGLED_ON =
             "background_animation_toggled_on";
 
-    private boolean mIsTablet;
+    private boolean mIsLargeScreen;
 
-    private final AnimatedFloat mSwipeProgress = new AnimatedFloat(this::onSwipeProgressUpdate);
+    @VisibleForTesting
+    final AnimatedFloat mSwipeProgress = new AnimatedFloat(this::onSwipeProgressUpdate);
 
     private final InvariantDeviceProfile.OnIDPChangeListener mOnIDPChangeListener =
             modelPropertiesChanged -> updateTextForNavigationMode();
@@ -189,7 +190,7 @@ public class AllSetActivity extends Activity {
         if (mIsExpressiveThemeEnabledInSUW) setTheme(R.style.AllSetTheme_Expressive);
 
         super.onCreate(savedInstanceState);
-        mIsTablet = getDP().getDeviceProperties().isTablet()
+        mIsLargeScreen = getDP().getDeviceProperties().isLargeScreen()
                     && !getDP().getDeviceProperties().isTwoPanels();
         boolean isDarkTheme =
                 (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
@@ -293,7 +294,7 @@ public class AllSetActivity extends Activity {
             mBackgroundAnimationToggledOn = !mBackgroundAnimationToggledOn;
             maybeResumeOrPauseBackgroundAnimation();
         });
-        setUpBackgroundAnimation(getDP().getDeviceProperties().isTablet());
+        setUpBackgroundAnimation(getDP().getDeviceProperties().isLargeScreen());
     }
 
     private void setupExpressiveTheme() {
@@ -455,7 +456,7 @@ public class AllSetActivity extends Activity {
             hintTextResId = isGestureMode
                     ? R.string.allset_hint_expressive
                     : R.string.allset_button_hint_expressive;
-            String deviceName = getString(mIsTablet
+            String deviceName = getString(mIsLargeScreen
                     ? R.string.allset_device_type_tablet
                     : R.string.allset_device_type_phone);
             int subtitleFormatResId = isGestureMode
@@ -660,9 +661,6 @@ public class AllSetActivity extends Activity {
 
     private void onSwipeProgressUpdate() {
         if (mIsExpressiveThemeEnabledInSUW) {
-            getWindow().setBackgroundBlurRadius((int) mapBoundToRange(
-                    mSwipeProgress.value, 0, HINT_BOTTOM_FACTOR, WALLPAPER_BLUR_RADIUS, 0,
-                    ACCELERATE));
             if (mExpressiveAnimSet != null) {
                 long progress = (long) mapToRange(
                         mSwipeProgress.value, 0, 1, 0, CLIP_ANIM_DURATION, LINEAR);

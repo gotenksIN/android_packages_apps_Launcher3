@@ -21,15 +21,19 @@ import android.util.AttributeSet
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.core.view.children
+import androidx.core.view.setPadding
 import androidx.core.view.updatePadding
 import com.android.launcher3.BubbleTextView
 import com.android.launcher3.R
+import com.android.launcher3.Utilities
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.popup.ArrowPopup
 import com.android.launcher3.popup.RoundedArrowDrawable
+import com.android.launcher3.util.ViewCache
 
 /** A container view for overflown apps in the taskbar. */
 class OverflownAppsContainerView<T : TaskbarActivityContext>
@@ -41,13 +45,21 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
     private lateinit var viewCallbacks: TaskbarViewCallbacks
     private lateinit var content: LinearLayout
     private var overflownApps = emptyList<ItemInfo>()
+    private val viewCache = ViewCache()
 
-    private val runningAppIndicatorHeight =
-        resources.getDimensionPixelSize(R.dimen.taskbar_running_app_indicator_height)
-    private val runningAppIndicatorMargin =
-        resources.getDimensionPixelSize(R.dimen.taskbar_running_app_indicator_top_margin)
     private val spacing: Int =
         resources.getDimensionPixelSize(R.dimen.overflown_apps_container_spacing)
+
+    private val iconViewSize =
+        Utilities.dpToPx(
+            mActivityContext.taskbarSpecsEvaluator.taskbarIconTouchSize,
+            mActivityContext,
+        )
+    private val iconPadding =
+        Utilities.dpToPx(
+            mActivityContext.taskbarSpecsEvaluator.taskbarIconPadding,
+            mActivityContext,
+        )
 
     val overflownAppIcons: List<BubbleTextView>
         get() = content.children.filterIsInstance<BubbleTextView>().toList()
@@ -57,48 +69,51 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
         overflowIcon = icon
         viewCallbacks = callbacks
         content = findViewById(R.id.overflown_content)
+        content.clipChildren = false
         // Set the horizontal padding to the half of the expected spacing for the children to
         // complement the other half
         content.updatePadding(
             left = spacing / 2,
             top = spacing,
             right = spacing / 2,
-            bottom = spacing - runningAppIndicatorMargin - runningAppIndicatorHeight,
+            bottom = spacing,
         )
     }
 
     fun setOverflownApps(list: List<ItemInfo>) {
+        for (iconView in content.children) {
+            iconView.setOnClickListener(null)
+            iconView.setOnLongClickListener(null)
+            iconView.setOnHoverListener(null)
+            iconView.tag = null
+
+            viewCache.recycleView(iconView.sourceLayoutResId, iconView)
+        }
+        content.removeAllViews()
+
         overflownApps = list
         inflateApps()
     }
 
     private fun inflateApps() {
-        val iconSize = mActivityContext.deviceProfile.taskbarProfile.iconSize
         val iconSpacing = spacing / 2
         for (item in overflownApps) {
-            val icon =
-                mActivityContext.viewCache.getView<View>(
-                    R.layout.taskbar_app_icon,
-                    mActivityContext,
-                    content,
-                )
+            val icon = viewCache.getView<View>(R.layout.taskbar_app_icon, mActivityContext, content)
 
             if (icon is BubbleTextView && item is WorkspaceItemInfo) {
                 icon.applyFromWorkspaceItem(item)
                 icon.setContainerTextVisibility(false)
+                icon.setPadding(iconPadding)
+
                 icon.setOnClickListener(viewCallbacks.iconOnClickListener)
                 icon.setOnLongClickListener(viewCallbacks.iconOnLongClickListener)
                 icon.setOnHoverListener(TaskbarHoverToolTipController(mActivityContext, this, icon))
 
                 val lp =
-                    LayoutParams(
-                            iconSize,
-                            iconSize + runningAppIndicatorHeight + runningAppIndicatorMargin,
-                        )
-                        .apply {
-                            marginStart = iconSpacing
-                            marginEnd = iconSpacing
-                        }
+                    LayoutParams(iconViewSize, iconViewSize).apply {
+                        marginStart = iconSpacing
+                        marginEnd = iconSpacing
+                    }
                 content.addView(icon, lp)
             }
         }
@@ -135,6 +150,10 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 
     override fun addArrow() {
         super.addArrow()
+        alignArrow()
+    }
+
+    private fun alignArrow() {
         // Center the arrow to the overflow icon.
         val overflowIconCenterX = mTempRect.centerX().toFloat()
         mArrow.x = overflowIconCenterX - (mArrowWidth / 2f)
@@ -172,27 +191,62 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
         mActivityContext.dragLayer.getDescendantRectRelativeToSelf(this, outRect)
     }
 
-    override fun getHitRectForUnpinRelativeToDragLayer(outRect: Rect?) {
-        // There is no area in the overflow container view can unpin a view.
-    }
-
-    // The overflow container view does not overlap with the icon.
     override fun isPointOnOverflowIcon(point: FloatArray): Boolean = false
 
     override fun reserveDropSlotForDragLocation(x: Int) {
-        // TODO("Not yet implemented")
+        dragDelegate.reserveDropSlotForDragLocation(x)
     }
 
     override fun releaseDropSlot() {
-        // TODO("Not yet implemented")
+        dragDelegate.releaseDropSlot()
     }
 
     override fun getPinIndex(): Int {
-        // TODO("Not yet implemented")
-        return -1
+        return dragDelegate.getPinIndex()
     }
 
     override fun updateItemViewVisibilityForDragState(itemView: View, isDragged: Boolean) {
-        // TODO("Not yet implemented")
+        dragDelegate.updateItemViewVisibilityForDragState(itemView, isDragged)
+    }
+
+    private val dragDelegate by lazy {
+        object :
+            PinnedAppsDragHelper(
+                context,
+                content,
+                mActivityContext.taskbarSpecsEvaluator.taskbarIconTouchSize.toInt(),
+            ) {
+            override fun calculateGhostViewIndex(onScreenLocationX: Int): Int {
+                val tempRect = Rect()
+                mActivityContext.dragLayer.getDescendantRectRelativeToSelf(content, tempRect)
+                val relativeX = onScreenLocationX - tempRect.left
+                val itemWidth = iconSize + spacing
+
+                val clampedX = relativeX.coerceIn(0, tempRect.width())
+
+                val count = content.childCount
+                val isGhostPresent = dropSpotIndex != -1
+                val realCount = if (isGhostPresent) count - 1 else count
+                val maxIndex = if (hasHiddenChild()) realCount - 1 else realCount
+
+                return (clampedX / itemWidth).coerceAtMost(maxIndex)
+            }
+
+            override fun createGhostViewLayoutParams(iconSize: Int): ViewGroup.LayoutParams {
+                return LayoutParams(iconSize, iconSize).apply {
+                    marginStart = spacing / 2
+                    marginEnd = spacing / 2
+                }
+            }
+
+            override fun onDragStateChanged() {
+                orientAboutObject()
+                alignArrow()
+            }
+
+            override fun getHitRectForPinRelativeToDragLayer(outRect: Rect?) {}
+
+            override fun isPointOnOverflowIcon(point: FloatArray): Boolean = false
+        }
     }
 }
