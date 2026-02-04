@@ -122,7 +122,8 @@ constructor(
         shouldRemoveTaskView: Boolean,
         isSplitSelection: Boolean,
     ): SpringSet? {
-        val gridEndData = getGridEndData(dismissedTaskView)
+        val isDismissingHomeTask = recentsView.homeTaskView === dismissedTaskView
+        val gridEndData = getGridEndData(dismissedTaskView, isDismissingHomeTask)
         val dismissedTaskSecondaryDimension =
             if (dismissedTaskView == null)
                 recentsView.pagedOrientationHandler.getSecondarySize(
@@ -232,6 +233,7 @@ constructor(
                     shouldRemoveTaskView,
                     isSplitSelection,
                     gridEndData,
+                    isDismissingHomeTask,
                 )
             } else {
                 dismissedTaskView?.isBeingDismissed = false
@@ -815,7 +817,7 @@ constructor(
     /** Returns the distance between the end of the grid and clear all button after dismissal. */
     fun getGridEndData(
         dismissedTaskView: TaskView?,
-        isExpressiveDismiss: Boolean = true,
+        isDismissingHomeTask: Boolean = false,
     ): GridEndData {
         var gridEndOffset = 0f
         var snapToLastTask = false
@@ -845,10 +847,13 @@ constructor(
                 getNewClearAllShortTotalWidthTranslation(topGridRowCount, bottomGridRowCount)
             val isLastGridTaskViewVisibleForDismiss =
                 when {
+                    // Do not snap to the last task if we're dismissing the home task, otherwise
+                    // recents will scroll oddly when entering overview from home when the last task
+                    // is visible to the user (see b/408216459)
+                    isDismissingHomeTask -> false
                     lastGridTaskView == null -> false
-                    isExpressiveDismiss ->
+                    else ->
                         isTaskViewVisible(lastGridTaskView) || lastGridTaskView == dismissedTaskView
-                    else -> lastGridTaskView.isVisibleToUser
                 }
             if (!isLastGridTaskViewVisibleForDismiss) {
                 return GridEndData(
@@ -958,6 +963,7 @@ constructor(
         shouldRemoveTask: Boolean,
         dismissingForSplitSelection: Boolean,
         gridEndData: GridEndData,
+        isDismissingHomeTask: Boolean,
     ) {
         with(recentsView) {
             if (pageCount == 0) {
@@ -999,7 +1005,7 @@ constructor(
                 mTopRowIdSet.remove(dismissedTaskViewId)
 
                 // Update the UI after removal and snap to page.
-                updateUiAfterTaskRemoval(dismissedTaskView, pageToSnapTo)
+                updateUiAfterTaskRemoval(dismissedTaskView, pageToSnapTo, isDismissingHomeTask)
 
                 if (!dismissingForSplitSelection) {
                     InteractionJankMonitorWrapper.end(Cuj.CUJ_LAUNCHER_OVERVIEW_TASK_DISMISS)
@@ -1007,7 +1013,7 @@ constructor(
             }
 
             // Run the final page snapping and relayout
-            if (dismissedTaskView?.isRunningTask == true && dismissedTaskView !== homeTaskView) {
+            if (dismissedTaskView?.isRunningTask == true && !isDismissingHomeTask) {
                 finishRecentsAnimation(/* toHome */ true, /* shouldPip */ false, onFinishComplete)
             } else {
                 onFinishComplete()
@@ -1138,13 +1144,17 @@ constructor(
         }
     }
 
-    private fun updateUiAfterTaskRemoval(dismissedTaskView: TaskView?, pageToSnapTo: Int) {
+    private fun updateUiAfterTaskRemoval(
+        dismissedTaskView: TaskView?,
+        pageToSnapTo: Int,
+        isDismissingHomeTask: Boolean,
+    ) {
         with(recentsView) {
             if (taskViewCount == 0) {
                 if (!isSplitSelectionActive) {
                     removeViewInLayout(clearAllButton)
                     removeViewInLayout(addDeskButton)
-                    if (dismissedTaskView === homeTaskView) {
+                    if (isDismissingHomeTask) {
                         updateEmptyMessage()
                     } else {
                         if (!mUtils.isInDesktopFirstMode()) {

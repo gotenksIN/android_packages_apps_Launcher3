@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,16 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.widget.picker;
 
-import com.android.launcher3.util.PackageUserKey;
+package com.android.quickstep.cuebar.data.repository;
+
+import android.content.Intent;
+import android.service.personalcontext.insight.ContextInsight;
+import javax.inject.Inject;
 
 /**
- * A listener to be invoked when a header is clicked.
+ * Handles the insight egress.
  */
-public interface OnHeaderClickListener {
+public class InsightHandler {
+    @Inject
+    public InsightHandler() {}
+
     /**
-     * Calls when a header is clicked to show / hide widgets for a package.
+     * Egresses the insight after user performs an action.
      */
-    void onHeaderClicked(boolean showWidgets, PackageUserKey key);
+    public void egress(ContextInsight insight) {}
 }
