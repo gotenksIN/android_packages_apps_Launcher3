@@ -44,6 +44,7 @@
     <uses-permission android:name="android.permission.REQUEST_TASK_HANDOFF"/>
 
     <uses-permission android:name="android.permission.SYSTEM_APPLICATION_OVERLAY" />
+    <uses-permission android:name="android.permission.EXECUTE_APP_FUNCTIONS_SYSTEM"/>
 
     <!--
     Permission required to access profiles which are otherwise hidden
@@ -58,6 +59,14 @@
     <!-- Permission required to start a WidgetPickerActivity. -->
     <permission android:name="${applicationId}.permission.START_WIDGET_PICKER_ACTIVITY"
         android:protectionLevel="signature|privileged" />
+
+    <!--
+        Permission required to send an intent to the file manager when attempting to click on a zip
+        file on the launcher home screen.
+    -->
+    <uses-permission
+        android:name="com.android.documentsui.LAUNCH_FILE_MANAGER"
+        android:featureFlag="com.android.launcher3.show_files_on_home_screen" />
 
     <application android:backupAgent="com.android.launcher3.LauncherBackupAgent"
          android:enableOnBackInvokedCallback="true"
