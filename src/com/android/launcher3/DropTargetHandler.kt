@@ -169,8 +169,8 @@ class DropTargetHandler(
 
     private fun removeItemAndStripEmptyScreens(view: View?, item: ItemInfo) {
         // Remove the item from launcher ONLY (not the db). The DB deletion is handled by
-        // resuming the UndoDeleteController.
-        launcher.removeItem(view, item, true /* deleteFromDb */, "removed by accessibility drop")
+        // UndoDeleteController.
+        launcher.removeItem(view, item, false /* deleteFromDb */, "removed by accessibility drop")
         launcher.workspace.stripEmptyScreens()
     }
 
