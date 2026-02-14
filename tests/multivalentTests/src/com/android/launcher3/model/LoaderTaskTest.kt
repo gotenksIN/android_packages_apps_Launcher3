@@ -71,6 +71,7 @@ import dagger.BindsInstance
 import dagger.Component
 import java.util.concurrent.CountDownLatch
 import junit.framework.Assert.assertEquals
+import junit.framework.Assert.assertTrue
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -86,6 +87,7 @@ import org.mockito.Mockito.`when`
 import org.mockito.junit.MockitoJUnit
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
@@ -289,7 +291,7 @@ class LoaderTaskTest {
         with(bgDataModel) {
             testComponent
                 .getLoaderTaskFactory()
-                .newLoaderTask(launcherBinder)
+                .newLoaderTask("test", launcherBinder)
                 .runSyncOnBackgroundThread()
             assertThat(
                     itemsIdMap
@@ -316,7 +318,7 @@ class LoaderTaskTest {
     fun bindsLoadedDataCorrectly() {
         testComponent
             .getLoaderTaskFactory()
-            .newLoaderTask(launcherBinder)
+            .newLoaderTask("test", launcherBinder)
             .runSyncOnBackgroundThread()
 
         verify(launcherBinder).bindWorkspace(true, false)
@@ -338,7 +340,7 @@ class LoaderTaskTest {
 
             testComponent
                 .getLoaderTaskFactory()
-                .newLoaderTask(launcherBinder)
+                .newLoaderTask("test", launcherBinder)
                 .runSyncOnBackgroundThread()
 
             verify(bgAllAppsList).setFlags(FLAG_WORK_PROFILE_QUIET_MODE_ENABLED, true)
@@ -354,7 +356,7 @@ class LoaderTaskTest {
 
             testComponent
                 .getLoaderTaskFactory()
-                .newLoaderTask(launcherBinder)
+                .newLoaderTask("test", launcherBinder)
                 .runSyncOnBackgroundThread()
 
             verify(bgAllAppsList).setFlags(FLAG_WORK_PROFILE_QUIET_MODE_ENABLED, false)
@@ -363,7 +365,6 @@ class LoaderTaskTest {
         }
 
     @Test
-    @EnableFlags(Flags.FLAG_ENABLE_FIRST_SCREEN_BROADCAST_ARCHIVING_EXTRAS)
     fun `When broadcast flag on and is restore and secure setting off then send new broadcast`() {
         // Given
         doReturn(listOf(expectedBroadcastModel))
@@ -375,7 +376,7 @@ class LoaderTaskTest {
         // When
         testComponent
             .getLoaderTaskFactory()
-            .newLoaderTask(launcherBinder)
+            .newLoaderTask("test", launcherBinder)
             .runSyncOnBackgroundThread()
 
         // Then
@@ -423,7 +424,7 @@ class LoaderTaskTest {
         // When
         testComponent
             .getLoaderTaskFactory()
-            .newLoaderTask(launcherBinder)
+            .newLoaderTask("test", launcherBinder)
             .runSyncOnBackgroundThread()
 
         // Then
@@ -442,7 +443,7 @@ class LoaderTaskTest {
         // When
         testComponent
             .getLoaderTaskFactory()
-            .newLoaderTask(launcherBinder)
+            .newLoaderTask("test", launcherBinder)
             .runSyncOnBackgroundThread()
 
         // Then
@@ -472,7 +473,7 @@ class LoaderTaskTest {
             )
         val expectedAppInfo = AppInfo().apply { componentName = expectedComponent }
         // When
-        val loader = testComponent.getLoaderTaskFactory().newLoaderTask(launcherBinder)
+        val loader = testComponent.getLoaderTaskFactory().newLoaderTask("test", launcherBinder)
         val actualIconRequest =
             loader.getAppInfoIconRequestInfo(
                 expectedAppInfo,
@@ -508,7 +509,7 @@ class LoaderTaskTest {
             )
         val expectedAppInfo = AppInfo().apply { componentName = expectedComponent }
         // When
-        val loader = testComponent.getLoaderTaskFactory().newLoaderTask(launcherBinder)
+        val loader = testComponent.getLoaderTaskFactory().newLoaderTask("test", launcherBinder)
         val actualIconRequest =
             loader.getAppInfoIconRequestInfo(
                 expectedAppInfo,
@@ -544,7 +545,7 @@ class LoaderTaskTest {
             )
         val expectedAppInfo = AppInfo().apply { componentName = expectedComponent }
         // When
-        val loader = testComponent.getLoaderTaskFactory().newLoaderTask(launcherBinder)
+        val loader = testComponent.getLoaderTaskFactory().newLoaderTask("test", launcherBinder)
         val actualIconRequest =
             loader.getAppInfoIconRequestInfo(
                 expectedAppInfo,
@@ -581,7 +582,7 @@ class LoaderTaskTest {
         val expectedAppInfo =
             AppInfo().apply { componentName = ComponentName("differentPkg", "differentClass") }
         // When
-        val loader = testComponent.getLoaderTaskFactory().newLoaderTask(launcherBinder)
+        val loader = testComponent.getLoaderTaskFactory().newLoaderTask("test", launcherBinder)
         val actualIconRequest =
             loader.getAppInfoIconRequestInfo(
                 expectedAppInfo,
@@ -614,7 +615,7 @@ class LoaderTaskTest {
             )
         val expectedAppInfo = AppInfo()
         // When
-        val loader = testComponent.getLoaderTaskFactory().newLoaderTask(launcherBinder)
+        val loader = testComponent.getLoaderTaskFactory().newLoaderTask("test", launcherBinder)
         val actualIconRequest =
             loader.getAppInfoIconRequestInfo(
                 expectedAppInfo,
@@ -632,7 +633,7 @@ class LoaderTaskTest {
         // When.
         testComponent
             .getLoaderTaskFactory()
-            .newLoaderTask(launcherBinder)
+            .newLoaderTask("test", launcherBinder)
             .runSyncOnBackgroundThread()
 
         // NOTE: The update task would be enqueued only after home screen files become available.
@@ -640,7 +641,9 @@ class LoaderTaskTest {
         homeScreenFilesProvider.onReady().thenCompose { homeScreenFilesProvider.query() }.get()
 
         // Then.
-        verify(launcherModel).enqueueModelUpdateTask(any<HomeScreenFilesUpdateTask>())
+        val task = argumentCaptor<HomeScreenFilesUpdateTask>()
+        verify(launcherModel).enqueueModelUpdateTask(task.capture())
+        assertTrue(task.firstValue.update.extras.isDelayedInit)
     }
 
     @LauncherAppSingleton

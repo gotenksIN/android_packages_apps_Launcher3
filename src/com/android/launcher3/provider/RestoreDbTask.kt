@@ -27,7 +27,6 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.WorkerThread
 import com.android.launcher3.BuildConfig
-import com.android.launcher3.Flags
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.LauncherAppState
 import com.android.launcher3.LauncherFiles
@@ -124,12 +123,10 @@ class RestoreDbTask {
         // Delete all entries which do not belong to any restored profile(s).
         val selection = "profileId NOT IN (${profileMapping.keys.joinToString()})"
         logFavoritesTable(db, "items to delete from unrestored profiles:", selection)
-        if (Flags.enableLauncherBrMetricsFixed()) {
-            restoreEventLogger.sendMetricsForFailedMigration(
-                controller.getTable(),
-                RestoreError.PROFILE_NOT_RESTORED,
-            )
-        }
+        restoreEventLogger.sendMetricsForFailedMigration(
+            controller.getTable(),
+            RestoreError.PROFILE_NOT_RESTORED,
+        )
         val itemsDeletedCount = db.delete(TABLE_NAME, selection, null)
         FileLog.d(TAG, "$itemsDeletedCount total items from unrestored user(s) were deleted")
 
@@ -418,7 +415,7 @@ class RestoreDbTask {
         }
 
         logFavoritesTable(controller.db, "launcher db after remap widget ids")
-        LauncherAppState.INSTANCE[context].model.reloadIfActive()
+        LauncherAppState.INSTANCE[context].model.reloadIfActive("restoreAppWidgetIds")
     }
 
     companion object {
