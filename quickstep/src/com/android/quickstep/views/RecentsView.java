@@ -35,7 +35,6 @@ import static com.android.launcher3.Flags.enableLowResThumbnailPreloading;
 import static com.android.launcher3.Flags.enableOverviewPagination;
 import static com.android.launcher3.LauncherAnimUtils.SUCCESS_TRANSITION_PROGRESS;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_BACKGROUND_COLOR;
-import static com.android.launcher3.LauncherState.BACKGROUND_APP;
 import static com.android.launcher3.QuickstepTransitionManager.RECENTS_LAUNCH_DURATION;
 import static com.android.launcher3.Utilities.EDGE_NAV_BAR;
 import static com.android.launcher3.Utilities.debugLog;
@@ -56,6 +55,7 @@ import static com.android.launcher3.util.MultiPropertyFactory.MULTI_PROPERTY_VAL
 import static com.android.launcher3.util.SystemUiController.UI_STATE_FULLSCREEN_TASK;
 import static com.android.quickstep.BaseContainerInterface.getTaskDimension;
 import static com.android.quickstep.TaskUtils.checkCurrentOrManagedUserId;
+import static com.android.quickstep.fallback.RecentsStateUtilsKt.toRecentsState;
 import static com.android.quickstep.util.ExternalDisplaysKt.isExternalDisplay;
 import static com.android.quickstep.util.LogUtils.splitFailureMessage;
 import static com.android.quickstep.views.OverviewActionsView.HIDDEN_ACTIONS_IN_MENU;
@@ -193,6 +193,7 @@ import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.TaskOverlayFactory;
 import com.android.quickstep.TaskViewUtils;
 import com.android.quickstep.TopTaskTracker;
+import com.android.quickstep.fallback.RecentsState;
 import com.android.quickstep.orientation.RecentsPagedOrientationHandler;
 import com.android.quickstep.recents.di.RecentsComponent;
 import com.android.quickstep.recents.viewmodel.RecentsViewModel;
@@ -1561,7 +1562,7 @@ public abstract class RecentsView<
         if (!mContainer.getDeviceProfile().getDeviceProperties().isLargeScreen()) {
             mActionsView.updateDisabledFlags(OverviewActionsView.DISABLED_SCROLLING, true);
         }
-        if (mOverviewStateEnabled) { // only when in overview
+        if (toRecentsState(getStateManager().getState()) == RecentsState.DEFAULT) {
             InteractionJankMonitorWrapper.begin(/* view= */ this, Cuj.CUJ_RECENTS_SCROLLING);
         }
     }
@@ -4716,8 +4717,8 @@ public abstract class RecentsView<
         }
         DepthController<?, ?> depthController = getDepthController();
         if (depthController != null) {
-            float targetDepth = taskView instanceof DesktopTaskView ? 0 : BACKGROUND_APP.getDepth(
-                    mContainer);
+            float targetDepth = taskView instanceof DesktopTaskView ? 0
+                    : mContainer.getBackgroundAppState().getDepth(mContainer);
             anim.play(ObjectAnimator.ofFloat(depthController.stateDepth, MULTI_PROPERTY_VALUE,
                     targetDepth));
         }
