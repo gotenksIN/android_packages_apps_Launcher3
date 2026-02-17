@@ -54,7 +54,6 @@ import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.Snackbar;
 import com.android.launcher3.widget.WidgetsBottomSheet;
 import com.android.launcher3.widget.picker.model.data.WidgetPickerData;
-import com.android.wm.shell.shared.bubbles.BubbleAnythingFlagHelper;
 import com.android.wm.shell.shared.bubbles.logging.EntryPoint;
 
 import java.util.Arrays;
@@ -78,7 +77,7 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
     protected final T mTarget;
     protected final ItemInfo mItemInfo;
     protected final View mOriginalView;
-    protected final boolean mIsCollapsible;
+    public final boolean mIsCollapsible;
 
     private final AbstractFloatingViewHelper mAbstractFloatingViewHelper;
 
@@ -519,9 +518,6 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
                 }
                 if (itemInfo instanceof ItemInfoWithIcon itemInfoWithIcon) {
                     // Don't show bubble shortcut if the item is non-resizeable but not supported.
-                    // TODO(b/419379112): Double check with UX that the launcher shortcut should be
-                    // hidden if not supported. If the shortcut is still shown, the flow for launch
-                    // needs to be fixed first before re-enabling here.
                     if (itemInfoWithIcon.isNonResizeable()) {
                         // TODO(b/411558731): isPhone just checks for smallest width < 600dp, so it
                         // basically is a check for small screens including Foldables when folded.
@@ -529,8 +525,7 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
                         final boolean isSmallScreen =
                                 activity.getDeviceProfile().getDeviceProperties().isPhone();
                         final boolean supportsBubbleNonResizeable =
-                                BubbleAnythingFlagHelper.allowMultiWindowNonResizableActivities()
-                                        && systemSupportsNonResizableMultiWindow(
+                                systemSupportsNonResizableMultiWindow(
                                         (Context) activity, isSmallScreen);
                         if (!supportsBubbleNonResizeable) {
                             return null;

@@ -33,7 +33,6 @@ import android.util.Pair;
 import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.View;
-import android.window.DesktopExperienceFlags;
 
 import androidx.annotation.AnyThread;
 import androidx.annotation.NonNull;
@@ -46,17 +45,20 @@ import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherModel;
 import com.android.launcher3.LauncherSettings;
+import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.PinToTaskbarShortcut;
 import com.android.launcher3.popup.Popup;
+import com.android.launcher3.popup.PopupCategory;
 import com.android.launcher3.popup.PopupContainer;
 import com.android.launcher3.popup.PopupContainerWithArrow;
 import com.android.launcher3.popup.PopupController;
 import com.android.launcher3.popup.PopupEvent;
 import com.android.launcher3.popup.PopupItemDragHandler;
 import com.android.launcher3.popup.SystemShortcut;
+import com.android.launcher3.popup.ui.PopupItem;
 import com.android.launcher3.shortcuts.DeepShortcutView;
 import com.android.launcher3.splitscreen.SplitShortcut;
 import com.android.launcher3.util.ComponentKey;
@@ -164,7 +166,7 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
     @Nullable
     @VisibleForTesting
     SystemShortcut<BaseTaskbarContext> createPinShortcut(BaseTaskbarContext target,
-            ItemInfo itemInfo, BubbleTextView originalView) {
+            ItemInfo itemInfo, View originalView) {
         // Predicted items use {@code HotseatPredictionController.PinPrediction} shortcut to pin.
         if (itemInfo.container == CONTAINER_HOTSEAT_PREDICTION) {
             return null;
@@ -221,6 +223,10 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
     @Nullable
     @Override
     public Popup show(@NonNull View view) {
+        if (view instanceof FolderIcon folder) {
+            return showPopupContainerForFolder(folder);
+        }
+
         BubbleTextView icon = (BubbleTextView) view;
         BaseTaskbarContext context = ActivityContext.lookupContext(icon.getContext());
         if (PopupContainer.getOpen(context) != null) {
@@ -268,10 +274,61 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
         container = PopupContainerWithArrow.create(context, /* originalView */ icon,
                 /*itemInfo */ itemInfo,
                 /* updateIconUi */ false);
-        // TODO (b/198438631): configure for taskbar/context
-        container.populateAndShowRows(deepShortcutCount, systemShortcuts);
+        container.setDeepShortcutDragHandler(new TaskbarDeepShortcutDragHandler(context));
+        if (Flags.expandableLongPressMenu()) {
+            List<PopupItem> systemShortcutPopups =
+                    systemShortcuts.stream().map(shortcut -> new PopupItem(
+                            shortcut.getIconResId(),
+                            shortcut.getLabelResId(),
+                            () -> {
+                                shortcut.onClick(icon);
+                                return kotlin.Unit.INSTANCE;
+                            },
+                            shortcut.mIsCollapsible
+                                    ? PopupCategory.SYSTEM_SHORTCUT
+                                    : PopupCategory.SYSTEM_SHORTCUT_FIXED)
+                    ).toList();
+            container.showComposePopup(
+                    systemShortcutPopups,
+                    deepShortcutCount);
+        } else {
+            // TODO (b/198438631): configure for taskbar/context
+            container.populateAndShowRows(deepShortcutCount, systemShortcuts);
+        }
         container.setPopupItemDragHandler(new TaskbarPopupItemDragHandler());
         context.getDragController().addDragListener(container);
+        container.requestFocus();
+
+        // Make focusable to receive back events
+        context.onPopupVisibilityChanged(true);
+        container.addOnCloseCallback(() -> {
+            context.getDragLayer().post(() -> context.onPopupVisibilityChanged(false));
+        });
+
+        logEvent(context.getStatsLogManager(), itemInfo.itemType, PopupEvent.OPEN);
+
+        return container;
+    }
+
+    private PopupContainerWithArrow<BaseTaskbarContext> showPopupContainerForFolder(
+            FolderIcon folder) {
+        if (!(folder.getTag() instanceof ItemInfo itemInfo)
+                || itemInfo.container != CONTAINER_HOTSEAT) {
+            return null;
+        }
+        BaseTaskbarContext context = ActivityContext.lookupContext(folder.getContext());
+        PopupContainerWithArrow<BaseTaskbarContext> container = PopupContainerWithArrow.create(
+                context, /* originalView */ folder,
+                /*itemInfo */ itemInfo,
+                /* updateIconUi */ false);
+        // TODO (b/198438631): configure for taskbar/context
+        SystemShortcut<BaseTaskbarContext> pinShortcut = createPinShortcut(context, itemInfo,
+                folder);
+        if (pinShortcut == null) {
+            return null;
+
+        }
+        container.showSystemShortcuts(List.of(pinShortcut));
         container.requestFocus();
 
         // Make focusable to receive back events
@@ -438,6 +495,11 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
         };
     }
 
+    public boolean isManageWindowsViewOpen() {
+        return mManageWindowsTaskbarShortcut != null
+                && mManageWindowsTaskbarShortcut.isMultiInstanceMenuOpen();
+    }
+
     /**
      * Creates a factory function representing a "Close" menu item only if the calling app
      * is in Desktop Mode.
@@ -466,8 +528,7 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
     }
 
     protected static boolean canPinAppWithContextMenu(TaskbarActivityContext context) {
-        return DesktopExperienceFlags.ENABLE_PINNING_APP_WITH_CONTEXT_MENU.isTrue()
-                && context.isTaskbarShowingDesktopTasks();
+        return context.isTaskbarShowingDesktopTasks();
     }
 
     /**

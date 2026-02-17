@@ -19,6 +19,10 @@ package com.android.launcher3.deviceprofile
 import android.content.res.Resources
 import android.util.DisplayMetrics
 import com.android.launcher3.InvariantDeviceProfile
+import com.android.launcher3.InvariantDeviceProfile.INDEX_DEFAULT
+import com.android.launcher3.InvariantDeviceProfile.INDEX_LANDSCAPE
+import com.android.launcher3.InvariantDeviceProfile.INDEX_TWO_PANEL_LANDSCAPE
+import com.android.launcher3.InvariantDeviceProfile.INDEX_TWO_PANEL_PORTRAIT
 import com.android.launcher3.R
 import com.android.launcher3.responsive.CalculatedCellSpec
 import com.android.launcher3.responsive.CalculatedHotseatSpec
@@ -50,6 +54,7 @@ data class HotseatProfileInitialValues(
     val barBottomSpacePx: Int,
     val qsbSpace: Int,
     val barSizePx: Int,
+    val isQsbInline: Boolean,
 ) {
 
     companion object Factory {
@@ -78,7 +83,6 @@ data class HotseatProfileInitialValues(
             deviceProperties: DeviceProperties,
             res: Resources,
             inv: InvariantDeviceProfile,
-            isTaskbarPresent: Boolean,
             shouldApplyWidePortraitDimens: Boolean,
             responsiveHotseatSpec: CalculatedHotseatSpec?,
             typeIndex: Int,
@@ -86,7 +90,7 @@ data class HotseatProfileInitialValues(
             isVerticalBarLayout: Boolean,
             workspacePageIndicatorHeight: Int,
             responsiveWorkspaceCellSpec: CalculatedCellSpec?,
-            isQsbInline: Boolean,
+            qsbHeight: Int,
         ): HotseatProfileInitialValues {
             return when {
                 responsiveHotseatSpec != null && responsiveWorkspaceCellSpec != null ->
@@ -94,25 +98,24 @@ data class HotseatProfileInitialValues(
                         deviceProperties = deviceProperties,
                         res = res,
                         inv = inv,
-                        isTaskbarPresent = isTaskbarPresent,
                         shouldApplyWidePortraitDimens = shouldApplyWidePortraitDimens,
                         responsiveHotseatSpec = responsiveHotseatSpec,
                         responsiveWorkspaceCellSpec = responsiveWorkspaceCellSpec,
                         isVerticalBarLayout = isVerticalBarLayout,
-                        isQsbInline = isQsbInline,
+                        typeIndex = typeIndex,
+                        qsbHeight = qsbHeight,
                     )
                 else ->
                     createNonResponsiveHotseatProfileInitialValues(
                         deviceProperties = deviceProperties,
                         res = res,
                         inv = inv,
-                        isTaskbarPresent = isTaskbarPresent,
                         shouldApplyWidePortraitDimens = shouldApplyWidePortraitDimens,
                         typeIndex = typeIndex,
                         metrics = metrics,
                         isVerticalBarLayout = isVerticalBarLayout,
                         workspacePageIndicatorHeight = workspacePageIndicatorHeight,
-                        isQsbInline = isQsbInline,
+                        qsbHeight = qsbHeight,
                     )
             }
         }
@@ -121,14 +124,29 @@ data class HotseatProfileInitialValues(
             deviceProperties: DeviceProperties,
             res: Resources,
             inv: InvariantDeviceProfile,
-            isTaskbarPresent: Boolean,
             shouldApplyWidePortraitDimens: Boolean,
             responsiveHotseatSpec: CalculatedHotseatSpec,
             isVerticalBarLayout: Boolean,
             responsiveWorkspaceCellSpec: CalculatedCellSpec,
-            isQsbInline: Boolean,
+            qsbHeight: Int,
+            typeIndex: Int,
         ): HotseatProfileInitialValues {
-            val areNavButtonsInline = isTaskbarPresent && !deviceProperties.isGestureMode
+
+            // For foldable (two panel), we inline the qsb if we have the screen open and we are in
+            // either Landscape or Portrait. This cal also be disabled in the device_profile.xml
+            val twoPanelCanInline =
+                inv.inlineQsb[INDEX_TWO_PANEL_PORTRAIT] || inv.inlineQsb[INDEX_TWO_PANEL_LANDSCAPE]
+            // In tablets we inline in both orientations but only if we have enough space in the QSB
+            val tabletInlineQsb = inv.inlineQsb[INDEX_DEFAULT] || inv.inlineQsb[INDEX_LANDSCAPE]
+            var canQsbInline =
+                if (deviceProperties.isTwoPanels) twoPanelCanInline else tabletInlineQsb
+            canQsbInline = canQsbInline && qsbHeight > 0
+
+            val isQsbInline = (inv.inlineQsb[typeIndex] && canQsbInline) || inv.isFixedLandscape
+
+            val areNavButtonsInline =
+                deviceProperties.taskbarConfiguration.isTaskbarPresent &&
+                    !deviceProperties.deviceConfiguration.isGestureMode
             var inlineNavButtonsEndSpacingPx = 0
             var navButtonsLayoutWidthPx = 0
             var barEndOffset = 0
@@ -211,6 +229,7 @@ data class HotseatProfileInitialValues(
                         qsbSpace = hotseatQsbSpace,
                         isQsbInline = isQsbInline,
                     ),
+                isQsbInline = isQsbInline,
             )
         }
 
@@ -218,15 +237,32 @@ data class HotseatProfileInitialValues(
             deviceProperties: DeviceProperties,
             res: Resources,
             inv: InvariantDeviceProfile,
-            isTaskbarPresent: Boolean,
             shouldApplyWidePortraitDimens: Boolean,
             typeIndex: Int,
             metrics: DisplayMetrics,
             isVerticalBarLayout: Boolean,
             workspacePageIndicatorHeight: Int,
-            isQsbInline: Boolean,
+            qsbHeight: Int,
         ): HotseatProfileInitialValues {
-            val areNavButtonsInline = isTaskbarPresent && !deviceProperties.isGestureMode
+            // For foldable (two panel), we inline the qsb if we have the screen open and we are in
+            // either Landscape or Portrait. This cal also be disabled in the device_profile.xml
+            val twoPanelCanInline =
+                inv.inlineQsb[InvariantDeviceProfile.INDEX_TWO_PANEL_PORTRAIT] ||
+                    inv.inlineQsb[InvariantDeviceProfile.INDEX_TWO_PANEL_LANDSCAPE]
+
+            // In tablets we inline in both orientations but only if we have enough space in the QSB
+            val tabletInlineQsb =
+                inv.inlineQsb[InvariantDeviceProfile.INDEX_DEFAULT] ||
+                    inv.inlineQsb[InvariantDeviceProfile.INDEX_LANDSCAPE]
+            val canQsbInline =
+                (if (deviceProperties.isTwoPanels) twoPanelCanInline else tabletInlineQsb) &&
+                    qsbHeight > 0
+
+            val isQsbInline = (inv.inlineQsb[typeIndex] && canQsbInline) || inv.isFixedLandscape
+
+            val areNavButtonsInline =
+                deviceProperties.taskbarConfiguration.isTaskbarPresent &&
+                    !deviceProperties.deviceConfiguration.isGestureMode
             var inlineNavButtonsEndSpacingPx = 0
             var navButtonsLayoutWidthPx = 0
             var barEndOffset = 0
@@ -320,6 +356,7 @@ data class HotseatProfileInitialValues(
                         qsbSpace = hotseatQsbSpace,
                         isQsbInline = isQsbInline,
                     ),
+                isQsbInline = isQsbInline,
             )
         }
     }

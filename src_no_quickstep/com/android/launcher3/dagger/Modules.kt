@@ -16,17 +16,23 @@
 
 package com.android.launcher3.dagger
 
+import android.content.Context
 import com.android.launcher3.AbstractFloatingViewHelper
 import com.android.launcher3.automation.AutomationNoOpRepository
 import com.android.launcher3.automation.AutomationRepository
+import com.android.launcher3.display.DisplayController
+import com.android.launcher3.display.DisplayControllerImpl
 import com.android.launcher3.dragndrop.SystemDragController
 import com.android.launcher3.dragndrop.SystemDragControllerStub
 import com.android.launcher3.homescreenfiles.HomeScreenFilesNoOpProvider
+import com.android.launcher3.LauncherModel
+import com.android.launcher3.ModelReloader
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider
 import com.android.launcher3.util.MutableListenableRef
 import com.android.launcher3.util.WindowBlurState.WINDOW_BLUR_STATE
 import com.android.launcher3.util.window.RefreshRateTracker
 import com.android.launcher3.util.window.RefreshRateTracker.RefreshRateTrackerImpl
+import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.widget.LauncherWidgetHolder.WidgetHolderFactory
 import com.android.launcher3.widget.LauncherWidgetHolder.WidgetHolderFactoryImpl
 import dagger.Binds
@@ -38,9 +44,23 @@ private object Modules
 
 @Module abstract class WindowManagerProxyModule
 
-@Module abstract class ActivityContextModule
+@Module(includes = [SystemDragModule::class])
+abstract class ActivityContextModule {
+    companion object {
+        @JvmStatic
+        @Provides
+        @ActivityContextSingleton
+        @DisplayId
+        fun provideDisplayId(activityContext: ActivityContext): Int =
+            (activityContext as Context).display.displayId
+    }
+}
 
-@Module abstract class ApiWrapperModule
+@Module
+abstract class ApiWrapperModule {
+
+    @Binds abstract fun bindDisplayController(impl: DisplayControllerImpl): DisplayController
+}
 
 @Module
 abstract class WidgetModule {
@@ -61,7 +81,7 @@ object StaticObjectModule {
 @Module
 object SystemDragModule {
     @Provides
-    @LauncherAppSingleton
+    @ActivityContextSingleton
     fun provideSystemDragController(): SystemDragController = SystemDragControllerStub()
 }
 

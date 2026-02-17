@@ -37,12 +37,12 @@ import com.android.app.displaylib.createDisplayLibComponent
 import com.android.launcher3.concurrent.annotations.Background
 import com.android.launcher3.concurrent.annotations.BackgroundContext
 import com.android.launcher3.concurrent.annotations.UiContext
+import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator
 import com.android.launcher3.util.LooperExecutor
 import com.android.quickstep.RecentsAnimationDeviceState
 import com.android.quickstep.RotationTouchHelper
 import com.android.quickstep.TaskAnimationManager
 import com.android.quickstep.window.RecentsWindowManager
-import com.android.quickstep.window.RecentsWindowManagerInstanceProvider
 import com.android.quickstep.window.RecentsWindowTracker
 import dagger.Binds
 import dagger.Module
@@ -54,7 +54,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 
-@Module(includes = [BasePerDisplayModule::class, PerDisplayRepositoriesModule::class])
+@Module(
+    includes =
+        [
+            BasePerDisplayModule::class,
+            PerDisplayRepositoriesModule::class,
+            PerDisplayTaskbarRepositoriesModule::class,
+        ]
+)
 interface PerDisplayModule
 
 @Module(includes = [DisplayLibModule::class])
@@ -129,15 +136,12 @@ object PerDisplayRepositoriesModule {
     @Provides
     @LauncherAppSingleton
     fun provideRecentsWindowManagerRepo(
-        repositoryFactory: PerDisplayInstanceRepositoryImpl.Factory<RecentsWindowManager>,
-        instanceProvider: RecentsWindowManagerInstanceProvider,
-        @DisplaysWithDecorations
-        displaysWithDecorationsLifecycleManager: DisplayInstanceLifecycleManager,
+        repositoryFactory: PerDisplayComponentRepository.Factory<RecentsWindowManager>
     ): PerDisplayRepository<RecentsWindowManager> =
-        repositoryFactory.create(
+        repositoryFactory.createOptional(
             "RecentsWindowManagerRepo",
-            instanceProvider,
-            displaysWithDecorationsLifecycleManager,
+            objectGetter = { it.recentsWindowManager },
+            optionalObjectGetter = { it.recentsWindowManagerHolder.value },
         )
 
     @Provides
@@ -157,6 +161,19 @@ object PerDisplayRepositoriesModule {
             override val displayIds: StateFlow<Set<Int>>
                 get() = displaysWithDecorationsRepository.displayIdsWithSystemDecorations
         }
+}
+
+@Module
+object PerDisplayTaskbarRepositoriesModule {
+    @Provides
+    @LauncherAppSingleton
+    fun provideTaskbarFeatureEvaluatorRepo(
+        repositoryFactory: PerDisplayComponentRepository.Factory<TaskbarFeatureEvaluator>
+    ): PerDisplayRepository<TaskbarFeatureEvaluator> =
+        repositoryFactory.create(
+            "TaskbarFeatureEvaluator",
+            PerDisplayComponent::getTaskbarFeatureEvaluator,
+        )
 }
 
 /**

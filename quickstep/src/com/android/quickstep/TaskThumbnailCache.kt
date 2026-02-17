@@ -21,11 +21,11 @@ import androidx.annotation.VisibleForTesting
 import androidx.annotation.WorkerThread
 import com.android.launcher3.Flags.enableLowResThumbnailPreloading
 import com.android.launcher3.R
+import com.android.launcher3.concurrent.annotations.Background
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.util.CancellableTask
 import com.android.launcher3.util.Executors
 import com.android.launcher3.util.Preconditions
-import com.android.launcher3.util.coroutines.DispatcherProvider
 import com.android.quickstep.TaskIconCache.Companion.TASK_IMAGE_CACHE_EXECUTOR
 import com.android.quickstep.task.thumbnail.data.TaskThumbnailDataSource
 import com.android.quickstep.task.thumbnail.data.TaskThumbnailDataSource.RequestResolution
@@ -41,6 +41,7 @@ import com.android.systemui.shared.system.ActivityManagerWrapper
 import java.util.concurrent.Executor
 import java.util.function.Consumer
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
 class TaskThumbnailCache
@@ -49,7 +50,7 @@ constructor(
     private val context: Context,
     private val bgExecutor: Executor,
     private val cache: TaskKeyCache<ThumbnailData>,
-    private val dispatcherProvider: DispatcherProvider,
+    private val backgroundDispatcher: CoroutineDispatcher,
     private val activityManagerWrapper: ActivityManagerWrapper,
 ) : TaskThumbnailDataSource {
     val highResLoadingState = HighResLoadingState()
@@ -59,7 +60,7 @@ constructor(
     @Inject
     constructor(
         @ApplicationContext context: Context,
-        dispatcherProvider: DispatcherProvider,
+        @Background backgroundDispatcher: CoroutineDispatcher,
         activityManagerWrapper: ActivityManagerWrapper,
     ) : this(
         context,
@@ -67,7 +68,7 @@ constructor(
         TaskKeyByLastActiveTimeCache(
             context.resources.getInteger(R.integer.recentsThumbnailCacheSize)
         ),
-        dispatcherProvider,
+        backgroundDispatcher,
         activityManagerWrapper,
     )
 
@@ -93,7 +94,6 @@ constructor(
         cache.updateIfAlreadyInCache(taskId, thumbnail)
     }
 
-    // TODO(b/387496731): Add ensureActive() calls if they show performance benefit
     /**
      * Retrieves a thumbnail for the provided `task` on the current thread. This should not be
      * called from the main thread.
@@ -129,7 +129,7 @@ constructor(
             return cachedThumbnail
         }
 
-        return withContext(dispatcherProvider.ioBackground) {
+        return withContext(backgroundDispatcher) {
             // Get thumbnail from system
             val thumbnailData = activityManagerWrapper.getTaskThumbnail(task.key.id, lowResolution)
 
@@ -148,7 +148,6 @@ constructor(
         }
     }
 
-    // TODO(b/387496731): Add ensureActive() calls if they show performance benefit
     /**
      * Retrieves a thumbnail for the provided `task` on the current thread. This should not be
      * called from the main thread.
@@ -160,6 +159,7 @@ constructor(
     override suspend fun getThumbnail(
         task: Task,
         requestResolution: RequestResolution,
+        shouldMakeRequestIfNeeded: Boolean,
     ): ThumbnailData? {
         if (!enableLowResThumbnailPreloading()) {
             throw IllegalArgumentException(
@@ -189,7 +189,11 @@ constructor(
             return cachedThumbnail
         }
 
-        return withContext(dispatcherProvider.ioBackground) {
+        if (!shouldMakeRequestIfNeeded) {
+            return null
+        }
+
+        return withContext(backgroundDispatcher) {
             // Get thumbnail from system
             val lowResolution = sanitizedRequestResolution != HIGH_RES
             val thumbnailData = activityManagerWrapper.getTaskThumbnail(task.key.id, lowResolution)
@@ -200,7 +204,7 @@ constructor(
     }
 
     /**
-     * Asynchronously fetches the thumbnail for the given `task`.
+     * Asynchronously fetches the thumbnail for the given `task` defaulting to low resolution.
      *
      * @param callback The callback to receive the task after its data has been populated.
      * @return a cancelable handle to the request
@@ -211,7 +215,10 @@ constructor(
     ): CancellableTask<ThumbnailData>? {
         Preconditions.assertUIThread()
 
-        val lowResolution = !highResLoadingState.isEnabled
+        // High resolution can be retrieved by specifying it in an alternate API
+        // Default to low resolution.
+        val lowResolution =
+            if (enableLowResThumbnailPreloading()) true else !highResLoadingState.isEnabled
         val taskThumbnail = task.thumbnail
         if (
             taskThumbnail?.thumbnail != null && (!taskThumbnail.reducedResolution || lowResolution)
@@ -222,7 +229,7 @@ constructor(
             return null
         }
 
-        return getThumbnailInBackground(task.key, !highResLoadingState.isEnabled, callback)
+        return getThumbnailInBackground(task.key, lowResolution, callback)
     }
 
     /**
@@ -230,7 +237,7 @@ constructor(
      *
      * @return whether cache size has increased
      */
-    fun updateCacheSizeAndRemoveExcess(): Boolean {
+    override fun updateCacheSizeAndRemoveExcess(): Boolean {
         val newSize = context.resources.getInteger(R.integer.recentsThumbnailCacheSize)
         val oldSize = cache.maxSize
         if (newSize == oldSize) {
@@ -299,7 +306,7 @@ constructor(
     }
 
     /** Returns The cache size. */
-    fun getCacheSize() = cache.maxSize
+    override fun getCacheSize() = cache.maxSize
 
     /** Returns Whether to enable background preloading of task thumbnails. */
     fun isPreloadingEnabled() = enableTaskSnapshotPreloading && highResLoadingState.visible

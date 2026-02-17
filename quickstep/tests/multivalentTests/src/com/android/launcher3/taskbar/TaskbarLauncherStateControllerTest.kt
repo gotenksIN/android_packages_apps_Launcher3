@@ -27,11 +27,12 @@ import com.android.launcher3.LauncherUiState
 import com.android.launcher3.SplitScreenUiState
 import com.android.launcher3.statemanager.StateManager
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
-import com.android.launcher3.taskbar.bubbles.BubbleControllers
 import com.android.launcher3.taskbar.bubbles.stashing.BubbleStashController
 import com.android.launcher3.taskbar.rules.TaskbarAnimatorTestRule
+import com.android.launcher3.taskbar.rules.TaskbarModeRule
+import com.android.launcher3.taskbar.rules.TaskbarModeRule.Mode.TRANSIENT
+import com.android.launcher3.taskbar.rules.TaskbarModeRule.TaskbarMode
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule
-import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
 import com.android.launcher3.uioverrides.QuickstepLauncher
 import com.android.launcher3.util.Executors.getTaskbarUiThread
@@ -41,7 +42,6 @@ import com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_WAKEFULN
 import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags
 import com.android.wm.shell.Flags.FLAG_ENABLE_CREATE_ANY_BUBBLE
 import com.google.common.truth.Truth.assertThat
-import java.util.Optional
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,10 +55,11 @@ class TaskbarLauncherStateControllerTest {
     @get:Rule(order = 0) val setFlagsRule = SetFlagsRule()
     @get:Rule(order = 1) val context = TaskbarWindowSandboxContext.create()
     @get:Rule(order = 2) val animatorTestRule = TaskbarAnimatorTestRule(this)
-    @get:Rule(order = 3) val taskbarUnitTestRule = TaskbarUnitTestRule(testInstance = this, context)
+    @get:Rule(order = 3) val taskbarModeRule = TaskbarModeRule(context)
+    @get:Rule(order = 4) val taskbarUnitTestRule = TaskbarUnitTestRule(context)
 
-    @InjectController lateinit var bubbleControllers: Optional<BubbleControllers>
-    @InjectController lateinit var taskbarStashController: TaskbarStashController
+    private val bubbleControllers by taskbarUnitTestRule.delegate { it.bubbleControllers }
+    private val taskbarStashController by taskbarUnitTestRule.delegate { it.taskbarStashController }
 
     private val bubbleBarViewController by lazy {
         bubbleControllers.orElseThrow().bubbleBarViewController
@@ -69,6 +70,7 @@ class TaskbarLauncherStateControllerTest {
     private val taskbarLauncherStateController = TaskbarLauncherStateController()
 
     @Test
+    @TaskbarMode(TRANSIENT)
     fun updateStateForSysuiFlags_singleTapPowerButton_stashTaskAndBubbleBarOnAnimationEnd() {
         initForWakeTransitionWithBubbles(SYSUI_STATE_AWAKE)
 

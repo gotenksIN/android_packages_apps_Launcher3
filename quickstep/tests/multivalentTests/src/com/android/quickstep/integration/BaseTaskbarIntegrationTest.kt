@@ -29,7 +29,6 @@ import androidx.test.uiautomator.Until
 import com.android.launcher3.DeviceProfile
 import com.android.launcher3.Launcher
 import com.android.launcher3.Utilities.findViewByPredicate
-import com.android.launcher3.allapps.WorkProfileTest
 import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 import com.android.launcher3.integration.util.LauncherActivityScenarioRule
 import com.android.launcher3.taskbar.TaskbarActivityContext
@@ -37,11 +36,11 @@ import com.android.launcher3.taskbar.TaskbarManager
 import com.android.launcher3.taskbar.TaskbarView
 import com.android.launcher3.testutil.LauncherTestInteractions
 import com.android.launcher3.testutil.Wait.atMost
-import com.android.launcher3.testutil.rule.LayoutResource
 import com.android.launcher3.util.IntegrationLandscapeRule
 import com.android.launcher3.util.LauncherLayoutBuilder
 import com.android.launcher3.util.LauncherModelHelper.TEST_PACKAGE
 import com.android.launcher3.util.ModelTestExtensions.loadModelSync
+import com.android.launcher3.util.ModelTestExtensions.setModelLayout
 import com.android.launcher3.util.TestUtil
 import com.android.launcher3.views.DoubleShadowBubbleTextView
 import com.android.quickstep.taskbar.util.IntegrationNavigationModeSwitchRule
@@ -65,8 +64,6 @@ open class BaseTaskbarIntegrationTest {
     val targetContext: Context = getInstrumentation().targetContext
 
     @get:Rule val navigationModeSwitch = IntegrationNavigationModeSwitchRule()
-
-    @get:Rule val layoutResource = LayoutResource(targetContext)
 
     @get:Rule val launcherActivity = LauncherActivityScenarioRule<Launcher>()
 
@@ -94,7 +91,7 @@ open class BaseTaskbarIntegrationTest {
             "Ignoring test because device is not a tablet",
             deviceProfile.deviceProperties.isLargeScreen,
         )
-        layoutResource.set(
+        targetContext.setModelLayout(
             LauncherLayoutBuilder()
                 .atHotseat(0)
                 .putApp(CALCULATOR_APP_PACKAGE, CALCULATOR_APP_CLASS)
@@ -104,6 +101,8 @@ open class BaseTaskbarIntegrationTest {
         launcherActivity.initializeActivity()
         if (startCalendarAppDuringSetup()) interactions.startAppFast(CALCULATOR_APP_PACKAGE)
         executeOnTaskManager {
+            it.getFromImplSync {}
+
             it.getCurrentActivityContext()?.let { ctx ->
                 ctx.enableBlockingTimeoutDuringTests(true)
                 ctx.unstashTaskbarIfStashed()
@@ -112,10 +111,10 @@ open class BaseTaskbarIntegrationTest {
     }
 
     fun executeOnTaskManager(f: (TaskbarManager) -> Unit) =
-        tisBinderRule.withTISBinder { f(taskbarManager!!) }
+        tisBinderRule.withTISBinder { f(taskbarManager) }
 
     fun <T> getFromTaskManager(f: (TaskbarManager) -> T?): T? =
-        tisBinderRule.withTISBinder { f(taskbarManager!!) }
+        tisBinderRule.withTISBinder { f(taskbarManager) }
 
     @After
     open fun tearDown() {

@@ -27,6 +27,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.UserHandle;
 import android.view.LayoutInflater;
+import android.view.View;
 
 import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.LifecycleRegistry;
@@ -140,11 +141,6 @@ public abstract class BaseTaskbarContext extends BaseContext
     public abstract boolean isTaskbarShowingDesktopTasks();
 
     /**
-     * Returns whether the taskbar is forced to be pinned when home is visible.
-     */
-    public abstract  boolean showLockedTaskbarOnHome();
-
-    /**
      * Returns whether desktop taskbar (pinned taskbar that shows desktop tasks) is to be used on
      * the display because the display is a freeform display.
      */
@@ -194,6 +190,9 @@ public abstract class BaseTaskbarContext extends BaseContext
 
     /** Callback invoked when a popup is shown or closed within this context. */
     public abstract void onPopupVisibilityChanged(boolean isVisible);
+
+    /** Displays the shortcut popup menu for the specified icon. */
+    public abstract void showPopupMenuForIcon(View icon);
 
     /**
      * Callback invoked when user attempts to split the screen through a long-press menu in Taskbar

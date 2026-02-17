@@ -16,7 +16,6 @@
 package com.android.launcher3.taskbar;
 
 import static com.android.launcher3.Flags.enableTaskbarUiThread;
-import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.QuickstepTransitionManager.TASKBAR_TO_APP_DURATION;
 import static com.android.launcher3.QuickstepTransitionManager.TRANSIENT_TASKBAR_TRANSITION_DURATION;
 import static com.android.launcher3.QuickstepTransitionManager.getTaskbarToHomeDuration;
@@ -40,16 +39,13 @@ import android.os.SystemProperties;
 import androidx.annotation.Nullable;
 
 import com.android.app.animation.Interpolators;
-import com.android.launcher3.BuildConfig;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherInteractor;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.LauncherUiState;
-import com.android.launcher3.LauncherUiStateUtil;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimatedFloat;
-import com.android.launcher3.display.DisplayController;
 import com.android.launcher3.logging.InstanceId;
 import com.android.launcher3.logging.InstanceIdSequence;
 import com.android.launcher3.model.data.ItemInfo;
@@ -87,8 +83,9 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     public static final int WIDGETS_PAGE_PROGRESS_INDEX = 2;
     public static final int SYSUI_SURFACE_PROGRESS_INDEX = 3;
     public static final int LAUNCHER_PAUSE_PROGRESS_INDEX = 4;
+    public static final int IME_PROGRESS_INDEX = 5;
 
-    public static final int DISPLAY_PROGRESS_COUNT = 5;
+    public static final int DISPLAY_PROGRESS_COUNT = 6;
 
     private final AnimatedFloat mTaskbarInAppDisplayProgress = new AnimatedFloat(
             this::onInAppDisplayProgressChanged);
@@ -114,7 +111,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     private SafeCloseable mOnDeviceProfileChangeListenerClosable;
     private SafeCloseable mIsOnTopResumeActivityListenerClosable;
     private final HomeVisibilityState.VisibilityChangeListener mVisibilityChangeListener =
-            (isVisible, keyguardGoingAway) -> {
+            (isVisible, keyguardGoingAwayOrWaking) -> {
                 getTaskbarUiThread().execute(() -> onLauncherVisibilityChanged(isVisible));
             };
 
@@ -187,7 +184,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     }
 
     private DeviceProfile getDeviceProfile() {
-        return LauncherUiStateUtil.getDeviceProfile(mLauncher, mLauncherUiState);
+        return mLauncherUiState.getDeviceProfileRef().getValue();
     }
 
     @Override
@@ -291,18 +288,8 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
         if (mControllers == null) {
             return;
         }
-        final TaskbarActivityContext taskbarContext = mControllers.taskbarActivityContext;
-        if (taskbarContext.showLockedTaskbarOnHome()
-                && !taskbarContext.showDesktopTaskbarForFreeformDisplay()
-                && taskbarContext.isPrimaryDisplay()) {
-            DisplayController.INSTANCE.get(taskbarContext)
-                    .notifyConfigChange(taskbarContext.getDisplayId());
-        }
 
-        if (android.view.accessibility.Flags.launcherAppDisplayProgressUpdateOnVisibilityChange()) {
-            onInAppDisplayProgressChanged();
-        }
-
+        onInAppDisplayProgressChanged();
         onLauncherVisibilityChanged(isVisible, false /* fromInit */);
     }
 
@@ -432,7 +419,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
 
     private void onStashedInAppChanged(DeviceProfile deviceProfile) {
         boolean taskbarStashedInApps = mControllers.taskbarStashController.isStashedInApp();
-        deviceProfile.isTaskbarPresentInApps = !taskbarStashedInApps;
+        deviceProfile.updateIsTaskbarPresentInApps(!taskbarStashedInApps);
     }
 
     /**
@@ -468,6 +455,9 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
             return false;
         }
         TaskbarEduTooltipController eduController = mControllers.taskbarEduTooltipController;
+        if (eduController.getBlockedBySysuiState()) {
+            return false;
+        }
         if (Flags.tooltipEduCombinator()) {
             return eduController.getHasFeaturesEduToShow();
         }
@@ -522,7 +512,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
                 mControllers.navbarButtonsViewController
                         .getOnTaskbarBackgroundNavButtonColorOverride().updateValue(progress);
             }
-            if (isBubbleBarEnabled()) {
+            if (isBubbleBarEnabled() && progressIndex != IME_PROGRESS_INDEX) {
                 mControllers.bubbleControllers.ifPresent(
                         c -> c.bubbleStashController.setInAppDisplayOverrideProgress(
                                 mTaskbarInAppDisplayProgress.value));
@@ -616,27 +606,11 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
     }
 
     private boolean isLauncherResumed() {
-        if (refactorTaskbarUiState()) {
-            final boolean ret = mLauncherUiState.isResumed();
-            if (BuildConfig.IS_STUDIO_BUILD && ret != mLauncher.isResumed()) {
-                throw new IllegalStateException("hasBeenResumed doesn't match");
-            }
-            return ret;
-        } else {
-            return mLauncher.isResumed();
-        }
+        return mLauncherUiState.isResumed();
     }
 
     private boolean isLauncherTopResumedActivity() {
-        if (refactorTaskbarUiState()) {
-            final boolean ret = mLauncherUiState.isTopResumedActivityRef().getValue();
-            if (BuildConfig.IS_STUDIO_BUILD && ret != mLauncher.isTopResumedActivity()) {
-                throw new IllegalStateException("isTopResumedActivity doesn't match");
-            }
-            return ret;
-        } else {
-            return mLauncher.isTopResumedActivity();
-        }
+        return mLauncherUiState.isTopResumedActivityRef().getValue();
     }
 
     @Override

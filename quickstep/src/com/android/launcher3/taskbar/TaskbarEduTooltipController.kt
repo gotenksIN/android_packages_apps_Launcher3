@@ -41,7 +41,6 @@ import androidx.core.text.HtmlCompat
 import androidx.core.view.updateLayoutParams
 import com.airbnb.lottie.LottieAnimationView
 import com.android.launcher3.Flags
-import com.android.launcher3.Flags.refactorTaskbarUiState
 import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.R
 import com.android.launcher3.RemoveAnimationSettingsTracker
@@ -61,6 +60,9 @@ import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.views.BaseDragLayer
 import com.android.quickstep.util.ContextualSearchInvoker
 import com.android.quickstep.util.LottieAnimationColorUtils
+import com.android.quickstep.util.SystemUiFlagUtils.isLocked
+import com.android.systemui.shared.system.QuickStepContract
+import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags
 import com.android.wm.shell.shared.TypefaceUtils
 import com.android.wm.shell.shared.TypefaceUtils.FontFamily
 import java.io.PrintWriter
@@ -123,6 +125,9 @@ constructor(
     val isBeforeTooltipFeaturesStep: Boolean
         get() = isTooltipEnabled && tooltipStep <= TOOLTIP_STEP_FEATURES
 
+    var blockedBySysuiState = false
+        private set
+
     private lateinit var controllers: TaskbarControllers
     private lateinit var taskbarUIState: TaskbarUiState
 
@@ -164,9 +169,12 @@ constructor(
         this.controllers = controllers
         this.taskbarUIState = taskbarUiState
         tooltipEduCombinator =
-            TooltipEduCombinator(activityContext, controllers.taskbarStashController) {
-                shouldShowSearchEdu
-            }
+            TooltipEduCombinator(
+                activityContext,
+                controllers.taskbarStashController,
+                { blockedBySysuiState },
+                { shouldShowSearchEdu },
+            )
         updateShouldShowEduOnAppLaunch()
         // We want to show the Search Edu right after pinning the taskbar, so we post it here
         activityContext.dragLayer.post { maybeShowSearchEdu() }
@@ -182,14 +190,19 @@ constructor(
         }
     }
 
+    fun updateStateForSysuiFlags(@SystemUiStateFlags stateFlags: Long) {
+        blockedBySysuiState =
+            isLocked(stateFlags) || (stateFlags and QuickStepContract.SYSUI_STATE_AWAKE == 0L)
+        if (blockedBySysuiState) {
+            hide()
+        }
+    }
+
     /**
      * Should be called whenever [TaskbarUIController], [DeviceProfile] or
      * "taskbar_edu_tooltip_step" counter is changed.
      */
     fun updateShouldShowEduOnAppLaunch() {
-        if (!refactorTaskbarUiState()) {
-            return
-        }
         val uiController = controllers.uiController
         if (uiController is LauncherTaskbarUIController) {
             taskbarUIState.showTaskbarEduOnAppLaunch = uiController.shouldShowEduOnAppLaunch()
@@ -227,6 +240,7 @@ constructor(
         }
         if (
             !isTooltipEnabled ||
+                blockedBySysuiState ||
                 !activityContext.isTransientTaskbar ||
                 tooltipStep > TOOLTIP_STEP_SWIPE
         ) {
@@ -260,6 +274,9 @@ constructor(
         Preconditions.assertTaskbarUiThread()
         if (Flags.tooltipEduCombinator()) {
             showTooltipPages(tooltipEduCombinator.getFeaturesTooltipsEduPages())
+            return
+        }
+        if (blockedBySysuiState) {
             return
         }
         if (!isTooltipEnabled || tooltipStep > TOOLTIP_STEP_FEATURES) {
@@ -362,7 +379,8 @@ constructor(
         // use old value of tooltipStep that was set to the previous value of TOOLTIP_STEP_NONE (2
         // for the original 2 edu steps) as a proxy to needing to show the separate pinning edu
         if (
-            !enableTaskbarPinning() ||
+            blockedBySysuiState ||
+                !enableTaskbarPinning() ||
                 !activityContext.isTransientTaskbar ||
                 !isTooltipEnabled ||
                 tooltipStep > TOOLTIP_STEP_PINNING ||
@@ -421,7 +439,7 @@ constructor(
      */
     fun maybeShowSearchEdu() {
         Preconditions.assertTaskbarUiThread()
-        if (isDestroyed || isTooltipOpen) {
+        if (isDestroyed || isTooltipOpen || blockedBySysuiState) {
             return
         }
 
@@ -457,6 +475,7 @@ constructor(
             !enableTaskbarPinning() ||
                 !activityContext.isPinnedTaskbar ||
                 !isTooltipEnabled ||
+                blockedBySysuiState ||
                 !shouldShowSearchEdu ||
                 userHasSeenSearchEdu ||
                 !controllers.taskbarStashController.isTaskbarVisibleAndNotStashing

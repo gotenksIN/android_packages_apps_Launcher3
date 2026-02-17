@@ -200,7 +200,7 @@ public final class LauncherInstrumentation {
     private static final String OPEN_FOLDER_RES_ID = "folder_content";
     static final String TASKBAR_RES_ID = "taskbar_view";
     static final String TASKBAR_PINNING_SWITCH_RES_ID = "taskbar_pinning_switch";
-    static final String TASKBAR_DIVIDER_CONTENT_DESCRIPTION = "Taskbar Divider";
+    static final String TASKBAR_DIVIDER_CONTAINER_RES_ID = "taskbar_divider_container";
     private static final String SPLIT_PLACEHOLDER_RES_ID = "split_placeholder";
     static final String KEYBOARD_QUICK_SWITCH_RES_ID = "keyboard_quick_switch_view";
     public static final int WAIT_TIME_MS = 30000;
@@ -209,6 +209,8 @@ public final class LauncherInstrumentation {
     private static final String ANDROID_PACKAGE = "android";
     private static final String ASSISTANT_PACKAGE = "com.google.android.googlequicksearchbox";
     private static final String ASSISTANT_GO_HOME_RES_ID = "home_icon";
+
+    private static final String TEST_AUTHORITY_STRING_FORMAT = "%s.TestInfo";
 
     private static final SparseArray<WeakReference<VisibleContainer>> sActiveContainer =
             new SparseArray<>(1);
@@ -299,6 +301,26 @@ public final class LauncherInstrumentation {
         this(displayId, instrumentation, false);
     }
 
+    private static ProviderInfo getProviderInfo(String launcherPackage) {
+        String testProviderAuthority = String.format(TEST_AUTHORITY_STRING_FORMAT, launcherPackage);
+        PackageManager pm = InstrumentationRegistry.getInstrumentation()
+                .getContext().getPackageManager();
+        return pm.resolveContentProvider(
+                testProviderAuthority, MATCH_ALL | MATCH_DISABLED_COMPONENTS);
+    }
+
+    /**
+     * Checks if the launcher package has a content provider and thus that
+     * LauncherInstrumentation can be initialized without error.
+     *
+     * For example, this is useful for tests that are run on the headless system user (HSU).
+     * The HSU uses the Login App as its launcher, which does not have a content
+     * provider.
+     */
+    public static boolean isAvailable(String launcherPackage) {
+        return getProviderInfo(launcherPackage) != null;
+    }
+
     private LauncherInstrumentation(int displayId, Instrumentation instrumentation,
             boolean isLauncherTest) {
         mDisplayId = displayId;
@@ -325,7 +347,8 @@ public final class LauncherInstrumentation {
                         ? getLauncherPackageName()
                         : targetPackage;
 
-        String testProviderAuthority = mLauncherPackage + ".TestInfo";
+        String testProviderAuthority =
+                String.format(TEST_AUTHORITY_STRING_FORMAT, mLauncherPackage);
         mTestProviderUri = new Uri.Builder()
                 .scheme(ContentResolver.SCHEME_CONTENT)
                 .authority(testProviderAuthority)
@@ -335,8 +358,7 @@ public final class LauncherInstrumentation {
                 testPackage, "android.permission.WRITE_SECURE_SETTINGS");
 
         PackageManager pm = getContext().getPackageManager();
-        ProviderInfo pi = pm.resolveContentProvider(
-                testProviderAuthority, MATCH_ALL | MATCH_DISABLED_COMPONENTS);
+        ProviderInfo pi = getProviderInfo(mLauncherPackage);
         assertNotNull("Cannot find content provider for " + testProviderAuthority, pi);
         ComponentName cn = new ComponentName(pi.packageName, pi.name);
 
@@ -1070,7 +1092,11 @@ public final class LauncherInstrumentation {
                     waitUntilSystemLauncherObjectGone(OVERVIEW_RES_ID);
                     waitUntilSystemLauncherObjectGone(SPLIT_PLACEHOLDER_RES_ID);
                     waitUntilLauncherObjectGone(KEYBOARD_QUICK_SWITCH_RES_ID);
-                    waitUntilSystemLauncherObjectGone(TASKBAR_RES_ID);
+                    if (isTaskbarShownOnHome()) {
+                        waitForSystemLauncherObject(TASKBAR_RES_ID);
+                    } else {
+                        waitUntilSystemLauncherObjectGone(TASKBAR_RES_ID);
+                    }
 
                     return waitForOneOfObjects(
                             getLauncherObjectSelector(WIDGETS_RES_ID),
@@ -1183,13 +1209,19 @@ public final class LauncherInstrumentation {
         }
     }
 
-    // TODO(b/377678992): revert ag/36346262 once NexusLauncherTests-OverviewInWindowEnabled is
-    //  successfully blocking presubmit.
     public boolean isRecentsWindowEnabled() {
-        return getTestInfo(TestProtocol.REQUEST_IS_RECENTS_WINDOW_ENABLED)
-                .getBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD);
+        if (mDisplayId != DEFAULT_DISPLAY) {
+            // The recents window is always enabled on connected displays
+            return true;
+        }
+        Bundle testInfo = is3PLauncher()
+                ? getTestInfo(TestProtocol.REQUEST_IS_FALLBACK_RECENTS_WINDOW_ENABLED)
+                : getTestInfo(TestProtocol.REQUEST_IS_LAUNCHER_RECENTS_WINDOW_ENABLED);
+
+        return testInfo.getBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD);
     }
 
+    // TODO(b/377678992): update access modifier once ag/37092345 is reverted
     public void waitForModelQueueCleared() {
         getTestInfo(TestProtocol.REQUEST_MODEL_QUEUE_CLEARED);
     }
@@ -1267,6 +1299,22 @@ public final class LauncherInstrumentation {
                 return null;
             }
         }
+    }
+
+    void executeAndWaitForLauncherToYieldFocus(Runnable command, String actionName) {
+        String messageToWait = isInDesktopFirstMode() && shouldShowHomeBehindDesktop()
+                ? TestProtocol.LAUNCHER_ACTIVITY_LOST_WINDOW_FOCUS_MESSAGE
+                : TestProtocol.LAUNCHER_ACTIVITY_STOPPED_MESSAGE;
+        String errorMessage = shouldShowHomeBehindDesktop()
+                ? "Launcher activity did not lose top resumed state"
+                : "Launcher activity didn't stop";
+        executeAndWaitForLauncherEvent(
+                command,
+                event -> messageToWait
+                        .equals(event.getClassName().toString()),
+                () -> errorMessage,
+                actionName,
+                isRecentsWindowEnabled() ? mTestLauncherPackage : null);
     }
 
     void executeAndWaitForLauncherStop(Runnable command, String actionName) {
@@ -1399,7 +1447,11 @@ public final class LauncherInstrumentation {
                 // CLose floating views before going back to home.
                 swipeUpToCloseFloatingView();
 
-                if (hasLauncherObject(WORKSPACE_RES_ID)) {
+                if (hasLauncherObject(WORKSPACE_RES_ID)
+                        && !(isRecentsWindowEnabled()
+                        && hasSystemLauncherObject(OVERVIEW_RES_ID))) {
+                    // The workspace is visible on the accessibility hierarchy under the recents
+                    // window
                     log(action = "already at home");
                 } else {
                     action = "swiping up to home";
@@ -2671,6 +2723,10 @@ public final class LauncherInstrumentation {
         getTestInfo(TestProtocol.REQUEST_EJECT_FAKE_TRACKPAD);
     }
 
+    public void injectTestInsights() {
+        getTestInfo(TestProtocol.INJECT_TEST_INSIGHTS);
+    }
+
     /** Blocks the taskbar from automatically stashing based on time. */
     public void enableBlockTimeout(boolean enable) {
         getTestInfo(enable
@@ -2983,6 +3039,12 @@ public final class LauncherInstrumentation {
         return getTestInfo(TestProtocol.REQUEST_TASKBAR_UNSTASHED_INPUT_AREA).getInt(
                 TestProtocol.TEST_INFO_RESPONSE_FIELD);
     }
+
+    /** Mark tool tip of Overview action buttons as seen. */
+    public void markOverviewSelectTipSeen() {
+        getTestInfo(TestProtocol.REQUEST_MARK_OVERVIEW_SELECT_TIP_SEEN);
+    }
+
 
     /**
      * Waits for the provided condition to be true, otherwise fails with the provided message

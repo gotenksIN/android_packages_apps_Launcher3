@@ -19,6 +19,7 @@ import static android.os.Process.THREAD_PRIORITY_BACKGROUND;
 
 import static com.android.launcher3.util.Executors.getTaskbarUiThread;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_BOUNCER_SHOWING;
+import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DIALOG_SHOWING;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_IME_VISIBLE;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_NOTIFICATION_PANEL_EXPANDED;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_QUICK_SETTINGS_EXPANDED;
@@ -29,6 +30,7 @@ import android.annotation.AnyThread;
 import android.annotation.BinderThread;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.app.ActivityTaskManager;
 import android.content.Context;
 import android.graphics.Point;
 import android.os.Bundle;
@@ -96,7 +98,8 @@ public class BubbleBarController {
             | SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING_OCCLUDED
             | SYSUI_STATE_IME_VISIBLE
             | SYSUI_STATE_NOTIFICATION_PANEL_EXPANDED
-            | SYSUI_STATE_QUICK_SETTINGS_EXPANDED;
+            | SYSUI_STATE_QUICK_SETTINGS_EXPANDED
+            | SYSUI_STATE_DIALOG_SHOWING;
 
     private static final long MASK_HIDE_HANDLE_VIEW = SYSUI_STATE_BOUNCER_SHOWING
             | SYSUI_STATE_STATUS_BAR_KEYGUARD_SHOWING
@@ -274,6 +277,16 @@ public class BubbleBarController {
     private void onBubbleStateChange(Bundle bundle) {
         bundle.setClassLoader(BubbleBarUpdate.class.getClassLoader());
         BubbleBarUpdate update = bundle.getParcelable("update", BubbleBarUpdate.class);
+        if (update == null) {
+            Log.e(TAG, "Update info missing from bubble state change");
+            return;
+        }
+        if (Flags.sendBubbleRootTaskIdToLauncher()) {
+            if (update.bubbleRootTaskId != ActivityTaskManager.INVALID_TASK_ID) {
+                // Cache bubble root task id if it is set in the update
+                BubbleHelper.updateBubbleRootTaskId(update.bubbleRootTaskId);
+            }
+        }
         BubbleBarViewUpdate viewUpdate = new BubbleBarViewUpdate(update);
         if (update.addedBubble != null
                 || update.updatedBubble != null

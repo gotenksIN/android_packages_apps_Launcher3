@@ -19,11 +19,11 @@ import static android.view.View.AccessibilityDelegate;
 import static android.view.ViewTreeObserver.InternalInsetsInfo.TOUCHABLE_INSETS_REGION;
 import static android.view.WindowManager.LayoutParams.TYPE_NAVIGATION_BAR_PANEL;
 
-import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherAnimUtils.ROTATION_DRAWABLE_PERCENT;
 import static com.android.launcher3.LauncherAnimUtils.VIEW_TRANSLATE_X;
 import static com.android.launcher3.Utilities.getDescendantCoordRelativeToAncestor;
 import static com.android.launcher3.anim.AnimatorListeners.forEndCallback;
+import static com.android.launcher3.taskbar.LauncherTaskbarUIController.IME_PROGRESS_INDEX;
 import static com.android.launcher3.taskbar.LauncherTaskbarUIController.SYSUI_SURFACE_PROGRESS_INDEX;
 import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar;
 import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_A11Y;
@@ -80,6 +80,7 @@ import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.SoundEffectConstants;
 import android.view.View;
 import android.view.View.OnAttachStateChangeListener;
 import android.view.ViewGroup;
@@ -211,12 +212,13 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
             this::updateNavButtonTranslationY);
     private final AnimatedFloat mTaskbarNavButtonTranslationYForInAppDisplay = new AnimatedFloat(
             this::updateNavButtonTranslationY);
-    private final AnimatedFloat mTaskbarNavButtonTranslationYForIme = new AnimatedFloat(
-            this::updateNavButtonTranslationY);
     private float mLastSetNavButtonTranslationY;
     // Used for System UI state updates that should translate the nav button for in-app display.
     private final AnimatedFloat mNavButtonInAppDisplayProgressForSysui = new AnimatedFloat(
             this::updateNavButtonInAppDisplayProgressForSysui);
+    private final AnimatedFloat mNavButtonInAppDisplayProgressForIme = new AnimatedFloat(
+            this::updateNavButtonInAppDisplayProgressForIme);
+
     /**
      * Expected nav button dark intensity piped down from {@code LightBarController} in framework
      * via {@code TaskbarDelegate}.
@@ -370,10 +372,15 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         // - VoiceInteractionWindow (assistant) is showing
         // - Keyboard shortcuts helper is showing
         if (!isPhoneMode) {
-            int flagsToRemoveTranslation = FLAG_NOTIFICATION_SHADE_EXPANDED | FLAG_IME_VISIBLE
+            int flagsToRemoveTranslation = FLAG_NOTIFICATION_SHADE_EXPANDED
                     | FLAG_VOICE_INTERACTION_WINDOW_SHOWING | FLAG_KEYBOARD_SHORTCUT_HELPER_SHOWING;
             mPropertyHolders.add(new StatePropertyHolder(mNavButtonInAppDisplayProgressForSysui,
                     flags -> (flags & flagsToRemoveTranslation) != 0, AnimatedFloat.VALUE,
+                    1, 0));
+
+            int flagsToRemoveImeTranslation = FLAG_IME_VISIBLE;
+            mPropertyHolders.add(new StatePropertyHolder(mNavButtonInAppDisplayProgressForIme,
+                    flags -> (flags & flagsToRemoveImeTranslation) != 0, AnimatedFloat.VALUE,
                     1, 0));
 
             mPropertyHolders.add(new StatePropertyHolder(
@@ -625,6 +632,12 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
             updateButtonLayoutSpacing();
         }
 
+        if (mRecentsButton != null) {
+            boolean screenPinned = (sysUiStateFlags & SYSUI_STATE_SCREEN_PINNING) != 0;
+            // Recents button is only long clickable to exit screen pinning.
+            mRecentsButton.setLongClickable(screenPinned);
+        }
+
         if (mNavButtonContainer.getChildCount() > 0) {
             for (int i = 0; i < mNavButtonContainer.getChildCount(); i++) {
                 mNavButtonContainer.getChildAt(i).setEnabled(!splitAnimationRunning);
@@ -855,6 +868,14 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         }
     }
 
+    private void updateNavButtonInAppDisplayProgressForIme() {
+        TaskbarUIController uiController = mControllers.uiController;
+        if (uiController instanceof LauncherTaskbarUIController) {
+            ((LauncherTaskbarUIController) uiController).onTaskbarInAppDisplayProgressUpdate(
+                    mNavButtonInAppDisplayProgressForIme.value, IME_PROGRESS_INDEX);
+        }
+    }
+
     /**
      * Sets the translationY of the nav buttons based on the current device state.
      */
@@ -863,7 +884,6 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
             return;
         }
         final float normalTranslationY = mTaskbarNavButtonTranslationY.value;
-        final float imeAdjustmentTranslationY = mTaskbarNavButtonTranslationYForIme.value;
         TaskbarUIController uiController = mControllers.uiController;
         final float inAppDisplayAdjustmentTranslationY =
                 (uiController instanceof LauncherTaskbarUIController
@@ -871,7 +891,6 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                         ? mTaskbarNavButtonTranslationYForInAppDisplay.value : 0;
 
         mLastSetNavButtonTranslationY = normalTranslationY
-                + imeAdjustmentTranslationY
                 + inAppDisplayAdjustmentTranslationY;
         mNavButtonsView.setTranslationY(mLastSetNavButtonTranslationY);
         notifyRecentsButtonPosition();
@@ -1037,6 +1056,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
             }
             navButtonController.sendBackKeyEvent(KeyEvent.ACTION_UP, isCancelled);
             if (motionEventAction == MotionEvent.ACTION_UP && !isCancelled) {
+                buttonView.playSoundEffect(SoundEffectConstants.CLICK);
                 buttonView.performClick();
             }
             return false;
@@ -1251,10 +1271,12 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                 + mTaskbarNavButtonTranslationY.value);
         pw.println(prefix + "\t\tmTaskbarNavButtonTranslationYForInAppDisplay="
                 + mTaskbarNavButtonTranslationYForInAppDisplay.value);
-        pw.println(prefix + "\t\tmTaskbarNavButtonTranslationYForIme="
-                + mTaskbarNavButtonTranslationYForIme.value);
         pw.println(prefix + "\t\tmTaskbarNavButtonDarkIntensity="
                 + mTaskbarNavButtonDarkIntensity.value);
+        pw.println(prefix + "\t\tmNavButtonInAppDisplayProgressForSysui="
+                + mNavButtonInAppDisplayProgressForSysui.value);
+        pw.println(prefix + "\t\tmNavButtonInAppDisplayProgressForIme="
+                + mNavButtonInAppDisplayProgressForIme.value);
         pw.println(prefix + "\t\tmSlideInViewVisibleNavButtonColorOverride="
                 + mSlideInViewVisibleNavButtonColorOverride.value);
         pw.println(prefix + "\t\tmOnTaskbarBackgroundNavButtonColorOverride="
@@ -1412,10 +1434,8 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
             } else {
                 mFloatingRotationButtonBounds.setEmpty();
             }
-            if (refactorTaskbarUiState()) {
-                mTaskbarUiState.setNavbarFloatingRotationButtonsBounds(
-                        mFloatingRotationButtonBounds);
-            }
+            mTaskbarUiState.setNavbarFloatingRotationButtonsBounds(
+                    mFloatingRotationButtonBounds);
         }
     }
 

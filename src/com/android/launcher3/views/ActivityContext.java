@@ -59,6 +59,7 @@ import com.android.launcher3.BaseActivity;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.CellLayout;
 import com.android.launcher3.DeviceProfile;
+import com.android.launcher3.UndoDeleteController;
 import com.android.launcher3.DeviceProfile.OnDeviceProfileChangeListener;
 import com.android.launcher3.DropTargetHandler;
 import com.android.launcher3.LauncherAppState;
@@ -75,13 +76,14 @@ import com.android.launcher3.logger.LauncherAtom;
 import com.android.launcher3.logging.InstanceId;
 import com.android.launcher3.logging.InstanceIdSequence;
 import com.android.launcher3.logging.StatsLogManager;
-import com.android.launcher3.model.ModelWriter;
+import com.android.launcher3.model.IModelWriter;
 import com.android.launcher3.model.StringCache;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.model.repository.StringCacheRepository;
 import com.android.launcher3.popup.SystemShortcut;
 import com.android.launcher3.statehandlers.BaseDepthController;
+import com.android.launcher3.touch.CustomActionsListener;
 import com.android.launcher3.util.ActivityOptionsWrapper;
 import com.android.launcher3.util.ApiWrapper;
 import com.android.launcher3.util.ApplicationInfoWrapper;
@@ -338,6 +340,11 @@ public interface ActivityContext extends SavedStateRegistryOwner {
         return v -> false;
     }
 
+    /** Custom actions listener used for All Apps items. */
+    default CustomActionsListener getAllAppsItemCustomActionsListener() {
+        return null;
+    }
+
     default DotInfo getDotInfoForItem(ItemInfo info) {
         return getActivityComponent().getPopupDataProvider().getDotInfoForItem(info);
     }
@@ -537,9 +544,17 @@ public interface ActivityContext extends SavedStateRegistryOwner {
     }
 
     /** Returns a writer for updating model properties */
-    default ModelWriter getModelWriter() {
+    default IModelWriter getModelWriter() {
         return LauncherAppState.getInstance(asContext()).getModel().getWriter(
                 false, this, null);
+    }
+
+    /**
+     * Returns the controller for managing undo delete operations.
+     */
+    @NonNull
+    default UndoDeleteController getUndoDeleteController() {
+        return getActivityComponent().getUndoDeleteController();
     }
 
     /** Set to manage objects that can be cleaned up along with the context */

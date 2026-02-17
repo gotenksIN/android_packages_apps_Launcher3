@@ -19,6 +19,7 @@ package com.android.quickstep;
 import static com.android.launcher3.util.rule.TestStabilityRule.LOCAL;
 import static com.android.launcher3.util.rule.TestStabilityRule.PLATFORM_POSTSUBMIT;
 import static com.android.launcher3.util.rule.TestStabilityRule.Stability;
+import static com.android.launcher3.util.ui.ActivityStartUtils.startTestActivity;
 
 import android.util.Log;
 
@@ -59,7 +60,7 @@ public class TaplStartLauncherViaGestureTests extends AbstractQuickStepTest {
 
     @Test
     @NavigationModeSwitch(mode = NavigationModeSwitchRule.Mode.THREE_BUTTON)
-    @Stability(flavors = LOCAL | PLATFORM_POSTSUBMIT) // b/435425092
+    @Stability(flavors = LOCAL | PLATFORM_POSTSUBMIT) // b/481414987
     public void testStressPressHome() {
         runTest(TestCase.TO_HOME);
     }

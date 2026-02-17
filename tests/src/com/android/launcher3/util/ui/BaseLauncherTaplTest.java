@@ -28,11 +28,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
+import android.annotation.NonNull;
 import android.app.ActivityManager;
-import android.content.ComponentName;
 import android.content.Context;
-import android.content.Intent;
-import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Point;
@@ -45,10 +43,9 @@ import android.platform.test.rule.ExtendedLongPressTimeoutRule;
 import android.platform.test.rule.LimitDevicesRule;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
+import androidx.lifecycle.LifecycleRegistry;
 import androidx.test.InstrumentationRegistry;
 import androidx.test.uiautomator.By;
-import androidx.test.uiautomator.BySelector;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.Until;
 
@@ -56,6 +53,8 @@ import com.android.launcher3.tapl.HomeAllApps;
 import com.android.launcher3.tapl.HomeAppIcon;
 import com.android.launcher3.tapl.LauncherInstrumentation;
 import com.android.launcher3.tapl.TestHelpers;
+import com.android.launcher3.util.BaseContext;
+import com.android.launcher3.util.LifecycleRegistryWrapper;
 import com.android.launcher3.util.TestUtil;
 import com.android.launcher3.util.rule.FailureWatcher;
 import com.android.launcher3.util.rule.SamplerRule;
@@ -72,13 +71,33 @@ import org.junit.Rule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import shark.AndroidMetadataExtractor;
+import shark.AndroidObjectInspectors;
+import shark.AndroidReferenceMatchers;
+import shark.FilteringLeakingObjectFinder;
+import shark.HeapAnalysis;
+import shark.HeapAnalyzer;
+import shark.HeapField;
+import shark.HeapObject;
+import shark.HeapObject.HeapInstance;
+import shark.HeapValue;
+import shark.IgnoredReferenceMatcher;
+import shark.OnAnalysisProgressListener;
+import shark.ReferenceMatcher;
+import shark.ReferencePattern;
 
 /**
  * Base class for all TAPL tests in Launcher providing various utility methods.
@@ -99,6 +118,11 @@ public abstract class BaseLauncherTaplTest {
     private static boolean sFirstTimeWaitingForWizard = true;
 
     private static final String SYSTEMUI_PACKAGE = "com.android.systemui";
+    private static final String BASE_CONTEXT_CLASS = BaseContext.class.getName();
+    private static final String LIFECYCLE_WRAPPER_CLASS =
+            LifecycleRegistryWrapper.class.getName();
+    private static final String LIFECYCLE_REGISTRY_CLASS = LifecycleRegistry.class.getName();
+    private static final String ENUM_CLASS = Enum.class.getName();
 
     protected final UiDevice mDevice = getUiDevice();
     protected final LauncherInstrumentation mLauncher = createLauncherInstrumentation();
@@ -134,10 +158,6 @@ public abstract class BaseLauncherTaplTest {
                 });
     }
 
-    public static String getAppPackageName() {
-        return getInstrumentation().getContext().getPackageName();
-    }
-
     private static String getUiSurfaceLeakErrorMessage(LauncherInstrumentation launcher) {
         sUiSurfaceLeakReported = true;
         return "Leak detector has found leaked UI surfaces; "
@@ -153,12 +173,22 @@ public abstract class BaseLauncherTaplTest {
                 final String fileName =
                         getInstrumentation().getTargetContext().getFilesDir().getPath()
                                 + "/UiSurfaceLeakHeapDump.hprof";
+                final UiDevice device = getUiDevice();
                 if (TestHelpers.isInLauncherProcess()) {
                     Debug.dumpHprofData(fileName);
                 } else {
-                    final UiDevice device = getUiDevice();
                     device.executeShellCommand(
                             "am dumpheap " + device.getLauncherPackageName() + " " + fileName);
+                }
+
+                File hprofFile = new File(fileName);
+                // Make the hprof file readable for the heap analyzer.
+                device.executeShellCommand("chmod 644 " + fileName);
+
+                try {
+                    createLeakReportFromHeap(hprofFile);
+                } catch (Throwable e) {
+                    Log.e(TAG, "Heap analysis failed", e);
                 }
                 Log.d(TAG, "Saved leak dump, the leak is still present: "
                         + !launcher.noLeakedUiSurfaces());
@@ -170,6 +200,68 @@ public abstract class BaseLauncherTaplTest {
             }
         }
         return result + ". Full list of UI surfaces: " + launcher.getRootedUiSurfacesList();
+    }
+
+    private static void createLeakReportFromHeap(File hprofFile) {
+        HeapAnalyzer heapAnalyzer = new HeapAnalyzer(
+                OnAnalysisProgressListener.Companion.getNO_OP());
+        List<FilteringLeakingObjectFinder.LeakingObjectFilter> filters = new ArrayList<>(
+                AndroidObjectInspectors.Companion.getAppLeakingObjectFilters());
+
+        // This additional filter is needed to detect leaks of BaseContext objects which is not
+        // covered by standard Activity/Fragment leak detectors.
+        // Check if the BaseContext is destroyed by traversing the object graph:
+        // BaseContext -> lifecycleRegistryWrapper -> base (LifecycleRegistry) -> state -> name.
+        filters.add(heapObject -> {
+            if (heapObject instanceof HeapInstance) {
+                HeapInstance instance = (HeapInstance) heapObject;
+                if (instance.instanceOf(BASE_CONTEXT_CLASS)) {
+                    HeapInstance wrapper = getRef(instance, BASE_CONTEXT_CLASS,
+                            "lifecycleRegistryWrapper");
+                    if (wrapper == null) return false;
+                    HeapInstance registry = getRef(wrapper, LIFECYCLE_WRAPPER_CLASS, "base");
+                    if (registry == null) return false;
+                    HeapInstance state = getRef(registry, LIFECYCLE_REGISTRY_CLASS, "state");
+                    if (state != null) {
+                        HeapInstance name = getRef(state, ENUM_CLASS, "name");
+                        if (name != null && "DESTROYED".equals(name.readAsJavaString())) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        });
+
+        HeapAnalysis analysis = heapAnalyzer.analyze(
+                hprofFile,
+                new FilteringLeakingObjectFinder(filters),
+                AndroidReferenceMatchers.Companion.getAppDefaults(),
+                true,
+                AndroidObjectInspectors.Companion.getAppDefaults(),
+                AndroidMetadataExtractor.INSTANCE,
+                null
+        );
+
+        String analysisResult = analysis.toString();
+
+        try {
+            File analysisFile = new File(hprofFile.getParent(), "UiSurfaceLeakAnalysis.txt");
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(analysisFile)) {
+                fos.write(analysisResult.getBytes(StandardCharsets.UTF_8));
+                Log.d(TAG, "Saved heap analysis to file: " + analysisFile);
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to write analysis to file", e);
+        }
+    }
+
+    private static HeapInstance getRef(HeapInstance instance, String className, String fieldName) {
+        HeapField field = instance.get(className, fieldName);
+        if (field != null && field.getValue().isNonNullReference()) {
+            return field.getValue().getAsObject().getAsInstance();
+        }
+        return null;
     }
 
     protected BaseLauncherTaplTest() {
@@ -422,81 +514,6 @@ public abstract class BaseLauncherTaplTest {
             mLauncher.reinitializeLauncherData();
         }
         mLauncher.waitForLauncherInitialized();
-    }
-
-    public static void startAppFast(String packageName) {
-        startIntent(
-                getInstrumentation().getContext().getPackageManager().getLaunchIntentForPackage(
-                        packageName),
-                By.pkg(packageName).depth(0),
-                true /* newTask */);
-    }
-
-    public static void startTestActivity(String activityName, String activityLabel) {
-        final String packageName = getAppPackageName();
-        final Intent intent = getInstrumentation().getContext().getPackageManager()
-                        .getLaunchIntentForPackage(packageName);
-        intent.setComponent(new ComponentName(packageName,
-                "com.android.launcher3.tests." + activityName));
-        startIntent(intent, By.pkg(packageName).text(activityLabel),
-                false /* newTask */);
-    }
-
-    public static void startTestActivity(int activityNumber) {
-        startTestActivity("Activity" + activityNumber, "TestActivity" + activityNumber);
-    }
-
-    public static void startImeTestActivity() {
-        final String packageName = getAppPackageName();
-        final Intent intent = getInstrumentation().getContext().getPackageManager()
-                        .getLaunchIntentForPackage(packageName);
-        intent.setComponent(new ComponentName(packageName,
-                "com.android.launcher3.testcomponent.ImeTestActivity"));
-        startIntent(intent, By.pkg(packageName).text("ImeTestActivity"),
-                false /* newTask */);
-    }
-
-    /** Starts ExcludeFromRecentsTestActivity, which has excludeFromRecents="true". */
-    public static void startExcludeFromRecentsTestActivity() {
-        final String packageName = getAppPackageName();
-        final Intent intent = getInstrumentation().getContext().getPackageManager()
-                .getLaunchIntentForPackage(packageName);
-        intent.setComponent(new ComponentName(packageName,
-                "com.android.launcher3.testcomponent.ExcludeFromRecentsTestActivity"));
-        startIntent(intent, By.pkg(packageName).text("ExcludeFromRecentsTestActivity"),
-                false /* newTask */);
-    }
-
-    private static void startIntent(Intent intent, BySelector selector, boolean newTask) {
-        intent.addCategory(Intent.CATEGORY_LAUNCHER);
-        if (newTask) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        } else {
-            intent.addFlags(
-                    Intent.FLAG_ACTIVITY_MULTIPLE_TASK | Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
-        }
-        getInstrumentation().getTargetContext().startActivity(intent);
-        assertTrue("App didn't start: " + selector,
-                TestHelpers.wait(Until.hasObject(selector), DEFAULT_UI_TIMEOUT));
-
-        // Wait for the Launcher to stop.
-        final LauncherInstrumentation launcherInstrumentation = new LauncherInstrumentation(true);
-        launcherInstrumentation.waitForCondition(
-                "Launcher activity didn't stop",
-                DEFAULT_ACTIVITY_TIMEOUT,
-                () -> !launcherInstrumentation.isLauncherActivityStarted());
-    }
-
-    public static ActivityInfo resolveSystemAppInfo(String category) {
-        return getInstrumentation().getContext().getPackageManager().resolveActivity(
-                new Intent(Intent.ACTION_MAIN).addCategory(category),
-                PackageManager.MATCH_SYSTEM_ONLY)
-                .activityInfo;
-    }
-
-
-    public static String resolveSystemApp(String category) {
-        return resolveSystemAppInfo(category).packageName;
     }
 
     protected HomeAppIcon createShortcutInCenterIfNotExist(String name) {

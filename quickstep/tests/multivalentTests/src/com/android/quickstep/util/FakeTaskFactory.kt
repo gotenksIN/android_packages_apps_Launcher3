@@ -32,6 +32,7 @@ object FakeTaskFactory {
     fun newTaskInfo(
         taskId: Int,
         componentName: ComponentName = ComponentName("test", "test"),
+        userId: Int = 0,
         displayId: Int = DEFAULT_DISPLAY,
         windowingMode: Int = WINDOWING_MODE_FULLSCREEN,
         title: String = "Test",
@@ -40,6 +41,7 @@ object FakeTaskFactory {
     ) =
         ActivityManager.RunningTaskInfo().apply {
             this.taskId = taskId
+            this.userId = userId
             this.displayId = displayId
             this.baseIntent =
                 AppInfo.makeLaunchIntent(componentName).apply {

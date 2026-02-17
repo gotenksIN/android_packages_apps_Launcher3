@@ -18,6 +18,7 @@ package com.android.launcher3.popup
 
 import android.animation.AnimatorSet
 import android.content.Context
+import android.graphics.PointF
 import android.graphics.Rect
 import android.os.Trace
 import android.view.MotionEvent
@@ -37,6 +38,7 @@ import com.android.launcher3.dragndrop.DragOptions
 import com.android.launcher3.folder.Folder
 import com.android.launcher3.logging.StatsLogManager.LauncherEvent
 import com.android.launcher3.model.data.ItemInfo
+import com.android.launcher3.model.data.ItemInfoWithIcon
 import com.android.launcher3.popup.ui.ComposePopup
 import com.android.launcher3.popup.ui.DeepShortcutClickEvent
 import com.android.launcher3.popup.ui.PopupItem
@@ -59,6 +61,7 @@ open class PopupContainer<T>(
     val updateIconUi: Boolean,
 ) : ArrowPopup<T>(context), DragSource, DragController.DragListener, Popup
     where T : Context, T : ActivityContext {
+    var deepShortcutDragHandler: DeepShortcutDragHandler? = null
     /** Here we hold the system shortcuts that we show for the Popup. */
     // TODO b/441320297
     var systemShortcutContainer: ViewGroup? = null
@@ -73,6 +76,14 @@ open class PopupContainer<T>(
 
     val viewModel = PopupViewModel()
 
+    private fun canAddShortcut(): Boolean {
+        val isPinnable =
+            (originalView.tag as? ItemInfoWithIcon)?.let {
+                (it.runtimeStatusFlags and ItemInfoWithIcon.FLAG_NOT_PINNABLE) == 0
+            } == true
+        return mActivityContext is Launcher && isPinnable
+    }
+
     open fun showComposePopup(systemShortcuts: List<PopupItem>, deepShortcutCount: Int = 0) {
         mIsOpen = true
         popupContainer.addView(this)
@@ -82,7 +93,10 @@ open class PopupContainer<T>(
         lp.height = LayoutParams.WRAP_CONTENT
         layoutParams = lp
 
-        viewModel.init(systemShortcuts, deepShortcutCount)
+        val deviceProfile = mActivityContext.deviceProfile
+        val availableHeightDp =
+            deviceProfile.pxToDp(deviceProfile.deviceProperties.availableHeightPx.toFloat())
+        viewModel.init(systemShortcuts, deepShortcutCount, availableHeightDp)
 
         val composePopup =
             ComposeView(context).apply {
@@ -95,39 +109,44 @@ open class PopupContainer<T>(
                                     clickedItem.item.popupAction()
                                 }
                                 is DeepShortcutClickEvent -> {
-                                    (mActivityContext as? Launcher)?.startActivitySafely(
-                                        originalView,
-                                        clickedItem.item?.intent,
-                                        clickedItem.item,
-                                    )
+                                    mActivityContext.itemOnClickListener.onClick(originalView)
                                 }
                             }
                             close(true)
-                            // Handle click events from the Compose UI
                         },
-                        onAddIconClick = { clickedItem ->
-                            val accessibilityDelegate = mActivityContext?.accessibilityDelegate
-                            if (accessibilityDelegate is LauncherAccessibilityDelegate) {
-                                accessibilityDelegate.addToWorkspace(
-                                    /* itemInfo */ clickedItem,
-                                    /* accessibility= */ false,
-                                )
-                                /*finishCallback=*/ {
-                                    mActivityContext.statsLogManager
-                                        .logger()
-                                        .withItemInfo(clickedItem)
-                                        .log(LauncherEvent.LAUNCHER_TAP_TO_ADD_DEEP_SHORTCUT)
-                                }
-                                Unit
-                            }
+                        onAddIconClick =
+                            if (canAddShortcut())
+                                { clickedItem ->
+                                    val accessibilityDelegate =
+                                        mActivityContext?.accessibilityDelegate
+                                    if (accessibilityDelegate is LauncherAccessibilityDelegate) {
+                                        accessibilityDelegate.addToWorkspace(
+                                            /* itemInfo */ clickedItem,
+                                            /* accessibility= */ false,
+                                        )
+                                        /*finishCallback=*/ {
+                                            mActivityContext.statsLogManager
+                                                .logger()
+                                                .withItemInfo(clickedItem)
+                                                .log(
+                                                    LauncherEvent.LAUNCHER_TAP_TO_ADD_DEEP_SHORTCUT
+                                                )
+                                        }
+                                        Unit
+                                    }
 
-                            // If we have an open folder, don't animate the popup closing.
-                            val folder = getOpenView<Folder>(mActivityContext, TYPE_FOLDER)
-                            close(folder == null)
-                            folder?.close(true)
-                        },
-                        onDeepShortcutLongPress = { itemInfoWithIcon
-                            -> // TODO: implement long press on deep shortcuts
+                                    // If we have an open folder, don't animate the popup closing.
+                                    val folder = getOpenView<Folder>(mActivityContext, TYPE_FOLDER)
+                                    close(folder == null)
+                                    folder?.close(true)
+                                }
+                            else null,
+                        onDeepShortcutLongPress = { itemInfoWithIcon, offset ->
+                            val touchPoint = PointF(offset.x, offset.y)
+                            deepShortcutDragHandler?.onDeepShortcutLongPress(
+                                itemInfoWithIcon,
+                                touchPoint,
+                            )
                         },
                         onMaxHeightMeasured = { maxHeightPx -> positionAndShow(maxHeightPx) },
                     )

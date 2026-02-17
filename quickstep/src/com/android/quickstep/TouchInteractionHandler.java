@@ -68,6 +68,7 @@ import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.desktop.DesktopAppLaunchTransitionManager;
 import com.android.launcher3.display.DisplayController;
 import com.android.launcher3.statehandlers.DesktopVisibilityController;
+import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StatefulActivity;
 import com.android.launcher3.taskbar.TaskbarActivityContext;
 import com.android.launcher3.taskbar.TaskbarManager;
@@ -148,7 +149,7 @@ public class TouchInteractionHandler extends ContextWrapper {
                     if (task.configuration.windowConfiguration.getActivityType()
                             != ACTIVITY_TYPE_HOME
                             || task.displayId != DEFAULT_DISPLAY) {
-                        // We only want to handle home intent starts, and only on the primary
+                        // We only want to handle home intent starts on the primary
                         // display.
                         return;
                     }
@@ -161,30 +162,15 @@ public class TouchInteractionHandler extends ContextWrapper {
                             instanceof RecentsWindowManager recentsWindowManager)) {
                         return;
                     }
-                    TaskAnimationManager taskAnimationManager =
-                            mTaskAnimationManagerRepository.get(DEFAULT_DISPLAY);
-                    if (taskAnimationManager == null) {
+                    StateManager<RecentsState, RecentsWindowManager> stateManager =
+                            recentsWindowManager.getStateManager();
+                    if (!stateManager.getState().isInOverview()) {
+                        // Only hide the recents surface if we receive the home intent while in
+                        // overview, otherwise gestures will appear to stop responding when the home
+                        // intent is received while in BACKGROUND_APP state.
                         return;
                     }
-                    if (taskAnimationManager.hasOngoingGesture()) {
-                        // If there's an ongoing gesture, we shouldn't clean up the recents window
-                        // since gestures will clean up the recents window when needed.
-                        return;
-                    }
-                    if (taskAnimationManager.isRecentsAnimationRunning()) {
-                        RecentsState recentsState =
-                                recentsWindowManager.getStateManager().getState();
-                        if (!recentsState.isRecentsViewVisible()) {
-                            // If we're in a state where the recents view is visible, we can
-                            // ignore the recents animation running check, otherwise we should
-                            // wait for the recents animation to end.
-                            return;
-                        }
-                    }
-                    if (recentsWindowManager.isStarted()) {
-                        recentsWindowManager.getStateManager()
-                                .moveToRestState(/* isAnimated= */ true);
-                    }
+                    stateManager.moveToRestState(/* animated=*/ true);
                 }
             };
 
@@ -312,7 +298,7 @@ public class TouchInteractionHandler extends ContextWrapper {
         Log.d(TAG, "disposeEventHandlers: Reason: " + reason
                 + " instance=" + System.identityHashCode(this));
         if (mInputResourceDisplayModel != null) {
-            mInputResourceDisplayModel.destroy();
+            mInputResourceDisplayModel.close();
             mInputResourceDisplayModel = null;
         }
     }
@@ -403,7 +389,7 @@ public class TouchInteractionHandler extends ContextWrapper {
             }
         }
         mRecentsWindowManagerRepository.forEach(
-                /* createIfAbsent= */ false, RecentsWindowManager::onOverviewTargetChanged);
+                /* createIfAbsent= */ false, RecentsWindowManager::cleanUpSurfaceControlViewHost);
         if (isHomeAndOverviewSame) {
             TaskStackChangeListeners.getInstance().unregisterTaskStackListener(
                     mHomeIntentStartedListener);
@@ -457,7 +443,6 @@ public class TouchInteractionHandler extends ContextWrapper {
 
         mAllAppsActionManager.onDestroy();
 
-        mTaskbarManager.destroy();
         if (mDesktopAppLaunchTransitionManager != null) {
             mDesktopAppLaunchTransitionManager.unregisterTransitions();
         }
@@ -729,7 +714,11 @@ public class TouchInteractionHandler extends ContextWrapper {
         int displayId = event.getDisplayId();
         TaskbarActivityContext tac = mTaskbarManager.getTaskbarForDisplay(displayId);
         InputResource inputResource = getInputResource(displayId);
-        boolean isTaskbarPresent = tac != null && tac.getDeviceProfile().isTaskbarPresent
+        boolean isTaskbarPresent = tac != null
+                && tac.getDeviceProfile()
+                .getDeviceProperties()
+                .getTaskbarConfiguration()
+                .isTaskbarPresent()
                 && !tac.isPhoneMode();
         return event.isHoverEvent()
                 && inputResource != null
@@ -930,7 +919,7 @@ public class TouchInteractionHandler extends ContextWrapper {
         return new LauncherSwipeHandlerV2(this, taskAnimationManager, deviceState,
                 rotationTouchHelper, gestureState, touchTimeMs,
                 taskAnimationManager.isRecentsAnimationRunning(),
-                mInputConsumer, MSDLPlayerWrapper.INSTANCE.get(this));
+                mInputConsumer, MSDLPlayerWrapper.INSTANCE.get(this), displayId);
     }
 
     private @Nullable AbsSwipeUpHandler<?, ?, ?> createFallbackSwipeHandler(
@@ -946,7 +935,7 @@ public class TouchInteractionHandler extends ContextWrapper {
         return new FallbackSwipeHandler(this, taskAnimationManager, deviceState,
                 rotationTouchHelper, gestureState, touchTimeMs,
                 taskAnimationManager.isRecentsAnimationRunning(),
-                mInputConsumer, MSDLPlayerWrapper.INSTANCE.get(this));
+                mInputConsumer, MSDLPlayerWrapper.INSTANCE.get(this), displayId);
     }
 
     private @Nullable AbsSwipeUpHandler<?, ?, ?> createRecentsWindowSwipeHandler(
@@ -965,7 +954,7 @@ public class TouchInteractionHandler extends ContextWrapper {
                 taskAnimationManager, deviceState,
                 rotationTouchHelper, recentsWindowManager, gestureState, touchTimeMs,
                 taskAnimationManager.isRecentsAnimationRunning(),
-                mInputConsumer, MSDLPlayerWrapper.INSTANCE.get(this));
+                mInputConsumer, MSDLPlayerWrapper.INSTANCE.get(this), displayId);
     }
 
     public class InputResource implements DisplayModel.DisplayResource {

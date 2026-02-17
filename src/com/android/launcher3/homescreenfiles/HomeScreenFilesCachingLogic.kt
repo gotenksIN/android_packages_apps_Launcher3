@@ -20,14 +20,21 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.UserHandle
+import android.provider.MediaStore.Files.FileColumns.HEIGHT
+import android.provider.MediaStore.Files.FileColumns.WIDTH
 import android.util.Log
 import android.util.Size
+import androidx.core.util.component1
+import androidx.core.util.component2
+import com.android.launcher3.icons.BaseIconFactory
 import com.android.launcher3.icons.BitmapInfo
 import com.android.launcher3.icons.IconProvider
-import com.android.launcher3.icons.cache.BaseIconCache
 import com.android.launcher3.icons.cache.CachingLogic
+import com.android.launcher3.icons.cache.IconLoadRequest
 import com.android.launcher3.model.data.WorkspaceItemInfo
+import kotlin.math.max
 
 /**
  * Helper class used by [com.android.launcher3.icons.IconCache] and
@@ -54,50 +61,82 @@ object HomeScreenFilesCachingLogic : CachingLogic<HomeScreenFile> {
         return null
     }
 
-    override fun loadIcon(
-        context: Context,
-        cache: BaseIconCache,
-        item: HomeScreenFile,
-    ): BitmapInfo {
-        cache.iconFactory.use { iconFactory ->
-            if (item.mimeType.isNullOrEmpty()) {
-                return iconFactory.createBadgedIconBitmap(null)
-            }
+    override fun loadIcon(request: IconLoadRequest<HomeScreenFile>): BitmapInfo =
+        request.run {
+            iconFactory.use { iconFactory ->
+                val mimeType = item.mimeType
+                if (mimeType.isNullOrEmpty()) {
+                    return iconFactory.createBadgedIconBitmap(null)
+                }
 
-            // Load thumbnail for images and videos.
-            if (supportsThumbnails(item.mimeType)) {
-                try {
-                    val thumbnail =
-                        context.contentResolver.loadThumbnail(
-                            item.uri,
-                            Size(iconFactory.iconBitmapSize, iconFactory.iconBitmapSize),
-                            null,
-                        )
-                    return iconFactory.createIconBitmap(
-                        thumbnail.cropToSquare(),
-                        isFullBleed = true,
-                    )
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to load thumbnail icon", e)
+                // Load thumbnail for images and videos.
+                if (supportsThumbnails(mimeType)) {
+                    try {
+                        val thumbnail =
+                            context.contentResolver
+                                .loadThumbnail(
+                                    item.uri,
+                                    getThumbnailSizeBeforeCropToSquare(
+                                        context,
+                                        iconFactory,
+                                        item.uri,
+                                    ),
+                                    null,
+                                )
+                                .cropToSquare()
+                        return iconFactory.createIconBitmap(thumbnail, isFullBleed = true)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to load thumbnail icon", e)
+                    }
                 }
-            }
 
-            // Load generic MIME type icon for other MIME types or as a fallback when loading a
-            // thumbnail has failed.
-            return kotlin
-                .runCatching {
-                    context.contentResolver.getTypeInfo(item.mimeType).icon.loadDrawable(context)
-                }
-                .map { iconFactory.createBadgedIconBitmap(it) }
-                .getOrElse {
-                    Log.e(TAG, "Failed to load generic icon", it)
-                    iconFactory.createBadgedIconBitmap(null)
-                }
+                // Load generic MIME type icon for other MIME types or as a fallback when loading a
+                // thumbnail has failed.
+                kotlin
+                    .runCatching {
+                        context.contentResolver.getTypeInfo(mimeType).icon.loadDrawable(context)
+                    }
+                    .map { iconFactory.createBadgedIconBitmap(it) }
+                    .getOrElse {
+                        Log.e(TAG, "Failed to load generic icon", it)
+                        iconFactory.createBadgedIconBitmap(null)
+                    }
+            }
         }
-    }
 
-    override fun getFreshnessIdentifier(item: HomeScreenFile, iconProvider: IconProvider): String? {
-        return null
+    override fun getFreshnessIdentifier(item: HomeScreenFile, iconProvider: IconProvider) = null
+
+    private fun getDimensions(context: Context, uri: Uri): Size? =
+        kotlin
+            .runCatching {
+                context.contentResolver.query(uri, arrayOf(WIDTH, HEIGHT), null, null)?.use {
+                    return if (it.moveToFirst()) {
+                        val w = it.getInt(it.getColumnIndexOrThrow(WIDTH))
+                        val h = it.getInt(it.getColumnIndexOrThrow(HEIGHT))
+                        Size(w, h)
+                    } else null
+                }
+            }
+            .getOrElse { e ->
+                Log.e(TAG, "Failed to retrieve dimensions", e)
+                null
+            }
+
+    private fun getThumbnailSizeBeforeCropToSquare(
+        context: Context,
+        iconFactory: BaseIconFactory,
+        uri: Uri,
+    ): Size {
+        val thumbnailSizeAfterCropToSquare = iconFactory.iconBitmapSize
+        val (width, height) = getDimensions(context, uri) ?: Size(-1, -1)
+        return if (width > 0 && height > 0) {
+            val scaleFactorX = thumbnailSizeAfterCropToSquare / width.toFloat()
+            val scaleFactorY = thumbnailSizeAfterCropToSquare / height.toFloat()
+            val scaleFactor = max(scaleFactorX, scaleFactorY)
+            Size((width * scaleFactor).toInt(), (height * scaleFactor).toInt())
+        } else {
+            Size(thumbnailSizeAfterCropToSquare, thumbnailSizeAfterCropToSquare)
+        }
     }
 
     private fun Bitmap.cropToSquare(): Bitmap {

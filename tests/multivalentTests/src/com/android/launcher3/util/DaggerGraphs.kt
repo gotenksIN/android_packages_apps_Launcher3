@@ -28,7 +28,6 @@ import com.android.launcher3.dagger.LauncherModelModule
 import com.android.launcher3.dagger.PerDisplayModule
 import com.android.launcher3.dagger.SettingsModule
 import com.android.launcher3.dagger.StaticObjectModule
-import com.android.launcher3.dagger.SystemDragModule
 import com.android.launcher3.dagger.TaskOverlayModule
 import com.android.launcher3.dagger.WidgetModule
 import com.android.launcher3.dagger.WindowManagerProxyModule
@@ -58,7 +57,6 @@ abstract class FakePrefsModule {
             HomeScreenFilesModule::class,
             DesktopModule::class,
             SettingsModule::class,
-            SystemDragModule::class,
             AutomationModule::class,
             TaskOverlayModule::class,
         ]
@@ -75,7 +73,3 @@ class AllModulesForTest
 /** All modules except the WMProxy */
 @Module(includes = [ApiWrapperModule::class, CommonModulesForTest::class])
 class AllModulesMinusWMProxy
-
-/** All modules except the ApiWrapper */
-@Module(includes = [WindowManagerProxyModule::class, CommonModulesForTest::class])
-class AllModulesMinusApiWrapper

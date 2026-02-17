@@ -49,7 +49,6 @@ import com.android.launcher3.taskbar.TaskbarViewTestUtil.createSplitTask
 import com.android.launcher3.taskbar.rules.TaskbarAnimatorTestRule
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.ForceRtl
-import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext.Companion.getDeviceParams
 import com.android.launcher3.util.TestUtil.getOnTaskbarUiThread
@@ -88,11 +87,11 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     @get:Rule(order = 0) val animatorTestRule = TaskbarAnimatorTestRule(this)
     @get:Rule(order = 1) val setFlagsRule = SetFlagsRule(flags)
     @get:Rule(order = 2) val context = TaskbarWindowSandboxContext.create(deviceName)
-    @get:Rule(order = 3) val taskbarUnitTestRule = TaskbarUnitTestRule(this, context)
+    @get:Rule(order = 3) val taskbarUnitTestRule = TaskbarUnitTestRule(context)
 
     private val activityContext by taskbarUnitTestRule::activityContext
 
-    @InjectController lateinit var viewController: TaskbarViewController
+    private val viewController by taskbarUnitTestRule.delegate { it.taskbarViewController }
     private lateinit var taskbarView: TaskbarView
 
     private val pinnedHitRectBuffer: Int
@@ -576,6 +575,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
 
     @Test
     fun testUpdateItems_moreThanMaxRecents_overflowShownBeforeRecents() {
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
         val recentsSize = maxShownRecents + 2
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(emptyArray(), createRecents(recentsSize), emptyList())
@@ -599,6 +599,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     @Test
     @ForceRtl
     fun testUpdateItems_rtl_moreThanMaxRecents_overflowShownAfterRecents() {
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
         val recentsSize = maxShownRecents + 2
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(emptyArray(), createRecents(recentsSize), emptyList())
@@ -610,6 +611,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
 
     @Test
     fun testUpdateItems_moreThanMaxRecentsWithHotseat_fewerRecentsShown() {
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
         val hotseatSize = 4
         val recentsSize = maxShownRecents + 2
         runOnTaskbarUiThreadSync {
@@ -628,6 +630,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     @Test
     @ForceRtl
     fun testUpdateItems_rtl_moreThanMaxRecentsWithHotseat_fewerRecentsShown() {
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
         val hotseatSize = 4
         val recentsSize = maxShownRecents + 2
         runOnTaskbarUiThreadSync {
@@ -721,7 +724,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     @Test
     fun testUpdateItems_qsbInline_removesDividerWhenOnlyStaticViewsRemain() {
         // This test runs only on devices with an inline QSB, like tablets.
-        assume().that(activityContext.deviceProfile.isQsbInline).isTrue()
+        assume().that(activityContext.deviceProfile.hotseatProfile.isQsbInline).isTrue()
 
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(createHotseatItems(1), emptyList(), emptyList())
@@ -795,6 +798,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     @Test
     @EnableFlags(FLAG_ENABLE_OVERFLOW_BUTTON_FOR_TASKBAR_PINNED_ITEMS)
     fun testUpdateItems_hotseatAndRecentsOverflow() {
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
         val recentsSize = maxShownRecents + 2
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(
@@ -818,6 +822,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     @EnableFlags(FLAG_ENABLE_OVERFLOW_BUTTON_FOR_TASKBAR_PINNED_ITEMS)
     @ForceRtl
     fun testUpdateItems_rtl_hotseatAndRecentsOverflow() {
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
         val recentsSize = maxShownRecents + 2
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(
@@ -839,6 +844,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
 
     @Test
     fun testAnimateToOverflowOnOverlay_triggersAnimationAndResetsState() {
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(emptyArray(), createRecents(maxShownRecents), emptyList())
             // Add one more recent app to trigger the overflow animation.
@@ -868,6 +874,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
 
     @Test
     fun testAnimateFromOverflowOnOverlay_triggersAnimationAndResetsState() {
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
         val initialRecents = createRecents(maxShownRecents + 1)
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(emptyArray(), initialRecents, emptyList())
@@ -896,6 +903,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     @Test
     @ForceRtl
     fun testAnimateFromOverflowOnOverlay_rtl_triggersAnimationAndResetsState() {
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
         val initialRecents = createRecents(maxShownRecents + 1)
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(emptyArray(), initialRecents, emptyList())
@@ -1131,11 +1139,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
         val callbacks =
             spy(
                 getOnTaskbarUiThread {
-                    TaskbarViewCallbacks(
-                        activityContext,
-                        activityContext.controllers,
-                        taskbarView,
-                    )
+                    TaskbarViewCallbacks(activityContext, activityContext.controllers, taskbarView)
                 }
             )
         taskbarView.init(callbacks)

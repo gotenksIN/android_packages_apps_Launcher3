@@ -2,6 +2,7 @@ package com.android.quickstep;
 
 import static android.view.Display.DEFAULT_DISPLAY;
 
+import static com.android.launcher3.LauncherPrefs.SELECT_TIP_SEEN;
 import static com.android.launcher3.taskbar.TaskbarThresholdUtils.getFromNavThreshold;
 import static com.android.launcher3.testing.shared.TestProtocol.REQUEST_INFO_DISPLAY_ID;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
@@ -24,6 +25,7 @@ import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.statehandlers.DesktopVisibilityController;
+import com.android.launcher3.taskbar.TaskbarActivityContext;
 import com.android.launcher3.taskbar.TaskbarManager;
 import com.android.launcher3.testing.TestInformationHandler;
 import com.android.launcher3.testing.shared.TestProtocol;
@@ -192,12 +194,14 @@ public class QuickstepTestInformationHandler extends TestInformationHandler {
             }
 
             case TestProtocol.REQUEST_TASKBAR_ALL_APPS_TOP_PADDING: {
-                return getTaskbarProperty(Bundle::putInt,
-                        TaskbarManager::getTaskbarAllAppsTopPadding);
+                return getCurrentTaskbarActivityContextProperty(Bundle::putInt,
+                        TaskbarActivityContext::getTaskbarAllAppsTopPadding);
             }
 
             case TestProtocol.REQUEST_TASKBAR_APPS_LIST_SCROLL_Y: {
-                return getTaskbarProperty(Bundle::putInt, TaskbarManager::getTaskbarAllAppsScroll);
+                return getCurrentTaskbarActivityContextProperty(
+                        Bundle::putInt,
+                        TaskbarActivityContext::getTaskbarAllAppsScroll);
             }
 
             case TestProtocol.REQUEST_LIMIT_MAX_TASKBAR_ICON_NUMBER: {
@@ -236,12 +240,15 @@ public class QuickstepTestInformationHandler extends TestInformationHandler {
                     waitForTaskbarUiThreadSync();
                 });
                 return response;
-
+            case TestProtocol.INJECT_TEST_INSIGHTS:
+                runOnTaskbar(TaskbarManager::injectTestInsights);
+                return response;
             case TestProtocol.REQUEST_RECREATE_TASKBAR:
                 runOnTaskbar(TaskbarManager::recreateTaskbars);
                 return response;
             case TestProtocol.REQUEST_TASKBAR_IME_DOCKED:
-                return getTaskbarProperty(Bundle::putBoolean, TaskbarManager::isImeDocked);
+                return getCurrentTaskbarActivityContextProperty(
+                        Bundle::putBoolean, TaskbarActivityContext::isImeDocked);
             case TestProtocol.REQUEST_UNSTASH_BUBBLE_BAR_IF_STASHED:
                 runOnTaskbar(TaskbarManager::unstashBubbleBarIfStashed);
                 return response;
@@ -282,7 +289,7 @@ public class QuickstepTestInformationHandler extends TestInformationHandler {
                 return response;
             }
             case TestProtocol.REQUEST_IS_TRANSIENT_TASKBAR:
-                return getTaskbarProperty(Bundle::putBoolean, TaskbarManager::isTransient);
+                return getTaskbarProperty(Bundle::putBoolean, t -> t.isTransient(displayId));
             case TestProtocol.REQUEST_FLAG_IS_DESKTOP_MODE_SUPPORTED: {
                 response.putBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD,
                         DesktopState.fromContext(mContext).isDesktopModeSupportedOnDisplay(
@@ -318,6 +325,9 @@ public class QuickstepTestInformationHandler extends TestInformationHandler {
                             return recentsView.getDesktopTaskViewCount();
                         },
                         this::getRecentsViewContainer);
+            case TestProtocol.REQUEST_MARK_OVERVIEW_SELECT_TIP_SEEN:
+                LauncherPrefs.get(mContext).put(SELECT_TIP_SEEN, true);
+                return response;
         }
 
         return super.call(method, arg, extras);
@@ -379,6 +389,12 @@ public class QuickstepTestInformationHandler extends TestInformationHandler {
     private void runOnTaskbar(Consumer<TaskbarManager> callback) {
         runOnSysUIConnection(
                 getTaskbarUiThread(), c -> callback.accept(c.getTaskbarManager()));
+    }
+
+    private <T> Bundle getCurrentTaskbarActivityContextProperty(
+            BundleSetter<T> bundleSetter, Function<TaskbarActivityContext, T> provider) {
+        return getTaskbarProperty(bundleSetter,
+                t -> t.getFromImplSync(impl -> provider.apply(impl.getCurrentActivityContext())));
     }
 
     private <T> Bundle getTaskbarProperty(

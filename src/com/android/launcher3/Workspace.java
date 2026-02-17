@@ -16,13 +16,14 @@
 
 package com.android.launcher3;
 
+import static com.android.launcher3.AbstractFloatingView.TYPE_FOLDER;
 import static com.android.launcher3.AbstractFloatingView.TYPE_WIDGET_RESIZE_FRAME;
 import static com.android.launcher3.BubbleTextView.DISPLAY_FOLDER;
+import static com.android.launcher3.Flags.enableCursorDrivenWorkflows;
 import static com.android.launcher3.Flags.enableFileSystemFoldersAsDropTargets;
 import static com.android.launcher3.Flags.enableSystemDragToOtherApps;
 import static com.android.launcher3.Flags.enableTaskbarDragAndDrop;
 import static com.android.launcher3.Flags.injectableModelItems;
-import static com.android.launcher3.Flags.refactorTaskbarUiState;
 import static com.android.launcher3.LauncherAnimUtils.SPRING_LOADED_EXIT_DELAY;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_ALL_APPS_PREDICTION;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP;
@@ -44,7 +45,6 @@ import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.LauncherState.SPRING_LOADED;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
 import static com.android.launcher3.Utilities.qsbOnFirstScreen;
-import static com.android.launcher3.Utilities.shouldEnableCursorDrivenWorkflows;
 import static com.android.launcher3.anim.AnimatorListeners.forSuccessCallback;
 import static com.android.launcher3.config.FeatureFlags.FOLDABLE_SINGLE_PAGE;
 import static com.android.launcher3.logging.StatsLogManager.LAUNCHER_STATE_HOME;
@@ -111,7 +111,6 @@ import com.android.launcher3.dragndrop.DragView;
 import com.android.launcher3.dragndrop.DraggableView;
 import com.android.launcher3.dragndrop.LauncherDragController;
 import com.android.launcher3.dragndrop.SpringLoadedDragController;
-import com.android.launcher3.dragndrop.SystemDragController;
 import com.android.launcher3.dragndrop.SystemDragItemInfo;
 import com.android.launcher3.dragndrop.SystemDragParams;
 import com.android.launcher3.folder.Folder;
@@ -171,6 +170,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -561,8 +561,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             mAccessibilityDragListener.onDragStart(dragObject, options);
         }
         if (!mLauncher.isInState(EDIT_MODE)) {
-            mLauncher.getStateManager().goToState(shouldEnableCursorDrivenWorkflows(getContext())
-                    ? DESKTOP_DRAG_MODE : SPRING_LOADED);
+            mLauncher.getStateManager().goToState(
+                    (enableCursorDrivenWorkflows() && options.isMouseDrag)
+                            ? DESKTOP_DRAG_MODE : SPRING_LOADED);
         }
         mStatsLogManager.logger().withItemInfo(dragObject.dragInfo)
                 .withInstanceId(dragObject.logInstanceId)
@@ -1306,7 +1307,10 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     protected void onPageBeginTransition() {
         // Widget resize frame doesn't receive events to close when talkback is enabled. For that
         // case, close it here.
-        AbstractFloatingView.closeOpenViews(mLauncher, false, TYPE_WIDGET_RESIZE_FRAME);
+        // Open folders are already animated closed on first touch outside. If page is swiped after,
+        // then make sure folder is closed immediately.
+        AbstractFloatingView.closeOpenViews(mLauncher, false, TYPE_WIDGET_RESIZE_FRAME
+            | TYPE_FOLDER);
 
         super.onPageBeginTransition();
         updateChildrenLayersEnabled();
@@ -1414,9 +1418,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 mLauncher.onOverlayVisibilityChanged(false);
             }
         }
-        if (refactorTaskbarUiState()) {
-            mLauncherUiState.setOverlayShown(mOverlayShown);
-        }
+        mLauncherUiState.setOverlayShown(mOverlayShown);
         int count = mOverlayCallbacks.size();
         for (int i = 0; i < count; i++) {
             mOverlayCallbacks.get(i).onOverlayScrollChanged(mOverlayProgress);
@@ -1892,7 +1894,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         // TODO(458058227): Move this entire code block to [DragController].
         final ClipData systemDragClipData = getClipDataForSystemDrag(dragObject);
         if (systemDragClipData != null) {
-            dv = SystemDragController.INSTANCE.get(mLauncher).startDrag(
+            dv = mLauncher.getActivityComponent().getSystemDragController().startDrag(
                     new SystemDragParams(
                             systemDragClipData,
                             HomeScreenFilesUtilsKt.isFileSystemItem(dragObject)
@@ -1979,11 +1981,18 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             if (!transitionStateShouldAllowDrop()) return false;
 
             // Reject system-level drops if we cannot handle the payload.
-            if (d.dragInfo instanceof SystemDragItemInfo dragInfo
-                    && (!SystemDragController.INSTANCE.get(mLauncher).acceptDrop(dragInfo)
-                        || !HomeScreenFilesProvider.INSTANCE.get(mLauncher).canMoveToHomeScreen(
-                                dragInfo.getUriList()))) {
-                return false;
+            if (d.dragInfo instanceof SystemDragItemInfo dragInfo) {
+                final SystemDragItemInfo.Payload payload = dragInfo.getPayload();
+                if (!payload.isAcceptable()) {
+                    return false;
+                }
+                // NOTE: Workspace currently only supports dropping URIs.
+                if (!(payload instanceof SystemDragItemInfo.UriListPayload uriListPayload)
+                        || !HomeScreenFilesProvider.INSTANCE
+                                .get(mLauncher)
+                                .canMoveToHomeScreen(uriListPayload.getUriList())) {
+                    return false;
+                }
             }
 
             mDragViewVisualCenter = d.getVisualCenter(mDragViewVisualCenter);
@@ -2203,8 +2212,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 && dropOverInfo.itemType == ITEM_TYPE_FILE_SYSTEM_FOLDER) {
             final List<Uri> uriList;
 
-            if (d.originalDragInfo instanceof SystemDragItemInfo systemDragInfo) {
-                uriList = systemDragInfo.getUriList();
+            if (d.originalDragInfo instanceof SystemDragItemInfo dragInfo
+                    && dragInfo.getPayload() instanceof SystemDragItemInfo.UriListPayload payload) {
+                uriList = payload.getUriList();
             } else {
                 final HomeScreenFile file = HomeScreenFilesUtilsKt.getHomeScreenFile(d.dragInfo);
                 uriList = file != null ? Collections.singletonList(file.getUri()) : null;
@@ -2215,14 +2225,17 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                         requireNonNull(HomeScreenFilesUtilsKt.getHomeScreenFile(dropOverInfo))
                                 .getDisplayName();
 
-                final CompletableFuture<Void> unused =
+                final List<CompletableFuture<Boolean>> results =
                         HomeScreenFilesProvider.INSTANCE.get(mLauncher)
-                                .moveToHomeScreen(uriList, relativeFolderPath)
-                                .get(0)
-                                .handle((result, throwable) -> {
-                                    // TODO(b/463389684): Notify user on failure.
-                                    return null;
-                                });
+                                .moveToHomeScreen(uriList, relativeFolderPath);
+
+                runOnFirstFailure(
+                        results,
+                        () -> mLauncher.runOnUiThread(() ->
+                                Toast.makeText(
+                                        mLauncher,
+                                        R.string.something_went_wrong,
+                                        Toast.LENGTH_SHORT).show()));
 
                 if (mDragInfo != null) {
                     getParentCellLayoutForView(mDragInfo.cell).removeView(mDragInfo.cell);
@@ -2763,7 +2776,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     }
 
     private void handleLauncherStateForDrag(DragObject d) {
-        if (!shouldEnableCursorDrivenWorkflows(getContext())) {
+        // Only mouse drag should transition between SPRING_LOADED and DESKTOP_DRAG_MODE when
+        // dragging near the screen edge.
+        if (!enableCursorDrivenWorkflows() || !mDragController.isMouseDrag()) {
             return;
         }
         if (!mLauncher.isInState(SPRING_LOADED) && !mLauncher.isInState(DESKTOP_DRAG_MODE)) {
@@ -3056,7 +3071,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         final int container = mLauncher.isHotseatLayout(cellLayout)
                 ? CONTAINER_HOTSEAT
                 : CONTAINER_DESKTOP;
-        Optional<SystemDragItemInfo> systemDragItemInfo = Optional.empty();
+
+        Optional<SystemDragItemInfo.UriListPayload> systemDragUriListPayload = Optional.empty();
 
         if (d.dragInfo instanceof PendingAddShortcutInfo) {
             WorkspaceItemInfo si = ((PendingAddShortcutInfo) d.dragInfo)
@@ -3065,14 +3081,17 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 d.dragInfo = si;
                 si.container = container;
             }
-        } else if (d.dragInfo instanceof SystemDragItemInfo dragInfo) {
-            systemDragItemInfo = Optional.of(dragInfo);
+        } else if (d.dragInfo instanceof SystemDragItemInfo dragInfo
+                && dragInfo.getPayload() instanceof SystemDragItemInfo.UriListPayload payload) {
+            systemDragUriListPayload = Optional.of(payload);
 
-            // TODO(b/440195101): Differentiate files from folders.
+            // NOTE: If necessary, the [itemType] for the created item will be updated to
+            // [ITEM_TYPE_FILE_SYSTEM_FOLDER] during the resulting [HomeScreenFilesUpdateTask] which
+            // is privy to more information about the underlying file system metadata.
             final WorkspaceItemInfo info = new WorkspaceItemInfo();
             info.itemType = ITEM_TYPE_FILE_SYSTEM_FILE;
             info.intent = HomeScreenFilesUtils.Companion.buildLaunchIntent(
-                    requireNonNull(dragInfo.getUriList()).get(0));
+                    requireNonNull(payload.getUriList()).get(0));
 
             d.dragInfo = info;
         }
@@ -3217,32 +3236,40 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
             final View firstItemView = view;
             final ItemInfo firstItemInfo = info;
-            systemDragItemInfo.ifPresent((dragInfo) -> {
+            systemDragUriListPayload.ifPresent((payload) -> {
 
                 // After having created the workspace item for the first URI dropped in a system-
                 // level drag-and-drop sequence, attempt to move all dropped URIs to the home screen
                 // folder in the local file system. This will result in:
                 // (1) an update to the created workspace item for the first dropped URI, and
                 // (2) the creation of new workspace items for any additionally dropped URIs.
-                List<Uri> uriList = requireNonNull(dragInfo.getUriList());
+                List<Uri> uriList = requireNonNull(payload.getUriList());
                 HomeScreenFilesProvider provider = HomeScreenFilesProvider.INSTANCE.get(mLauncher);
                 List<CompletableFuture<Boolean>> results = provider.moveToHomeScreen(uriList);
 
+                runOnFirstFailure(
+                        results,
+                        () -> mLauncher.runOnUiThread(() ->
+                                Toast.makeText(
+                                        mLauncher,
+                                        R.string.something_went_wrong,
+                                        Toast.LENGTH_SHORT).show()));
+
                 // NOTE: On failure to move the first dropped URI, we must explicitly remove its
                 // associated workspace item to keep launcher state in sync with file system state.
-                CompletableFuture<Void> unused =
-                        results.get(0).handle((result, throwable) -> runOnUiThread(() -> {
+                results.get(0).whenComplete((result, throwable) ->
+                        mLauncher.runOnUiThread(() -> {
                             if (throwable != null || !result) {
                                 mLauncher.removeItem(firstItemView, firstItemInfo, true);
-                                // TODO(b/463389684): Notify user on failure.
                             }
                         }));
 
                 // NOTE: On completion of all move attempts we can release any held URI permissions.
-                unused =
-                        CompletableFuture.allOf(results.toArray(new CompletableFuture[0])).handle(
-                                (result, throwable) -> runOnUiThread(() -> {
-                                    DragAndDropPermissions permissions = dragInfo.getPermissions();
+                CompletableFuture.allOf(results.toArray(new CompletableFuture[0]))
+                        .whenComplete((result, throwable) ->
+                                mLauncher.runOnUiThread(() -> {
+                                    final DragAndDropPermissions permissions =
+                                            payload.getPermissions();
                                     if (permissions != null) {
                                         permissions.release();
                                     }
@@ -3282,7 +3309,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         if (info.itemType == LauncherSettings.Favorites.ITEM_TYPE_APPWIDGET) {
             DeviceProfile profile = mLauncher.getDeviceProfile();
             if (finalView instanceof NavigableAppWidgetHostView) {
-                Rect widgetPadding = profile.widgetPadding;
+                Rect widgetPadding = profile.getWorkspaceIconProfile().getWidgetPadding();
                 r.left -= widgetPadding.left;
                 r.right += widgetPadding.right;
                 r.top -= widgetPadding.top;
@@ -3864,9 +3891,15 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         }
     }
 
-    private Void runOnUiThread(Runnable runnable) {
-        mLauncher.runOnUiThread(runnable);
-        return null;
+    private void runOnFirstFailure(List<CompletableFuture<Boolean>> futures, Runnable runnable) {
+        final AtomicBoolean failure = new AtomicBoolean(false);
+        for (final CompletableFuture<Boolean> future : futures) {
+            future.whenComplete((result, throwable) -> {
+                if ((throwable != null || !result) && failure.compareAndSet(false, true)) {
+                    runnable.run();
+                }
+            });
+        }
     }
 
     /** Interface implemented by a view to indicate that it can scroll horizontally */

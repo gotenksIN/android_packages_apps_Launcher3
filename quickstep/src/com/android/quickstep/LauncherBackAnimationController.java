@@ -59,11 +59,13 @@ import com.android.internal.policy.SystemBarUtils;
 import com.android.internal.view.AppearanceRegion;
 import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.BubbleTextView;
+import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.QuickstepTransitionManager;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.display.DisplayController;
+import com.android.launcher3.remoteanimations.RemoteAnimationCoordinateTransfer;
 import com.android.launcher3.taskbar.TaskbarInteractor;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
 import com.android.launcher3.util.NavigationMode;
@@ -334,7 +336,9 @@ public class LauncherBackAnimationController {
         mStartRect.set(mBackTarget.windowConfiguration.getMaxBounds());
 
         // inset bottom in case of taskbar being present
-        if (mLauncher.getDeviceProfile().isTaskbarPresent
+        if (mLauncher.getDeviceProfile().getDeviceProperties()
+                .getTaskbarConfiguration()
+                .isTaskbarPresent()
                 || DisplayController.getNavigationMode(mLauncher) == NavigationMode.NO_BUTTON) {
             mStartRect.inset(0, 0, 0, mBackTarget.contentInsets.bottom);
         }
@@ -494,7 +498,11 @@ public class LauncherBackAnimationController {
         // TODO: Catch the moment when launcher becomes visible after the top app un-occludes
         //  launcher and start animating afterwards. Currently we occasionally get a flicker from
         //  animating when launcher is still invisible.
-        if (mLauncher.hasSomeInvisibleFlag(PENDING_INVISIBLE_BY_WALLPAPER_ANIMATION)) {
+        boolean shouldMoveToRestState =
+                mLauncher.hasSomeInvisibleFlag(PENDING_INVISIBLE_BY_WALLPAPER_ANIMATION)
+                || (Flags.moveToRestStateForBackgroundApp()
+                        && mLauncher.isInState(LauncherState.BACKGROUND_APP));
+        if (shouldMoveToRestState) {
             mLauncher.addForceInvisibleFlag(INVISIBLE_BY_PENDING_FLAGS);
             mLauncher.getStateManager().moveToRestState();
         }
@@ -508,8 +516,8 @@ public class LauncherBackAnimationController {
         float cornerRadius = Utilities.mapRange(
                 mBackProgress, mWindowScaleStartCornerRadius, mWindowScaleEndCornerRadius);
         final RectF resolveRectF = new RectF();
-        mQuickstepTransitionManager.transferRectToTargetCoordinate(
-                mBackTarget, mCurrentRect, true, resolveRectF);
+        new RemoteAnimationCoordinateTransfer(mLauncher)
+                .transferRectToOwnerSurface(mBackTarget, mCurrentRect, resolveRectF);
 
         BackAnimState backAnim =
                 mQuickstepTransitionManager.createWallpaperOpenAnimations(

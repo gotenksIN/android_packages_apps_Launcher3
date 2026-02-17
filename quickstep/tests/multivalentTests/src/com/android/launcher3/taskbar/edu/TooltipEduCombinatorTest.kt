@@ -23,7 +23,6 @@ import com.android.launcher3.R
 import com.android.launcher3.Utilities
 import com.android.launcher3.taskbar.TaskbarActivityContext
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.asProperty
-import com.android.launcher3.taskbar.TaskbarStashController
 import com.android.launcher3.taskbar.edu.TooltipEduCombinator.Companion.TASKBAR_BUBBLES_EDU_SEEN_FLAG
 import com.android.launcher3.taskbar.edu.TooltipEduCombinator.Companion.TASKBAR_PINNING_EDU_SEEN_FLAG
 import com.android.launcher3.taskbar.edu.TooltipEduCombinator.Companion.TASKBAR_SEARCH_EDU_SEEN_FLAG
@@ -37,7 +36,6 @@ import com.android.launcher3.taskbar.rules.TaskbarModeRule.Mode.THREE_BUTTONS
 import com.android.launcher3.taskbar.rules.TaskbarModeRule.Mode.TRANSIENT
 import com.android.launcher3.taskbar.rules.TaskbarModeRule.TaskbarMode
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule
-import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
 import com.android.launcher3.util.OnboardingPrefs
 import com.android.systemui.shared.Flags.FLAG_ENABLE_RECENTS_IN_TASKBAR
@@ -58,9 +56,9 @@ class TooltipEduCombinatorTest {
 
     @get:Rule(order = 2) val taskbarModeRule = TaskbarModeRule(context)
 
-    @get:Rule(order = 3) val taskbarUnitTestRule = TaskbarUnitTestRule(this, context)
+    @get:Rule(order = 3) val taskbarUnitTestRule = TaskbarUnitTestRule(context)
 
-    @InjectController lateinit var taskbarStashController: TaskbarStashController
+    private val taskbarStashController by taskbarUnitTestRule.delegate { it.taskbarStashController }
 
     private lateinit var tooltipEduCombinator: TooltipEduCombinator
 
@@ -68,6 +66,8 @@ class TooltipEduCombinatorTest {
         get() = taskbarUnitTestRule.activityContext
 
     private val wasInTestHarness = Utilities.isRunningInTestHarness()
+
+    private var sysuiLocked = false
 
     private var tooltipStep by OnboardingPrefs.TASKBAR_EDU_TOOLTIP_STEP.prefItem.asProperty(context)
     private var taskbarSeenEduFlags by OnboardingPrefs.TASKBAR_SEEN_EDU_FLAGS.asProperty(context)
@@ -98,7 +98,8 @@ class TooltipEduCombinatorTest {
 
     @Before
     fun setUp() {
-        tooltipEduCombinator = TooltipEduCombinator(taskbarContext, taskbarStashController) { true }
+        tooltipEduCombinator =
+            TooltipEduCombinator(taskbarContext, taskbarStashController, { sysuiLocked }, { true })
         Utilities.disableRunningInTestHarnessForTests()
     }
 
@@ -127,6 +128,13 @@ class TooltipEduCombinatorTest {
                 },
             location = DisplayLocation.TASKBAR_HANDLE,
         )
+    }
+
+    @Test
+    @TaskbarMode(TRANSIENT)
+    fun testGetSwipeEdu_whenSysuiLocked_returnNull() {
+        sysuiLocked = true
+        assertThat(tooltipEduCombinator.getSwipeEdu()).isNull()
     }
 
     @Test
@@ -247,6 +255,12 @@ class TooltipEduCombinatorTest {
     }
 
     @Test
+    fun getFeaturesTooltipsEduPages_whenSysuiLocked_returnsNull() {
+        sysuiLocked = true
+        assertThat(tooltipEduCombinator.getFeaturesTooltipsEduPages()).isNull()
+    }
+
+    @Test
     @TaskbarMode(TRANSIENT)
     fun getFeaturesTooltipsEduPages_allFeaturesExceptPinningEduSeenBefore_returnsPinningEdu() {
         tooltipStep = 1
@@ -327,6 +341,13 @@ class TooltipEduCombinatorTest {
     }
 
     @Test
+    @TaskbarMode(PINNED)
+    fun getSearchEdu_whenSysuiLocked_returnsNull() {
+        sysuiLocked = true
+        assertThat(tooltipEduCombinator.getSearchEdu()).isNull()
+    }
+
+    @Test
     @TaskbarMode(TRANSIENT)
     fun getSearchEdu_whenTransientTaskbar_returnsNull() {
         assertThat(tooltipEduCombinator.getSearchEdu()).isNull()
@@ -343,7 +364,7 @@ class TooltipEduCombinatorTest {
     @TaskbarMode(PINNED)
     fun getSearchEdu_whenPinnedTaskbarShouldNotShowSearchEdu_returnsNull() {
         tooltipEduCombinator =
-            TooltipEduCombinator(taskbarContext, taskbarStashController) { false }
+            TooltipEduCombinator(taskbarContext, taskbarStashController, { sysuiLocked }, { false })
         assertThat(tooltipEduCombinator.getSearchEdu()).isNull()
     }
 

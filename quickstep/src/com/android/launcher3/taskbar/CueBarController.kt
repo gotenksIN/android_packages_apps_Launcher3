@@ -59,26 +59,26 @@ class CueBarController(private val activity: TaskbarActivityContext) :
     private var cueBar: View? = null
     private var isHiding = false
     private val ambientCueLogger = AmbientCueLoggerImpl(activity.packageManager)
-    private val ambientCueRepository =
+    val ambientCueRepository =
         AmbientCueRepositoryImpl(activity, ambientCueLogger, ORDERED_BG_EXECUTOR, MAIN_EXECUTOR)
     private val ambientCueInteractor = AmbientCueInteractor(ambientCueRepository)
     private val lp =
         InsettableFrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            )
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        )
             .apply { ignoreInsets = true }
     val isExpanded: Boolean
         get() = ambientCueViewModel.isExpanded
 
     private val ambientCueViewModel: AmbientCueViewModel =
         AmbientCueViewModel(
-                ambientCueInteractor = ambientCueInteractor,
-                launcherPrefs = LauncherPrefs.get(activity),
-                scope = coroutineScope,
-                ambientCueLogger = ambientCueLogger,
-                uiExecutor = MAIN_EXECUTOR,
-            )
+            ambientCueInteractor = ambientCueInteractor,
+            launcherPrefs = LauncherPrefs.get(activity),
+            scope = coroutineScope,
+            ambientCueLogger = ambientCueLogger,
+            uiExecutor = MAIN_EXECUTOR,
+        )
             .apply {
                 onVisibilityChanged = { isCueBarVisible ->
                     onCueBarVisibilityChanged(isCueBarVisible)
@@ -180,7 +180,9 @@ class CueBarController(private val activity: TaskbarActivityContext) :
     }
 
     override fun dumpLogs(prefix: String?, pw: PrintWriter?) {
-        pw?.println("$prefix CueBarController:")
+        pw ?: return
+        pw.println("$prefix CueBarController:")
+        ambientCueRepository.dump(pw, "$prefix  ")
     }
 
     fun onTaskbarStatusUpdated(visible: Boolean, stashed: Boolean) {

@@ -17,7 +17,6 @@
 package com.android.launcher3.taskbar
 
 import android.graphics.Rect
-import android.os.Looper
 import android.view.View
 import androidx.annotation.VisibleForTesting
 import androidx.core.util.size
@@ -26,6 +25,7 @@ import com.android.launcher3.DropTarget
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT
 import com.android.launcher3.OnAlarmListener
 import com.android.launcher3.R
+import com.android.launcher3.UndoDeleteController
 import com.android.launcher3.dragndrop.DragController
 import com.android.launcher3.dragndrop.DragOptions
 import com.android.launcher3.model.data.ItemInfo
@@ -35,6 +35,7 @@ import com.android.launcher3.model.data.WorkspaceItemFactory
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.util.IntSparseArrayMap
 import com.android.launcher3.util.ItemInfoMatcher
+import com.android.launcher3.views.Snackbar
 import java.util.Collections
 
 /**
@@ -57,7 +58,7 @@ class TaskbarViewDragDropController(
     @VisibleForTesting var overflowPinningDropTarget: PinningDropTarget? = null
     private var modelCallbacks: TaskbarModelCallbacks? = null
     @VisibleForTesting val tooltipController = TaskbarDragViewTooltip(activityContext)
-    @VisibleForTesting val overflowContainerAlarm = Alarm(Looper.getMainLooper())
+    @VisibleForTesting val overflowContainerAlarm = Alarm(activityContext.mainLooper)
 
     private enum class AlarmState {
         RUNNING_OPEN,
@@ -246,7 +247,7 @@ class TaskbarViewDragDropController(
         // Check if the dragged item already exists in the model.
         // If it does, use the one from the Model's instance, to avoid failing the ModelWriter
         // itemInfo check.
-        if (draggedItem.id != NO_ID && draggedItem.container == CONTAINER_HOTSEAT) {
+        if (isDraggedInfoFromHotseat(draggedItem)) {
             for (i in 0 until hotseatItems.size) {
                 val item = hotseatItems.valueAt(i) ?: continue
                 if (item.id != NO_ID && item.id == draggedItem.id) {
@@ -290,6 +291,10 @@ class TaskbarViewDragDropController(
         }
     }
 
+    private fun isDraggedInfoFromHotseat(draggedInfo: ItemInfo): Boolean {
+        return draggedInfo.id != ItemInfo.NO_ID && draggedInfo.container == CONTAINER_HOTSEAT
+    }
+
     /**
      * Implementation of the [DropTarget] that handles drag and drop events over the recent apps
      * area.
@@ -306,21 +311,23 @@ class TaskbarViewDragDropController(
 
         override fun onDrop(dragObject: DropTarget.DragObject?, options: DragOptions?) {
             tooltipController.hide()
-            val itemToUnpin = dragObject?.dragInfo ?: return
+            if (dragObject == null) return
 
-            activityContext.modelWriter.deleteItemFromDatabase(
-                itemToUnpin,
-                "Unpin by taskbar drag and drop",
-            )
+            val itemToUnpin = extractItemInfoFromDragObject(dragObject) ?: return
+            val undoDeleteController = activityContext.undoDeleteController
+            undoDeleteController.prepareToUndoDelete()
+            undoDeleteController.deleteItem(itemToUnpin, "Unpin by taskbar drag and drop")
+
             modelCallbacks?.bindWorkspaceComponentsRemoved(
                 ItemInfoMatcher.ofItems(Collections.singleton(itemToUnpin))
             )
+            showDeleteItemSnackbar(undoDeleteController)
         }
 
         override fun onDragEnter(dragObject: DropTarget.DragObject?) {
             dragObject ?: return
             val draggedInfo = extractItemInfoFromDragObject(dragObject) ?: return
-            if (draggedInfo.id != ItemInfo.NO_ID && draggedInfo.container == CONTAINER_HOTSEAT) {
+            if (isDraggedInfoFromHotseat(draggedInfo)) {
                 if (tooltipController.isActive()) {
                     tooltipController.hide()
                 }
@@ -362,6 +369,25 @@ class TaskbarViewDragDropController(
 
             return targetLocation
         }
+
+        /** Shows the snackbar after removing a pinned item from hotseat with undo action. */
+        private fun showDeleteItemSnackbar(undoDeleteController: UndoDeleteController) {
+            val onUndoClicked = Runnable { undoDeleteController.abort() }
+
+            val onDismissed = Runnable { undoDeleteController.commit() }
+
+            val overlayContext =
+                activityContext.controllers.taskbarOverlayController.requestWindow()
+            activityContext.getMainThreadHandler().post {
+                Snackbar.show(
+                    overlayContext,
+                    activityContext.getString(R.string.app_removed_from_taskbar),
+                    R.string.undo,
+                    onDismissed,
+                    onUndoClicked,
+                )
+            }
+        }
     }
 
     /**
@@ -375,17 +401,24 @@ class TaskbarViewDragDropController(
         private var draggedInfo: ItemInfo? = null
         private val dragObjectVisualCenter = FloatArray(2)
 
+        private val startingIndex: Int
+            get() =
+                if (isOverflowDropTarget) {
+                    val pinnedCount = taskbarView.getNumOfVisibleIconsInPinnedSection()
+                    val overflowAdjustment =
+                        if (taskbarView.getTaskbarPinnedOverflowView() != null) 1 else 0
+                    pinnedCount - overflowAdjustment
+                } else 0
+
         private val canPinMoreItems: Boolean
             get() {
                 val hotseatItems = modelCallbacks?.hotseatItems ?: return false
+                if (draggedInfo !== null && isDraggedInfoFromHotseat(draggedInfo!!)) return true
                 return hotseatItems.size < activityContext.taskbarSpecsEvaluator.maxPinnableCount
             }
 
         override fun isDropEnabled(): Boolean {
-            // TODO(b/447444838): For now, only accept drops when the number of pinned items has
-            // not reached limit. This will probably be modified after dropping to hotseat overflow
-            // folder UX finalized.
-            return canPinMoreItems
+            return true
         }
 
         override fun getDropView(): View? {
@@ -406,6 +439,8 @@ class TaskbarViewDragDropController(
 
             dragObject ?: return
             draggedInfo = extractItemInfoFromDragObject(dragObject)
+            if (!canPinMoreItems) return
+
             dragObject.getVisualCenter(dragObjectVisualCenter)
 
             delegate.reserveDropSlotForDragLocation(dragObjectVisualCenter[0].toInt())
@@ -414,16 +449,17 @@ class TaskbarViewDragDropController(
         override fun onDragOver(dragObject: DropTarget.DragObject?) {
             dragObject ?: return
             dragObject.getVisualCenter(dragObjectVisualCenter)
+            if (!canPinMoreItems) return
 
             if (isOverflowDropTarget) {
                 delegate.reserveDropSlotForDragLocation(dragObjectVisualCenter[0].toInt())
-                targetPinIndex = delegate.getPinIndex()
+                targetPinIndex = delegate.getPinIndex(startingIndex)
             } else if (delegate.isPointOnOverflowIcon(dragObjectVisualCenter)) {
                 startOpenOverflowAlarm()
             } else {
                 startCloseOverflowAlarm()
                 delegate.reserveDropSlotForDragLocation(dragObjectVisualCenter[0].toInt())
-                targetPinIndex = delegate.getPinIndex()
+                targetPinIndex = delegate.getPinIndex(startingIndex)
             }
         }
 
@@ -477,7 +513,7 @@ class TaskbarViewDragDropController(
          * Returns the index in the taskbar where the dragged item would be pinned if dropped at the
          * current location.
          */
-        fun getPinIndex(): Int
+        fun getPinIndex(startingIndex: Int): Int
 
         /** Updates the visibility of the dragged Taskbar item view based on its drag state. */
         fun updateItemViewVisibilityForDragState(itemView: View, isDragged: Boolean)

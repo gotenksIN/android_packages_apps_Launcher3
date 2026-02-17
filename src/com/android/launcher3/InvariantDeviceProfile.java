@@ -29,6 +29,7 @@ import static com.android.launcher3.LauncherPrefs.WORKSPACE_ITEMS_LABEL_HIDDEN;
 import static com.android.launcher3.Utilities.dpiFromPx;
 import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_DENSITY;
 import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_NAVIGATION_MODE;
+import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_SHOW_DESKTOP_FIRST_TASKBAR;
 import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_SUPPORTED_BOUNDS;
 import static com.android.launcher3.testing.shared.ResourceUtils.INVALID_RESOURCE_HANDLE;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
@@ -132,10 +133,10 @@ public class InvariantDeviceProfile {
     // Used for arrays to specify different sizes (e.g. border spaces, width/height) in different
     // constraints
     static final int COUNT_SIZES = 4;
-    static final int INDEX_DEFAULT = 0;
-    static final int INDEX_LANDSCAPE = 1;
-    static final int INDEX_TWO_PANEL_PORTRAIT = 2;
-    static final int INDEX_TWO_PANEL_LANDSCAPE = 3;
+    public static final int INDEX_DEFAULT = 0;
+    public static final int INDEX_LANDSCAPE = 1;
+    public static final int INDEX_TWO_PANEL_PORTRAIT = 2;
+    public static final int INDEX_TWO_PANEL_LANDSCAPE = 3;
 
     /** These resources are used to override the device profile */
     private static final String RES_GRID_NUM_ROWS = "grid_num_rows";
@@ -297,7 +298,7 @@ public class InvariantDeviceProfile {
         if (listenable != null) {
             lifeCycle.addCloseable(listenable.getChanges().forEach(MAIN_EXECUTOR, (flags) -> {
                 if ((flags & (CHANGE_DENSITY | CHANGE_SUPPORTED_BOUNDS
-                        | CHANGE_NAVIGATION_MODE)) != 0) {
+                        | CHANGE_NAVIGATION_MODE | CHANGE_SHOW_DESKTOP_FIRST_TASKBAR)) != 0) {
                     onConfigChanged();
                 }
                 return null;
@@ -340,6 +341,15 @@ public class InvariantDeviceProfile {
                 gridName,
                 /* allowDisabledGrid= */ false,
                 mPrefs.get(FIXED_LANDSCAPE_MODE)
+        );
+
+        FileLog.d(
+                "b/475447538",
+                "Fixed Landscape pref = " + mPrefs.get(FIXED_LANDSCAPE_MODE)
+                        + " all grids = " + allOptions
+                        .stream()
+                        .map(opt -> opt.grid)
+                        .collect(Collectors.toList())
         );
 
         // Filter out options that don't have the same number of columns as the grid
@@ -1312,6 +1322,19 @@ public class InvariantDeviceProfile {
                             == INLINE_QSB_FOR_TWO_PANEL_LANDSCAPE;
 
             a.recycle();
+        }
+
+        @Override
+        public String toString() {
+            return "GridConfig{"
+                    + "name='" + name + '\''
+                    + ", gridTitle='" + gridTitle + '\''
+                    + ", gridIconId=" + gridIconId
+                    + ", numRows=" + numRows
+                    + ", numColumns=" + numColumns
+                    + ", gridType=" + gridType
+                    + ", mIsFixedLandscape=" + mIsFixedLandscape
+                    + '}';
         }
 
         public boolean isEnabled(@DeviceType int deviceType) {

@@ -57,15 +57,11 @@ class PerDisplayTaskbarResource(
     private val configChangeCallback: (PerDisplayTaskbarResource, configDiff: Int) -> Unit,
 ) : DisplayModel.DisplayResource {
 
-    private val windowManager =
-        requireNotNull(windowContext.getSystemService(WindowManager::class.java)) {
-            "WindowManager not found for $displayId"
-        }
-
     var taskbar: TaskbarActivityContext? = null
         private set
 
-    private var rootLayoutAdded = false
+    private var isDestroyed = false
+
     private var oldConfig = windowContext.resources.configuration
     private var displayChangeSafeClosable: SafeCloseable? = null
 
@@ -81,6 +77,15 @@ class PerDisplayTaskbarResource(
                 return super.dispatchTouchEvent(ev)
             }
         }
+
+    private val viewManager =
+        SafeViewManager(
+            windowManager =
+                requireNotNull(windowContext.getSystemService(WindowManager::class.java)) {
+                    "WindowManager not found for $displayId"
+                },
+            rootLayout = rootLayout,
+        )
 
     private val showTaskbarReceiver =
         SimpleBroadcastReceiver(windowContext, UI_HELPER_EXECUTOR, getTaskbarUiThread()) {
@@ -172,8 +177,8 @@ class PerDisplayTaskbarResource(
                 }
                 val change = flags and RELEVANT_DISPLAY_CHANGES
                 if (change != 0) {
-                    if ((flags and LauncherDisplayInfo.CHANGE_SHOW_LOCKED_TASKBAR) != 0) {
-                        debugMsg("onDisplayInfoChanged: show locked taskbar changed!")
+                    if ((flags and LauncherDisplayInfo.CHANGE_SHOW_DESKTOP_FIRST_TASKBAR) != 0) {
+                        debugMsg("onDisplayInfoChanged: show desktop-first taskbar changed")
                     }
                     callback.accept(change)
                 }
@@ -188,12 +193,8 @@ class PerDisplayTaskbarResource(
     fun setCurrentTaskbar(activity: TaskbarActivityContext) {
         removeExistingTaskbar()
         taskbar = activity
-
-        if (!rootLayoutAdded) {
-            windowManager.addView(rootLayout, activity.windowLayoutParams)
-            rootLayoutAdded = true
-        } else {
-            debugMsg("addTaskbarRootViewToWindow: rootLayout already added!")
+        if (!isDestroyed) {
+            viewManager.addView(activity.windowLayoutParams)
         }
     }
 
@@ -215,13 +216,11 @@ class PerDisplayTaskbarResource(
     fun removeTaskbarRootViewFromWindow() {
         removeExistingTaskbar()
         debugMsg("removeTaskbarRootViewFromWindow")
-        if (rootLayoutAdded) {
-            windowManager.removeViewImmediate(rootLayout)
-            rootLayoutAdded = false
-        }
+        viewManager.removeView()
     }
 
     override fun cleanup() {
+        isDestroyed = true
         debugMsg("destroy removeTaskbarRootViewFromWindow")
         removeTaskbarRootViewFromWindow()
 
@@ -271,7 +270,7 @@ class PerDisplayTaskbarResource(
         private const val RELEVANT_DISPLAY_CHANGES =
             LauncherDisplayInfo.CHANGE_DENSITY or
                 LauncherDisplayInfo.CHANGE_NAVIGATION_MODE or
-                LauncherDisplayInfo.CHANGE_SHOW_LOCKED_TASKBAR or
+                LauncherDisplayInfo.CHANGE_SHOW_DESKTOP_FIRST_TASKBAR or
                 LauncherDisplayInfo.CHANGE_ROTATION
     }
 }

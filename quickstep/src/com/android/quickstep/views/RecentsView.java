@@ -31,7 +31,6 @@ import static com.android.app.animation.Interpolators.LINEAR;
 import static com.android.app.animation.Interpolators.clampToProgress;
 import static com.android.launcher3.AbstractFloatingView.TYPE_REBIND_SAFE;
 import static com.android.launcher3.BaseActivity.STATE_HANDLER_INVISIBILITY_FLAGS;
-import static com.android.launcher3.Flags.enableDesktopExplodedView;
 import static com.android.launcher3.Flags.enableLowResThumbnailPreloading;
 import static com.android.launcher3.Flags.enableOverviewPagination;
 import static com.android.launcher3.LauncherAnimUtils.SUCCESS_TRANSITION_PROGRESS;
@@ -68,6 +67,7 @@ import static com.android.quickstep.views.OverviewActionsView.HIDDEN_SPLIT_SELEC
 import static com.android.quickstep.views.RecentsViewUtils.DESK_EXPLODE_PROGRESS;
 import static com.android.quickstep.views.TaskView.SPLIT_ALPHA;
 import static com.android.wm.shell.Flags.enableCreateAnyBubble;
+import static com.android.wm.shell.Flags.sendBubbleRootTaskIdToLauncher;
 
 import static java.util.Objects.requireNonNull;
 
@@ -161,6 +161,7 @@ import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.statemanager.BaseState;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StatefulContainer;
+import com.android.launcher3.taskbar.bubbles.BubbleHelper;
 import com.android.launcher3.testing.TestLogging;
 import com.android.launcher3.testing.shared.TestProtocol;
 import com.android.launcher3.touch.OverScroll;
@@ -662,12 +663,23 @@ public abstract class RecentsView<
         @Override
         public void onActivityRestartAttempt(ActivityManager.RunningTaskInfo task,
                 boolean homeTaskVisible, boolean clearedTask, boolean wasVisible) {
-            if (enableCreateAnyBubble() && task.isAppBubble && mHandleTaskStackChanges) {
-                // Remove task from recents if it moved to a bubble, but keep it running
-                dismissTask(task.taskId, /* removeTask= */ false);
+            if (enableCreateAnyBubble()) {
+                boolean isAppBubble =
+                        sendBubbleRootTaskIdToLauncher() ? BubbleHelper.isAppBubbleTask(task)
+                                : task.isAppBubble;
+                if (isAppBubble && mHandleTaskStackChanges) {
+                    // Remove task from recents if it moved to a bubble, but keep it running
+                    dismissTask(task.taskId, /* removeTask= */ false);
+                }
             }
         }
 
+        @Override
+        public void onTaskStackChangedBackground() {
+            if (!mOverviewStateEnabled) {
+                mHelper.startPreloading();
+            }
+        }
     };
 
     private final PinnedStackAnimationListener mIPipAnimationListener =
@@ -847,6 +859,12 @@ public abstract class RecentsView<
     private int mTaskViewCount = 0;
 
     protected final BlurUtils mBlurUtils = new BlurUtils(this);
+
+    private final Runnable mPreloadRunnable = () -> {
+        if (!mOverviewStateEnabled) {
+            mHelper.startPreloading();
+        }
+    };
 
     public RecentsView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
@@ -1088,6 +1106,8 @@ public abstract class RecentsView<
         mIPipAnimationListener.setActivityAndRecentsView(mContainer, this);
         mSystemUiProxy.setPipAnimationListener(
                 mIPipAnimationListener);
+        // Late initializer for SystemUiProxy
+        mSystemUiProxy.addOnStateChangeListener(mPreloadRunnable);
         mOrientationState.initListeners();
         mTaskOverlayFactory.initListeners();
         mSplitSelectStateController.registerSplitListener(mSplitSelectionListener);
@@ -1111,6 +1131,7 @@ public abstract class RecentsView<
         executeSideTaskLaunchCallback();
         mRecentsModel.removeThumbnailChangeListener(this);
         mSystemUiProxy.setPipAnimationListener(null);
+        mSystemUiProxy.removeOnStateChangeListener(mPreloadRunnable);
         mIPipAnimationListener.setActivityAndRecentsView(null, null);
         mOrientationState.destroyListeners();
         mTaskOverlayFactory.removeListeners();
@@ -1497,6 +1518,9 @@ public abstract class RecentsView<
     }
 
     public void setOverviewStateEnabled(boolean enabled) {
+        if (mOverviewStateEnabled && !enabled) {
+            mHelper.startPreloading();
+        }
         mOverviewStateEnabled = enabled;
         updateTaskStackListenerState();
         mOrientationState.setRotationWatcherEnabled(enabled);
@@ -2435,8 +2459,23 @@ public abstract class RecentsView<
             }
             return;
         }
-        mContainer.startHome(animated, onHomeAnimationComplete);
-        AbstractFloatingView.closeAllOpenViews(mContainer, mContainer.isStarted());
+        try {
+            if (mUtils.isInDesktopFirstMode()) {
+                // Always attempt to return to desktop in desktop-first mode, and fallback to
+                // startHome if it cannot be performed.
+                RunnableList runnableList = returnToDesktop();
+                if (runnableList != null) {
+                    if (onHomeAnimationComplete != null) {
+                        runnableList.add(onHomeAnimationComplete);
+                    }
+                    return;
+                }
+            }
+
+            mContainer.startHome(animated, onHomeAnimationComplete);
+        } finally {
+            AbstractFloatingView.closeAllOpenViews(mContainer, mContainer.isStarted());
+        }
     }
 
     /** Returns whether user can start home based on state in {@link OverviewCommandHelper}. */
@@ -2716,11 +2755,9 @@ public abstract class RecentsView<
         animateActionsViewIn();
 
         if (mEnableDrawingLiveTile) {
-            if (enableDesktopExplodedView()) {
-                for (TaskView taskView : getTaskViews()) {
-                    if (taskView instanceof DesktopTaskView desktopTaskView) {
-                        desktopTaskView.setRemoteTargetHandles(mRemoteTargetHandles);
-                    }
+            for (TaskView taskView : getTaskViews()) {
+                if (taskView instanceof DesktopTaskView desktopTaskView) {
+                    desktopTaskView.setRemoteTargetHandles(mRemoteTargetHandles);
                 }
             }
             TaskView runningTaskView = getRunningTaskView();
@@ -3629,6 +3666,9 @@ public abstract class RecentsView<
         updateRecentsRotation();
         onOrientationChanged();
         updateEmptyMessageConfiguration();
+        if (enableLowResThumbnailPreloading()) {
+            mHelper.updateCacheSizeAndPreload(/* shouldPreloadIfNeeded= */ !mOverviewStateEnabled);
+        }
     }
 
     /**
@@ -4484,7 +4524,8 @@ public abstract class RecentsView<
         int direction = orientationHandler.getSplitTranslationDirectionFactor(
                 splitPosition, deviceProfile);
 
-        if (deviceProfile.getDeviceProperties().isLargeScreen() && deviceProfile.isLeftRightSplit) {
+        if (deviceProfile.getDeviceProperties().isLargeScreen()
+                && deviceProfile.getSysuiProfile().isLeftRightSplit()) {
             // Only shift TaskViews if there is not enough space on the side of
             // mLastComputedTaskSize to minimize motion.
             int sideSpace = mIsRtl
@@ -4677,9 +4718,7 @@ public abstract class RecentsView<
         if (taskView instanceof DesktopTaskView) {
             anim.play(ObjectAnimator.ofArgb(mContainer.getScrimView(), VIEW_BACKGROUND_COLOR,
                     Color.TRANSPARENT));
-            if (enableDesktopExplodedView()) {
-                anim.play(ObjectAnimator.ofFloat(this, DESK_EXPLODE_PROGRESS, 1f, 0f));
-            }
+            anim.play(ObjectAnimator.ofFloat(this, DESK_EXPLODE_PROGRESS, 1f, 0f));
         }
         DepthController<?, ?> depthController = getDepthController();
         if (depthController != null) {

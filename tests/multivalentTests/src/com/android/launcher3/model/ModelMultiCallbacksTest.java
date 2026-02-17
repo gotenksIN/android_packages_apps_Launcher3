@@ -15,6 +15,8 @@
  */
 package com.android.launcher3.model;
 
+import static android.platform.test.flag.junit.DeviceFlagsValueProvider.createCheckFlagsRule;
+
 import static com.android.launcher3.util.LauncherModelHelper.TEST_PACKAGE;
 import static com.android.launcher3.util.ModelTestExtensions.countPersistedModelItems;
 
@@ -26,20 +28,23 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 
 import android.os.Process;
+import android.platform.test.annotations.RequiresFlagsDisabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.rule.LimitDevicesRule;
 import android.platform.test.rule.SkipOnDeviceless;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
+import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.LauncherModel;
 import com.android.launcher3.model.BgDataModel.Callbacks;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.WorkspaceData;
-import com.android.launcher3.testutil.rule.LayoutResource;
 import com.android.launcher3.util.Executors;
 import com.android.launcher3.util.LauncherLayoutBuilder;
+import com.android.launcher3.util.ModelTestExtensions;
 import com.android.launcher3.util.PackageUserKey;
 import com.android.launcher3.util.SandboxApplication;
 import com.android.launcher3.util.TestUtil;
@@ -59,12 +64,15 @@ import java.util.stream.Collectors;
  */
 @SmallTest
 @RunWith(AndroidJUnit4.class)
+@RequiresFlagsDisabled(Flags.FLAG_BIND_MODEL_USING_REPOSITORY)
 public class ModelMultiCallbacksTest {
+
+    @Rule
+    public CheckFlagsRule mCheckFlagsRule = createCheckFlagsRule();
     @Rule
     public LimitDevicesRule mlimitDevicesRule = new LimitDevicesRule();
 
     @Rule public SandboxApplication mContext = new SandboxApplication().withModelDependency();
-    @Rule public LayoutResource mLayoutProvider = new LayoutResource(mContext);
 
     @After
     public void tearDown() throws Exception {
@@ -164,7 +172,7 @@ public class ModelMultiCallbacksTest {
         for (int i = 0; i < pageCount; i++) {
             builder.atWorkspace(1, 1, i).putApp(TEST_PACKAGE, TEST_PACKAGE);
         }
-        mLayoutProvider.set(builder);
+        ModelTestExtensions.setModelLayout(mContext, builder);
     }
 
     private LauncherModel getModel() {

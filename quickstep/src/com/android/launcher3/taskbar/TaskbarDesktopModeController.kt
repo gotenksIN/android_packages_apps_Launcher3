@@ -16,7 +16,6 @@
 
 package com.android.launcher3.taskbar
 
-import com.android.launcher3.Flags.refactorTaskbarUiState
 import com.android.launcher3.display.DisplayController
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.statehandlers.DesktopVisibilityController.TaskbarDesktopModeListener
@@ -48,14 +47,12 @@ class TaskbarDesktopModeController(
         taskbarSharedState = sharedState
         taskbarUiState = uiState
         desktopVisibilityController.registerTaskbarDesktopModeListener(this)
-        if (refactorTaskbarUiState()) {
-            displayInfoChangeSafeCloseable =
-                DisplayController.INSTANCE.get(taskbarActivityContext).listenable?.forEach(
-                    getTaskbarUiThread()
-                ) { _ ->
-                    updateTaskbarUiState()
-                }
-        }
+        displayInfoChangeSafeCloseable =
+            DisplayController.INSTANCE.get(taskbarActivityContext).listenable?.forEach(
+                getTaskbarUiThread()
+            ) { _ ->
+                updateTaskbarUiState()
+            }
     }
 
     fun isInDesktopMode(displayId: Int) = desktopVisibilityController.isInDesktopMode(displayId)
@@ -80,9 +77,7 @@ class TaskbarDesktopModeController(
 
     fun shouldShowDesktopTasksInTaskbar(displayId: Int): Boolean {
         return isInDesktopMode(displayId) ||
-            taskbarActivityContext.showDesktopTaskbarForFreeformDisplay() ||
-            (taskbarActivityContext.showLockedTaskbarOnHome() &&
-                taskbarControllers.taskbarStashController.isOnHome)
+            taskbarActivityContext.showDesktopTaskbarForFreeformDisplay()
     }
 
     fun getTaskbarCornerRoundness(doesAnyTaskRequireTaskbarRounding: Boolean): Float {
@@ -103,6 +98,5 @@ class TaskbarDesktopModeController(
         val info = DisplayController.getInfo(taskbarActivityContext)
         taskbarUiState.showDesktopTaskbarForFreeformDisplay =
             info.showDesktopTaskbarForFreeformDisplay
-        taskbarUiState.showLockedTaskbarOnHome = info.showLockedTaskbarOnHome
     }
 }

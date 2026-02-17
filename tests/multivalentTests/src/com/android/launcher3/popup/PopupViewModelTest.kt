@@ -65,7 +65,7 @@ class PopupViewModelTest {
     fun init_noDeepShortcuts_fewSystemShortcuts_showsList() {
         val systemShortcuts = List(3) { popupDataUi }
 
-        viewModel.init(systemShortcuts, deepShortcutCount = 0)
+        viewModel.init(systemShortcuts, deepShortcutCount = 0, availableHeightDp = 1000f)
 
         val state = viewModel.state
         assertThat(state.mainSegmentsStyle).isEqualTo(MainSegmentsStyle.LIST)
@@ -76,17 +76,17 @@ class PopupViewModelTest {
     }
 
     @Test
-    fun init_noDeepShortcuts_manySystemShortcuts_showsListWithCompact() {
+    fun init_noDeepShortcuts_manySystemShortcuts_showsListWithNoCompact() {
         val systemShortcuts = mutableListOf<PopupItem>()
         systemShortcuts.addAll(List(4) { popupDataUi })
         systemShortcuts.addAll(List(3) { popupDataUiFixed })
 
-        viewModel.init(systemShortcuts, deepShortcutCount = 0)
+        viewModel.init(systemShortcuts, deepShortcutCount = 0, availableHeightDp = 1000f)
 
         val state = viewModel.state
         assertThat(state.mainSegmentsStyle).isEqualTo(MainSegmentsStyle.LIST)
-        assertThat(state.compactSystemShortcuts.size).isEqualTo(4)
-        assertThat(state.standardSystemShortcuts.size).isEqualTo(3)
+        assertThat(state.compactSystemShortcuts.size).isEqualTo(0)
+        assertThat(state.standardSystemShortcuts.size).isEqualTo(7)
         assertThat(state.deepShortcuts.size).isEqualTo(0)
         assertThat(viewModel.expandedSection).isNull()
     }
@@ -95,7 +95,7 @@ class PopupViewModelTest {
     fun init_withDeepShortcuts_totalLessThanOrEqualTo7_showsList() {
         val systemShortcuts = List(3) { popupDataUiFixed }
 
-        viewModel.init(systemShortcuts, deepShortcutCount = 4)
+        viewModel.init(systemShortcuts, deepShortcutCount = 4, availableHeightDp = 1000f)
 
         val state = viewModel.state
         assertThat(state.mainSegmentsStyle).isEqualTo(MainSegmentsStyle.LIST)
@@ -106,28 +106,28 @@ class PopupViewModelTest {
     }
 
     @Test
-    fun init_withDeepShortcuts_totalMoreThan7_compactFits_showsListWithCompact() {
+    fun init_withDeepShortcuts_totalMoreThan7_showsAccordion_noCompact() {
         val systemShortcuts = mutableListOf<PopupItem>()
         systemShortcuts.addAll(List(4) { popupDataUi })
         systemShortcuts.addAll(List(2) { popupDataUiFixed })
 
-        viewModel.init(systemShortcuts, deepShortcutCount = 2)
+        viewModel.init(systemShortcuts, deepShortcutCount = 2, availableHeightDp = 1000f)
 
         val state = viewModel.state
-        assertThat(state.mainSegmentsStyle).isEqualTo(MainSegmentsStyle.LIST)
-        assertThat(state.compactSystemShortcuts.size).isEqualTo(4)
-        assertThat(state.standardSystemShortcuts.size).isEqualTo(2)
+        assertThat(state.mainSegmentsStyle).isEqualTo(MainSegmentsStyle.ACCORDION)
+        assertThat(state.compactSystemShortcuts.size).isEqualTo(0)
+        assertThat(state.standardSystemShortcuts.size).isEqualTo(6)
         assertThat(state.deepShortcuts.size).isEqualTo(2)
-        assertThat(viewModel.expandedSection).isNull()
+        assertThat(viewModel.expandedSection).isEqualTo(ExpandedSection.SYSTEM)
     }
 
     @Test
-    fun init_withDeepShortcuts_totalLarge_showsAccordion() {
+    fun init_withDeepShortcuts_totalMoreThan7_showsAccordion_someCompact() {
         val systemShortcuts = mutableListOf<PopupItem>()
         systemShortcuts.addAll(List(4) { popupDataUi })
         systemShortcuts.addAll(List(5) { popupDataUiFixed })
 
-        viewModel.init(systemShortcuts, deepShortcutCount = 3)
+        viewModel.init(systemShortcuts, deepShortcutCount = 3, availableHeightDp = 1000f)
 
         val state = viewModel.state
         assertThat(state.mainSegmentsStyle).isEqualTo(MainSegmentsStyle.ACCORDION)
@@ -138,9 +138,57 @@ class PopupViewModelTest {
     }
 
     @Test
+    fun init_withDeepShortcuts_showsAccordion_allCompact_5_rows() {
+        val systemShortcuts = mutableListOf<PopupItem>()
+        systemShortcuts.addAll(List(3) { popupDataUi })
+        systemShortcuts.addAll(List(3) { popupDataUiFixed })
+
+        viewModel.init(systemShortcuts, deepShortcutCount = 3, availableHeightDp = 270f)
+
+        val state = viewModel.state
+        assertThat(state.mainSegmentsStyle).isEqualTo(MainSegmentsStyle.ACCORDION)
+        assertThat(state.compactSystemShortcuts.size).isEqualTo(3)
+        assertThat(state.standardSystemShortcuts.size).isEqualTo(3)
+        assertThat(state.deepShortcuts.size).isEqualTo(3)
+        assertThat(viewModel.expandedSection).isEqualTo(ExpandedSection.SYSTEM)
+    }
+
+    @Test
+    fun init_withDeepShortcuts_showsAccordion_someCompact_6_rows() {
+        val systemShortcuts = mutableListOf<PopupItem>()
+        systemShortcuts.addAll(List(3) { popupDataUi })
+        systemShortcuts.addAll(List(3) { popupDataUiFixed })
+
+        viewModel.init(systemShortcuts, deepShortcutCount = 3, availableHeightDp = 360f)
+
+        val state = viewModel.state
+        assertThat(state.mainSegmentsStyle).isEqualTo(MainSegmentsStyle.ACCORDION)
+        assertThat(state.compactSystemShortcuts.size).isEqualTo(2)
+        assertThat(state.standardSystemShortcuts.size).isEqualTo(4)
+        assertThat(state.deepShortcuts.size).isEqualTo(3)
+        assertThat(viewModel.expandedSection).isEqualTo(ExpandedSection.SYSTEM)
+    }
+
+    @Test
+    fun init_withDeepShortcuts_showsAccordion_noCompact_7_rows() {
+        val systemShortcuts = mutableListOf<PopupItem>()
+        systemShortcuts.addAll(List(3) { popupDataUi })
+        systemShortcuts.addAll(List(3) { popupDataUiFixed })
+
+        viewModel.init(systemShortcuts, deepShortcutCount = 3, availableHeightDp = 1000f)
+
+        val state = viewModel.state
+        assertThat(state.mainSegmentsStyle).isEqualTo(MainSegmentsStyle.ACCORDION)
+        assertThat(state.compactSystemShortcuts.size).isEqualTo(0)
+        assertThat(state.standardSystemShortcuts.size).isEqualTo(6)
+        assertThat(state.deepShortcuts.size).isEqualTo(3)
+        assertThat(viewModel.expandedSection).isEqualTo(ExpandedSection.SYSTEM)
+    }
+
+    @Test
     fun onDeepShortcutsLoaded_updatesDeepShortcutsList() {
         val systemShortcuts = List(2) { popupDataUiFixed }
-        viewModel.init(systemShortcuts, deepShortcutCount = 2)
+        viewModel.init(systemShortcuts, deepShortcutCount = 2, availableHeightDp = 1000f)
         val deepShortcuts = listOf(itemInfoWithIcon, itemInfoWithIcon)
 
         viewModel.onDeepShortcutsLoaded(deepShortcuts)
@@ -152,7 +200,7 @@ class PopupViewModelTest {
     @Test
     fun toggleSectionExpansion_notInAccordion_doesNothing() {
         val systemShortcuts = List(2) { popupDataUi }
-        viewModel.init(systemShortcuts, deepShortcutCount = 2)
+        viewModel.init(systemShortcuts, deepShortcutCount = 2, availableHeightDp = 1000f)
         assertThat(viewModel.expandedSection).isNull()
 
         viewModel.toggleSectionExpansion(ExpandedSection.DEEP)
@@ -165,7 +213,7 @@ class PopupViewModelTest {
         val systemShortcuts = mutableListOf<PopupItem>()
         systemShortcuts.addAll(List(4) { popupDataUi })
         systemShortcuts.addAll(List(3) { popupDataUiFixed })
-        viewModel.init(systemShortcuts, deepShortcutCount = 4)
+        viewModel.init(systemShortcuts, deepShortcutCount = 4, availableHeightDp = 1000f)
         assertThat(viewModel.expandedSection).isEqualTo(ExpandedSection.SYSTEM)
 
         viewModel.toggleSectionExpansion(ExpandedSection.DEEP)

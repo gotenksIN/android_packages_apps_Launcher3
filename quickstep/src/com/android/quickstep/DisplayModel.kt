@@ -25,15 +25,14 @@ import androidx.core.util.valueIterator
 import com.android.app.displaylib.DisplayDecorationListener
 import com.android.app.displaylib.DisplaysWithDecorationsRepositoryCompat
 import com.android.launcher3.dagger.ApplicationContext
+import com.android.launcher3.util.SafeCloseable
 import com.android.quickstep.DisplayModel.DisplayResource
-import com.android.quickstep.dagger.SysUIConnectionTestableModule.TESTABLE_DISPLAY_PROVIDER
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import java.io.PrintWriter
 import java.util.function.Consumer
 import java.util.function.IntFunction
-import javax.inject.Named
 import kotlinx.coroutines.CoroutineDispatcher
 
 /** data model for managing resources with lifecycles that match that of the connected display */
@@ -42,11 +41,10 @@ class DisplayModel<RESOURCE_TYPE : DisplayResource>
 constructor(
     @ApplicationContext private val context: Context,
     private val systemDecorationChangeObserver: SystemDecorationChangeObserver,
-    @Named(TESTABLE_DISPLAY_PROVIDER)
     private val displaysWithDecorationsRepositoryCompat: DisplaysWithDecorationsRepositoryCompat,
     @Assisted private val dispatcher: CoroutineDispatcher,
     @Assisted private val resourceFactory: IntFunction<RESOURCE_TYPE?>,
-) : DisplayDecorationListener {
+) : DisplayDecorationListener, SafeCloseable {
 
     private val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
     private val displayResourceArray = SparseArray<RESOURCE_TYPE>()
@@ -54,40 +52,50 @@ constructor(
         DesktopExperienceFlags.ENABLE_SYS_DECORS_CALLBACKS_VIA_WM.isTrue() &&
             DesktopExperienceFlags.ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT.isTrue()
 
+    private var closed = false
+
     override fun onDisplayAddSystemDecorations(displayId: Int) {
+        if (closed) return
         if (DEBUG) Log.d(TAG, "onDisplayAdded: displayId=$displayId")
         storeDisplayResource(displayId)
     }
 
     override fun onDisplayRemoved(displayId: Int) {
+        if (closed) return
         if (DEBUG) Log.d(TAG, "onDisplayRemoved: displayId=$displayId")
         deleteDisplayResource(displayId)
     }
 
     override fun onDisplayRemoveSystemDecorations(displayId: Int) {
+        if (closed) return
         if (DEBUG) Log.d(TAG, "onDisplayRemoveSystemDecorations: displayId=$displayId")
         deleteDisplayResource(displayId)
     }
 
     fun initializeDisplays() {
         if (useDisplayDecorationListener) {
+            // NOTE: `registerDisplayDecorationListener` will invoke the listener immediately for
+            // eligible displays (which will end up storing resources for those displays).
             displaysWithDecorationsRepositoryCompat.registerDisplayDecorationListener(
                 this,
                 dispatcher,
             )
         } else {
             systemDecorationChangeObserver.registerDisplayDecorationListener(this, dispatcher)
+
+            displayManager.displays
+                .filter { getDisplayResource(it.displayId) == null }
+                .forEach { storeDisplayResource(it.displayId) }
         }
-        displayManager.displays
-            .filter { getDisplayResource(it.displayId) == null }
-            .forEach { storeDisplayResource(it.displayId) }
     }
 
     fun forEach(callback: Consumer<RESOURCE_TYPE>) {
         displayResourceArray.valueIterator().forEach { callback.accept(it) }
     }
 
-    fun destroy() {
+    override fun close() {
+        closed = true
+
         if (useDisplayDecorationListener) {
             displaysWithDecorationsRepositoryCompat.unregisterDisplayDecorationListener(this)
         } else {

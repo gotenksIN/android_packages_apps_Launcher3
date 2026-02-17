@@ -15,6 +15,8 @@
  */
 package com.android.launcher3.widget;
 
+import static com.android.launcher3.util.ui.ActivityStartUtils.getAppPackageName;
+
 import static org.junit.Assert.assertNotNull;
 
 import android.platform.test.annotations.EnableFlags;
@@ -54,7 +56,6 @@ public class TaplAddWidgetTest extends AbstractLauncherUiTest<Launcher, View> {
 
     @Test
     @PortraitLandscape
-    @EnableFlags(Flags.FLAG_ENABLE_WIDGET_PICKER_REFACTOR)
     public void testDragIcon() throws Throwable {
         reinitializeLauncherData(true);
         waitForLauncherCondition("Workspace didn't finish loading", l -> !l.isWorkspaceLoading());
@@ -85,7 +86,6 @@ public class TaplAddWidgetTest extends AbstractLauncherUiTest<Launcher, View> {
      */
     @Test
     @PortraitLandscape
-    @EnableFlags(Flags.FLAG_ENABLE_WIDGET_PICKER_REFACTOR)
     public void testDragCustomShortcut() throws Throwable {
         reinitializeLauncherData(true);
         waitForLauncherCondition("Workspace didn't finish loading", l -> !l.isWorkspaceLoading());
@@ -102,8 +102,7 @@ public class TaplAddWidgetTest extends AbstractLauncherUiTest<Launcher, View> {
      */
     @PlatinumTest(focusArea = "launcher")
     @Test
-    @EnableFlags({Flags.FLAG_ENABLE_WIDGET_PICKER_REFACTOR,
-            Flags.FLAG_FIX_WIDGET_SINGLE_PTR_RESIZE})
+    @EnableFlags(Flags.FLAG_FIX_WIDGET_SINGLE_PTR_RESIZE)
     public void testResizeWidget() throws Throwable {
         reinitializeLauncherData(true);
         waitForLauncherCondition("Workspace didn't finish loading", l -> !l.isWorkspaceLoading());

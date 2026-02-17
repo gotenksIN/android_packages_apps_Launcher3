@@ -231,7 +231,7 @@ object InputConsumerUtils {
             if (tac != null && base !is AssistantInputConsumer) {
                 // Present always on large screen or on small screen w/ flag
                 val useTaskbarConsumer =
-                    (tac.deviceProfile.isTaskbarPresent &&
+                    (tac.deviceProfile.deviceProperties.taskbarConfiguration.isTaskbarPresent &&
                         !tac.isPhoneMode &&
                         !tac.isInStashedLauncherState)
                 if (canStartSystemGesture && useTaskbarConsumer) {
@@ -254,7 +254,7 @@ object InputConsumerUtils {
                         )
                 }
             }
-            if (Flags.enableBubblesLongPressNavHandle()) {
+            if (Flags.fixBubblesLongPressNavHandle()) {
                 // Create bubbles input consumer before NavHandleLongPressInputConsumer.
                 // This allows for nav handle to fall back to bubbles.
                 if (deviceState.isBubblesExpanded) {
@@ -304,7 +304,7 @@ object InputConsumerUtils {
                     )
             }
 
-            if (!Flags.enableBubblesLongPressNavHandle()) {
+            if (!Flags.fixBubblesLongPressNavHandle()) {
                 // Continue overriding nav handle input consumer with bubbles
                 if (deviceState.isBubblesExpanded) {
                     reasonString =

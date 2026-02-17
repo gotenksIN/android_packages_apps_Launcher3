@@ -15,6 +15,10 @@
  */
 package com.android.quickstep;
 
+import static com.android.launcher3.util.ui.ActivityStartUtils.resolveSystemApp;
+import static com.android.launcher3.util.ui.ActivityStartUtils.startAppFast;
+import static com.android.launcher3.util.ui.ActivityStartUtils.startTestActivity;
+
 import android.content.Intent;
 import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
@@ -26,9 +30,11 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.launcher3.Flags;
 import com.android.launcher3.tapl.KeyboardQuickSwitch;
 import com.android.launcher3.taskbar.KeyboardQuickSwitchController;
+import com.android.launcher3.util.ui.ActivityStartUtils;
 import com.android.launcher3.util.ui.BaseLauncherTaplTest.AllowInRecentsWindowTests;
 
 import org.junit.Assume;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -93,7 +99,7 @@ public class TaplTestsKeyboardQuickSwitch extends AbstractQuickStepTest {
     }
 
     @Test
-    @DisableFlags(value = Flags.FLAG_ENABLE_WIDGET_PICKER_REFACTOR)
+    @Ignore("b/432326271")
     public void testDismiss_fromWidgets() {
         runTest(TestSurface.WIDGETS, TestCase.DISMISS);
     }
@@ -114,7 +120,7 @@ public class TaplTestsKeyboardQuickSwitch extends AbstractQuickStepTest {
     }
 
     @Test
-    @DisableFlags(value = Flags.FLAG_ENABLE_WIDGET_PICKER_REFACTOR)
+    @Ignore("b/432326271")
     public void testLaunchLastTask_fromWidgets() {
         runTest(TestSurface.WIDGETS, TestCase.LAUNCH_LAST_APP);
     }
@@ -135,7 +141,7 @@ public class TaplTestsKeyboardQuickSwitch extends AbstractQuickStepTest {
     }
 
     @Test
-    @DisableFlags(value = Flags.FLAG_ENABLE_WIDGET_PICKER_REFACTOR)
+    @Ignore("b/432326271")
     public void testLaunchSelectedTask_fromWidgets() {
         runTest(TestSurface.WIDGETS, TestCase.LAUNCH_SELECTED_APP);
     }
@@ -159,8 +165,8 @@ public class TaplTestsKeyboardQuickSwitch extends AbstractQuickStepTest {
     }
 
     @Test
-    @DisableFlags(value = {Flags.FLAG_ENABLE_WIDGET_PICKER_REFACTOR,
-            Flags.FLAG_ENABLE_ALT_TAB_KQS_FLATENNING})
+    @DisableFlags(value = Flags.FLAG_ENABLE_ALT_TAB_KQS_FLATENNING)
+    @Ignore("b/432326271")
     public void testLaunchOverviewTask_fromWidgets() {
         runTest(TestSurface.WIDGETS, TestCase.LAUNCH_OVERVIEW);
     }
@@ -215,7 +221,7 @@ public class TaplTestsKeyboardQuickSwitch extends AbstractQuickStepTest {
                 break;
             case LAUNCH_LAST_APP:
                 kqs.launchFocusedAppTask(testSurface.mInitialFocusAtZero
-                        ? getAppPackageName() : CALCULATOR_APP_PACKAGE);
+                        ? ActivityStartUtils.getAppPackageName() : CALCULATOR_APP_PACKAGE);
                 break;
             case LAUNCH_SELECTED_APP:
                 kqs.moveFocusForward();

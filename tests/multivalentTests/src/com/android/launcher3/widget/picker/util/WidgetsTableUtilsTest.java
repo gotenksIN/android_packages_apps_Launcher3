@@ -26,7 +26,6 @@ import static org.mockito.Mockito.when;
 import android.appwidget.AppWidgetProviderInfo;
 import android.content.ComponentName;
 import android.graphics.Point;
-import android.graphics.drawable.Drawable;
 import android.os.UserHandle;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -38,7 +37,6 @@ import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.deviceprofile.AllAppsProfile;
 import com.android.launcher3.deviceprofile.WorkspaceProfile;
 import com.android.launcher3.icons.IconCache;
-import com.android.launcher3.icons.cache.BaseIconCache;
 import com.android.launcher3.icons.cache.CachedObject;
 import com.android.launcher3.model.WidgetItem;
 import com.android.launcher3.pm.ShortcutConfigActivityInfo;
@@ -255,7 +253,7 @@ public final class WidgetsTableUtilsTest {
 
         mTestDeviceProfile.getWorkspaceIconProfile().getCellLayoutBorderSpacePx()
                 .set(SPACE_SIZE, SPACE_SIZE);
-        mTestDeviceProfile.widgetPadding.setEmpty();
+        mTestDeviceProfile.getWorkspaceIconProfile().getWidgetPadding().setEmpty();
     }
 
     private void initTestWidgets() {
@@ -299,11 +297,6 @@ public final class WidgetsTableUtilsTest {
 
         TestShortcutConfigActivityInfo(ComponentName componentName, UserHandle user) {
             super(componentName, user, mContext);
-        }
-
-        @Override
-        public Drawable getFullResIcon(BaseIconCache cache) {
-            return null;
         }
 
         @Override

@@ -16,9 +16,11 @@
 
 package com.android.launcher3.dragndrop
 
+import android.content.ClipDescription
 import android.graphics.Canvas
 import android.graphics.Point
 import android.graphics.Rect
+import android.util.Log
 import android.view.DragEvent
 import android.view.View
 import android.view.View.DRAG_FLAG_DISABLE_DEFAULT_POINTER_ICON
@@ -30,63 +32,66 @@ import kotlin.math.roundToInt
  * Production implementation of the controller for system-level drag-and-drop. Injected when {@link
  * com.android.launcher3.Flags.FLAG_ENABLE_SYSTEM_DRAG} is enabled.
  *
+ * @param context The context for which to handle system-level drag-and-drop.
  * @param systemDragListenerFactory The factory used to create listeners for system-level
  *   drag-and-drop. A unique listener instance is created per handled drag-and-drop sequence.
  */
-class SystemDragControllerImpl(private val systemDragListenerFactory: SystemDragListenerFactory) :
-    SystemDragController(), DragController.SystemDragHandler {
+class SystemDragControllerImpl(
+    private val context: ActivityContext,
+    private val systemDragListenerFactory: SystemDragListenerFactory,
+) : SystemDragController() {
 
-    private var context: ActivityContext? = null
     private var systemDragListener: SystemDragListener? = null
 
-    // NOTE: Permissions must be obtained in order to accept a system-level drop. If permissions are
-    // not checked, a bad actor could piggy-back on the permissions that Launcher already has.
-    override fun acceptDrop(itemInfo: SystemDragItemInfo) =
-        itemInfo.permissions != null && itemInfo.uriList?.isEmpty() == false
-
     override fun onDrag(event: DragEvent): Boolean =
-        continueDrag(event) ?: startDrag(event) ?: false
-
-    override fun setContext(context: ActivityContext) {
-        if (this.context != context) {
-            this.context?.dragController?.removeSystemDragHandler(this)
-            this.context = context.also { it.dragController?.addSystemDragHandler(this) }
-        }
-    }
+        continueDrag(event) ?: (acceptDrag(event) && startDrag(event))
 
     override fun startDrag(params: SystemDragParams): DragView? {
-        val dragController = context?.dragController ?: return null
-        params.dragOptions.simulatedDndStartPoint = dragController.downPoint
-        return createSystemDragListener(params)?.startDrag()?.also { dragView ->
+        if (params.dragOptions.isAccessibleDrag || params.dragOptions.isKeyboardDrag) {
+            Log.i(TAG, "System drag not supported for accessible/keyboard drags")
+            return null
+        }
+        val dragController = context.dragController ?: return null
+        val screenPos = params.dragOptions.simulatedDndStartPoint ?: dragController.downPoint
+        return createSystemDragListener(params).startDrag(screenPos)?.also { dragView ->
             if (!startSystemDrag(dragView, params)) {
+                Log.e(TAG, "System drag failed to start")
                 dragController.cancelDrag()
             }
         }
     }
 
+    // NOTE: Drops for these mime types are not currently supported so ignore related drag events to
+    // avoid giving the user the impression that they are.
+    private fun acceptDrag(event: DragEvent): Boolean =
+        !(event.clipDescription?.hasMimeType(
+            arrayOf(
+                ClipDescription.MIMETYPE_APPLICATION_ACTIVITY,
+                ClipDescription.MIMETYPE_APPLICATION_SHORTCUT,
+                ClipDescription.MIMETYPE_APPLICATION_TASK,
+                ClipDescription.MIMETYPE_TEXT_INTENT,
+            )
+        ) ?: false)
+
     private fun continueDrag(event: DragEvent): Boolean? = systemDragListener?.onDrag(event)
 
-    private fun createSystemDragListener(params: SystemDragParams? = null): SystemDragListener? =
-        context?.run {
-            systemDragListenerFactory(this, params).also { listener ->
-                systemDragListener = listener
-                listener.setCleanupCallback {
-                    if (systemDragListener == listener) {
-                        systemDragListener = null
-                    }
+    private fun createSystemDragListener(params: SystemDragParams? = null): SystemDragListener =
+        systemDragListenerFactory.get(context, params).also { listener ->
+            systemDragListener = listener
+            listener.setCleanupCallback {
+                if (systemDragListener == listener) {
+                    systemDragListener = null
                 }
             }
         }
 
-    private fun startDrag(event: DragEvent): Boolean? =
-        context?.run {
-            dragController?.isDragging == false &&
-                event.action == DragEvent.ACTION_DRAG_STARTED &&
-                createSystemDragListener()?.onDrag(event) == true
-        }
+    private fun startDrag(event: DragEvent): Boolean =
+        context.dragController?.isDragging == false &&
+            event.action == DragEvent.ACTION_DRAG_STARTED &&
+            createSystemDragListener().onDrag(event)
 
     private fun startSystemDrag(dragView: DragView, params: SystemDragParams): Boolean =
-        context?.dragLayer?.let { dragLayer ->
+        context.dragLayer?.let { dragLayer ->
             val dragShadow =
                 object : View.DragShadowBuilder() {
                     val h = (params.dragImage.intrinsicHeight * params.initialDragViewScale).toInt()
@@ -136,4 +141,8 @@ class SystemDragControllerImpl(private val systemDragListenerFactory: SystemDrag
                     }
                 }
         } == true
+
+    companion object {
+        private const val TAG = "SystemDragControllerImpl"
+    }
 }

@@ -30,6 +30,8 @@ public final class TestProtocol {
     public static final String FOLDER_OPENED_MESSAGE = "TAPL_FOLDER_OPENED";
     public static final String SEARCH_RESULT_COMPLETE = "SEARCH_RESULT_COMPLETE";
     public static final String LAUNCHER_ACTIVITY_STOPPED_MESSAGE = "TAPL_LAUNCHER_ACTIVITY_STOPPED";
+    public static final String LAUNCHER_ACTIVITY_LOST_WINDOW_FOCUS_MESSAGE =
+            "TAPL_LAUNCHER_ACTIVITY_LOST_WINDOW_FOCUS";
     public static final String WALLPAPER_OPEN_ANIMATION_FINISHED_MESSAGE =
             "TAPL_WALLPAPER_OPEN_ANIMATION_FINISHED";
     public static final int NORMAL_STATE_ORDINAL = 0;
@@ -124,6 +126,7 @@ public final class TestProtocol {
     public static final String REQUEST_REINITIALIZE_DATA = "reinitialize-data";
     public static final String REQUEST_CLEAR_DATA = "clear-data";
     public static final String REQUEST_HOTSEAT_ICON_NAMES = "get-hotseat-icon-names";
+    public static final String INJECT_TEST_INSIGHTS = "inject-test-insights";
     public static final String REQUEST_SHOULD_SHOW_HOME_BEHIND_DESKTOP =
             "should-show-home-behind-desktop";
     public static final String REQUEST_IS_TABLET = "is-tablet";
@@ -190,7 +193,10 @@ public final class TestProtocol {
 
     public static final String REQUEST_GET_DESK_COUNT = "get-desk-count";
 
-    public static final String REQUEST_IS_RECENTS_WINDOW_ENABLED = "recents-window-enabled";
+    public static final String REQUEST_IS_LAUNCHER_RECENTS_WINDOW_ENABLED =
+            "launcher-recents-window-enabled";
+    public static final String REQUEST_IS_FALLBACK_RECENTS_WINDOW_ENABLED =
+            "fallback-recents-window-enabled";
 
     public static final String REQUEST_UNSTASH_BUBBLE_BAR_IF_STASHED =
             "unstash-bubble-bar-if-stashed";
@@ -217,6 +223,9 @@ public final class TestProtocol {
             "enable_register_event_not_from_test";
 
     public static final String REQUEST_INFO_DISPLAY_ID = "display_id";
+
+    public static final String REQUEST_MARK_OVERVIEW_SELECT_TIP_SEEN =
+            "mark_overview_select_tip_seen";
 
     /** Logs {@link Log#d(String, String)} if {@link #sDebugTracing} is true. */
     public static void testLogD(String tag, String message) {

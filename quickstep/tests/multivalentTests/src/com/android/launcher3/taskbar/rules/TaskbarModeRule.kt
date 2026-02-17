@@ -21,8 +21,6 @@ import com.android.launcher3.dagger.LauncherComponentProvider.appComponent
 import com.android.launcher3.display.DisplayController
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator
-import com.android.launcher3.taskbar.rules.TaskbarModeRule.Mode
-import com.android.launcher3.taskbar.rules.TaskbarModeRule.TaskbarMode
 import com.android.launcher3.util.NavigationMode
 import com.android.launcher3.util.RoboApiWrapper.convertToSpy
 import com.android.launcher3.util.TaskbarModeUtil
@@ -78,7 +76,7 @@ class TaskbarModeRule(private val context: TaskbarWindowSandboxContext) : TestRu
                                 }
                             )
                             .whenever(it)
-                            .isPinned
+                            .isPinned(any())
 
                         doReturn(
                                 when (mode) {
@@ -88,10 +86,10 @@ class TaskbarModeRule(private val context: TaskbarWindowSandboxContext) : TestRu
                                 }
                             )
                             .whenever(it)
-                            .isTransient
+                            .isTransient(any())
                     }
 
-                    TaskbarFeatureEvaluator.INSTANCE[context]?.stub {
+                    TaskbarFeatureEvaluator.INSTANCE[context][context.displayId]?.stub {
                         doReturn(
                                 when (mode) {
                                     Mode.TRANSIENT -> false

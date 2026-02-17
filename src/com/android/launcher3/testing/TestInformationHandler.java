@@ -67,7 +67,6 @@ import com.android.launcher3.icons.ClockDrawableWrapper;
 import com.android.launcher3.testing.shared.TestProtocol;
 import com.android.launcher3.util.ActivityLifecycleCallbacksAdapter;
 import com.android.launcher3.util.TaskbarModeUtil;
-import com.android.launcher3.widget.picker.WidgetsFullSheet;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -181,11 +180,6 @@ public class TestInformationHandler {
                         l -> l.getAppsView().getActiveRecyclerView().computeVerticalScrollOffset());
             }
 
-            case TestProtocol.REQUEST_WIDGETS_SCROLL_Y: {
-                return getLauncherUIProperty(Bundle::putInt,
-                        l -> WidgetsFullSheet.getWidgetsView(l).computeVerticalScrollOffset());
-            }
-
             case TestProtocol.REQUEST_TARGET_INSETS: {
                 return getUIProperty(Bundle::putParcelable, insets -> Insets.max(
                         insets.getSystemGestureInsets(),
@@ -232,15 +226,15 @@ public class TestInformationHandler {
                         mPrimaryDeviceProfile.getDeviceProperties().isLargeScreen());
                 return response;
             case TestProtocol.REQUEST_IS_PREDICTIVE_BACK_SWIPE_ENABLED:
-                response.putBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD,
-                        mPrimaryDeviceProfile.isPredictiveBackSwipe);
-                return response;
-
+                return getLauncherUIProperty(
+                        Bundle::putBoolean, l -> l.isOnBackInvokedCallbackEnabled()
+                );
             case TestProtocol.REQUEST_TASKBAR_SHOWN_ON_HOME: {
                 LauncherDisplayInfo displayInfo = DisplayController.INSTANCE.get(
                         mContext).getInfoForDisplay(Integer.parseInt(arg));
                 response.putBoolean(TEST_INFO_RESPONSE_FIELD,
-                        displayInfo != null && displayInfo.showLockedTaskbarOnHome);
+                        displayInfo != null
+                                && displayInfo.getShowDesktopTaskbarForFreeformDisplay());
                 return response;
             }
 
@@ -266,8 +260,10 @@ public class TestInformationHandler {
                 return response;
 
             case TestProtocol.REQUEST_IS_TRANSIENT_TASKBAR:
+                LauncherDisplayInfo displayInfo = DisplayController.INSTANCE.get(
+                        mContext).getInfoForDisplay(Integer.parseInt(arg));
                 response.putBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD,
-                        TaskbarModeUtil.INSTANCE.get(mContext).isTransient());
+                        TaskbarModeUtil.INSTANCE.get(mContext).isTransient(displayInfo));
                 return response;
 
             case TestProtocol.REQUEST_IS_TWO_PANELS:
@@ -378,9 +374,15 @@ public class TestInformationHandler {
                                 + l.getAppsView().getActiveRecyclerView().getPaddingBottom());
             }
 
-            case TestProtocol.REQUEST_IS_RECENTS_WINDOW_ENABLED: {
+            case TestProtocol.REQUEST_IS_LAUNCHER_RECENTS_WINDOW_ENABLED: {
                 response.putBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD,
-                        enableLauncherOverviewInWindow() || enableFallbackOverviewInWindow());
+                        enableLauncherOverviewInWindow());
+                return response;
+            }
+
+            case TestProtocol.REQUEST_IS_FALLBACK_RECENTS_WINDOW_ENABLED: {
+                response.putBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD,
+                        enableFallbackOverviewInWindow());
                 return response;
             }
 

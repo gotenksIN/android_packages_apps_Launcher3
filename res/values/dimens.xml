@@ -253,21 +253,11 @@
 
     <dimen name="widget_list_top_bottom_corner_radius">28dp</dimen>
     <dimen name="widget_list_content_corner_radius">4dp</dimen>
-    <!-- Button that expands the widget apps list in the widget picker. -->
-    <dimen name="widgets_list_expand_button_drawable_padding">8dp</dimen>
-    <dimen name="widgets_list_expand_button_start_padding">16dp</dimen>
-    <dimen name="widgets_list_expand_button_end_padding">24dp</dimen>
-    <dimen name="widgets_list_expand_button_vertical_padding">16dp</dimen>
-    <dimen name="widgets_list_expand_button_top_margin">14dp</dimen>
 
     <dimen name="widget_list_header_view_vertical_padding">20dp</dimen>
     <dimen name="widget_list_entry_spacing">2dp</dimen>
     <!-- Less margin on sides to let widgets table width be close to the workspace width. -->
     <dimen name="widget_list_horizontal_margin">11dp</dimen>
-    <!-- Margin applied to the recycler view with search bar & the list of widget apps below it. -->
-    <dimen name="widget_list_left_pane_horizontal_margin">0dp</dimen>
-    <dimen name="widget_list_horizontal_margin_two_pane">24dp</dimen>
-    <dimen name="widget_picker_vertical_margin_right_pane">24dp</dimen>
     <!-- Margin on sides of the widgets scrollview in widgets bottom sheet -->
     <dimen name="widget_bottom_sheet_horizontal_margin">16dp</dimen>
 
@@ -440,9 +430,6 @@
     <dimen name="default_dialog_corner_radius">26dp</dimen>
     <dimen name="dialogCornerRadius">@dimen/default_dialog_corner_radius</dimen>
 
-    <!-- Onboarding bottomsheet related -->
-    <dimen name="bottom_sheet_edu_padding">24dp</dimen>
-
     <!-- Taskbar related (placeholders to compile in Launcher3 without Quickstep) -->
     <dimen name="taskbar_size">0dp</dimen>
     <dimen name="taskbar_phone_size">@*android:dimen/navigation_bar_frame_height</dimen>
@@ -604,6 +591,4 @@
 
     <!-- Automated Icons -->
     <dimen name="automated_icon_stroke_width">3dp</dimen>
-    <dimen name="automated_icon_glow_radius">5dp</dimen>
-    <dimen name="automated_icon_glow_padding">15dp</dimen>
 </resources>

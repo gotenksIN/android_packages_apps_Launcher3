@@ -19,21 +19,28 @@ import android.platform.test.rule.AllowedDevices
 import android.platform.test.rule.DeviceProduct
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator
 import com.android.launcher3.util.rule.ScreenRecordRule
+import com.android.launcher3.util.ui.ActivityStartUtils.startAppFast
 import com.android.quickstep.TaskbarModeSwitchRule.TaskbarModeSwitch
 import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
 import org.junit.Test
 
-@AllowedDevices(allowed = [DeviceProduct.TANGORPRO, DeviceProduct.CF_TABLET, DeviceProduct.CF_DESKTOP])
+@AllowedDevices(
+    allowed = [DeviceProduct.TANGORPRO, DeviceProduct.CF_TABLET, DeviceProduct.CF_DESKTOP]
+)
 class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
 
     @get:Rule val screenRecordRule = ScreenRecordRule()
 
     private lateinit var taskbarFeatureEvaluator: TaskbarFeatureEvaluator
 
+    override fun startCalculatorAppDuringSetup(): Boolean = false
+
     override fun setUp() {
         super.setUp()
-        taskbarFeatureEvaluator = TaskbarFeatureEvaluator.INSTANCE[mTargetContext]
+        startAppFast(CALCULATOR_APP_PACKAGE)
+        taskbarFeatureEvaluator =
+            TaskbarFeatureEvaluator.INSTANCE[mTargetContext][mTargetContext.displayId]!!
     }
 
     override fun tearDown() {
@@ -44,12 +51,12 @@ class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
 
     @Test
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.TRANSIENT)
-    @ScreenRecordRule.ScreenRecord //b/440078235
+    @ScreenRecordRule.ScreenRecord // b/440078235
     fun testPinningUnpinningTransientTaskbar_whenInOverview() {
         assertThat(taskbarFeatureEvaluator.isTransient).isTrue()
         mLauncher.goHome().switchToOverview()
         // Pinning
-        taskbar.toggleAlwaysShowTaskbarOption()
+        mLauncher.launchedAppState.taskbar.toggleAlwaysShowTaskbarOption()
         mLauncher.goHome()
 
         assertThat(taskbarFeatureEvaluator.isTransient).isFalse()
@@ -57,7 +64,7 @@ class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
 
         // unpinning
         mLauncher.goHome().switchToOverview()
-        taskbar.toggleAlwaysShowTaskbarOption()
+        mLauncher.launchedAppState.taskbar.toggleAlwaysShowTaskbarOption()
         mLauncher.goHome()
 
         assertThat(taskbarFeatureEvaluator.isTransient).isTrue()
@@ -66,23 +73,20 @@ class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
 
     @Test
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.TRANSIENT)
-    @ScreenRecordRule.ScreenRecord //b/440078235
+    @ScreenRecordRule.ScreenRecord // b/440078235
     fun testPinningUnpinningTransientTaskbar_whenInApp() {
-        startAppFast(TEST_APP_PACKAGE)
         assertThat(taskbarFeatureEvaluator.isTransient).isTrue()
 
-        mLauncher.launchedAppState.assertTaskbarVisible()
-
         // Pinning
-        taskbar.toggleAlwaysShowTaskbarOption()
+        mLauncher.launchedAppState.taskbar.toggleAlwaysShowTaskbarOption()
         mLauncher.goHome()
 
         assertThat(taskbarFeatureEvaluator.isTransient).isFalse()
         assertThat(taskbarFeatureEvaluator.isPinned).isTrue()
 
         // unpinning
-        startAppFast(TEST_APP_PACKAGE)
-        taskbar.toggleAlwaysShowTaskbarOption()
+        startAppFast(CALCULATOR_APP_PACKAGE)
+        mLauncher.launchedAppState.taskbar.toggleAlwaysShowTaskbarOption()
         mLauncher.goHome()
 
         assertThat(taskbarFeatureEvaluator.isTransient).isTrue()
@@ -91,12 +95,10 @@ class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
 
     @Test
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.TRANSIENT)
-    @ScreenRecordRule.ScreenRecord //b/440078235
+    @ScreenRecordRule.ScreenRecord // b/440078235
     fun testPinningUnpinningTransientTaskbar_whenInDesktopMode() {
-        startAppFast(CALCULATOR_APP_PACKAGE)
         assertThat(taskbarFeatureEvaluator.isTransient).isTrue()
         mLauncher.goHome().switchToOverview().currentTask.tapMenu().tapDesktopMenuItem()
-        mLauncher.launchedAppState.assertTaskbarVisible()
         assertThat(taskbarFeatureEvaluator.isPinned).isTrue()
 
         // unpinning

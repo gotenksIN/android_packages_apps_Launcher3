@@ -45,7 +45,6 @@ import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Pair;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -59,7 +58,6 @@ import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
 
 import com.android.app.animation.Interpolators;
-import com.android.launcher3.Flags;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.folder.ClippedFolderIconLayoutRule;
@@ -123,6 +121,11 @@ public class DragView extends FrameLayout {
 
     // Below variable only needed IF FeatureFlags.LAUNCHER3_SPRING_ICONS is {@code true}
     private Drawable mBgSpringDrawable, mFgSpringDrawable;
+
+    // Indicates whether spring animated drawable should be hidden during the drag and drop
+    // sequence, for example, when a system drag shadow is used for the drag.
+    private final boolean mAllowSpringDrawable;
+
     private SpringFloatValue mTranslateX, mTranslateY;
     private Path mScaledMaskPath;
     private Drawable mBadge;
@@ -132,10 +135,11 @@ public class DragView extends FrameLayout {
 
     public DragView(ActivityContext launcher, Drawable drawable, int registrationX,
             int registrationY, final float initialScale, final float scaleOnDrop,
-            final float finalScaleDps) {
+            final float finalScaleDps, boolean allowSpringDrawable) {
         this(launcher, getViewFromDrawable(launcher, drawable),
                 drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(),
-                registrationX, registrationY, initialScale, scaleOnDrop, finalScaleDps);
+                registrationX, registrationY, initialScale, scaleOnDrop, finalScaleDps,
+                allowSpringDrawable);
     }
 
     /**
@@ -152,13 +156,15 @@ public class DragView extends FrameLayout {
      * @param registrationY The y coordinate of the registration point.
      * @param scaleOnDrop   the scale used in the drop animation.
      * @param finalScaleDps the scale used in the zoom out animation when the drag view is shown.
+     * @param allowSpringDrawable whether the spring animated drag image should be shown.
      */
     public DragView(ActivityContext activity, View content, int width, int height,
             int registrationX, int registrationY, final float initialScale, final float scaleOnDrop,
-            final float finalScaleDps) {
+            final float finalScaleDps, boolean allowSpringDrawable) {
         super(activity.asContext());
         mActivity = activity;
         mDragLayer = activity.getDragLayer();
+        mAllowSpringDrawable = allowSpringDrawable;
 
         mContent = content;
         mWidth = width;
@@ -170,6 +176,9 @@ public class DragView extends FrameLayout {
             mContentViewParent.removeView(mContent);
         }
 
+        // During a drag, we don't want to expose the descendants of drag view to a11y users,
+        // as those descendants are not a valid position in the workspace.
+        content.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         addView(content, new LayoutParams(width, height));
 
         // If there is already a scale set on the content, we don't want to clip the children.
@@ -258,16 +267,19 @@ public class DragView extends FrameLayout {
     @TargetApi(Build.VERSION_CODES.O)
     public void setItemInfo(final ItemInfo info) {
         mItemType = info.itemType;
+        if (!mAllowSpringDrawable) {
+            return;
+        }
+
         // Load the adaptive icon on a background thread and add the view in ui thread.
         MODEL_EXECUTOR.getHandler().postAtFrontOfQueue(() -> {
             ThemeManager themeManager = ThemeManager.INSTANCE.get(getContext());
             int w = mWidth;
             int h = mHeight;
-            Pair<AdaptiveIconDrawable, Drawable> fullDrawable = Utilities.getFullDrawable(
-                    mActivity, info, w, h,
-                    themeManager.isIconThemeEnabled());
+            var fullDrawable = mActivity.getActivityComponent().getIconLoader().getFullDrawable(
+                    info, w, h, themeManager.isIconThemeEnabled());
             if (fullDrawable != null) {
-                AdaptiveIconDrawable adaptiveIcon = fullDrawable.first;
+                AdaptiveIconDrawable adaptiveIcon = fullDrawable.icon;
                 int blurMargin = (int) getContext().getResources()
                         .getDimension(R.dimen.blur_size_medium_outline) / 2;
 
@@ -275,7 +287,7 @@ public class DragView extends FrameLayout {
                 bounds.inset(blurMargin, blurMargin);
                 // Badge is applied after icon normalization so the bounds for badge should not
                 // be scaled down due to icon normalization.
-                mBadge = fullDrawable.second;
+                mBadge = fullDrawable.badge;
                 FastBitmapDrawable.setBadgeBounds(mBadge, bounds);
                 Utilities.scaleRectAboutCenter(bounds, IconNormalizer.ICON_VISIBLE_AREA_FACTOR);
 
@@ -401,6 +413,8 @@ public class DragView extends FrameLayout {
         // We need to fill the ImageView with the content, otherwise the shapes of the final view
         // and the drag view might not match exactly
         newContent.setScaleType(ImageView.ScaleType.FIT_XY);
+        newContent.setImportantForAccessibility(
+                View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         newContent.measure(makeMeasureSpec(mWidth, EXACTLY), makeMeasureSpec(mHeight, EXACTLY));
         newContent.layout(0, 0, mWidth, mHeight);
         addViewInLayout(newContent, 0, new LayoutParams(mWidth, mHeight));
@@ -549,6 +563,7 @@ public class DragView extends FrameLayout {
                     mContent.getRight(), mContent.getBottom());
             setClipToOutline(mContent.getClipToOutline());
             setOutlineProvider(mContent.getOutlineProvider());
+            view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
             addViewInLayout(view, indexOfChild(mContent), mContent.getLayoutParams(), true);
 
             removeViewInLayout(mContent);
@@ -557,6 +572,7 @@ public class DragView extends FrameLayout {
             if (reattachToPreviousParent) {
                 mContentViewParent.addView(mContent, mContentViewInParentViewIndex);
             }
+            mContent.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
             mContentViewParent = null;
             mContentViewInParentViewIndex = -1;
         }
@@ -706,8 +722,7 @@ public class DragView extends FrameLayout {
                 // Widgets uses a listener to remove views.
                 // When widgets are dropped from another window, we don't want to remove the
                 // dragView on resume of launcher.
-                if (Flags.enableWidgetPickerRefactor()
-                        && d.mItemType != ITEM_TYPE_APPWIDGET
+                if (d.mItemType != ITEM_TYPE_APPWIDGET
                         && d.mItemType != ITEM_TYPE_DEEP_SHORTCUT) {
                     dragLayer.removeView(child);
                 }

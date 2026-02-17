@@ -28,23 +28,26 @@ import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.BubbleTextView
 import com.android.launcher3.Flags.FLAG_ENABLE_MULTI_INSTANCE_MENU_TASKBAR
 import com.android.launcher3.Flags.FLAG_ENABLE_TASKBAR_UI_THREAD
+import com.android.launcher3.LauncherModel
 import com.android.launcher3.LauncherSettings
 import com.android.launcher3.R
 import com.android.launcher3.dragndrop.DragView
+import com.android.launcher3.folder.FolderIcon
 import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.popup.PinToTaskbarShortcut
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
+import com.android.launcher3.taskbar.TaskbarViewTestUtil.createHotseatFolderItem
 import com.android.launcher3.taskbar.TaskbarViewTestUtil.createHotseatWorkspaceItem
 import com.android.launcher3.taskbar.TaskbarViewTestUtil.createRecents
 import com.android.launcher3.taskbar.TaskbarViewTestUtil.createTestWorkspaceItem
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule
-import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
+import com.android.launcher3.util.ModelTestExtensions.preloadModelData
 import com.android.launcher3.util.TestUtil.getOnTaskbarUiThread
-import com.android.quickstep.util.GroupTask
+import com.android.quickstep.util.SingleTask
 import com.android.window.flags.Flags.FLAG_ENABLE_PINNING_APP_WITH_CONTEXT_MENU
 import com.google.common.truth.Truth.assertThat
 import org.junit.Assert
@@ -62,9 +65,9 @@ class TaskbarPopupControllerTest {
 
     @get:Rule(order = 1) val context = TaskbarWindowSandboxContext.create()
 
-    @get:Rule(order = 2) val taskbarUnitTestRule = TaskbarUnitTestRule(this, context)
+    @get:Rule(order = 2) val taskbarUnitTestRule = TaskbarUnitTestRule(context)
 
-    @InjectController lateinit var popupController: TaskbarPopupController
+    private val popupController by taskbarUnitTestRule.delegate { it.taskbarPopupController }
 
     private val taskbarContext: TaskbarActivityContext
         get() = taskbarUnitTestRule.activityContext
@@ -75,6 +78,7 @@ class TaskbarPopupControllerTest {
     private lateinit var taskbarView: TaskbarView
     private lateinit var hotseatIcon: BubbleTextView
     private lateinit var recentTaskIcon: BubbleTextView
+    private lateinit var folderIcon: FolderIcon
 
     @Before
     fun setup() {
@@ -83,12 +87,25 @@ class TaskbarPopupControllerTest {
             taskbarView = taskbarContext.dragLayer.findViewById(R.id.taskbar_view)
         }
 
-        val hotseatItems = arrayOf(createHotseatWorkspaceItem())
-        popupController.setApps(
-            hotseatItems
-                .map { item -> AppInfo(item.targetComponent, item.title, item.user, item.intent) }
-                .toTypedArray()
-        )
+        val hotseatItems =
+            arrayOf(
+                createHotseatWorkspaceItem(),
+                createHotseatFolderItem().apply {
+                    container = LauncherSettings.Favorites.CONTAINER_HOTSEAT
+                },
+            )
+        if (LauncherModel.useModelRepositoryBinding()) {
+            context.preloadModelData(*hotseatItems)
+        } else {
+            popupController.setApps(
+                hotseatItems
+                    .filterIsInstance<WorkspaceItemInfo>()
+                    .map { item ->
+                        AppInfo(item.targetComponent, item.title, item.user, item.intent)
+                    }
+                    .toTypedArray()
+            )
+        }
         popupController.taskbarInfoList = SparseArray()
         val recentItems = createRecents(2)
         runOnTaskbarUiThreadSync {
@@ -99,8 +116,9 @@ class TaskbarPopupControllerTest {
                 }
             recentTaskIcon =
                 taskbarView.iconViews.filterIsInstance<BubbleTextView>().first {
-                    it.tag is GroupTask
+                    it.tag is SingleTask
                 }
+            folderIcon = taskbarView.iconViews.filterIsInstance<FolderIcon>().first()
         }
     }
 
@@ -115,6 +133,23 @@ class TaskbarPopupControllerTest {
     @EnableFlags(FLAG_ENABLE_PINNING_APP_WITH_CONTEXT_MENU)
     fun showForIcon_recentTask() {
         whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(true)
+        assertThat(hasPopupMenu()).isFalse()
+        runOnTaskbarUiThreadSync { popupController.show(recentTaskIcon) }
+        assertThat(hasPopupMenu()).isTrue()
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_PINNING_APP_WITH_CONTEXT_MENU)
+    fun showForIcon_folderItem() {
+        assertThat(hasPopupMenu()).isFalse()
+        runOnTaskbarUiThreadSync { popupController.show(folderIcon) }
+        assertThat(hasPopupMenu()).isTrue()
+    }
+
+    @Test
+    fun showForIcon_recentTask_notInDesktopMode() {
+        // Verifies popup menu is shown for recent tasks even when not in desktop mode.
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(false)
         assertThat(hasPopupMenu()).isFalse()
         runOnTaskbarUiThreadSync { popupController.show(recentTaskIcon) }
         assertThat(hasPopupMenu()).isTrue()
@@ -151,7 +186,24 @@ class TaskbarPopupControllerTest {
     }
 
     @Test
-    fun createPinShortcut_itemAlreadyPinned_returnsUnpinShortcut() {
+    fun showForIconUsingA11yAction_recentTask_notInDesktopMode() {
+        // Verifies popup menu is shown for recent tasks via a11y action even when not in desktop
+        // mode.
+        assertThat(hasPopupMenu()).isFalse()
+        whenever(desktopVisibilityController.isInDesktopMode(context.displayId)).thenReturn(false)
+
+        runOnTaskbarUiThreadSync {
+            recentTaskIcon.performAccessibilityAction(AccessibilityNodeInfo.ACTION_LONG_CLICK, null)
+        }
+        assertThat(hasPopupMenu()).isTrue()
+        assertThat(hasTaskbarDragView()).isFalse()
+
+        closePopupMenu()
+        assertThat(hasTaskbarDragView()).isFalse()
+    }
+
+    @Test
+    fun createPinShortcut_appAlreadyPinned_returnsUnpinShortcut() {
         val hotseatItems = SparseArray<ItemInfo>()
         val appUser = android.os.Process.myUserHandle()
         val appAIntent = Intent().setComponent(ComponentName("com.example.app", "AppAActivity"))
@@ -190,7 +242,7 @@ class TaskbarPopupControllerTest {
 
     @Test
     @EnableFlags(FLAG_ENABLE_TASKBAR_UI_THREAD)
-    fun createPinShortcut_itemAlreadyPinned_withUiThreadEnabled_returnsUnpinShortcut() {
+    fun createPinShortcut_appAlreadyPinned_withUiThreadEnabled_returnsUnpinShortcut() {
         val hotseatItems = SparseArray<ItemInfo>()
         val appUser = android.os.Process.myUserHandle()
         val appAIntent = Intent().setComponent(ComponentName("com.example.app", "AppAActivity"))
@@ -219,6 +271,27 @@ class TaskbarPopupControllerTest {
 
         val shortcut =
             popupController.createPinShortcut(taskbarContext, itemFromAllApps, allAppsAppIcon)
+        Assert.assertNotNull("Shortcut should not be null", shortcut)
+        Assert.assertTrue(
+            "Shortcut should be PinToTaskbarShortcut",
+            shortcut is PinToTaskbarShortcut<*>,
+        )
+        Assert.assertFalse((shortcut as PinToTaskbarShortcut<*>).isPin)
+    }
+
+    @Test
+    fun createPinShortcut_folderAlreadyPinned_returnsUnpinShortcut() {
+        val hotseatItems = SparseArray<ItemInfo>()
+        val pinnedFolder =
+            createHotseatFolderItem().apply {
+                container = LauncherSettings.Favorites.CONTAINER_HOTSEAT
+            }
+
+        hotseatItems.put(0, pinnedFolder)
+        popupController.taskbarInfoList = hotseatItems
+        val folderIcon = Mockito.mock(FolderIcon::class.java)
+
+        val shortcut = popupController.createPinShortcut(taskbarContext, pinnedFolder, folderIcon)
         Assert.assertNotNull("Shortcut should not be null", shortcut)
         Assert.assertTrue(
             "Shortcut should be PinToTaskbarShortcut",

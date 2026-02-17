@@ -15,8 +15,10 @@
  */
 package com.android.launcher3.tapl;
 
+import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.UiObject2;
 
+import com.android.launcher3.Flags;
 import com.android.launcher3.tapl.Taskbar.TaskbarLocation;
 
 import java.util.regex.Pattern;
@@ -27,7 +29,7 @@ import java.util.regex.Pattern;
 public final class TaskbarAppIcon extends AppIcon implements SplitscreenDragSource,
         BubbleBarDragSource {
 
-    private static final Pattern LONG_CLICK_EVENT = Pattern.compile("onTaskbarItemLongClick");
+    static final Pattern LONG_CLICK_EVENT = Pattern.compile("onTaskbarItemLongClick");
     private static final Pattern RIGHT_CLICK_EVENT = Pattern.compile("onTaskbarItemRightClick");
 
     private final TaskbarLocation mTaskbarLocation;
@@ -63,6 +65,12 @@ public final class TaskbarAppIcon extends AppIcon implements SplitscreenDragSour
     public TaskbarAppIconMenu openDeepShortcutMenuWithRightClick() {
         try (LauncherInstrumentation.Closable e = mLauncher.addContextLayer(
                 "want to return the shortcut menu when icon is right-clicked.")) {
+            if (Flags.expandableLongPressMenu()) {
+                final UiObject2 popupContainer = mLauncher.rightClickAndGet(
+                        mObject, "popup_container", getRightClickEvent());
+                return createMenu(popupContainer
+                        .findObject(By.desc("deep_shortcuts_container")));
+            }
             return createMenu(mLauncher.rightClickAndGet(
                     mObject, /* resName= */ "deep_shortcuts_container", getRightClickEvent()));
         }

@@ -23,10 +23,10 @@ import com.android.launcher3.taskbar.TaskbarInsetsController.DebugTouchableRegio
 import com.android.launcher3.taskbar.TaskbarInsetsController.DebugTouchableRegion.Companion.FULLSCREEN_TASKBAR_WINDOW
 import com.android.launcher3.taskbar.TaskbarInsetsController.DebugTouchableRegion.Companion.ICONS_INVISIBLE
 import com.android.launcher3.taskbar.rules.TaskbarAnimatorTestRule
+import com.android.launcher3.taskbar.rules.TaskbarModeRule
 import com.android.launcher3.taskbar.rules.TaskbarModeRule.Mode.TRANSIENT
 import com.android.launcher3.taskbar.rules.TaskbarModeRule.TaskbarMode
 import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule
-import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.InjectController
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
 import com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_IME_VISIBLE
 import com.google.common.truth.Truth.assertThat
@@ -39,14 +39,17 @@ class TaskbarInsetsControllerTest {
 
     @get:Rule(order = 0) val context = TaskbarWindowSandboxContext.create()
     @get:Rule(order = 1) val animatorTestRule = TaskbarAnimatorTestRule(this)
-    @get:Rule(order = 2) val taskbarUnitTestRule = TaskbarUnitTestRule(this, context)
+    @get:Rule(order = 2) val taskbarModeRule = TaskbarModeRule(context)
+    @get:Rule(order = 3) val taskbarUnitTestRule = TaskbarUnitTestRule(context)
 
-    @InjectController lateinit var taskbarInsetsController: TaskbarInsetsController
-    @InjectController lateinit var taskbarStashController: TaskbarStashController
+    private val taskbarInsetsController by
+        taskbarUnitTestRule.delegate { it.taskbarInsetsController }
+    private val taskbarStashController by taskbarUnitTestRule.delegate { it.taskbarStashController }
 
     private val taskbarContext by taskbarUnitTestRule::activityContext
 
     @Test
+    @TaskbarMode(TRANSIENT)
     fun imeShowing_taskbarWindowUntouchable() {
         runOnTaskbarUiThreadSync {
             taskbarContext.updateSysuiStateFlags(SYSUI_STATE_IME_VISIBLE, false)
@@ -96,6 +99,7 @@ class TaskbarInsetsControllerTest {
     }
 
     @Test
+    @TaskbarMode(TRANSIENT)
     fun windowFullscreen_entireTaskbarWindowTouchable() {
         runOnTaskbarUiThreadSync { taskbarContext.setTaskbarWindowFullscreen(true, 1) }
         runOnTaskbarUiThreadSync {

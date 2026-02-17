@@ -18,6 +18,8 @@ package com.android.launcher3
 import android.content.Context
 import android.content.pm.ShortcutInfo
 import android.os.UserHandle
+import androidx.annotation.GuardedBy
+import androidx.annotation.VisibleForTesting
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.icons.IconCache
@@ -27,6 +29,7 @@ import com.android.launcher3.model.AllAppsList
 import com.android.launcher3.model.BaseLauncherBinder.BaseLauncherBinderFactory
 import com.android.launcher3.model.BgDataModel
 import com.android.launcher3.model.BgDataModel.ModificationSource.UISurface
+import com.android.launcher3.model.IModelWriter
 import com.android.launcher3.model.ItemInstallQueue
 import com.android.launcher3.model.LoaderTask
 import com.android.launcher3.model.LoaderTask.LoaderTaskFactory
@@ -40,12 +43,14 @@ import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.model.tasks.CacheDataUpdatedTask
 import com.android.launcher3.pm.UserCache
 import com.android.launcher3.util.DaggerSingletonTracker
+import com.android.launcher3.util.Executors.MAIN_EXECUTOR
 import com.android.launcher3.util.Executors.MODEL_EXECUTOR
 import com.android.launcher3.util.PackageUserKey
 import com.android.launcher3.views.ActivityContext
 import java.io.PrintWriter
 import java.util.concurrent.CancellationException
-import java.util.function.Consumer
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
@@ -79,8 +84,8 @@ constructor(
 
     private val mLock = Any()
 
-    private var mLoaderTask: LoaderTask? = null
-    private var mIsLoaderTaskRunning = false
+    @GuardedBy("mLock") private var mLoaderTask: LoaderTask? = null
+    @GuardedBy("mLock") private var mLoadCompleteFuture = CompletableFuture<Unit>()
 
     // Indicates whether the current model data is valid or not.
     // We start off with everything not loaded. After that, we assume that
@@ -121,15 +126,18 @@ constructor(
         verifyChanges: Boolean,
         activity: ActivityContext,
         owner: BgDataModel.Callbacks?,
-    ) =
-        ModelWriter(
+    ): IModelWriter =
+        ModelWriter.create(
             context,
             this,
             mBgDataModel,
             verifyChanges,
             activity.cellPosMapper,
             UISurface(activity),
+            // TODO: (b/455016031) - Remove owner from ModelWriter
             owner,
+            MODEL_EXECUTOR,
+            MAIN_EXECUTOR,
         )
 
     /** Called when the workspace items have drastically changed */
@@ -145,22 +153,20 @@ constructor(
 
     /**
      * Reloads the workspace items from the DB and re-binds the workspace. This should generally not
-     * be called as DB updates are automatically followed by UI update
+     * be called as DB updates are automatically followed by UI update. Calling this too early may
+     * cause missing icons or widgets during restore process.
      */
-    fun forceReload() {
+    @VisibleForTesting
+    fun forceReload(): CompletionStage<Unit> {
         synchronized(mLock) {
-            // Stop any existing loaders first, so they don't set mModelLoaded to true later
-            stopLoader()
             mModelLoaded = false
+            return startLoader()
         }
-        rebindCallbacks()
     }
 
     /** Reloads the model if it is already in use */
     fun reloadIfActive() {
-        val wasActive: Boolean
-        synchronized(mLock) { wasActive = mModelLoaded || stopLoader() }
-        if (wasActive) forceReload()
+        if (isActive()) forceReload()
     }
 
     /** Rebinds all existing callbacks with already loaded model */
@@ -174,10 +180,9 @@ constructor(
     fun removeCallbacks(callbacks: BgDataModel.Callbacks) {
         synchronized(mCallbacksList) {
             if (mCallbacksList.remove(callbacks)) {
-                if (stopLoader()) {
-                    // Rebind existing callbacks
-                    startLoader()
-                }
+
+                // Restart the task in case it was already running
+                if (mLoaderTask != null) startLoader()
             }
         }
     }
@@ -189,73 +194,55 @@ constructor(
      */
     fun addCallbacksAndLoad(callbacks: BgDataModel.Callbacks): Boolean {
         synchronized(mLock) {
-            addCallbacks(callbacks)
-            return startLoader(arrayOf(callbacks))
+            synchronized(mCallbacksList) { mCallbacksList.add(callbacks) }
+            return startLoader(arrayOf(callbacks)).isDone
         }
     }
 
-    /** Adds a callbacks to receive model updates */
-    fun addCallbacks(callbacks: BgDataModel.Callbacks) {
-        synchronized(mCallbacksList) { mCallbacksList.add(callbacks) }
-    }
+    /** Starts the loader, and returns a completion stage indicating when the loading is complete */
+    fun startLoader(): CompletionStage<Unit> = startLoader(arrayOf())
 
-    /**
-     * Starts the loader. Tries to bind {@params synchronousBindPage} synchronously if possible.
-     *
-     * @return true if the page could be bound synchronously.
-     */
-    fun startLoader() = startLoader(arrayOf())
-
-    private fun startLoader(newCallbacks: Array<BgDataModel.Callbacks>): Boolean {
+    private fun startLoader(newCallbacks: Array<BgDataModel.Callbacks>): CompletableFuture<Unit> {
         // Enable queue before starting loader. It will get disabled in Launcher#finishBindingItems
         installQueue.pauseModelPush(ItemInstallQueue.FLAG_LOADER_RUNNING)
         synchronized(mLock) {
             // If there is already one running, tell it to stop.
-            val wasRunning = stopLoader()
-            val bindDirectly = mModelLoaded && !mIsLoaderTaskRunning
+            val oldTask = mLoaderTask
+            mLoaderTask = null
+            oldTask?.stopLocked()
+
+            val wasRunning = oldTask != null
+            val bindDirectly = mModelLoaded && !wasRunning
             val bindAllCallbacks = wasRunning || !bindDirectly || newCallbacks.isEmpty()
             val callbacksList = if (bindAllCallbacks) callbacks else newCallbacks
-            if (callbacksList.isNotEmpty()) {
-                val launcherBinder = binderFactory.createBinder(callbacksList)
-                if (bindDirectly) {
-                    // Divide the set of loaded items into those that we are binding synchronously,
-                    // and everything else that is to be bound normally (asynchronously).
-                    launcherBinder.bindWorkspace(bindAllCallbacks, /* isBindSync= */ true)
-                    // For now, continue posting the binding of AllApps as there are other
-                    // issues that arise from that.
-                    launcherBinder.bindAllApps()
-                    launcherBinder.bindWidgets()
+            val launcherBinder = binderFactory.createBinder(callbacksList)
+            if (bindDirectly) {
+                // Divide the set of loaded items into those that we are binding synchronously,
+                // and everything else that is to be bound normally (asynchronously).
+                launcherBinder.bindWorkspace(bindAllCallbacks, /* isBindSync= */ true)
+                // For now, continue posting the binding of AllApps as there are other
+                // issues that arise from that.
+                launcherBinder.bindAllApps()
+                launcherBinder.bindWidgets()
 
-                    if (Flags.simplifiedLauncherModelBinding())
-                        installQueue.resumeModelPush(ItemInstallQueue.FLAG_LOADER_RUNNING)
-                    return true
-                } else {
-                    val task = loaderFactory.newLoaderTask(launcherBinder)
-                    mLoaderTask = task
+                if (Flags.simplifiedLauncherModelBinding())
+                    installQueue.resumeModelPush(ItemInstallQueue.FLAG_LOADER_RUNNING)
+                return CompletableFuture.completedFuture(Unit)
+            } else {
+                val task = loaderFactory.newLoaderTask(launcherBinder)
+                mLoaderTask = task
 
-                    // Always post the loader task, instead of running directly
-                    // (even on same thread) so that we exit any nested synchronized blocks
-                    MODEL_EXECUTOR.post(task)
-                }
+                val lastFuture = mLoadCompleteFuture
+
+                // Complete the last future when this completes, only if it wasn't already completed
+                mLoadCompleteFuture = CompletableFuture<Unit>()
+                mLoadCompleteFuture.thenApply { lastFuture.complete(it) }
+
+                // Always post the loader task, instead of running directly
+                // (even on same thread) so that we exit any nested synchronized blocks
+                MODEL_EXECUTOR.post(task)
+                return mLoadCompleteFuture
             }
-        }
-        return false
-    }
-
-    /**
-     * If there is already a loader task running, tell it to stop.
-     *
-     * @return true if an existing loader was stopped.
-     */
-    private fun stopLoader(): Boolean {
-        synchronized(mLock) {
-            val oldTask: LoaderTask? = mLoaderTask
-            mLoaderTask = null
-            if (oldTask != null) {
-                oldTask.stopLocked()
-                return true
-            }
-            return false
         }
     }
 
@@ -264,24 +251,11 @@ constructor(
      *
      * @return true if the model is loaded or if loader task is running.
      */
-    fun isActive(): Boolean = mModelLoaded || mIsLoaderTaskRunning
-
-    /**
-     * Loads the model if not loaded
-     *
-     * @param callback called with the data model upon successful load or null on model thread.
-     */
-    fun loadAsync(callback: Consumer<BgDataModel?>) {
-        synchronized(mLock) {
-            if (!mModelLoaded && !mIsLoaderTaskRunning) {
-                startLoader()
-            }
-        }
-        MODEL_EXECUTOR.post { callback.accept(if (isModelLoaded()) mBgDataModel else null) }
-    }
+    fun isActive(): Boolean = mModelLoaded || mLoaderTask != null
 
     inner class LoaderTransaction(task: LoaderTask) : AutoCloseable {
         private var mTask: LoaderTask? = null
+        private var mIsCommitted = false
 
         init {
             synchronized(mLock) {
@@ -290,7 +264,6 @@ constructor(
                 }
                 this@LauncherModel.lastLoadId++
                 mTask = task
-                mIsLoaderTaskRunning = true
                 mModelLoaded = false
             }
         }
@@ -298,7 +271,10 @@ constructor(
         fun commit() {
             synchronized(mLock) {
                 // Everything loaded bind the data.
-                mModelLoaded = true
+                if (mLoaderTask === mTask) {
+                    mModelLoaded = true
+                    mIsCommitted = true
+                }
             }
             if (Flags.simplifiedLauncherModelBinding())
                 installQueue.resumeModelPush(ItemInstallQueue.FLAG_LOADER_RUNNING)
@@ -309,8 +285,10 @@ constructor(
                 // If we are still the last one to be scheduled, remove ourselves.
                 if (mLoaderTask === mTask) {
                     mLoaderTask = null
+                    if (mIsCommitted) {
+                        mLoadCompleteFuture.complete(Unit)
+                    }
                 }
-                mIsLoaderTaskRunning = false
             }
         }
     }

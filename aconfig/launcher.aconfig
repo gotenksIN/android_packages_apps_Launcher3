@@ -553,16 +553,6 @@ flag {
 }
 
 flag {
-  name: "migrate_browser_icon_on_setup"
-  namespace: "launcher"
-  description: "Migrates browser icon to user choice during user setup"
-  bug: "446663428"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
   name: "app_launch_blur"
   namespace: "launcher"
   description: "Enable background blur at app launch"
@@ -611,16 +601,6 @@ flag {
 }
 
 flag {
-  name: "disable_obsolete_swipe_handler_logic"
-  namespace: "launcher"
-  description: "Disables a potentially-obsolete codepath in AbsSwipeUpHandler, helping keep its eventual clean up safe."
-  bug: "449855328"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
     name: "fix_widget_single_ptr_resize"
     namespace: "launcher"
     description: "Fixes a11y issue that widgets can't be resized with single pointer"
@@ -635,6 +615,16 @@ flag {
   namespace: "launcher"
   description: "Enables indicator for active app automation in Launcher"
   bug: "440353845"
+}
+
+flag {
+  name: "disable_app_automation_blur"
+  namespace: "launcher"
+  description: "Disables usage of blur effect for rendering automated icons"
+  bug: "440353845"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }
 
 flag {
@@ -693,7 +683,7 @@ flag {
   name: "enable_app_lock_shortcut"
   namespace: "launcher"
   description: "Enables App Lock system shortcut in Launcher"
-  bug: "415167460"
+  bug: "475598044"
 }
 
 flag {
@@ -736,4 +726,21 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
+}
+
+flag {
+  name: "move_to_rest_state_for_background_app"
+  namespace: "launcher"
+  description: "Move launcher to rest state if it is in background app state when starting back animation"
+  bug: "469834354"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+    name: "kondo_planner"
+    namespace: "launcher"
+    description: "Enables the kondo planner experience."
+    bug: "450695990"
 }

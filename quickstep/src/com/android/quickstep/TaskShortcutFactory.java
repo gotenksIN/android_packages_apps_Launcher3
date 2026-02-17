@@ -112,7 +112,8 @@ public interface TaskShortcutFactory {
 
             AppInfo.SplitAccessibilityInfo accessibilityInfo =
                     new AppInfo.SplitAccessibilityInfo(taskView.containsMultipleTasks(),
-                            TaskUtils.getTitle(taskView.getContext(), taskContainer.getTask()),
+                            TaskUtils.INSTANCE.getTitle(taskView.getContext(),
+                                    taskContainer.getTask()),
                             actionId
                     );
             return Collections.singletonList(new AppInfo(container, taskContainer.getItemInfo(),
@@ -199,7 +200,7 @@ public interface TaskShortcutFactory {
             RecentsView rv = mTarget.getOverviewPanel();
             rv.switchToScreenshot(() -> {
                 rv.finishRecentsAnimation(true /* toHome */, false /* shouldPip */, () -> {
-                    mTarget.returnToHomescreen();
+                    mTarget.returnToHomescreenAfterFreeformShortcut();
                     rv.getHandler().post(this::startActivity);
                 });
             });
@@ -304,7 +305,10 @@ public interface TaskShortcutFactory {
                     recentsView.getPagedOrientationHandler();
 
             boolean notEnoughTasksToSplit =
-                    !deviceProfile.isTaskbarPresent && recentsView.getTaskViewCount() < 2;
+                    !deviceProfile.getDeviceProperties()
+                            .getTaskbarConfiguration()
+                            .isTaskbarPresent()
+                            && recentsView.getTaskViewCount() < 2;
             boolean isTaskSplitNotSupported = !task.isDockable ||
                     (intentFlags & FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS) != 0;
 
@@ -353,7 +357,7 @@ public interface TaskShortcutFactory {
                 return null;
             }
 
-            int iconResId = deviceProfile.isLeftRightSplit
+            int iconResId = deviceProfile.getSysuiProfile().isLeftRightSplit()
                     ? R.drawable.ic_save_app_pair_left_right
                     : R.drawable.ic_save_app_pair_up_down;
 

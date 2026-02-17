@@ -21,7 +21,7 @@ import android.content.Context
 import android.graphics.Point
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
-import android.os.Process
+import android.graphics.drawable.DrawableWrapper
 import android.util.Log
 import android.view.DragEvent
 import android.view.View.MeasureSpec.EXACTLY
@@ -30,27 +30,27 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.lifecycle.Lifecycle
 import com.android.launcher3.DropTarget.DragObject
-import com.android.launcher3.icons.IconCache
+import com.android.launcher3.InvariantDeviceProfile
+import com.android.launcher3.icons.BitmapInfo
 import com.android.launcher3.views.ActivityContext
-import dagger.Lazy
 
 /** Factory used to create listeners for system-level drag-and-drop. */
-typealias SystemDragListenerFactory =
-    (
-        @JvmSuppressWildcards ActivityContext, @JvmSuppressWildcards SystemDragParams?,
-    ) -> SystemDragListener
+fun interface SystemDragListenerFactory {
+
+    fun get(ctx: ActivityContext, params: SystemDragParams?): SystemDragListener
+}
 
 /**
  * Listener for a single system-level drag-and-drop sequence.
  *
  * @param context The context associated with the sequence.
- * @param iconCache The icon cache used to generate drag images.
+ * @param idp The invariant device profile used to generate drag images.
  * @param imageViewFactory The factory used to create image views.
  * @param params The parameters used for the sequence.
  */
 class SystemDragListener(
     context: ActivityContext,
-    private val iconCache: Lazy<IconCache>,
+    private val idp: InvariantDeviceProfile,
     private val imageViewFactory: (Context) -> ImageView,
     private var params: SystemDragParams?,
 ) :
@@ -95,15 +95,16 @@ class SystemDragListener(
     /**
      * Starts a system-level drag-and-drop sequence.
      *
+     * @param screenPos The start position for the sequence.
      * @return The drag view for the sequence if started successfully.
      */
-    fun startDrag(): DragView? =
+    fun startDrag(screenPos: Point): DragView? =
         params?.run {
             startDrag(
                 /*previewRect=*/ Rect(),
                 /*previewBitmapWidth=*/ 0,
                 /*previewViewWidth=*/ 0,
-                /*screenPos=*/ Point(),
+                screenPos,
                 dragOptions,
             )
             dragView
@@ -114,14 +115,17 @@ class SystemDragListener(
             if (action == DragEvent.ACTION_DROP) {
                 try {
                     (params?.dragInfo as? SystemDragItemInfo)?.apply {
-                        permissions = mContext.requestDragAndDropPermissions(event)
-                        uriList =
-                            clipData?.let { clipData ->
-                                (0 until clipData.itemCount)
-                                    .mapNotNull(clipData::getItemAt)
-                                    .mapNotNull(ClipData.Item::getUri)
-                                    .distinct()
-                            }
+                        payload =
+                            SystemDragItemInfo.UriListPayload(
+                                permissions = mContext.requestDragAndDropPermissions(event),
+                                uriList =
+                                    clipData?.let { clipData ->
+                                        (0 until clipData.itemCount)
+                                            .mapNotNull(clipData::getItemAt)
+                                            .mapNotNull(ClipData.Item::getUri)
+                                            .distinct()
+                                    },
+                            )
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Unable to obtain URI permissions", e)
@@ -180,6 +184,11 @@ class SystemDragListener(
                         }
                         .also { params -> this@SystemDragListener.params = params }
 
+            params.dragOptions.apply {
+                isSystemDrag = true
+                simulatedDndStartPoint = screenPos
+            }
+
             // NOTE: The launcher-provided drag image is initially transparent so as not to clash
             // with the system-provided drag image, the latter being preferred since it paints at a
             // higher z-index than other application windows. The launcher-provided drag image will
@@ -216,9 +225,12 @@ class SystemDragListener(
         cleanupCallback?.run()
     }
 
-    // TODO(b/440196506): Use a more appropriate drag image.
     private fun createDragImage(): Drawable =
-        iconCache.get().getDefaultIcon(Process.myUserHandle()).newIcon(mContext.asContext())
+        object : DrawableWrapper(BitmapInfo.LOW_RES_INFO.newIcon(mContext.asContext())) {
+            override fun getIntrinsicHeight(): Int = idp.iconBitmapSize
+
+            override fun getIntrinsicWidth(): Int = idp.iconBitmapSize
+        }
 
     companion object {
         private const val TAG = "SystemDragListener"
