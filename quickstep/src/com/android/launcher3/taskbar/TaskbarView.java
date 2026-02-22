@@ -671,7 +671,11 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         } else if (mHotseatIconsContainer == null) {
             updateHotseatItems(hotseatItemInfos, forceUpdateHotseat);
         } else {
-            mHotseatIconsContainer.updateIcons(Arrays.asList(hotseatItemInfos), forceUpdateHotseat);
+            // TODO(b/315355128) : remove the logic for ignore icon when container overflow is
+            //  enabled in future.
+            mHotseatIconsContainer.updateIcons(
+                    getItemInfoListForPinnedIconsContainer(Arrays.asList(hotseatItemInfos)),
+                    forceUpdateHotseat);
         }
 
 
@@ -685,7 +689,11 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         if (mIsRtl && mHotseatIconsContainer == null) {
             updateHotseatItems(hotseatItemInfos, forceUpdateHotseat);
         } else if (mIsRtl && mHotseatIconsContainer != null) {
-            mHotseatIconsContainer.updateIcons(Arrays.asList(hotseatItemInfos), forceUpdateHotseat);
+            // TODO(b/315355128) : remove the logic for ignore icon when container overflow is
+            //  enabled in future.
+            mHotseatIconsContainer.updateIcons(
+                    getItemInfoListForPinnedIconsContainer(Arrays.asList(hotseatItemInfos)),
+                    forceUpdateHotseat);
         } else {
             updateRecents(recentTasks, hotseatItemLength);
             updateHandoffSuggestions(handoffSuggestions);
@@ -698,6 +706,14 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
 
         mAllAppsButtonContainer.updateTaskbarMinimalState(isTaskbarInMinimalState());
         traceEnd(TRACE_TAG_APP);
+    }
+
+    private List<ItemInfo> getItemInfoListForPinnedIconsContainer(List<ItemInfo> itemInfos) {
+        // Mainly done for testing
+        if (TaskbarPopupController.canPinAppsOverflow()) {
+            return itemInfos;
+        }
+        return itemInfos.subList(0, itemInfos.size() - mIgnoreTaskbarIconCount);
     }
 
     public int getNumbersOfTaskbarIconsOverflowing() {
@@ -764,21 +780,12 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
      * Calculate how many icon we need to not show in Taskbar that are present in hotseat.
      */
     private int getIgnoreCountForTaskbarIcons(int recentsIcons, int hotseatIcons) {
-        if (!mActivityContext.isThreeButtonNav()
-                || mActivityContext.getTaskbarFeatureEvaluator().isRecentsEnabled()) {
+        if (TaskbarPopupController.canPinAppsOverflow()) {
             return 0;
         }
 
-        // Add icon for all apps.
-        int icons = 1;
-
-        // Only include divider line in count if will be added to Taskbar view which is in
-        // conditions below.
-        if (mActivityContext.isInDesktopMode() && recentsIcons > 0) {
-            icons += 1;
-        } else if (recentsIcons + hotseatIcons != 0) {
-            icons += 1;
-        }
+        // Add icon for all apps and divider line.
+        int icons = 2;
 
         int effectiveRecentIconsCount = ENABLE_TASKBAR_OVERFLOW.isTrue() ? Math.min(recentsIcons, 1)
                 : recentsIcons;
@@ -1871,12 +1878,11 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
     }
 
     @Override
-    public void updateItemViewVisibilityForDragState(View itemView, boolean isDragged) {
+    public boolean updateItemViewVisibilityForDragState(View itemView, boolean isDragged) {
         if (mHotseatIconsContainer != null) {
-            mHotseatIconsContainer.updateItemViewVisibilityForDragState(itemView, isDragged);
-            return;
+            return mHotseatIconsContainer.updateItemViewVisibilityForDragState(itemView, isDragged);
         }
-        mDragDelegate.updateItemViewVisibilityForDragState(itemView, isDragged);
+        return mDragDelegate.updateItemViewVisibilityForDragState(itemView, isDragged);
     }
 
     @Override
@@ -1956,6 +1962,19 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         mActivityContext.getDragLayer().getDescendantRectRelativeToSelf(overflowIcon,
                 overflowIconRect);
         return overflowIconRect.contains(Math.round(point[0]), Math.round(point[1]));
+    }
+
+    /**
+     * Cleans up the cached drag state in the overflow view.
+     *
+     * @param itemDropped True if the dragged object was successfully dropped.
+     */
+    public void cleanUpOverflowDragState(boolean itemDropped) {
+        TaskbarOverflowView overflowIcon = getTaskbarPinnedOverflowView();
+        if (overflowIcon == null) {
+            return;
+        }
+        overflowIcon.onItemDragEnded(itemDropped);
     }
 
     public static class TaskbarLayoutParams extends FrameLayout.LayoutParams {
