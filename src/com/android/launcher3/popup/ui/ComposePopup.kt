@@ -59,8 +59,9 @@ import com.android.launcher3.R
 import com.android.launcher3.model.data.ItemInfoWithIcon
 import com.android.launcher3.popup.ui.PopupMenuItemDimens.popupMenuItemHeight
 import com.android.launcher3.popup.ui.PopupMenuItemDimens.popupMenuItemHorizontalPadding
-import com.android.launcher3.popup.ui.PopupMenuItemDimens.popupMenuItemVerticalPadding
 import com.android.launcher3.popup.ui.PopupMenuItemDimens.popupMenuItemWidth
+import com.android.launcher3.testing.shared.TestProtocol.DEEP_SHORTCUTS_CONTAINER
+import com.android.launcher3.testing.shared.TestProtocol.SYSTEM_SHORTCUTS_CONTAINER
 import com.android.launcher3.util.compose.testTag
 import com.android.launcher3.util.compose.testTagContainer
 import kotlin.math.max
@@ -440,15 +441,12 @@ private fun SystemShortcutsSection(
     standardShortcuts: List<PopupItem>,
     onClick: (PopupClickEvent) -> Unit,
 ) {
-    Column {
+    Column(modifier = Modifier.testTag(SYSTEM_SHORTCUTS_CONTAINER)) {
         if (compactShortcuts.isNotEmpty()) {
             Row(
                 modifier =
                     Modifier.size(popupMenuItemWidth, popupMenuItemHeight)
-                        .padding(
-                            vertical = popupMenuItemVerticalPadding,
-                            horizontal = popupMenuItemHorizontalPadding,
-                        ),
+                        .padding(vertical = 0.dp, horizontal = popupMenuItemHorizontalPadding),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -508,7 +506,7 @@ private fun DeepShortcutsContent(
     onAddButtonClick: ((ItemInfoWithIcon) -> Unit)?,
     onDeepShortcutLongPress: (ItemInfoWithIcon, Offset) -> Unit,
 ) {
-    Column(modifier = Modifier.testTag("deep_shortcuts_container")) {
+    Column(modifier = Modifier.testTag(DEEP_SHORTCUTS_CONTAINER)) {
         deepShortcuts.forEach { shortcut ->
             DeepShortcutMenuItem(
                 shortcut = shortcut,
