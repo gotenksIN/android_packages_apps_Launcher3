@@ -51,6 +51,7 @@ import com.android.launcher3.Workspace;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUpdate;
 import com.android.launcher3.logging.StatsLogManager.EventEnum;
+import com.android.launcher3.model.data.WorkspaceItemCoordinates;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.ArrowPopup;
 import com.android.launcher3.shortcuts.DeepShortcutView;
@@ -266,16 +267,20 @@ public class OptionsPopupView<T extends Context & ActivityContext> extends Arrow
         return true;
     }
 
-    // TODO(b/449912243): Force page change animation.
     private static boolean createNewFolder(View view) {
         final Launcher launcher = Launcher.getLauncher(view.getContext());
         final Workspace<?> workspace = launcher.getWorkspace();
         final int currentScreenId = workspace.getScreenIdForPageIndex(workspace.getCurrentPage());
 
+        // NOTE: This causes the launcher to auto-scroll to the new file system folder once created
+        // provided that no further touch interaction occurs during the async operation.
+        launcher.resetLastTouchUpTime();
+
         HomeScreenFilesProvider.INSTANCE.get(launcher)
                 .createNewFolder(
                         HomeScreenFilesUpdate.Extras.builder()
-                            .findSpaceStartingFromScreenId(currentScreenId)
+                            .findSpaceStartingFrom(new WorkspaceItemCoordinates(
+                                    currentScreenId, /* cellX= */ 0, /* cellY= */ 0))
                             .build())
                 .whenComplete((result, throwable) -> {
                     if (throwable != null || !result) {
