@@ -201,6 +201,7 @@ public final class LauncherInstrumentation {
     private static final String OPEN_FOLDER_RES_ID = "folder_content";
     static final String TASKBAR_RES_ID = "taskbar_view";
     static final String TASKBAR_PINNING_SWITCH_RES_ID = "taskbar_pinning_switch";
+    static final String TASKBAR_SWITCH_OPTION_RES_ID = "taskbar_switch_option";
     static final String TASKBAR_DIVIDER_CONTAINER_RES_ID = "taskbar_divider_container";
     private static final String SPLIT_PLACEHOLDER_RES_ID = "split_placeholder";
     static final String KEYBOARD_QUICK_SWITCH_RES_ID = "keyboard_quick_switch_view";
@@ -1878,6 +1879,10 @@ public final class LauncherInstrumentation {
         return waitForObjectBySelector(getLauncherObjectSelector(resName));
     }
 
+    public void waitForTaskbarToShow() {
+        waitForSystemLauncherObject(TASKBAR_RES_ID);
+    }
+
     @NonNull
     UiObject2 waitForSystemLauncherObject(String resName) {
         return is3PLauncher() ? waitForOverviewObject(resName)
@@ -2702,8 +2707,9 @@ public final class LauncherInstrumentation {
     }
 
     /** Shows the taskbar if it is hidden, otherwise does nothing. */
-    public void showTaskbarIfHidden() {
-        getTestInfo(TestProtocol.REQUEST_UNSTASH_TASKBAR_IF_STASHED);
+    public boolean showTaskbarIfHidden() {
+        return getTestInfo(TestProtocol.REQUEST_UNSTASH_TASKBAR_IF_STASHED)
+                .getBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD);
     }
 
     /** Shows the bubble bar if it is stashed, otherwise this does nothing. */
