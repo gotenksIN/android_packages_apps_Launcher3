@@ -49,6 +49,7 @@ import android.window.OnBackInvokedDispatcher
 import android.window.RemoteTransition
 import android.window.SplashScreen
 import android.window.TransitionInfo
+import androidx.annotation.AnyThread
 import androidx.annotation.UiThread
 import androidx.core.animation.addListener
 import androidx.core.view.isVisible
@@ -129,6 +130,7 @@ import com.android.quickstep.util.QuickstepProtoLogGroup
 import com.android.quickstep.util.RecentsAtomicAnimationFactory
 import com.android.quickstep.util.RecentsWindowProtoLogProxy
 import com.android.quickstep.util.SurfaceTransactionApplier
+import com.android.quickstep.util.TraceStateLoggerHelper
 import com.android.quickstep.views.OverviewActionsView
 import com.android.quickstep.views.RecentsView
 import com.android.quickstep.views.RecentsViewContainer
@@ -204,7 +206,7 @@ constructor(
 
     private var callbacks: RecentsAnimationCallbacks? = null
 
-    private var taskbarInteractor: TaskbarInteractor? = null
+    @Volatile private var taskbarInteractor: TaskbarInteractor? = null
 
     private var oldConfiguration: Configuration? = null
     private var oldRotation: Int = -1
@@ -336,6 +338,8 @@ constructor(
 
         lifeCycle.addTask { destroy() }
         propertyHolder.value = this
+
+        TraceStateLoggerHelper(displayId).startTraceStateLogger(this)
     }
 
     @SuppressLint("InflateParams")
@@ -810,6 +814,7 @@ constructor(
             displayId != DEFAULT_DISPLAY
     }
 
+    @AnyThread
     override fun setTaskbarInteractor(taskbarInteractor: TaskbarInteractor?) {
         this.taskbarInteractor = taskbarInteractor
     }

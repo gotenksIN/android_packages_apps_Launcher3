@@ -19,7 +19,6 @@ import android.platform.test.rule.AllowedDevices
 import android.platform.test.rule.DeviceProduct
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator
 import com.android.launcher3.util.rule.ScreenRecordRule
-import com.android.launcher3.util.ui.ActivityStartUtils.startAppFast
 import com.android.quickstep.TaskbarModeSwitchRule.TaskbarModeSwitch
 import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
@@ -34,11 +33,8 @@ class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
 
     private lateinit var taskbarFeatureEvaluator: TaskbarFeatureEvaluator
 
-    override fun startCalculatorAppDuringSetup(): Boolean = false
-
     override fun setUp() {
         super.setUp()
-        startAppFast(CALCULATOR_APP_PACKAGE)
         taskbarFeatureEvaluator =
             TaskbarFeatureEvaluator.INSTANCE[mTargetContext][mTargetContext.displayId]!!
     }
