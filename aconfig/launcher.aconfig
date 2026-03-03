@@ -44,13 +44,6 @@ flag {
 }
 
 flag {
-    name: "enable_home_transition_listener"
-    namespace: "launcher"
-    description: "Enables launcher to listen to all transitions that include home activity"
-    bug: "306053414"
-}
-
-flag {
     name: "enable_taskbar_pinning"
     namespace: "launcher"
     description: "Enables taskbar pinning to allow user to switch between transient and persistent taskbar flavors."
@@ -300,13 +293,6 @@ flag {
   namespace: "launcher"
   description: "Changes mouse interaction behavior"
   bug: "388897603"
-}
-
-flag {
-  name: "enable_alt_tab_kqs_on_connected_displays"
-  namespace: "lse_desktop_experience"
-  description: "Enable Alt + Tab KQS support on connected displays"
-  bug: "394007677"
 }
 
 flag {
@@ -637,16 +623,6 @@ flag {
 }
 
 flag {
-  name: "enable_hotseat_drop_target_validity_checks"
-  namespace: "launcher"
-  description: "Enables hotseat drop target validity checks rather than blindly handling all drag events"
-  bug: "456188504"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
-
-flag {
     name: "enable_taskbar_a11y_more_options_button"
     namespace: "launcher"
     description: "Enables the 'More Options' button for accessibility features in the Taskbar"
@@ -665,6 +641,16 @@ flag {
 }
 
 flag {
+    name: "qsb_animation_minor_fixes"
+    namespace: "launcher"
+    description: "Fixed return animation for QSB. Did some minor tweaks for improving the animation."
+    bug: "453966496"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
   name: "move_to_rest_state_for_background_app"
   namespace: "launcher"
   description: "Move launcher to rest state if it is in background app state when starting back animation"
@@ -679,6 +665,13 @@ flag {
     namespace: "launcher"
     description: "Enables the kondo planner experience."
     bug: "450695990"
+}
+
+flag {
+  name: "double_tap_to_sleep"
+  namespace: "launcher"
+  description: "Enables double tap to sleep gesture on launcher"
+  bug: "394952494"
 }
 
 flag {
@@ -703,6 +696,23 @@ flag {
   namespace: "launcher"
   description: "Replaces existing Gesture Nav touch input with new SpyWindow optimizations"
   bug: "466226558"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+    name: "enable_cue_bar_desktop_form_factor"
+    namespace: "launcher"
+    description: "Enables a desktop specific layout for the cue bar."
+    bug: "481800795"
+}
+
+flag {
+  name: "fix_drop_target_accessibility_input_type"
+  namespace: "launcher"
+  description: "Removes TYPE_CLASS_TEXT from ButtonDropTarget to prevent TalkBack from announcing extra actions."
+  bug: "447064345"
   metadata {
     purpose: PURPOSE_BUGFIX
   }

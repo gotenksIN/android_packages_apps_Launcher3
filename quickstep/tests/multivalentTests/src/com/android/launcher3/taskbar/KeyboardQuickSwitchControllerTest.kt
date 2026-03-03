@@ -27,7 +27,6 @@ import android.view.Display.DEFAULT_DISPLAY
 import android.window.RemoteTransition
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.launcher3.Flags.FLAG_ENABLE_ALT_TAB_KQS_FLATENNING
-import com.android.launcher3.Flags.FLAG_ENABLE_ALT_TAB_KQS_ON_CONNECTED_DISPLAYS
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.waitForIdleSync
@@ -38,6 +37,10 @@ import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext_ModifiedComponent
 import com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR
 import com.android.launcher3.util.TestUtil.getOnTaskbarUiThread
+import com.android.launcher3.util.rule.TestStabilityRule
+import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability
+import com.android.launcher3.util.rule.TestStabilityRule.LOCAL
+import com.android.launcher3.util.rule.TestStabilityRule.PLATFORM_POSTSUBMIT
 import com.android.quickstep.RecentsModel
 import com.android.quickstep.SystemUiProxy
 import com.android.quickstep.util.DesktopTask
@@ -90,6 +93,8 @@ class KeyboardQuickSwitchControllerTest {
 
     @get:Rule(order = 2) val taskbarUnitTestRule = TaskbarUnitTestRule(context)
 
+    @get:Rule val testStabilityRule = TestStabilityRule()
+
     private val keyboardQuickSwitchController by
         taskbarUnitTestRule.delegate { it.keyboardQuickSwitchController }
     private val allAppsController by taskbarUnitTestRule.delegate { it.taskbarAllAppsController }
@@ -133,6 +138,7 @@ class KeyboardQuickSwitchControllerTest {
 
     @Test
     @DisableFlags(FLAG_ENABLE_ALT_TAB_KQS_FLATENNING)
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486204795)
     fun singleAndDesktopTasksPresent_notOnDesktopWithFlatenningOff_onlyShowSingleTaskIds() {
         updateRecentsModel(
             listOf(
@@ -202,26 +208,8 @@ class KeyboardQuickSwitchControllerTest {
     }
 
     @Test
-    @DisableFlags(FLAG_ENABLE_ALT_TAB_KQS_FLATENNING, FLAG_ENABLE_ALT_TAB_KQS_ON_CONNECTED_DISPLAYS)
-    fun multipleDesktopTasksPresent_onDesktopWithCdFlagOff_onlyShowCurrentDesktopTasks() {
-        updateRecentsModel(
-            listOf(
-                createDesktopTask(listOf(RUNNING_TASK_ID)),
-                createDesktopTask(listOf(PREVIOUS_TASK_ID)),
-            )
-        )
-        enableDesktopMode()
-
-        triggerAltTab()
-
-        assertThat(isKqsShown).isTrue()
-        assertThat(shownTaskIds).containsExactly(RUNNING_TASK_ID)
-    }
-
-    @Test
     @DisableFlags(FLAG_ENABLE_ALT_TAB_KQS_FLATENNING)
-    @EnableFlags(FLAG_ENABLE_ALT_TAB_KQS_ON_CONNECTED_DISPLAYS)
-    fun multipleDesktopTasksPresent_onDesktopWithCdFlagON_showAllDesktopTasks() {
+    fun multipleDesktopTasksPresent_onDesktop_showAllDesktopTasks() {
         updateRecentsModel(
             listOf(
                 createDesktopTask(listOf(RUNNING_TASK_ID)),

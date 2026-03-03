@@ -354,9 +354,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mIsSafeModeEnabled = TraceHelper.allowIpcs("isSafeMode",
                 () -> getPackageManager().isSafeMode());
 
-        // Get display and corners first, as views might use them in constructor.
-        Context c = getApplicationContext();
-        mWindowManager = c.getSystemService(WindowManager.class);
+        mWindowManager = windowContext.getSystemService(WindowManager.class);
 
         // Inflate views.
         boolean isTransientTaskbar = isTransientTaskbar();
@@ -413,10 +411,10 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
         // Construct controllers.
         RotationButtonController rotationButtonController = new RotationButtonController(
-                new RotationPolicyWrapperImpl(c),
+                new RotationPolicyWrapperImpl(windowContext),
                 this,
-                c.getColor(R.color.floating_rotation_button_light_color),
-                c.getColor(R.color.floating_rotation_button_dark_color),
+                windowContext.getColor(R.color.floating_rotation_button_light_color),
+                windowContext.getColor(R.color.floating_rotation_button_dark_color),
                 R.drawable.ic_sysbar_rotate_button_ccw_start_0,
                 R.drawable.ic_sysbar_rotate_button_ccw_start_90,
                 R.drawable.ic_sysbar_rotate_button_cw_start_0,
@@ -435,7 +433,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 new TaskbarScrimViewController(this, taskbarScrimView),
                 new TaskbarUnfoldAnimationController(this, unfoldTransitionProgressProvider,
                         mWindowManager,
-                        new RotationChangeProvider(c.getSystemService(DisplayManager.class), this,
+                        new RotationChangeProvider(
+                                windowContext.getSystemService(DisplayManager.class), this,
                                 UI_HELPER_EXECUTOR.getHandler(), getMainThreadHandler())),
                 new TaskbarKeyguardController(this),
                 new StashedHandleViewController(this, stashedHandleView),
@@ -530,13 +529,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     }
 
     /**
-     * Used to confirm we are on AL device.
-     */
-    public boolean shouldShowHomeBehindDesktop() {
-        return DesktopState.getInstance(this).getShouldShowHomeBehindDesktop();
-    }
-
-    /**
      * Copy the original DeviceProfile, match the number of hotseat icons and qsb width and update
      * the icon size
      */
@@ -603,7 +595,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      * @param duration If duration is greater than 0, it will be used to create an animation
  *                     for the taskbar create/recreate process.
      */
-    public void init(@NonNull TaskbarSharedState sharedState, int duration) {
+    public void init(@NonNull TaskbarSharedState sharedState, boolean userUnlocked, int duration) {
         mImeDrawsImeNavBar = getBoolByName(IME_DRAWS_IME_NAV_BAR_RES_NAME, getResources(), false)
                 && isPrimaryDisplay();
         mLastRequestedNonFullscreenSize = getDefaultTaskbarWindowSize();
@@ -617,7 +609,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         }
 
         // Initialize controllers after all are constructed.
-        mControllers.init(sharedState, recreateAnim, mTaskbarUiState);
+        mControllers.init(sharedState, recreateAnim, mTaskbarUiState, userUnlocked);
         // This may not be necessary and can be reverted once we move towards recreating all
         // controllers without re-creating the window
         mControllers.rotationButtonController.onNavigationModeChanged(mNavMode.resValue);
@@ -1417,6 +1409,13 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     public void onNavButtonsDarkIntensityChanged(float darkIntensity) {
         mControllers.navbarButtonsViewController.getTaskbarNavButtonDarkIntensity().updateValue(
                 darkIntensity);
+    }
+
+    /**
+     * Called when assistant long press enabled state changes.
+     */
+    public void onLongPressHomeEnabledChanged() {
+        mControllers.navbarButtonsViewController.onLongPressHomeEnabledChanged();
     }
 
     public void onNavigationBarLumaSamplingEnabled(int displayId, boolean enable) {
