@@ -16,6 +16,7 @@
 
 package com.android.launcher3.homescreenfiles
 
+import android.content.ClipDescription.MIMETYPE_UNKNOWN
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.ContentValues
@@ -34,6 +35,7 @@ import android.provider.MediaStore.Files.FileColumns.RELATIVE_PATH
 import android.provider.MediaStore.Files.FileColumns._ID
 import android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY
 import android.util.Log
+import android.webkit.MimeTypeMap
 import androidx.annotation.WorkerThread
 import androidx.core.database.getStringOrNull
 import com.android.launcher3.R
@@ -96,7 +98,7 @@ class HomeScreenFilesMediaStoreProvider(
 
                     updates.dispatchValue(
                         HomeScreenFilesUpdate(
-                            query(uri).thenApply { file ->
+                            supplyAsync({ query(uri) }, executorService).thenApply { file ->
                                 buildMap {
                                     put(uri, file)
                                     uriAlias?.run { put(this, file) }
@@ -198,14 +200,19 @@ class HomeScreenFilesMediaStoreProvider(
 
     override fun moveToHomeScreen(
         uriList: List<Uri>,
+        extras: HomeScreenFilesUpdate.Extras,
         relativeFolderPath: String?,
     ): List<CompletableFuture<Boolean>> =
         uriList.map { uri: Uri ->
-            supplyAsync({ moveToHomeScreen(uri, relativeFolderPath) }, executorService)
+            supplyAsync({ moveToHomeScreen(uri, extras, relativeFolderPath) }, executorService)
         }
 
     @WorkerThread
-    private fun moveToHomeScreen(uri: Uri, relativeFolderPath: String?): Boolean {
+    private fun moveToHomeScreen(
+        uri: Uri,
+        extras: HomeScreenFilesUpdate.Extras,
+        relativeFolderPath: String?,
+    ): Boolean {
         val mediaUri = getExternalPrimaryMediaStoreUri(context, uri)
         if (mediaUri == null) {
             Log.e(
@@ -224,43 +231,49 @@ class HomeScreenFilesMediaStoreProvider(
             return false
         }
 
-        val originalFile =
-            runCatching { query(mediaUri, selection = null, selectionArgs = null).get() }
-                .getOrNull()
-        if (originalFile == null) {
-            Log.e(TAG, "Failed to query the media store item in its original location")
-            return false
-        }
+        // Cache extras to be applied during the next scheduled update task for [mediaUri]. These
+        // will be used when adding the new file to the launcher model.
+        inProgressChangeExtras[mediaUri] = extras
 
         var success = false
         try {
-            // NOTE: The selection criteria below prevents moving a URI to a path it already
-            // occupies; the media provider has additional protections to prevent recursive moves.
-            val relativePath = "$HOME_SCREEN_FOLDER_RELATIVE_PATH${relativeFolderPath ?: ""}"
-            success =
-                (context.contentResolver.update(
-                    /*uri=*/ mediaUri,
-                    /*contentValues=*/ ContentValues().apply {
-                        put(RELATIVE_PATH, relativePath)
-                        if (originalFile.isDirectory) {
-                            put(MIME_TYPE, MIME_TYPE_DIR)
-                        }
-                    },
-                    /*where=*/ "$RELATIVE_PATH != ?",
-                    /*selectionArgs=*/ arrayOf(relativePath),
-                ) == 1)
-            if (!success) {
+            val file = query(mediaUri, selection = null, selectionArgs = null)
+            if (file == null) {
                 Log.e(
                     TAG,
-                    "Unable to move to '$HOME_SCREEN_FOLDER_RELATIVE_PATH' possibly due to unmet " +
-                        "selection criteria or the media provider itself enforcing additional " +
-                        "unmet conditions",
+                    "Unable to move to '$HOME_SCREEN_FOLDER_RELATIVE_PATH' due to inability to " +
+                        "query the backing file.",
                 )
+            } else {
+                // NOTE: The selection criteria below prevents moving a URI to a path it already
+                // occupies; MediaProvider has additional protections to prevent recursive moves.
+                val relativePath = "$HOME_SCREEN_FOLDER_RELATIVE_PATH${relativeFolderPath ?: ""}"
+                success =
+                    (context.contentResolver.update(
+                        /*uri=*/ mediaUri,
+                        /*contentValues=*/ ContentValues().apply {
+                            put(RELATIVE_PATH, relativePath)
+                            if (file.isDirectory) {
+                                put(MIME_TYPE, MIME_TYPE_DIR)
+                            }
+                        },
+                        /*where=*/ "$RELATIVE_PATH != ?",
+                        /*selectionArgs=*/ arrayOf(relativePath),
+                    ) == 1)
+                if (!success) {
+                    Log.e(
+                        TAG,
+                        "Unable to move to '$HOME_SCREEN_FOLDER_RELATIVE_PATH' possibly due to " +
+                            "unmet selection criteria or the media provider itself enforcing " +
+                            "additional unmet conditions",
+                    )
+                }
             }
         } catch (e: RuntimeException) {
             Log.e(TAG, "Unable to move to '$HOME_SCREEN_FOLDER_RELATIVE_PATH' due to exception", e)
         } finally {
             if (!success) {
+                inProgressChangeExtras.remove(mediaUri)
                 inProgressMoveToHomeScreenUriAliases.remove(mediaUri)
             }
         }
@@ -371,56 +384,98 @@ class HomeScreenFilesMediaStoreProvider(
     }
 
     /** Queries a single file from MediaStore by its URI. */
+    @WorkerThread
     private fun query(
         uri: Uri,
         selection: String? = QUERY_DEFAULT_SELECTION,
         selectionArgs: Array<String>? = QUERY_DEFAULT_SELECTION_ARGS,
-    ): CompletableFuture<HomeScreenFile?> {
+    ): HomeScreenFile? {
         if (!isExternalPrimaryMediaStoreUri(uri)) {
-            return CompletableFuture.completedFuture(null)
+            return null
         }
-        return supplyAsync(
-                {
-                    context.contentResolver.query(
-                        uri,
-                        QUERY_DEFAULT_PROJECTION,
-                        selection,
-                        selectionArgs,
-                        null,
-                        null,
-                    )
-                },
-                executorService,
-            )
-            .thenApply { cursor ->
-                cursor?.use {
-                    if (it.count == 1) {
-                        it.moveToFirst()
-                        val displayNameColumnIndex = it.getColumnIndex(DISPLAY_NAME)
-                        val dataColumnIndex = it.getColumnIndex(DATA)
-                        val mimeTypeColumnIndex = it.getColumnIndex(MIME_TYPE)
-                        val mimeType = it.getStringOrNull(mimeTypeColumnIndex)
-                        HomeScreenFile(
-                            uri = uri,
-                            displayName = it.getString(displayNameColumnIndex),
-                            mimeType = mimeType,
-                            isDirectory =
-                                fileFactory.invoke(it.getString(dataColumnIndex)).let { f ->
-                                    // Defer to [mimeType] when the file does not yet exist.
-                                    (f.exists() && f.isDirectory) || (mimeType == MIME_TYPE_DIR)
-                                },
-                            user = Process.myUserHandle(),
-                        )
-                    } else {
-                        null
+        return runCatching {
+                context.contentResolver
+                    .query(uri, QUERY_DEFAULT_PROJECTION, selection, selectionArgs, null, null)
+                    ?.use {
+                        if (it.count == 1) {
+                            it.moveToFirst()
+                            val displayNameColumnIndex = it.getColumnIndex(DISPLAY_NAME)
+                            val dataColumnIndex = it.getColumnIndex(DATA)
+                            val mimeTypeColumnIndex = it.getColumnIndex(MIME_TYPE)
+                            val mimeType = it.getStringOrNull(mimeTypeColumnIndex)
+                            HomeScreenFile(
+                                uri = uri,
+                                displayName = it.getString(displayNameColumnIndex),
+                                mimeType = mimeType,
+                                isDirectory =
+                                    fileFactory.invoke(it.getString(dataColumnIndex)).let { f ->
+                                        // Defer to [mimeType] when the file does not yet exist.
+                                        (f.exists() && f.isDirectory) || (mimeType == MIME_TYPE_DIR)
+                                    },
+                                user = Process.myUserHandle(),
+                            )
+                        } else {
+                            null
+                        }
                     }
-                }
             }
-            .exceptionally {
+            .getOrElse {
                 Log.e(TAG, "Unable to query a single file or folder by its URI", it)
                 null
             }
     }
+
+    override fun rename(uri: Uri, name: String): CompletableFuture<Boolean> =
+        supplyAsync(
+            {
+                val mediaStoreUri = getExternalPrimaryMediaStoreUri(context, uri)
+                if (mediaStoreUri == null) {
+                    Log.e(TAG, "Unable to rename due to unsupported URI")
+                    return@supplyAsync false
+                }
+
+                var success = false
+
+                try {
+                    val file = query(mediaStoreUri, null, null)
+                    if (file == null) {
+                        Log.e(TAG, "Unable to rename due to inability to query the backing file")
+                    } else {
+                        success =
+                            context.contentResolver.update(
+                                /*uri=*/ mediaStoreUri,
+                                /*contentValues=*/ ContentValues().apply {
+                                    // NOTE: The media provider performs its own sanitization/
+                                    // validation of the [DISPLAY_NAME] column.
+                                    put(DISPLAY_NAME, name)
+                                    if (file.isDirectory) {
+                                        put(MIME_TYPE, MIME_TYPE_DIR)
+                                    } else {
+                                        MimeTypeMap.getSingleton()
+                                            .getMimeTypeFromExtension(File(name).extension)
+                                            .run { put(MIME_TYPE, this ?: MIMETYPE_UNKNOWN) }
+                                    }
+                                },
+                                /*where=*/ "$RELATIVE_PATH == ?",
+                                /*selectionArgs=*/ arrayOf(HOME_SCREEN_FOLDER_RELATIVE_PATH),
+                            ) == 1
+                        if (!success) {
+                            Log.e(
+                                TAG,
+                                "Unable to rename possibly due to unmet selection criteria or " +
+                                    "the media provider itself enforcing additional unmet " +
+                                    "conditions",
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Unable to rename due to exception", e)
+                }
+
+                return@supplyAsync success
+            },
+            executorService,
+        )
 
     companion object {
         private const val MEDIA_STORE_VALUE_FALSE = "0"
@@ -465,8 +520,7 @@ class HomeScreenFilesMediaStoreProvider(
         private fun isExternalPrimaryMediaStoreUri(uri: Uri) =
             uri.scheme == ContentResolver.SCHEME_CONTENT &&
                 uri.authority == MediaStore.AUTHORITY &&
-                kotlin
-                    .runCatching { MediaStore.getVolumeName(uri) == VOLUME_EXTERNAL_PRIMARY }
+                runCatching { MediaStore.getVolumeName(uri) == VOLUME_EXTERNAL_PRIMARY }
                     .getOrDefault(false)
 
         private fun isExternalStorageProviderUri(uri: Uri?) =
@@ -474,6 +528,6 @@ class HomeScreenFilesMediaStoreProvider(
                 uri.authority == DocumentsContract.EXTERNAL_STORAGE_PROVIDER_AUTHORITY
 
         private fun Uri.hasIdSegment(): Boolean =
-            kotlin.runCatching { ContentUris.parseId(this) != -1L }.getOrDefault(false)
+            runCatching { ContentUris.parseId(this) != -1L }.getOrDefault(false)
     }
 }

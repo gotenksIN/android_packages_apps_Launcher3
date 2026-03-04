@@ -35,6 +35,7 @@ class HomeScreenFilesNoOpProvider : HomeScreenFilesProvider {
 
     override fun moveToHomeScreen(
         uriList: List<Uri>,
+        extras: HomeScreenFilesUpdate.Extras,
         relativeFolderPath: String?,
     ): List<CompletableFuture<Boolean>> = uriList.map { CompletableFuture.completedFuture(false) }
 
@@ -48,4 +49,7 @@ class HomeScreenFilesNoOpProvider : HomeScreenFilesProvider {
 
     override fun query(): CompletableFuture<Map<Uri, HomeScreenFile>> =
         CompletableFuture.completedFuture(emptyMap())
+
+    override fun rename(uri: Uri, name: String): CompletableFuture<Boolean> =
+        CompletableFuture.completedFuture(false)
 }
