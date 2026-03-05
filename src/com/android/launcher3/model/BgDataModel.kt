@@ -211,6 +211,11 @@ constructor(
     @Synchronized
     fun dataLoadComplete(allItems: SparseArray<ItemInfo>) {
         mutableWorkspaceData.replaceDataMap(allItems)
+        dispatchRebind()
+    }
+
+    @Synchronized
+    fun dispatchRebind() {
         if (Flags.modelRepository()) {
             repo.get().dispatchWorkspaceDataChange(mutableWorkspaceData.copy(), null)
         }
@@ -432,10 +437,12 @@ constructor(
         /** Binds updated incremental download progress */
         fun bindIncrementalDownloadProgressUpdated(app: AppInfo) {}
 
+        // Migrated to repository
         /** Binds the app widgets to the providers that share widgets with the UI. */
         fun bindAllWidgets(widgets: List<@JvmSuppressWildcards WidgetsListBaseEntry>) {}
 
         /** Binds extra item provided any external source */
+        // Migrated to repository
         fun bindExtraContainerItems(item: FixedContainerItems) {}
 
         // Migrated to repository

@@ -75,13 +75,6 @@ flag {
 }
 
 flag {
-    name: "enable_tablet_two_pane_picker_v2"
-    namespace: "launcher"
-    description: "Enables full width two pane widget picker for tablets in landscape and portrait"
-    bug: "315055849"
-}
-
-flag {
     name: "enable_two_pane_launcher_settings"
     namespace: "launcher"
     description: "Enables two panel settings when on large enough displays"
@@ -96,14 +89,6 @@ flag {
 }
 
 flag {
-    name: "enable_launcher_br_metrics_fixed"
-    namespace: "launcher"
-    description: "Enables logging of Launcher restore metrics to the Backup & Restore team"
-    bug: "307527314"
-    is_fixed_read_only: true
-}
-
-flag {
     name: "enable_reboot_unlock_animation"
     namespace: "launcher"
     description: "Enables unlock animation after device reboot"
@@ -115,13 +100,6 @@ flag {
     namespace: "launcher"
     description: "Tie unfold animation with state animation"
     bug: "297057373"
-}
-
-flag {
-  name: "enable_categorized_widget_suggestions"
-  namespace: "launcher"
-  description: "Enables widget suggestions in widget picker to be displayed in categories"
-  bug: "318410881"
 }
 
 flag {
@@ -154,17 +132,6 @@ flag {
     namespace: "launcher"
     description: "Enables folders in all apps"
     bug: "341582436"
-}
-
-flag {
-  name: "enable_first_screen_broadcast_archiving_extras"
-  namespace: "launcher"
-  description: "adds Extras to first screen broadcast for archived apps"
-  bug: "322314760"
-  is_fixed_read_only: true
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
 }
 
 flag {
@@ -268,13 +235,6 @@ flag {
     namespace: "lse_desktop_experience"
     description: "Enables tracking state manager logs in ProtoLog"
     bug: "292269949"
-}
-
-flag {
-    name: "enable_tiered_widgets_by_default_in_picker"
-    namespace: "launcher"
-    description: "Shows filtered set of widgets by default and an option to show all widgets in the widget picker"
-    bug: "356127021"
 }
 
 flag {
@@ -433,13 +393,6 @@ flag {
 }
 
 flag {
-  name: "enable_widget_picker_refactor"
-  namespace: "launcher"
-  description: "Enables the refactored code for widget picker using separate activity and module"
-  bug: "370950552"
-}
-
-flag {
     name: "enable_reversible_home_action_corner"
     namespace: "launcher"
     description: "Enables home action corner to be reversible"
@@ -571,16 +524,6 @@ flag {
   namespace: "launcher"
   description: "Enable blur in more Launcher surfaces"
   bug: "444141641"
-}
-
-flag {
-  name: "fix_widget_drag_radius_loss"
-  namespace: "launcher"
-  description: "Fixes issue that during drag and drop, radius clips were lost"
-  bug: "326128683"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
 }
 
 flag {
@@ -743,4 +686,24 @@ flag {
     namespace: "launcher"
     description: "Enables the kondo planner experience."
     bug: "450695990"
+}
+
+flag {
+  name: "reduce_workspace_blur_usage"
+  namespace: "launcher"
+  description: "Disables the full workspace blur and zoom effects behind surfaces like the \"All apps\" panel or the widget picker"
+  bug: "455987559"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "enable_drag_enter_exit_support"
+  namespace: "launcher"
+  description: "Enables support for drag enter/exit."
+  bug: "456191832"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }

@@ -240,9 +240,9 @@
     <!-- Label for bubbling a launcher item. [CHAR_LIMIT=20] -->
     <string name="bubble">Bubble</string>
     <!-- Label for enabling App Lock for an app. [CHAR_LIMIT=20] -->
-    <string name="enable_app_lock">Lock app</string>
+    <string name="enable_app_lock">App lock</string>
     <!-- Label for disabling App Lock for an app. [CHAR_LIMIT=20] -->
-    <string name="disable_app_lock">Remove lock</string>
+    <string name="disable_app_lock">Remove app lock</string>
     <!-- Label for widget settings shows in the long press menu for widgets. [CHAR_LIMIT=20] -->
     <string name="widget_settings">Settings</string>
     <!-- Label for adding (pinning) an item to the taskbar. [CHAR_LIMIT=20] -->
@@ -285,8 +285,6 @@
     <string name="actions_popup_menu_button">Actions</string>
     <!-- Label for expanding app shortcuts in popup menu-->
     <string name="shortcuts_popup_menu_button">Shortcuts</string>
-    <!-- Description for loading app shortcuts-->
-    <string name="loading_shortcut">Loading shortcut</string>
 
     <!-- Label for pausing an app [CHAR_LIMIT=20] -->
     <string name="pause_app_label">Pause app</string>

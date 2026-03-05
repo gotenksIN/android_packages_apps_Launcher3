@@ -54,6 +54,7 @@ import com.android.quickstep.RecentsAnimationDeviceState;
 import com.android.quickstep.RecentsAnimationTargets;
 import com.android.quickstep.RemoteAnimationTargets;
 import com.android.quickstep.RotationTouchHelper;
+import com.android.quickstep.SurfaceReleaseCheck;
 import com.android.quickstep.TaskAnimationManager;
 import com.android.quickstep.util.ActiveGestureLog;
 import com.android.quickstep.util.SurfaceTransaction.SurfaceProperties;
@@ -223,7 +224,8 @@ public class DeviceLockedInputConsumer implements InputConsumer,
                         // This will come back and cancel the interaction.
                         startHomeIntentSafely(mContext, mGestureState.getHomeIntent(), null, TAG);
                         mHomeLaunched = true;
-                    } else if (mTaskAnimationManager.getCurrentCallbacks() != null) {
+                    }
+                    if (mTaskAnimationManager.getCurrentCallbacks() != null) {
                         if (mRecentsAnimationController != null) {
                             finishRecentsAnimationForShell(dismissTask);
                         } else {
@@ -323,8 +325,7 @@ public class DeviceLockedInputConsumer implements InputConsumer,
         return !mThresholdCrossed;
     }
 
-    private static final class DeviceLockedReleaseCheck extends
-            RemoteAnimationTargets.ReleaseCheck {
+    private static final class DeviceLockedReleaseCheck extends SurfaceReleaseCheck {
 
         private DeviceLockedReleaseCheck(Animator animator) {
             setCanRelease(true);

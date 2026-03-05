@@ -20,6 +20,7 @@ import static android.view.View.MeasureSpec.makeMeasureSpec;
 import static android.view.View.VISIBLE;
 
 import static com.android.launcher3.Hotseat.ALPHA_CHANNEL_PREVIEW_RENDERER;
+import static com.android.launcher3.LauncherModel.useModelRepositoryBinding;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION;
 import static com.android.launcher3.Utilities.qsbOnFirstScreen;
 import static com.android.launcher3.model.ModelUtils.currentScreenContentFilter;
@@ -156,28 +157,28 @@ public class LauncherPreviewRenderer extends BaseContext
 
         CellLayout firstScreen = mRootView.findViewById(R.id.workspace);
         firstScreen.setPadding(
-                mDp.getWorkspaceIconProfile().getWorkspacePadding().left
-                        + mDp.getWorkspaceIconProfile().getCellLayoutPaddingPx().left,
-                mDp.getWorkspaceIconProfile().getWorkspacePadding().top
-                        + mDp.getWorkspaceIconProfile().getCellLayoutPaddingPx().top,
+                mDp.getWorkspaceProfile().getWorkspacePadding().left
+                        + mDp.getWorkspaceProfile().getCellLayoutPaddingPx().left,
+                mDp.getWorkspaceProfile().getWorkspacePadding().top
+                        + mDp.getWorkspaceProfile().getCellLayoutPaddingPx().top,
                 mDp.getDeviceProperties().isTwoPanels() ? (
-                        mDp.getWorkspaceIconProfile().getCellLayoutBorderSpacePx().x / 2)
-                        : (mDp.getWorkspaceIconProfile().getWorkspacePadding().right
-                                + mDp.getWorkspaceIconProfile().getCellLayoutPaddingPx().right),
-                mDp.getWorkspaceIconProfile().getWorkspacePadding().bottom
-                        + mDp.getWorkspaceIconProfile().getCellLayoutPaddingPx().bottom
+                        mDp.getWorkspaceProfile().getCellLayoutBorderSpacePx().x / 2)
+                        : (mDp.getWorkspaceProfile().getWorkspacePadding().right
+                                + mDp.getWorkspaceProfile().getCellLayoutPaddingPx().right),
+                mDp.getWorkspaceProfile().getWorkspacePadding().bottom
+                        + mDp.getWorkspaceProfile().getCellLayoutPaddingPx().bottom
         );
 
         if (mDp.getDeviceProperties().isTwoPanels()) {
             CellLayout rightPanel = mRootView.findViewById(R.id.workspace_right);
             rightPanel.setPadding(
-                    mDp.getWorkspaceIconProfile().getCellLayoutBorderSpacePx().x / 2,
-                    mDp.getWorkspaceIconProfile().getWorkspacePadding().top
-                            + mDp.getWorkspaceIconProfile().getCellLayoutPaddingPx().top,
-                    mDp.getWorkspaceIconProfile().getWorkspacePadding().right
-                            + mDp.getWorkspaceIconProfile().getCellLayoutPaddingPx().right,
-                    mDp.getWorkspaceIconProfile().getWorkspacePadding().bottom
-                            + mDp.getWorkspaceIconProfile().getCellLayoutPaddingPx().bottom
+                    mDp.getWorkspaceProfile().getCellLayoutBorderSpacePx().x / 2,
+                    mDp.getWorkspaceProfile().getWorkspacePadding().top
+                            + mDp.getWorkspaceProfile().getCellLayoutPaddingPx().top,
+                    mDp.getWorkspaceProfile().getWorkspacePadding().right
+                            + mDp.getWorkspaceProfile().getCellLayoutPaddingPx().right,
+                    mDp.getWorkspaceProfile().getWorkspacePadding().bottom
+                            + mDp.getWorkspaceProfile().getCellLayoutPaddingPx().bottom
             );
 
             int closestEvenPageId = workspaceScreenId - (workspaceScreenId % 2);
@@ -196,7 +197,11 @@ public class LauncherPreviewRenderer extends BaseContext
                 mHotseat
         );
         onViewCreated();
-        model.addCallbacksAndLoad(this);
+        if (useModelRepositoryBinding()) {
+            model.activate();
+        } else {
+            model.addCallbacksAndLoad(this);
+        }
         getLifecycle().addObserver(new DefaultLifecycleObserver() {
             @Override
             public void onDestroy(@NonNull LifecycleOwner owner) {
