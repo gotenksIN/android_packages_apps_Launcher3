@@ -31,7 +31,6 @@ import static com.android.launcher3.Utilities.dpToPx;
 import static com.android.launcher3.Utilities.mapRange;
 import static com.android.launcher3.anim.AnimatedFloat.VALUE;
 import static com.android.launcher3.anim.AnimatorListeners.forEndCallback;
-import static com.android.launcher3.config.FeatureFlags.enableTaskbarPinning;
 import static com.android.launcher3.taskbar.TaskbarActivityContext.TASKBAR_WINDOW_ICONS_TRANSITION;
 import static com.android.launcher3.taskbar.TaskbarPinningController.PINNING_PERSISTENT;
 import static com.android.launcher3.taskbar.TaskbarPinningController.PINNING_TRANSIENT;
@@ -209,7 +208,7 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
 
     private final View.OnLayoutChangeListener mTaskbarViewLayoutChangeListener =
             (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
-                if (enableTaskbarPinning() && mBubbleControllers != null) {
+                if (mBubbleControllers != null) {
                     mControllers.navbarButtonsViewController.onLayoutsUpdated();
                     adjustTaskbarXForBubbleBar();
                     BubbleBarViewController bbvc = mBubbleControllers.bubbleBarViewController;
@@ -875,14 +874,29 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
         }
 
         Set<Integer> shownTasks = new HashSet<>();
+
+        // Add IDs for all running tasks currently visible on the taskbar.
         for (BubbleTextView iconView : getAllAppIcons()) {
-            if (iconView.getTag() instanceof TaskItemInfo itemInfo) {
-                shownTasks.add(itemInfo.getTaskId());
-            } else if (iconView.getTag() instanceof SingleTask task) {
-                shownTasks.add(task.getTask().getKey().id);
+            addTaskIdFromTag(iconView.getTag(), shownTasks);
+        }
+
+        // Add IDs for pinned apps that are running but currently hidden in the overflow.
+        TaskbarOverflowView pinnedOverflow = mTaskbarView.getTaskbarPinnedOverflowView();
+        if (pinnedOverflow != null) {
+            for (ItemInfo item : pinnedOverflow.getOverflowInfoList()) {
+                addTaskIdFromTag(item, shownTasks);
             }
         }
+
         return shownTasks;
+    }
+
+    private void addTaskIdFromTag(Object tag, Set<Integer> outSet) {
+        if (tag instanceof TaskItemInfo taskItem) {
+            outSet.add(taskItem.getTaskId());
+        } else if (tag instanceof SingleTask task) {
+            outSet.add(task.getTask().key.id);
+        }
     }
 
     /**
@@ -1183,7 +1197,7 @@ public class TaskbarViewController implements TaskbarControllers.LoggableTaskbar
                 // to avoid icons disappearing rather than fading out visually.
                 setter.setViewAlpha(child, 0, Interpolators.clampToProgress(LINEAR, 0.8f, 1f));
             } else if ((isAllAppsButton && !FeatureFlags.enableAllAppsButtonInHotseat())
-                    || (isTaskbarDividerView && enableTaskbarPinning())
+                    || isTaskbarDividerView
                     || (isRecentTask && !isRecentsInHotseat)
                     || isTaskbarOverflowView) {
                 if (!isToHome

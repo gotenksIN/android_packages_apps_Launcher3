@@ -62,6 +62,7 @@ import com.android.launcher3.anim.AnimatorListeners;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.taskbar.bubbles.stashing.BubbleStashController.BubbleLauncherState;
 import com.android.launcher3.util.MultiPropertyFactory.MultiProperty;
+import com.android.launcher3.util.Preconditions;
 import com.android.launcher3.util.SafeCloseable;
 import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.OverviewComponentObserver;
@@ -228,6 +229,7 @@ public class TaskbarLauncherStateController {
 
                 @Override
                 public void onStateTransitionStart(LauncherState toState) {
+                    Preconditions.assertTaskbarUiThread();
                     if (Flags.allAppsSurface() && toState == LauncherState.ALL_APPS) {
                         mControllers.taskbarAllAppsController.show(
                                 /* animate = */ false, /* showKeyboard = */ false);
@@ -256,6 +258,7 @@ public class TaskbarLauncherStateController {
 
                 @Override
                 public void onStateTransitionComplete(LauncherState finalState) {
+                    Preconditions.assertTaskbarUiThread();
                     mLauncherState = finalState;
                     updateStateForFlag(FLAG_LAUNCHER_IN_STATE_TRANSITION, false);
                     applyState();
@@ -264,17 +267,25 @@ public class TaskbarLauncherStateController {
             };
     private @Nullable SafeCloseable mStateListenerClosable;
 
+    /**
+     * This listener is notified on main thread from recents, we need to forward callback to
+     * taskbar ui thread.
+     */
     private final StateManager.StateListener<RecentsState> mRecentsStateListener =
             new StateManager.StateListener<>() {
 
                 @Override
                 public void onStateTransitionStart(RecentsState toState) {
-                    mStateListener.onStateTransitionStart(toLauncherState(toState));
+                    getTaskbarUiThread().execute(() -> {
+                        mStateListener.onStateTransitionStart(toLauncherState(toState));
+                    });
                 }
 
                 @Override
                 public void onStateTransitionComplete(RecentsState finalState) {
-                    mStateListener.onStateTransitionComplete(toLauncherState(finalState));
+                    getTaskbarUiThread().execute(() -> {
+                        mStateListener.onStateTransitionComplete(toLauncherState(finalState));
+                    });
                 }
             };
 
@@ -620,7 +631,9 @@ public class TaskbarLauncherStateController {
             }
         }
 
-        if (hasAnyFlag(changedFlags, FLAGS_LAUNCHER_ACTIVE)) {
+        // Comparing FLAGS_LAUNCHER_ACTIVE directly does not compare isInLauncher correctly,
+        // so use the previous state to compare instead
+        if (isInLauncher != isInLauncher(mState ^ changedFlags)) {
             animatorSet.addListener(new AnimatorListenerAdapter() {
                 @Override
                 public void onAnimationStart(Animator animation) {
@@ -1055,10 +1068,14 @@ public class TaskbarLauncherStateController {
 
     /** Whether the launcher is considered active. */
     private boolean isInLauncher() {
-        if (hasAnyFlag(FLAG_AWAKE)) {
-            return hasAnyFlag(FLAGS_LAUNCHER_ACTIVE);
+        return isInLauncher(mState);
+    }
+
+    private boolean isInLauncher(int state) {
+        if (hasAnyFlag(state, FLAG_AWAKE)) {
+            return hasAnyFlag(state, FLAGS_LAUNCHER_ACTIVE);
         } else {
-            return hasAnyFlag(FLAG_LAUNCHER_WAS_ACTIVE_WHILE_AWAKE);
+            return hasAnyFlag(state, FLAG_LAUNCHER_WAS_ACTIVE_WHILE_AWAKE);
         }
     }
 

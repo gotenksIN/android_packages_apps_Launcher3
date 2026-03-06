@@ -16,4 +16,9 @@
 
 package com.android.launcher3.organizer.creation.screen.ui.spacecreator
 
+/**
+ * State for [CreateScreen] and all it's composables.
+ *
+ * @param topics list of topics to classify the applications.
+ */
 data class CreateScreenState(val topics: List<String> = listOf())

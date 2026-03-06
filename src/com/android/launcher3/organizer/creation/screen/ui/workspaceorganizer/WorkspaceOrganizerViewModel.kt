@@ -20,44 +20,243 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.android.launcher3.organizer.creation.screen.ui.BitmapBackedPageUI
-import com.android.launcher3.organizer.creation.screen.ui.WorkspacePreviewRepository
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.android.launcher3.CellLayout
+import com.android.launcher3.Launcher
+import com.android.launcher3.LauncherApplication
+import com.android.launcher3.LauncherModel
+import com.android.launcher3.concurrent.annotations.LightweightBackgroundContext
+import com.android.launcher3.concurrent.annotations.LightweightBackgroundPriority.UI
+import com.android.launcher3.icons.BitmapRenderer
+import com.android.launcher3.model.IModelWriter
+import com.android.launcher3.model.repository.HomeScreenRepository
+import com.android.launcher3.model.scheduleTransactionSuspending
+import java.lang.ref.WeakReference
 import javax.inject.Inject
-import kotlinx.coroutines.flow.SharingStarted
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** View model used by the [WorkspaceOrganizerActivity] and its composables. */
 class WorkspaceOrganizerViewModel
 @Inject
-constructor(workspacePagesRepository: WorkspacePreviewRepository) : ViewModel() {
-
-    val workspacePages: StateFlow<List<WorkspacePage>> =
-        workspacePagesRepository
-            .getPages()
-            .map { it.map { pages -> WorkspacePage((pages as BitmapBackedPageUI).bitmap) } }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(),
-                initialValue = listOf(),
-            )
-
-    var mWorkspaceOrganizerState: WorkspaceOrganizerState by
+constructor(
+    private val launcherModel: LauncherModel,
+    private val homeScreenRepository: HomeScreenRepository,
+    private val modelWriter: IModelWriter,
+    @LightweightBackgroundContext(priority = UI)
+    private val lightweightBackgroundContext: CoroutineContext,
+) : ViewModel() {
+    private val _workspacePages = MutableStateFlow<List<WorkspacePage>>(emptyList())
+    val workspacePages: StateFlow<List<WorkspacePage>> = _workspacePages.asStateFlow()
+    var workspaceOrganizerState: WorkspaceOrganizerState by
         mutableStateOf(WorkspaceOrganizerState())
         private set
 
-    fun increaseSelectedWorkspacePage(delta: Int) {
-        mWorkspaceOrganizerState =
-            mWorkspaceOrganizerState.copy(
-                selectedPage =
-                    (mWorkspaceOrganizerState.selectedPage + delta) % workspacePages.value.size
-            )
+    init {
+        viewModelScope.launch { loadPages() }
     }
 
+    /**
+     * Loads the workspace pages from the [Launcher]'s workspace.
+     *
+     * This method initializes the [_workspacePages] state flow with the current workspace screen
+     * IDs. Bitmaps are loaded lazily as the user scrolls through the workspace.
+     */
+    private suspend fun loadPages() {
+        _workspacePages.value =
+            withContext(lightweightBackgroundContext) {
+                val screens = homeScreenRepository.workspaceState.value.collectWorkspaceScreens()
+                screens.map { screenId -> WorkspacePage(bitmap = null, screenId = screenId) }
+            }
+    }
+
+    /**
+     * Loads the bitmap for the workspace page at the given [index].
+     *
+     * @param index The index of the page to load the bitmap for.
+     */
+    fun loadPageBitmap(index: Int) {
+        val pages = _workspacePages.value
+        if (index !in pages.indices || pages[index].bitmap != null) return
+
+        val cachedBitmap = pages[index].lastGeneratedBitmap?.get()
+        if (cachedBitmap != null) {
+            val updatedPages = pages.toMutableList()
+            updatedPages[index] = updatedPages[index].copy(bitmap = cachedBitmap)
+            _workspacePages.value = updatedPages
+            return
+        }
+
+        viewModelScope.launch {
+            val bitmap =
+                withContext(lightweightBackgroundContext) {
+                    val launcher =
+                        Launcher.ACTIVITY_TRACKER.getCreatedContext<Launcher>()
+                            ?: return@withContext null
+
+                    val workspace = launcher.workspace ?: return@withContext null
+                    val page = workspace.getPageAt(index) as? CellLayout ?: return@withContext null
+
+                    if (page.width <= 0 || page.height <= 0) return@withContext null
+
+                    BitmapRenderer.createHardwareBitmap(
+                        page.width / BITMAP_SCALE_FACTOR,
+                        page.height / BITMAP_SCALE_FACTOR,
+                    ) { canvas ->
+                        canvas.scale(CANVAS_SCALE_RATIO, CANVAS_SCALE_RATIO)
+                        page.draw(canvas)
+                    }
+                }
+
+            bitmap?.let {
+                val updatedPages = _workspacePages.value.toMutableList()
+                if (index in updatedPages.indices) {
+                    updatedPages[index] = updatedPages[index].copy(bitmap = it)
+                    _workspacePages.value = updatedPages
+                }
+            }
+        }
+    }
+
+    /**
+     * Unloads the bitmap for the workspace page at the given [index].
+     *
+     * @param index The index of the page to unload the bitmap for.
+     */
+    fun unloadPageBitmap(index: Int) {
+        val pages = _workspacePages.value.toMutableList()
+        if (index !in pages.indices || pages[index].bitmap == null) return
+
+        pages[index] =
+            pages[index].run {
+                copy(bitmap = null, lastGeneratedBitmap = bitmap?.let { WeakReference(it) })
+            }
+        _workspacePages.value = pages
+    }
+
+    /**
+     * Moves the currently selected workspace page by the given [delta].
+     *
+     * @param delta The number of positions to move the page (positive for right, negative for
+     *   left).
+     */
+    fun moveSelectedWorkspacePage(delta: Int) {
+        val originalPages = _workspacePages.value
+        val pages = originalPages.toMutableList()
+        val currentIndex = workspaceOrganizerState.selectedPage
+        val targetIndex = currentIndex + delta
+        if (targetIndex in pages.indices) {
+            val orderedScreenIds = originalPages.map { it.screenId }
+            val page = pages.removeAt(currentIndex)
+            pages.add(targetIndex, page)
+
+            // Optimistically update screenIds.
+            for (i in pages.indices) {
+                pages[i] = pages[i].copy(screenId = orderedScreenIds[i])
+            }
+
+            _workspacePages.value = pages
+            workspaceOrganizerState = workspaceOrganizerState.copy(selectedPage = targetIndex)
+
+            viewModelScope.launch {
+                try {
+                    withContext(lightweightBackgroundContext) {
+                        modelWriter.scheduleTransactionSuspending {
+                            val context =
+                                WorkspaceOrganizerTransactionContext(it, homeScreenRepository)
+                            context.moveScreen(currentIndex, targetIndex, orderedScreenIds)
+                        }
+                    }
+                    launcherModel.reloadIfActive("workspace-organizer-move-screen")
+                } catch (e: Exception) {
+                    _workspacePages.value = originalPages
+                    workspaceOrganizerState =
+                        workspaceOrganizerState.copy(selectedPage = currentIndex)
+                }
+            }
+        }
+    }
+
+    /**
+     * Removes the currently selected workspace page from the workspace.
+     *
+     * This operation deletes the screen and all its items from the database.
+     */
+    fun removeSelectedWorkspacePage() {
+        val originalPages = _workspacePages.value
+        val pages = originalPages.toMutableList()
+        val currentIndex = workspaceOrganizerState.selectedPage
+        if (currentIndex in pages.indices) {
+            val page = pages.removeAt(currentIndex)
+
+            // Optimistically shift screenIds of subsequent pages down to match deleteScreen logic.
+            for (i in currentIndex until pages.size) {
+                pages[i] = pages[i].copy(screenId = pages[i].screenId - 1)
+            }
+
+            _workspacePages.value = pages
+            val newSelectedPage =
+                if (pages.isEmpty()) 0 else currentIndex.coerceAtMost(pages.size - 1)
+            workspaceOrganizerState = workspaceOrganizerState.copy(selectedPage = newSelectedPage)
+
+            viewModelScope.launch {
+                try {
+                    withContext(lightweightBackgroundContext) {
+                        modelWriter.scheduleTransactionSuspending {
+                            val context =
+                                WorkspaceOrganizerTransactionContext(it, homeScreenRepository)
+                            context.deleteScreen(page.screenId)
+                        }
+                    }
+                    launcherModel.reloadIfActive("workspace-organizer-remove-pages")
+                } catch (e: Exception) {
+                    _workspacePages.value = originalPages
+                    workspaceOrganizerState =
+                        workspaceOrganizerState.copy(selectedPage = currentIndex)
+                }
+            }
+        }
+    }
+
+    /**
+     * Sets the currently selected workspace page to the given [index].
+     *
+     * @param index The index of the page to select.
+     */
     fun setSelectedWorkspacePage(index: Int) {
-        mWorkspaceOrganizerState =
-            mWorkspaceOrganizerState.copy(selectedPage = (index) % workspacePages.value.size)
+        val size = workspacePages.value.size
+        if (size == 0) return
+        workspaceOrganizerState =
+            workspaceOrganizerState.copy(selectedPage = index.coerceIn(0, size - 1))
+    }
+
+    companion object {
+        private const val BITMAP_SCALE_FACTOR = 4
+        private const val CANVAS_SCALE_RATIO = 1f / BITMAP_SCALE_FACTOR
+
+        /** Returns a [ViewModelProvider.Factory] for [WorkspaceOrganizerViewModel]. */
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val application =
+                    this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
+                        as LauncherApplication
+                val appComponent = application.appComponent
+                val launcher = requireNotNull(Launcher.ACTIVITY_TRACKER.getCreatedContext())
+                WorkspaceOrganizerViewModel(
+                    launcherModel = appComponent.launcherAppState.model,
+                    homeScreenRepository = appComponent.homeScreenRepository,
+                    modelWriter = launcher.modelWriter,
+                    lightweightBackgroundContext =
+                        appComponent.productionDispatchers.lightweightBackgroundUiDispatcher,
+                )
+            }
+        }
     }
 }
