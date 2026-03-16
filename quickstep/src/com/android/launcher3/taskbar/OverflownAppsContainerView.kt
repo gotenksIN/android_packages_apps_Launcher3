@@ -97,41 +97,30 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
         inflateApps()
     }
 
-    private fun createIconForItem(item: ItemInfo): BubbleTextView? {
-        if (item !is WorkspaceItemInfo) {
-            return null
-        }
-        val icon = viewCache.getView<View>(R.layout.taskbar_app_icon, mActivityContext, content)
-
-        if (icon !is BubbleTextView) {
-            return null
-        }
-        icon.applyFromWorkspaceItem(item)
-        icon.setContainerTextVisibility(false)
-        icon.setPadding(iconPadding)
-
-        icon.setOnClickListener(viewCallbacks.iconOnClickListener)
-        icon.setOnLongClickListener(viewCallbacks.iconOnLongClickListener)
-        icon.setOnHoverListener(TaskbarHoverToolTipController(mActivityContext, this, icon))
-        if (enableCursorDrivenWorkflows()) {
-            (icon as? CustomTouchDelegate)?.customActionsListener =
-                viewCallbacks.iconCustomActionsListener
-        }
-
-        icon.layoutParams =
-            LayoutParams(iconViewSize, iconViewSize).apply {
-                marginStart = spacing / 2
-                marginEnd = spacing / 2
-            }
-
-        return icon
-    }
-
     private fun inflateApps() {
+        val iconSpacing = spacing / 2
         for (item in overflownApps) {
-            val icon = createIconForItem(item)
-            if (icon != null) {
-                content.addView(icon)
+            val icon = viewCache.getView<View>(R.layout.taskbar_app_icon, mActivityContext, content)
+
+            if (icon is BubbleTextView && item is WorkspaceItemInfo) {
+                icon.applyFromWorkspaceItem(item)
+                icon.setContainerTextVisibility(false)
+                icon.setPadding(iconPadding)
+
+                icon.setOnClickListener(viewCallbacks.iconOnClickListener)
+                icon.setOnLongClickListener(viewCallbacks.iconOnLongClickListener)
+                icon.setOnHoverListener(TaskbarHoverToolTipController(mActivityContext, this, icon))
+                if (enableCursorDrivenWorkflows()) {
+                    (icon as? CustomTouchDelegate)?.customActionsListener =
+                        viewCallbacks.iconCustomActionsListener
+                }
+
+                val lp =
+                    LayoutParams(iconViewSize, iconViewSize).apply {
+                        marginStart = iconSpacing
+                        marginEnd = iconSpacing
+                    }
+                content.addView(icon, lp)
             }
         }
     }
@@ -214,10 +203,6 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
         dragDelegate.reserveDropSlotForDragLocation(x)
     }
 
-    override fun updateForDroppedItem(item: ItemInfo): Boolean {
-        return dragDelegate.updateForDroppedItem(item)
-    }
-
     override fun releaseDropSlot() {
         dragDelegate.releaseDropSlot()
     }
@@ -232,9 +217,7 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 
     override fun updateItemViewVisibilityForDragState(itemView: View, isDragged: Boolean): Boolean {
         if (dragDelegate.updateItemViewVisibilityForDragState(itemView, isDragged)) {
-            if (isDragged) {
-                overflowIcon.onOverflowItemDragged(itemView.tag as ItemInfo)
-            }
+            overflowIcon.onOverflowItemDragged(itemView.tag as ItemInfo)
             return true
         }
         return false
@@ -263,10 +246,6 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
                     marginStart = spacing / 2
                     marginEnd = spacing / 2
                 }
-            }
-
-            override fun createViewForItem(item: ItemInfo): BubbleTextView? {
-                return createIconForItem(item)
             }
 
             override fun onDragStateChanged() {

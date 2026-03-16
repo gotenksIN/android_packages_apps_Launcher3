@@ -60,7 +60,7 @@ class TaskbarViewDragDropController(
     private var modelCallbacks: TaskbarModelCallbacks? = null
     @VisibleForTesting val tooltipController = TaskbarDragViewTooltip(activityContext)
     @VisibleForTesting val overflowContainerAlarm = Alarm(activityContext.mainLooper)
-    private var dragUpdatedModel = false
+    private var isItemDropped = false
 
     private enum class AlarmState {
         RUNNING_OPEN,
@@ -93,7 +93,6 @@ class TaskbarViewDragDropController(
     }
 
     fun onTaskbarItemViewDragStart(itemView: View) {
-        dragUpdatedModel = false
         if (
             taskbarPinDelegate.updateItemViewVisibilityForDragState(itemView, /*isDragged */ true)
         ) {
@@ -103,8 +102,8 @@ class TaskbarViewDragDropController(
     }
 
     fun onTaskbarItemViewDragEnd(itemView: View) {
-        taskbarView.cleanUpOverflowDragState(dragUpdatedModel)
-        dragUpdatedModel = false
+        taskbarView.cleanUpOverflowDragState(isItemDropped)
+        isItemDropped = false
         if (
             !taskbarPinDelegate.updateItemViewVisibilityForDragState(itemView, /*isDragged */ false)
         ) {
@@ -113,6 +112,7 @@ class TaskbarViewDragDropController(
                 false,
             )
         }
+        taskbarView.rearrangeItemsForDrag()
     }
 
     fun addOverflowDropTarget(
@@ -327,7 +327,7 @@ class TaskbarViewDragDropController(
             tooltipController.hide()
             if (dragObject == null) return
 
-            dragUpdatedModel = true
+            isItemDropped = true
             val itemToUnpin = extractItemInfoFromDragObject(dragObject) ?: return
             // Remove dragged views immediately - model update will end up removing the dragged item
             // views too, but may do so with a delay, and cause an item removal animation to run.
@@ -475,20 +475,12 @@ class TaskbarViewDragDropController(
         override fun onDrop(dragObject: DropTarget.DragObject?, options: DragOptions?) {
             val newInfo = extractItemInfoFromDragObject(dragObject) ?: return
 
-            val createdNewItem = delegate.updateForDroppedItem(newInfo)
-
             val updates = addOrMoveItemInDatabase(newInfo)
-            dragUpdatedModel = updates != null
+            isItemDropped = updates != null
             if (updates != null) {
-                if (createdNewItem) {
-                    if (delegate != taskbarPinDelegate) {
-                        taskbarPinDelegate.removeDraggedView()
-                    }
-                    if (delegate != overflowPinDelegate) {
-                        overflowPinDelegate?.removeDraggedView()
-                    }
-                }
                 modelCallbacks?.updateItemsForDragAndDrop(updates)
+            } else {
+                delegate.releaseDropSlot()
             }
             endDrag(delegate)
         }
@@ -570,13 +562,6 @@ class TaskbarViewDragDropController(
 
         /** Clears the reserved drop slot. */
         fun releaseDropSlot()
-
-        /**
-         * Updates the UI to reflect [item] being dropped into the current drop slot, creating a new
-         * view for the item as necessary. Returns whether a new view for the item was created, as
-         * opposed to reusing the existing "draging" view for the item.
-         */
-        fun updateForDroppedItem(item: ItemInfo): Boolean
 
         /**
          * Removes the view that's being dragged (i.e. view that's been set as being dragged using

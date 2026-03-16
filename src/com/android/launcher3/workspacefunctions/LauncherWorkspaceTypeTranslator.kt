@@ -40,13 +40,7 @@ class LauncherWorkspaceTypeTranslator @Inject constructor() :
         val hotseatItems = mutableListOf<ItemInfo>()
         val folderContentsMap = mutableMapOf<Int, MutableList<ItemInfo>>()
 
-        // We only want WorkspaceItemInfo, LauncherAppWidgetInfo, and FolderInfo.
-        val filteredItems =
-            workspace.filter {
-                it is WorkspaceItemInfo || it is LauncherAppWidgetInfo || it is FolderInfo
-            }
-
-        for (item in filteredItems) {
+        for (item in workspace) {
             when (item.container) {
                 CONTAINER_DESKTOP -> desktopItems.add(item)
                 CONTAINER_HOTSEAT -> hotseatItems.add(item)

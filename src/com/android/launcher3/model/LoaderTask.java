@@ -508,7 +508,9 @@ public class LoaderTask implements Runnable {
                 if (mStopped) {
                     Log.w(TAG, "loadWorkspaceImpl: Loader stopped, skipping item processing");
                 } else {
-                    itemProcessor.processPreloadedItems(mExtraItemsProvider.get());
+                    if (Flags.injectableModelItems()) {
+                        itemProcessor.processPreloadedItems(mExtraItemsProvider.get());
+                    }
                     while (!mStopped && c.moveToNext()) {
                         itemProcessor.processItem();
                     }

@@ -285,9 +285,7 @@ private class SandboxApplicationWrapper(base: Context, var app: Context? = null)
     }
 
     override fun createWindowContext(display: Display, type: Int, options: Bundle?): Context {
-        return spy(
-            SandboxApplicationWrapper(super.createWindowContext(display, type, options), app)
-        )
+        return SandboxApplicationWrapper(super.createWindowContext(display, type, options), app)
     }
 
     override fun createContext(contextParams: ContextParams): Context {

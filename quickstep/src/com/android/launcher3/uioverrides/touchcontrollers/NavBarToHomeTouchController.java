@@ -16,7 +16,6 @@
 package com.android.launcher3.uioverrides.touchcontrollers;
 
 import static com.android.app.animation.Interpolators.DECELERATE_3;
-import static com.android.internal.jank.Cuj.CUJ_LAUNCHER_RECENTS_TO_HOME;
 import static com.android.launcher3.AbstractFloatingView.TYPE_ALL;
 import static com.android.launcher3.AbstractFloatingView.TYPE_ALL_APPS_EDU;
 import static com.android.launcher3.LauncherAnimUtils.SUCCESS_TRANSITION_PROGRESS;
@@ -57,7 +56,6 @@ import com.android.quickstep.util.AnimatorControllerWithResistance;
 import com.android.quickstep.util.OverviewToHomeAnim;
 import com.android.quickstep.views.RecentsView;
 import com.android.systemui.contextualeducation.GestureType;
-import com.android.systemui.shared.system.InteractionJankMonitorWrapper;
 
 import java.util.function.BiConsumer;
 
@@ -213,10 +211,8 @@ public class NavBarToHomeTouchController implements TouchController,
                                 }
                             };
                     mLauncher.getStateManager().addStateListener(listener);
-                    InteractionJankMonitorWrapper.end(CUJ_LAUNCHER_RECENTS_TO_HOME);
                     onSwipeInteractionCompleted(mEndState);
                 };
-                InteractionJankMonitorWrapper.begin(recentsView, CUJ_LAUNCHER_RECENTS_TO_HOME);
                 new OverviewToHomeAnim(mLauncher, onReachedHome, mCancelSplitRunnable)
                         .animateWithVelocity(velocity);
             } else {

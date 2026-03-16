@@ -39,7 +39,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,17 +47,11 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.launcher3.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateScreen(
-    onArrowBack: () -> Unit,
-    viewModel: SpaceCreatorViewModel,
-    onNavigateToChooser: () -> Unit,
-) {
-    val state by viewModel.createScreenState.collectAsStateWithLifecycle()
+fun CreateScreen(viewModel: SpaceCreatorViewModel) {
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
@@ -77,7 +70,7 @@ fun CreateScreen(
                 },
                 navigationIcon = {
                     IconButton(
-                        onClick = onArrowBack,
+                        onClick = {},
                         modifier =
                             Modifier.background(
                                 CreateScreenDimens.AndroidOnlySe1Se1,
@@ -96,8 +89,8 @@ fun CreateScreen(
         content = { padding ->
             CreateScreenContent(
                 padding = padding,
-                topics = state.topics,
-                onTopicClick = { onNavigateToChooser.invoke() },
+                topics = viewModel.createScreenState.topics,
+                onTopicClick = { viewModel.goToState(ScreenCreationStates.CHOOSE_LAYOUT) },
             )
         },
     )
@@ -109,7 +102,6 @@ fun CreateScreenContent(
     topics: List<String>,
     onTopicClick: (topic: String) -> Unit,
 ) {
-    if (topics.isEmpty()) return
     val mainTopic = topics[0]
     val otherTopics = topics.drop(1)
     Column(

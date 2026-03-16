@@ -26,6 +26,7 @@ import static com.android.quickstep.GestureState.STATE_RECENTS_ANIMATION_INITIAL
 import static com.android.quickstep.GestureState.STATE_RECENTS_ANIMATION_STARTED;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_NOTIFICATION_PANEL_EXPANDED;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_QUICK_SETTINGS_EXPANDED;
+import static com.android.wm.shell.Flags.sendBubbleRootTaskIdToLauncher;
 
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
@@ -124,7 +125,11 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
                 RecentsView recentsView = containerInterface.getCreatedContainer()
                         .getOverviewPanel();
                 if (recentsView != null) {
-                    if (!BubbleHelper.isAppBubbleTask(task)) {
+                    if (sendBubbleRootTaskIdToLauncher()) {
+                        if (!BubbleHelper.isAppBubbleTask(task)) {
+                            recentsView.launchSideTaskInLiveTileModeForRestartedApp(task.taskId);
+                        }
+                    } else {
                         recentsView.launchSideTaskInLiveTileModeForRestartedApp(task.taskId);
                     }
                     TaskStackChangeListeners.getInstance().unregisterTaskStackListener(

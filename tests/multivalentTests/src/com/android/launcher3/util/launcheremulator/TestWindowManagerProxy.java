@@ -47,8 +47,6 @@ public class TestWindowManagerProxy extends WindowManagerProxy {
 
     private NavigationMode mNavigationMode;
 
-    private boolean mShowDesktopTaskbarForFreeformDisplay;
-
 
     /**
      * Constructor to be used when initiating using xml overrides.
@@ -170,15 +168,5 @@ public class TestWindowManagerProxy extends WindowManagerProxy {
 
     public void setDevice(DeviceEmulationData device) {
         mDevice = device;
-    }
-
-    @Override
-    public boolean showDesktopTaskbarForFreeformDisplay(Context displayInfoContext) {
-        return mShowDesktopTaskbarForFreeformDisplay;
-    }
-
-    public void setShowDesktopTaskbarForFreeformDisplay(
-            boolean showDesktopTaskbarForFreeformDisplay) {
-        mShowDesktopTaskbarForFreeformDisplay = showDesktopTaskbarForFreeformDisplay;
     }
 }

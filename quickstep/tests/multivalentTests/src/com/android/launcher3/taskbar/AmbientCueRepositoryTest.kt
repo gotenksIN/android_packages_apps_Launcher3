@@ -20,12 +20,8 @@ import android.app.PendingIntent
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.service.personalcontext.hint.BundleHint
-import android.service.personalcontext.hint.ContentCaptureConversationEvent.ConversationUpdateEvent
-import android.content.ComponentName
+import android.service.personalcontext.hint.ContentCaptureConversationEvent
 import android.service.personalcontext.hint.ContentCaptureConversationHint
-import android.service.personalcontext.hint.ConversationData
-import java.time.Instant
-import android.service.personalcontext.hint.AutofillInlineRequestHint
 import android.service.personalcontext.hint.ContextHint
 import android.service.personalcontext.hint.PublishedContextHint
 import android.service.personalcontext.insight.ActionableInsight
@@ -220,7 +216,11 @@ class AmbientCueRepositoryTest {
 
     @Test
     fun mapInsightToActions_conversationHint_callsMapContextInsightToAction() {
-        val conversationHint = createConversationHint()
+        val conversationHint =
+            mock(ContentCaptureConversationHint::class.java).apply {
+                `when`(conversationEvent)
+                    .thenReturn(mock(ContentCaptureConversationEvent::class.java))
+            }
         val insight = mockInsight(conversationHint)
         doReturn(listOf(mock(ActionModel::class.java)))
             .`when`(repository)
@@ -238,7 +238,11 @@ class AmbientCueRepositoryTest {
         val publishedInsight = mock(PublishedContextInsight::class.java)
         `when`(publishedInsight.insight).thenReturn(insight)
         val renderToken = mock(RenderToken::class.java)
-        val conversationHint = createConversationHint()
+        val conversationHint =
+            mock(ContentCaptureConversationHint::class.java).apply {
+                `when`(conversationEvent)
+                    .thenReturn(mock(ContentCaptureConversationEvent::class.java))
+            }
 
         // Populate last received insight/token
         repository.onInsightReceived(publishedInsight, renderToken)
@@ -264,7 +268,11 @@ class AmbientCueRepositoryTest {
         val publishedInsight = mock(PublishedContextInsight::class.java)
         `when`(publishedInsight.insight).thenReturn(insight)
         val renderToken = mock(RenderToken::class.java)
-        val conversationHint = createConversationHint()
+        val conversationHint =
+            mock(ContentCaptureConversationHint::class.java).apply {
+                `when`(conversationEvent)
+                    .thenReturn(mock(ContentCaptureConversationEvent::class.java))
+            }
 
         repository.onInsightReceived(publishedInsight, renderToken)
 
@@ -284,7 +292,11 @@ class AmbientCueRepositoryTest {
         val publishedInsight = mock(PublishedContextInsight::class.java)
         `when`(publishedInsight.insight).thenReturn(insight)
         val renderToken = mock(RenderToken::class.java)
-        val conversationHint = createConversationHint()
+        val conversationHint =
+            mock(ContentCaptureConversationHint::class.java).apply {
+                `when`(conversationEvent)
+                    .thenReturn(mock(ContentCaptureConversationEvent::class.java))
+            }
 
         repository.onInsightReceived(publishedInsight, renderToken)
         val result = repository.mapContextInsightToAction(insight, conversationHint)
@@ -319,7 +331,11 @@ class AmbientCueRepositoryTest {
                 .addInsight(actionableInsight)
                 .addInsight(nestedCollection)
                 .build()
-        val conversationHint = createConversationHint()
+        val conversationHint =
+            mock(ContentCaptureConversationHint::class.java).apply {
+                `when`(conversationEvent)
+                    .thenReturn(mock(ContentCaptureConversationEvent::class.java))
+            }
 
         val result = repository.mapContextInsightToAction(rootCollection, conversationHint)
 
@@ -383,39 +399,6 @@ class AmbientCueRepositoryTest {
 
         assertThat(resultDefaultIme).hasSize(1)
         assertThat(resultDefaultIme[0].isEnabledWithImeVisible).isFalse()
-    }
-
-    @Test
-    fun onInsightReceived_withAutofillInlineRequestHint_ignoresInsight() {
-        val autofillHint = mock(AutofillInlineRequestHint::class.java)
-        val validHint = createBundleHint(true)
-        val insight = mockInsight(autofillHint, validHint)
-        val publishedInsight = mock(PublishedContextInsight::class.java)
-        `when`(publishedInsight.insight).thenReturn(insight)
-        val renderToken = mock(RenderToken::class.java)
-
-        repository.onInsightReceived(publishedInsight, renderToken)
-
-        verify(repository, never()).mapInsightToActions(any())
-        verify(repository, never()).updateActions(any())
-    }
-
-    private fun createConversationHint(): ContentCaptureConversationHint {
-        val conversationData = ConversationData.Builder()
-            .setKeyboardShown(false)
-            .setLastMessageFromTheUser(false)
-            .setHasNewMessage(false)
-            .setProcessingStartTimestamp(Instant.now())
-            .setProcessingEndTimestamp(Instant.now())
-            .setComponentName(ComponentName("pkg", "cls"))
-            .setInputBoxText("")
-            .setConversationTitle("")
-            .setChatMessages(emptyList())
-            .build()
-        val updateEvent = ConversationUpdateEvent(
-            "sessionId", Instant.now(), Instant.now(), conversationData
-        )
-        return ContentCaptureConversationHint.Builder(updateEvent).build()
     }
 
     private companion object {

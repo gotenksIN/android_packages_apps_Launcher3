@@ -17,7 +17,6 @@ package com.android.launcher3.taskbar;
 
 import static androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID;
 
-import static com.android.launcher3.Flags.enableKqsForceTakeRunningTaskThumbnail;
 import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAltTabKqsFlatenning;
 
 import android.animation.Animator;
@@ -350,19 +349,13 @@ public class KeyboardQuickSwitchView extends ConstraintLayout {
             } else {
                 continue;
             }
-            boolean forceTakeTaskThumbnail = viewCallbacks.isTaskRunning(groupTask)
-                    && enableKqsForceTakeRunningTaskThumbnail();
 
             currentTaskView.setPositionInformation(i, tasksToDisplay);
             currentTaskView.setThumbnailsForSplitTasks(
                     task1,
                     task2,
-                    updateTasks || forceTakeTaskThumbnail
-                            ? (task, callback) ->
-                                    viewCallbacks.updateThumbnailInBackground(
-                                            task, viewCallbacks.isTaskRunning(groupTask), callback)
-                            : null,
-                    updateTasks ? viewCallbacks::updateIconInBackground : null,
+                    updateTasks ? mViewCallbacks::updateThumbnailInBackground : null,
+                    updateTasks ? mViewCallbacks::updateIconInBackground : null,
                     groupTask instanceof SplitTask splitTask ? splitTask.getSplitBounds() : null);
 
             previousTaskView = currentTaskView;

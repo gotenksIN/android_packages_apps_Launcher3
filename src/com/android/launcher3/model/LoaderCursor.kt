@@ -40,6 +40,7 @@ import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT
 import com.android.launcher3.LauncherSettings.Favorites.RESTORED
 import com.android.launcher3.LauncherSettings.Favorites._ID
 import com.android.launcher3.Utilities
+import com.android.launcher3.Workspace
 import com.android.launcher3.automation.AutomationRepository
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger.RestoreError
@@ -468,7 +469,16 @@ constructor(
         }
 
         if (!occupied.containsKey(item.screenId)) {
-            occupied.put(item.screenId, GridOccupancy(countX + 1, countY + 1))
+            val screen = GridOccupancy(countX + 1, countY + 1)
+            if (Utilities.qsbOnFirstScreen() && item.screenId == Workspace.FIRST_SCREEN_ID) {
+                // Mark the first X columns (X is width of the search container) in the first row as
+                // occupied (if the feature is enabled) in order to account for the search
+                // container.
+                val spanX = idp.numSearchContainerColumns
+                val spanY = 1
+                screen.markCells(0, 0, spanX, spanY, true)
+            }
+            occupied.put(item.screenId, screen)
         }
         val occupancy = occupied[item.screenId]
 

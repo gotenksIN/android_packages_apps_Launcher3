@@ -64,9 +64,8 @@ class TaskbarDesktopModeController(
         doesAnyTaskRequireTaskbarRounding: Boolean,
         displayId: Int,
     ) {
-        if (displayId != taskbarActivityContext.displayId) return
+        // TODO (b/435317310): only update the corner roundness for the taskbar on the given display
         if (taskbarControllers.taskbarActivityContext.isDestroyed) return
-
         taskbarSharedState.showCornerRadiusInDesktopMode = doesAnyTaskRequireTaskbarRounding
         val cornerRadius = getTaskbarCornerRoundness(doesAnyTaskRequireTaskbarRounding)
         taskbarControllers.taskbarCornerRoundness.animateToValue(cornerRadius).start()

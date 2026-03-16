@@ -438,10 +438,8 @@ public class KeyboardQuickSwitchViewController {
             mControllers.taskbarActivityContext.launchKeyboardFocusedTask();
         }
 
-        void updateThumbnailInBackground(
-                Task task, boolean isTaskRunning, Consumer<ThumbnailData> callback) {
-            mControllerCallbacks.updateThumbnailInBackground(
-                    task, isTaskRunning, callback);
+        void updateThumbnailInBackground(Task task, Consumer<ThumbnailData> callback) {
+            mControllerCallbacks.updateThumbnailInBackground(task, callback);
         }
 
         void updateIconInBackground(Task task, Consumer<Task> callback) {
@@ -467,10 +465,6 @@ public class KeyboardQuickSwitchViewController {
             if (mControllers.taskbarActivityContext.getDisplayId() != displayId) {
                 closeQuickSwitchView(/* animate= */ true);
             }
-        }
-
-        boolean isTaskRunning(@Nullable GroupTask task) {
-            return mControllerCallbacks.isTaskRunning(task);
         }
     }
 }

@@ -20,6 +20,7 @@ import android.os.Looper
 import android.provider.Settings.Global
 import android.provider.Settings.Secure
 import org.junit.Assume
+import org.junit.rules.MethodRule
 import org.junit.rules.TestRule
 import org.junit.runners.model.FrameworkMethod
 import org.junit.runners.model.Statement
@@ -29,10 +30,7 @@ import org.mockito.Mockito
 import org.mockito.Mockito.CALLS_REAL_METHODS
 import org.mockito.Mockito.mockStatic
 import org.mockito.Mockito.withSettings
-import org.mockito.junit.MockitoRule
-import org.mockito.quality.Strictness
 import org.mockito.quality.Strictness.LENIENT
-import org.mockito.stubbing.Answer
 import org.robolectric.Shadows
 import org.robolectric.shadows.ShadowSettings.ShadowGlobal
 import org.robolectric.shadows.ShadowSettings.ShadowSecure
@@ -57,8 +55,7 @@ object RoboApiWrapper {
     /** Rule to screen record the device. No-op when running on robolectric */
     fun screenRecordRule(): TestRule = TestRule { statement, _ -> statement }
 
-    @JvmOverloads
-    fun Any.convertToSpy(defaultAnswer: Answer<Any> = CALLS_REAL_METHODS) {
+    fun Any.convertToSpy() {
         Assume.assumeTrue("convertObjectToSpy is not supported in device-less tests", false)
     }
 
@@ -94,18 +91,12 @@ object RoboApiWrapper {
      * Rule for using static mocks in unit test. Separate implementations are provided for on-device
      * and robolectric tests, while keeping a common API signature.
      */
-    class StaticMockRule(vararg val helpers: StaticMockHelper) : MockitoRule {
-
-        private var strictness = LENIENT
+    class StaticMockRule(vararg val helpers: StaticMockHelper) : MethodRule {
 
         override fun apply(base: Statement, method: FrameworkMethod?, target: Any) =
             object : Statement() {
                 override fun evaluate() {
-                    val mockSession =
-                        Mockito.mockitoSession()
-                            .strictness(strictness)
-                            .initMocks(target)
-                            .startMocking()
+                    val mockSession = Mockito.mockitoSession().initMocks(target).startMocking()
                     helpers.forEach { it.init() }
                     val error = kotlin.runCatching { base.evaluate() }.exceptionOrNull()
 
@@ -114,11 +105,5 @@ object RoboApiWrapper {
                     error?.let { throw error }
                 }
             }
-
-        override fun silent(): MockitoRule = strictness(LENIENT)
-
-        override fun strictness(strictness: Strictness): MockitoRule = apply {
-            this.strictness = strictness
-        }
     }
 }

@@ -18,7 +18,6 @@ package com.android.launcher3.widgetpicker.ui.components
 
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -40,24 +39,18 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.InputMode.Companion.Keyboard
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -99,11 +92,9 @@ fun WidgetsSearchBar(
     modifier: Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val inputModeManager = LocalInputModeManager.current
 
     val exitSearchMode = {
         onSearch("")
@@ -137,23 +128,10 @@ fun WidgetsSearchBar(
             Modifier
         }
 
-    val focusRingModifier =
-        if (isFocused && inputModeManager.inputMode == Keyboard) {
-            Modifier.border(
-                width = WidgetsSearchBarDimens.focusOutlineStrokeWidth,
-                color = WidgetPickerTheme.colors.focusOutline,
-                shape = searchBarShape,
-            )
-        } else {
-            Modifier
-        }
-
     BasicTextField(
         modifier =
             modifier
                 .heightIn(min = WidgetsSearchBarDimens.minHeight)
-                .onFocusChanged { isFocused = it.isFocused }
-                .then(focusRingModifier)
                 .clip(searchBarShape)
                 .then(clickToEnableSearchModifier)
                 .focusRequester(focusRequester),
@@ -319,7 +297,6 @@ private fun ClearButton(onClick: () -> Unit) {
 private object WidgetsSearchBarDimens {
     val paddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
     val minHeight = 52.dp
-    val focusOutlineStrokeWidth = 2.dp
 }
 
 private object WidgetsSearchBarDefaults {

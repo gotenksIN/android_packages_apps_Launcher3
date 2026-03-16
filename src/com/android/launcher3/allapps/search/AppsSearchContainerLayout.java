@@ -36,7 +36,6 @@ import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.ExtendedEditText;
 import com.android.launcher3.Insettable;
 import com.android.launcher3.R;
-import com.android.launcher3.Utilities;
 import com.android.launcher3.allapps.ActivityAllAppsContainerView;
 import com.android.launcher3.allapps.AllAppsStore;
 import com.android.launcher3.allapps.BaseAllAppsAdapter.AdapterItem;
@@ -146,12 +145,6 @@ public class AppsSearchContainerLayout extends ExtendedEditText
     @Override
     public void resetSearch() {
         mSearchBarController.reset();
-    }
-
-    @Override
-    public boolean isSearchQueryEmpty() {
-        String query = Utilities.trim(getEditableText().toString());
-        return query.isEmpty();
     }
 
     @Override

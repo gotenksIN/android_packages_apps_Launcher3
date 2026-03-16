@@ -620,6 +620,7 @@ class WorkspaceItemProcessorTest {
     }
 
     @Test
+    @EnableFlags(Flags.FLAG_ENABLE_WIDGET_RESIZE_FRAME_ACCESSIBILITY_LABEL)
     fun `When valid TYPE_REAL App Widget then add item`() {
 
         // Given
