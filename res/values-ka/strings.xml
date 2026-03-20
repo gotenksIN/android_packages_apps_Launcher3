@@ -63,8 +63,6 @@
     <string name="shortcuts_count" msgid="8471715556199592381">"{count,plural, =1{# მალსახმობი}other{# მალსახმობი}}"</string>
     <string name="widgets_and_shortcuts_count" msgid="7209136747878365116">"<xliff:g id="WIDGETS_COUNT">%1$s</xliff:g>, <xliff:g id="SHORTCUTS_COUNT">%2$s</xliff:g>"</string>
     <string name="widget_button_text" msgid="2880537293434387943">"ვიჯეტები"</string>
-    <string name="widgets_full_sheet_search_bar_hint" msgid="8484659090860596457">"ძიება"</string>
-    <string name="widgets_full_sheet_cancel_button_description" msgid="5766167035728653605">"ტექსტის გასუფთავება საძიებო ველიდან"</string>
     <string name="no_widgets_available" msgid="4337693382501046170">"ვიჯეტები და მალსახმობები ხელმისაწვდომი არ არის"</string>
     <string name="no_search_results" msgid="3787956167293097509">"ვიჯეტები ან მალსახმობები ვერ მოიძებნა"</string>
     <string name="widgets_full_sheet_personal_tab" msgid="2743540105607120182">"პირადი"</string>
@@ -153,14 +151,10 @@
     <string name="folder_renamed" msgid="1794088362165669656">"საქაღალდეს შეეცვალა სახელი „<xliff:g id="NAME">%1$s</xliff:g>“-ად"</string>
     <string name="folder_type_name" msgid="506043307348675355">"საქაღალდე"</string>
     <string name="app_folder_type_name" msgid="149643408248060284">"აპების საქაღალდე"</string>
-    <!-- no translation found for apps_folder_name_format_exact (891345161390366700) -->
-    <skip />
-    <!-- no translation found for apps_folder_name_format_exact_with_dot (7729062268048931718) -->
-    <skip />
-    <!-- no translation found for apps_folder_name_format_overflow (4614729357510054194) -->
-    <skip />
-    <!-- no translation found for apps_folder_name_format_overflow_with_dot (4738681518782744688) -->
-    <skip />
+    <string name="apps_folder_name_format_exact" msgid="891345161390366700">"<xliff:g id="TYPE">%1$s</xliff:g>: <xliff:g id="NAME">%2$s</xliff:g>, <xliff:g id="SIZE">%3$d</xliff:g> ერთეული"</string>
+    <string name="apps_folder_name_format_exact_with_dot" msgid="7729062268048931718">"<xliff:g id="TYPE">%1$s</xliff:g>: <xliff:g id="NAME">%2$s</xliff:g>, <xliff:g id="SIZE">%3$d</xliff:g> ერთეული, აქვს შეტყობინებები"</string>
+    <string name="apps_folder_name_format_overflow" msgid="4614729357510054194">"<xliff:g id="TYPE">%1$s</xliff:g> <xliff:g id="NAME">%2$s</xliff:g>, <xliff:g id="SIZE">%3$d</xliff:g> ან მეტი ერთეული"</string>
+    <string name="apps_folder_name_format_overflow_with_dot" msgid="4738681518782744688">"<xliff:g id="TYPE">%1$s</xliff:g>: <xliff:g id="NAME">%2$s</xliff:g>, <xliff:g id="SIZE">%3$d</xliff:g> ან მეტი ერთეული, აქვს შეტყობინებები"</string>
     <string name="unnamed_folder" msgid="2420192029474044442">"უსახელო საქაღალდე"</string>
     <string name="files_folder_name" msgid="7712191128817533622">"ფაილების საქაღალდე: <xliff:g id="NAME">%1$s</xliff:g>"</string>
     <string name="app_pair_name_format" msgid="8134106404716224054">"აპთა წყვილი: <xliff:g id="APP1">%1$s</xliff:g> და <xliff:g id="APP2">%2$s</xliff:g>"</string>
@@ -211,9 +205,12 @@
     <string name="move_to_hotseat_position" msgid="6295412897075147808">"გადატანა რჩეულთა პოზიციაზე <xliff:g id="NUMBER">%1$s</xliff:g>"</string>
     <string name="item_moved" msgid="4606538322571412879">"ერთეული გადაადგილდა"</string>
     <string name="add_to_folder" msgid="9040534766770853243">"საქაღალდეში დამატება: <xliff:g id="NAME">%1$s</xliff:g>"</string>
+    <string name="add_to_folder_with_position" msgid="4457486890869662">"<xliff:g id="NAME">%1$s</xliff:g> საქაღალდეში დამატება. მწკრივი <xliff:g id="NUMBER_0">%2$s</xliff:g>, სვეტი <xliff:g id="NUMBER_1">%3$s</xliff:g>, <xliff:g id="STRING">%4$s</xliff:g>-ში"</string>
     <string name="add_to_folder_with_app" msgid="4534929978967147231">"საქაღალდეში დამატება <xliff:g id="NAME">%1$s</xliff:g>-ით"</string>
+    <string name="add_to_folder_with_app_with_position" msgid="6670979489897093325">"<xliff:g id="NAME">%1$s</xliff:g>-ის საქაღალდეში დამატება. მწკრივი <xliff:g id="NUMBER_0">%2$s</xliff:g>, სვეტი <xliff:g id="NUMBER_1">%3$s</xliff:g>, <xliff:g id="STRING">%4$s</xliff:g>-ში"</string>
     <string name="added_to_folder" msgid="4793259502305558003">"ერთეული დაემატა საქაღალდეს"</string>
     <string name="create_folder_with" msgid="4050141361160214248">"საქაღალდის შექმნა ერთეულით: <xliff:g id="NAME">%1$s</xliff:g>"</string>
+    <string name="create_folder_with_position" msgid="3093164349445159115">"შექმენით საქაღალდე <xliff:g id="NAME">%1$s</xliff:g>-ით. მწკრივი <xliff:g id="NUMBER_0">%2$s</xliff:g>, სვეტი <xliff:g id="NUMBER_1">%3$s</xliff:g>, <xliff:g id="STRING">%4$s</xliff:g>-ში"</string>
     <string name="folder_created" msgid="6409794597405184510">"საქაღალდე შექმნილია"</string>
     <string name="action_move_to_workspace" msgid="39528912300293768">"მთავარ ეკრანზე გადატანა"</string>
     <string name="action_resize" msgid="1802976324781771067">"ზომის შეცვლა"</string>
@@ -269,22 +266,7 @@
     <string name="create_new_folder_button_text" msgid="4037052463794735069">"ახალი საქაღალდე"</string>
     <string name="default_new_folder_name" msgid="8821062664729412079">"ახალი საქაღალდე"</string>
     <string name="something_went_wrong" msgid="1492883246069060632">"წარმოიქმნა შეფერხება"</string>
-    <!-- no translation found for organizer_create_screen (284001317063451431) -->
-    <skip />
-    <!-- no translation found for organizer_create_screen_description (3224132391919219061) -->
-    <skip />
-    <!-- no translation found for organizer_topic_0 (2289302981298465926) -->
-    <skip />
-    <!-- no translation found for organizer_topic_1 (9139266779598899604) -->
-    <skip />
-    <!-- no translation found for organizer_topic_2 (2890586328846836407) -->
-    <skip />
-    <!-- no translation found for organizer_topic_3 (4708170964708215008) -->
-    <skip />
-    <!-- no translation found for organizer_topic_4 (7852628756329993717) -->
-    <skip />
-    <!-- no translation found for organizer_topic_5 (3391565770865209078) -->
-    <skip />
-    <!-- no translation found for organizer_topic_6 (5372680031834537103) -->
-    <skip />
+    <string name="organizer_create_screen_title" msgid="1052454457895703433">"ეკრანის შექმნა"</string>
+    <string name="organizer_create_screen_description" msgid="3224132391919219061">"აირჩიეთ კატეგორია, რათა დაამატოთ აპები და ვიჯეტები თქვენი ტელეფონიდან"</string>
+    <string name="organizer_choose_layout_title" msgid="127228966942084947">"განლაგების არჩევა"</string>
 </resources>

@@ -19,7 +19,6 @@ package com.android.quickstep;
 import static com.android.launcher3.Flags.FLAG_ENABLE_MOUSE_INTERACTION_CHANGES;
 import static com.android.launcher3.util.Executors.getTaskbarUiThread;
 import static com.android.launcher3.util.rule.TestStabilityRule.LOCAL;
-import static com.android.launcher3.util.rule.TestStabilityRule.PLATFORM_POSTSUBMIT;
 import static com.android.quickstep.InputConsumerUtils.newBaseConsumer;
 import static com.android.quickstep.InputConsumerUtils.newConsumer;
 
@@ -58,6 +57,7 @@ import com.android.launcher3.dagger.LauncherAppSingleton;
 import com.android.launcher3.deviceprofile.DeviceProperties;
 import com.android.launcher3.deviceprofile.TaskbarConfiguration;
 import com.android.launcher3.display.DisplayController;
+import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.taskbar.TaskbarActivityContext;
 import com.android.launcher3.taskbar.TaskbarManager;
 import com.android.launcher3.taskbar.TaskbarUiState;
@@ -143,6 +143,7 @@ public class InputConsumerUtilsTest {
     @NonNull @Mock private BaseContainerInterface<?, ?> mContainerInterface;
     @NonNull @Mock private BaseDragLayer<?> mBaseDragLayer;
     @NonNull @Mock private DesktopState mDesktopState;
+    @NonNull @Mock private DesktopVisibilityController mDesktopVisibilityController;
 
     @NonNull @Mock private DeviceProfile mDeviceProfile;
     @NonNull @Mock private DeviceProperties mDeviceProperties;
@@ -303,6 +304,7 @@ public class InputConsumerUtilsTest {
     @Test
     public void testNewBaseConsumer_resumedThroughShellTransition_returnsLauncherInputConsumer() {
         when(mContainerInterface.isResumed()).thenReturn(true);
+        when(mRunningTask.isHomeTask()).thenReturn(true);
 
         assertCorrectInputConsumer(
                 this::createBaseInputConsumer,
@@ -314,6 +316,7 @@ public class InputConsumerUtilsTest {
     public void testNewBaseConsumer_shellNoWindowFocus_returnsLauncherWithoutFocusInputConsumer() {
         when(mContainerInterface.isResumed()).thenReturn(true);
         when(mBaseDragLayer.hasWindowFocus()).thenReturn(false);
+        when(mRunningTask.isHomeTask()).thenReturn(true);
 
         assertCorrectInputConsumer(
                 this::createBaseInputConsumer,
@@ -325,6 +328,46 @@ public class InputConsumerUtilsTest {
     public void testNewBaseConsumer_forceLauncherInputConsumer_returnsLauncherInputConsumer() {
         when(mContainerInterface.isResumed()).thenReturn(true);
         when(mRunningTask.isRootChooseActivity()).thenReturn(true);
+        when(mRunningTask.isHomeTask()).thenReturn(true);
+
+        assertCorrectInputConsumer(
+                this::createBaseInputConsumer,
+                LauncherInputConsumer.class,
+                InputConsumer.TYPE_LAUNCHER);
+    }
+
+    @Test
+    public void testNewBaseConsumer_shellInDesktop_returnsLauncherInputConsumer() {
+        when(mContainerInterface.isResumed()).thenReturn(true);
+        when(mDesktopVisibilityController.isInDesktopModeAndNotInOverview(anyInt()))
+                .thenReturn(true);
+
+        assertCorrectInputConsumer(
+                this::createBaseInputConsumer,
+                LauncherInputConsumer.class,
+                InputConsumer.TYPE_LAUNCHER);
+    }
+
+    @Test
+    public void testNewBaseConsumer_shellInDesktop_homeVisible_returnsOtherActivityInputConsumer() {
+        when(mContainerInterface.isResumed()).thenReturn(true);
+        when(mDesktopVisibilityController.isInDesktopModeAndNotInOverview(anyInt()))
+                .thenReturn(true);
+        when(mDesktopState.getShouldShowHomeBehindDesktop()).thenReturn(true);
+
+        assertCorrectInputConsumer(
+                this::createBaseInputConsumer,
+                OtherActivityInputConsumer.class,
+                InputConsumer.TYPE_OTHER_ACTIVITY);
+    }
+
+    @Test
+    public void testNewBaseConsumer_shellInDesktop_homeTaskRunning_returnsLauncherInputConsumer() {
+        when(mContainerInterface.isResumed()).thenReturn(true);
+        when(mDesktopVisibilityController.isInDesktopModeAndNotInOverview(anyInt()))
+                .thenReturn(true);
+        when(mDesktopState.getShouldShowHomeBehindDesktop()).thenReturn(true);
+        when(mRunningTask.isHomeTask()).thenReturn(true);
 
         assertCorrectInputConsumer(
                 this::createBaseInputConsumer,
@@ -377,14 +420,15 @@ public class InputConsumerUtilsTest {
                                 mouseEvent,
                                 ActiveGestureLog.CompoundString.NO_OP,
                                 mRotationTouchHelper,
-                                mDesktopState));
+                                mDesktopState,
+                                mDesktopVisibilityController));
 
         mouseEvent.recycle();
     }
 
     @Test
     @EnableFlags(FLAG_ENABLE_MOUSE_INTERACTION_CHANGES)
-    @DesktopStability(flavors = LOCAL | PLATFORM_POSTSUBMIT, bug = 486280960)
+    @DesktopStability(flavors = LOCAL, bug = 486280960)
     public void testNewBaseConsumer_nonTrackpadMouseEvent_nonDesktop_returnsDefaultInputConsumer() {
         when(mCurrentGestureState.isTrackpadGesture()).thenReturn(false);
         MotionEvent mouseEvent = MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 0, 0, 0);
@@ -408,7 +452,8 @@ public class InputConsumerUtilsTest {
                                 mouseEvent,
                                 ActiveGestureLog.CompoundString.NO_OP,
                                 mRotationTouchHelper,
-                                mDesktopState),
+                                mDesktopState,
+                                mDesktopVisibilityController),
                 OtherActivityInputConsumer.class,
                 InputConsumer.TYPE_OTHER_ACTIVITY);
 
@@ -622,7 +667,8 @@ public class InputConsumerUtilsTest {
                 mOverviewCommandHelper,
                 event,
                 mRotationTouchHelper,
-                mDesktopState);
+                mDesktopState,
+                mDesktopVisibilityController);
 
         event.recycle();
 
@@ -647,7 +693,8 @@ public class InputConsumerUtilsTest {
                 event,
                 ActiveGestureLog.CompoundString.NO_OP,
                 mRotationTouchHelper,
-                mDesktopState);
+                mDesktopState,
+                mDesktopVisibilityController);
 
         event.recycle();
 
