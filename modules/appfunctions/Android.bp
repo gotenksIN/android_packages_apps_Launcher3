@@ -31,12 +31,17 @@ android_library {
         "src/com/android/launcher3/appfunctions/workspace/WorkspaceRepository.kt",
         "src/com/android/launcher3/appfunctions/workspace/WorkspaceTypeTranslator.kt",
         "src/com/android/launcher3/appfunctions/workspace/provider/WorkspaceProvider.kt",
+        "src/com/android/launcher3/appfunctions/workspace/provider/InstalledItemsProvider.kt",
     ],
     static_libs: [
         "androidx.annotation_annotation",
         "androidx.appfunctions_appfunctions",
         "androidx.appfunctions_appfunctions-service",
         "androidx.appcompat_appcompat",
+    ],
+    libs: [
+        // Only needed at link time to resolve optional deps from the support library.
+        "com.android.extensions.appfunctions.stubs",
     ],
     plugins: ["androidx.appfunctions_appfunctions-compiler-plugin"],
     kotlincflags: ["-Xjvm-default=all"],
