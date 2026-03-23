@@ -28,6 +28,7 @@ import com.android.launcher3.popup.PopupController
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_LAUNCH
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_POPUP_MENU
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_START_DRAG
+import com.android.launcher3.touch.CustomActionsListener.Companion.ActionTrigger
 import com.android.launcher3.views.BubbleTextHolder
 import com.android.launcher3.widget.LauncherAppWidgetHostView
 import org.junit.Before
@@ -89,7 +90,13 @@ class CustomActionsListenerTest {
     @Test
     fun performActions_actionPopupMenu_callsOnOpenPopupMenu() {
         baseListener.performActions(view, ACTION_POPUP_MENU)
-        verify(baseListener).onOpenPopupMenu(view, null)
+        verify(baseListener).onOpenPopupMenu(view, null, ActionTrigger.UNSPECIFIED)
+    }
+
+    @Test
+    fun performActions_actionPopupMenu_callsOnOpenPopupMenuWithActionTrigger() {
+        baseListener.performActions(view, ACTION_POPUP_MENU, ActionTrigger.RIGHT_CLICK_EVENT)
+        verify(baseListener).onOpenPopupMenu(view, null, ActionTrigger.RIGHT_CLICK_EVENT)
     }
 
     @Test
@@ -105,7 +112,7 @@ class CustomActionsListenerTest {
         whenever(parent.bubbleText).thenReturn(bubbleTextView)
 
         baseListener.performActions(view, ACTION_POPUP_MENU)
-        verify(baseListener).onOpenPopupMenu(parent, bubbleTextView)
+        verify(baseListener).onOpenPopupMenu(parent, bubbleTextView, ActionTrigger.UNSPECIFIED)
     }
 
     @Test
@@ -135,7 +142,11 @@ class CustomActionsListenerTest {
     }
 
     class TestBaseItemCustomActionsListener : BaseItemCustomActionsListener() {
-        override fun onOpenPopupMenu(target: View, btv: BubbleTextView?) {}
+        override fun onOpenPopupMenu(
+            target: View,
+            btv: BubbleTextView?,
+            actionTrigger: ActionTrigger,
+        ) {}
 
         override fun onStartDrag(target: View, btv: BubbleTextView?) {}
     }

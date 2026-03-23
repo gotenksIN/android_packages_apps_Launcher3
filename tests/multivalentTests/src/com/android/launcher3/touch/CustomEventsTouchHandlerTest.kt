@@ -32,6 +32,7 @@ import com.android.launcher3.Flags.FLAG_ENABLE_CURSOR_DRIVEN_WORKFLOWS
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_LAUNCH
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_POPUP_MENU
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_START_DRAG
+import com.android.launcher3.touch.CustomActionsListener.Companion.ActionTrigger
 import com.android.launcher3.util.RoboApiWrapper
 import org.junit.After
 import org.junit.Assert.assertFalse
@@ -117,7 +118,7 @@ class CustomEventsTouchHandlerTest {
         val result = touchHandler.onDelegateTouchEvent(downEvent)
 
         assertFalse(result)
-        verify(mockListener, never()).performActions(any(), any())
+        verify(mockListener, never()).performActions(any(), any(), any())
     }
 
     @Test
@@ -130,7 +131,7 @@ class CustomEventsTouchHandlerTest {
         touchHandler.onDelegateTouchEvent(obtainTouchEvent(MotionEvent.ACTION_MOVE))
         touchHandler.onDelegateTouchEvent(obtainTouchEvent(MotionEvent.ACTION_UP))
 
-        verify(mockListener, never()).performActions(any(), any())
+        verify(mockListener, never()).performActions(any(), any(), any())
     }
 
     @Test
@@ -149,7 +150,8 @@ class CustomEventsTouchHandlerTest {
     fun onTouchEvent_mouseRightClickDown_triggersPopupMenu() {
         val downEvent = obtainMouseEvent(MotionEvent.ACTION_DOWN, MotionEvent.BUTTON_SECONDARY)
         touchHandler.onDelegateTouchEvent(downEvent)
-        verify(mockListener).performActions(view, ACTION_POPUP_MENU)
+        verify(mockListener)
+            .performActions(view, ACTION_POPUP_MENU, ActionTrigger.RIGHT_CLICK_EVENT)
 
         // Verify that subsequent move and up events don't perform additional actions after right
         // clicking.
@@ -245,7 +247,7 @@ class CustomEventsTouchHandlerTest {
         touchHandler.onDelegateTouchEvent(downEvent)
         RoboApiWrapper.waitForLooperSync(Looper.getMainLooper())
 
-        verify(mockListener, never()).performActions(any(), any())
+        verify(mockListener, never()).performActions(any(), any(), any())
     }
 
     @Test
