@@ -1188,6 +1188,7 @@ public class Launcher extends StatefulActivity<LauncherState>
         mWorkspace.lockWallpaperToDefaultPage();
         mWorkspace.bindAndInitFirstWorkspaceScreen();
         mDragController.addDragListener(mWorkspace);
+        mDragController.addDragSessionListener(mWorkspace);
 
         // Get the search/delete/uninstall bar
         mDropTargetBar = mDragLayer.findViewById(R.id.drop_target_bar);
