@@ -82,6 +82,8 @@ interface TaskbarManager {
 
     fun getTaskbarForDisplay(displayId: Int): TaskbarActivityContext?
 
+    fun updateStashControllerLauncherStateFlag(displayId: Int, isVisible: Boolean)
+
     @VisibleForTesting fun <T : Any?> getFromImplSync(provider: (TaskbarManagerImpl) -> T): T
 
     @VisibleForTesting fun getCurrentActivityContext(): TaskbarActivityContext?
@@ -98,7 +100,7 @@ interface TaskbarManager {
 
     @VisibleForTesting fun removeAllBubbles()
 
-    @VisibleForTesting fun unstashTaskbarIfStashed()
+    @VisibleForTesting fun unstashTaskbarIfStashed(): Boolean
 
     @VisibleForTesting fun enableBlockingTimeoutDuringTests(enableBlockingTimeout: Boolean)
 

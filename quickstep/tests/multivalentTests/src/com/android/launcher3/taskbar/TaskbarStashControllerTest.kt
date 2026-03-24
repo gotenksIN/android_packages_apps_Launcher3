@@ -35,7 +35,6 @@ import com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOH
 import com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_GROWTH_NUDGE_OPEN
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.asProperty
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
-import com.android.launcher3.taskbar.TaskbarStashController.FLAG_AUTO_STASHED_ON_HOME
 import com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_APP
 import com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_OVERVIEW
 import com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_STASHED_LAUNCHER_STATE
@@ -48,6 +47,7 @@ import com.android.launcher3.taskbar.TaskbarStashController.FLAG_STASHED_SYSUI
 import com.android.launcher3.taskbar.TaskbarStashController.FLAG_TASKBAR_HIDDEN
 import com.android.launcher3.taskbar.TaskbarStashController.TASKBAR_STASH_DURATION
 import com.android.launcher3.taskbar.TaskbarStashController.TASKBAR_STASH_DURATION_FOR_IME
+import com.android.launcher3.taskbar.TaskbarStashController.TASKBAR_STASH_DURATION_WITHOUT_ICON_ALIGNMENT
 import com.android.launcher3.taskbar.TaskbarStashController.TRANSIENT_TASKBAR_STASH_ALPHA_DURATION
 import com.android.launcher3.taskbar.TaskbarStashController.TRANSIENT_TASKBAR_STASH_DURATION
 import com.android.launcher3.taskbar.TaskbarViewController.ALPHA_INDEX_STASH
@@ -68,6 +68,7 @@ import com.android.wm.shell.Flags.FLAG_ENABLE_BUBBLE_BAR
 import com.android.wm.shell.shared.desktopmode.DesktopState
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -105,6 +106,18 @@ class TaskbarStashControllerTest {
         get() = DesktopVisibilityController.INSTANCE[context]
 
     private val activityContext by taskbarUnitTestRule::activityContext
+    private lateinit var windowManagerSpy: WindowManager
+
+    @Before
+    fun setUp() {
+        windowManagerSpy =
+            checkNotNull(
+                taskbarUnitTestRule.taskbarManager
+                    .getPerDisplayResourceForTest(context.displayId)
+                    ?.windowContext
+                    ?.getSystemService(WindowManager::class.java)
+            )
+    }
 
     @After fun cancelTimeoutIfExists() = stashController.cancelTimeoutIfExists()
 
@@ -179,7 +192,12 @@ class TaskbarStashControllerTest {
     @Test
     @TaskbarMode(TRANSIENT)
     fun testGetStashDuration_transientMode() {
-        assertThat(stashController.stashDuration).isEqualTo(TRANSIENT_TASKBAR_STASH_DURATION)
+        if (!activityContext.controllers.taskbarRecentAppsController.canShowRecentApps) {
+            assertThat(stashController.stashDuration).isEqualTo(TRANSIENT_TASKBAR_STASH_DURATION)
+        } else {
+            assertThat(stashController.stashDuration)
+                .isEqualTo(TASKBAR_STASH_DURATION_WITHOUT_ICON_ALIGNMENT)
+        }
     }
 
     @Test
@@ -199,26 +217,6 @@ class TaskbarStashControllerTest {
     fun testIsStashed_pinnedInApp_isUnstashed() {
         runOnTaskbarUiThreadSync {
             stashController.updateStateForFlag(FLAG_IN_APP, true)
-            stashController.applyState(0)
-        }
-        assertThat(stashController.isStashed).isFalse()
-    }
-
-    @Test
-    @TaskbarMode(PINNED)
-    fun testIsStashed_pinnedOnHome_isStashed() {
-        runOnTaskbarUiThreadSync {
-            stashController.updateStateForFlag(FLAG_AUTO_STASHED_ON_HOME, true)
-            stashController.applyState(0)
-        }
-        assertThat(stashController.isStashed).isTrue()
-    }
-
-    @Test
-    @TaskbarMode(PINNED)
-    fun testIsStashed_pinnedOnHome_unStashed() {
-        runOnTaskbarUiThreadSync {
-            stashController.updateStateForFlag(FLAG_AUTO_STASHED_ON_HOME, false)
             stashController.applyState(0)
         }
         assertThat(stashController.isStashed).isFalse()
@@ -860,7 +858,7 @@ class TaskbarStashControllerTest {
         assertThat(stashedHandleViewController.isStashedHandleVisible).isFalse()
         assertThat(stashController.isStashedInApp).isFalse()
 
-        verify(context.windowManagerSpy, atLeastOnce())
+        verify(windowManagerSpy, atLeastOnce())
             .updateViewLayout(any(), wmLayoutParamsCaptor.capture())
         assertThat(isNavBarForciblyShown(wmLayoutParamsCaptor.lastValue.forciblyShownTypes))
             .isTrue()
@@ -889,7 +887,7 @@ class TaskbarStashControllerTest {
         assertThat(stashController.isStashedInApp).isTrue()
 
         // verify the nav bar window should be forcibly shown
-        verify(context.windowManagerSpy, atLeastOnce())
+        verify(windowManagerSpy, atLeastOnce())
             .updateViewLayout(any(), wmLayoutParamsCaptor.capture())
         assertThat(isNavBarForciblyShown(wmLayoutParamsCaptor.lastValue.forciblyShownTypes))
             .isTrue()
@@ -898,7 +896,7 @@ class TaskbarStashControllerTest {
         runOnTaskbarUiThreadSync {
             autohideSuspendController.updateFlag(FLAG_AUTOHIDE_SUSPEND_BUBBLES, false)
         }
-        verify(context.windowManagerSpy, atLeastOnce())
+        verify(windowManagerSpy, atLeastOnce())
             .updateViewLayout(any(), wmLayoutParamsCaptor.capture())
         assertThat(isNavBarForciblyShown(wmLayoutParamsCaptor.lastValue.forciblyShownTypes))
             .isFalse()
@@ -919,7 +917,7 @@ class TaskbarStashControllerTest {
         assertThat(stashController.isStashedInApp).isTrue()
 
         // verify the nav bar window is not forcibly shown
-        verify(context.windowManagerSpy, atLeastOnce())
+        verify(windowManagerSpy, atLeastOnce())
             .updateViewLayout(any(), wmLayoutParamsCaptor.capture())
         assertThat(isNavBarForciblyShown(wmLayoutParamsCaptor.lastValue.forciblyShownTypes))
             .isFalse()
@@ -928,7 +926,7 @@ class TaskbarStashControllerTest {
         runOnTaskbarUiThreadSync {
             autohideSuspendController.updateFlag(FLAG_AUTOHIDE_SUSPEND_BUBBLES, true)
         }
-        verify(context.windowManagerSpy, atLeastOnce())
+        verify(windowManagerSpy, atLeastOnce())
             .updateViewLayout(any(), wmLayoutParamsCaptor.capture())
         assertThat(isNavBarForciblyShown(wmLayoutParamsCaptor.lastValue.forciblyShownTypes))
             .isTrue()
@@ -949,7 +947,7 @@ class TaskbarStashControllerTest {
         assertThat(stashController.isStashedInApp).isTrue()
 
         // verify the nav bar window is not forcibly shown
-        verify(context.windowManagerSpy, atLeastOnce())
+        verify(windowManagerSpy, atLeastOnce())
             .updateViewLayout(any(), wmLayoutParamsCaptor.capture())
         assertThat(isNavBarForciblyShown(wmLayoutParamsCaptor.lastValue.forciblyShownTypes))
             .isFalse()
@@ -959,7 +957,7 @@ class TaskbarStashControllerTest {
         runOnTaskbarUiThreadSync {
             autohideSuspendController.updateFlag(FLAG_AUTOHIDE_SUSPEND_GROWTH_NUDGE_OPEN, true)
         }
-        verify(context.windowManagerSpy, atLeastOnce())
+        verify(windowManagerSpy, atLeastOnce())
             .updateViewLayout(any(), wmLayoutParamsCaptor.capture())
         assertThat(isNavBarForciblyShown(wmLayoutParamsCaptor.lastValue.forciblyShownTypes))
             .isFalse()

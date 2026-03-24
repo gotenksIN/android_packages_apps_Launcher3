@@ -37,6 +37,7 @@ import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.popup.PinToTaskbarShortcut
+import com.android.launcher3.popup.SystemShortcut.BubbleShortcut
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
 import com.android.launcher3.taskbar.TaskbarViewTestUtil.createHotseatFolderItem
@@ -49,6 +50,8 @@ import com.android.launcher3.util.ModelTestExtensions.preloadModelData
 import com.android.launcher3.util.TestUtil.getOnTaskbarUiThread
 import com.android.quickstep.util.SingleTask
 import com.android.window.flags.Flags.FLAG_ENABLE_PINNING_APP_WITH_CONTEXT_MENU
+import com.android.wm.shell.Flags.FLAG_ENABLE_CREATE_ANY_BUBBLE
+import com.android.wm.shell.shared.bubbles.FakeBubbleFeatureConfig
 import com.google.common.truth.Truth.assertThat
 import org.junit.Assert
 import org.junit.Before
@@ -399,5 +402,50 @@ class TaskbarPopupControllerTest {
             "Pin shortcut should be available for predicted All Apps items",
             shortcut,
         )
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_CREATE_ANY_BUBBLE)
+    fun getShortcuts_bubblesEnabled() {
+        val itemInfo = hotseatIcon.getTag() as ItemInfo
+        val systemShortcuts =
+            popupController
+                .getSystemShortcuts()
+                .map { it.getShortcut(taskbarContext, itemInfo, hotseatIcon) }
+                .toList()
+
+        val hasBubble = systemShortcuts.any { it is BubbleShortcut }
+        assertThat(hasBubble).isTrue()
+    }
+
+    @Test
+    @DisableFlags(FLAG_ENABLE_CREATE_ANY_BUBBLE)
+    fun getShortcuts_bubblesDisabled() {
+        val itemInfo = hotseatIcon.getTag() as ItemInfo
+        val systemShortcuts =
+            popupController
+                .getSystemShortcuts()
+                .map { it.getShortcut(taskbarContext, itemInfo, hotseatIcon) }
+                .toList()
+
+        val hasBubble = systemShortcuts.any { it is BubbleShortcut }
+        assertThat(hasBubble).isFalse()
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_CREATE_ANY_BUBBLE)
+    fun getShortcuts_bubblesNotSupported() {
+        val bubbleFeatureConfig = FakeBubbleFeatureConfig()
+        bubbleFeatureConfig.areAppBubblesSupported = false
+        taskbarContext.overrideBubbleFeatureConfigForTests(bubbleFeatureConfig)
+        val itemInfo = hotseatIcon.getTag() as ItemInfo
+        val systemShortcuts =
+            popupController
+                .getSystemShortcuts()
+                .map { it.getShortcut(taskbarContext, itemInfo, hotseatIcon) }
+                .toList()
+
+        val hasBubble = systemShortcuts.any { it is BubbleShortcut }
+        assertThat(hasBubble).isFalse()
     }
 }

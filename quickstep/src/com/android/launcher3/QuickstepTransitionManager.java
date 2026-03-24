@@ -54,6 +54,7 @@ import static com.android.launcher3.Utilities.mapBoundToRange;
 import static com.android.launcher3.config.FeatureFlags.SEPARATE_RECENTS_ACTIVITY;
 import static com.android.launcher3.desktop.DesktopAppLaunchTransitionManager.createDesktopAppLaunchRemoteTransition;
 import static com.android.launcher3.desktop.DesktopAppLaunchTransitionManager.isDesktopAppLaunch;
+import static com.android.launcher3.taskbar.TaskbarStashController.TASKBAR_STASH_DURATION_WITHOUT_ICON_ALIGNMENT;
 import static com.android.launcher3.testing.shared.TestProtocol.WALLPAPER_OPEN_ANIMATION_FINISHED_MESSAGE;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.MultiPropertyFactory.MULTI_PROPERTY_VALUE;
@@ -63,6 +64,7 @@ import static com.android.quickstep.TaskViewUtils.findTaskViewToLaunch;
 import static com.android.quickstep.util.AnimUtils.clampToDuration;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.quickstep.util.FloatingIconViewHelper.getFloatingIconView;
+import static com.android.systemui.shared.Flags.enableRecentsInTaskbar;
 import static com.android.systemui.shared.system.QuickStepContract.getWindowCornerRadius;
 import static com.android.systemui.shared.system.QuickStepContract.supportsRoundedCornersOnWindows;
 
@@ -316,26 +318,34 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         if (Flags.fallbackRevealAnimation()) {
             // Make sure that we know whenever Launcher becomes visible AND is in its NORMAL state,
             // so we can run the reveal animation.
-            mHomeVisibilityChangeListener =
-                    (isVisible, keyguardGoingAwayOrWaking) -> {
-                        if (isVisible && mLauncher.isInState(NORMAL) && !mIsLauncherAnimating
-                                && !keyguardGoingAwayOrWaking) {
-                            mIsLauncherAnimating = true;
-                            mFallbackRevealAnimation =
-                                    new ScalingWorkspaceRevealAnim(
-                                            mLauncher, null /* siblingAnimation */,
-                                            null /* windowTargetRect */, true /* playAlphaReveal */,
-                                            true /* playBlur */);
-                            mFallbackRevealAnimation.getAnimators().addListener(
-                                    new AnimatorListenerAdapter() {
-                                        @Override
-                                        public void onAnimationEnd(Animator animation) {
-                                            mIsLauncherAnimating = false;
-                                        }
-                                    });
-                            mFallbackRevealAnimation.start();
-                        }
-                    };
+            mHomeVisibilityChangeListener = new HomeVisibilityState.VisibilityChangeListener() {
+                @Override
+                public boolean handleDesktopVisibilityOnlyChanges() {
+                    return false;
+                }
+
+                @Override
+                public void onHomeVisibilityChanged(boolean isVisible,
+                        boolean keyguardGoingAwayOrWaking, boolean behindDesktop) {
+                    if (isVisible && mLauncher.isInState(NORMAL) && !mIsLauncherAnimating
+                            && !keyguardGoingAwayOrWaking) {
+                        mIsLauncherAnimating = true;
+                        mFallbackRevealAnimation =
+                                new ScalingWorkspaceRevealAnim(
+                                        mLauncher, null /* siblingAnimation */,
+                                        null /* windowTargetRect */, true /* playAlphaReveal */,
+                                        true /* playBlur */);
+                        mFallbackRevealAnimation.getAnimators().addListener(
+                                new AnimatorListenerAdapter() {
+                                    @Override
+                                    public void onAnimationEnd(Animator animation) {
+                                        mIsLauncherAnimating = false;
+                                    }
+                                });
+                        mFallbackRevealAnimation.start();
+                    }
+                }
+            };
             mSystemUiProxy.getHomeVisibilityState().addListener(mHomeVisibilityChangeListener);
         }
 
@@ -425,6 +435,20 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 createAppLaunchRemoteTransition(
                         appLaunchRunner, onEndCallback::executeAllAndDestroy);
 
+        RemoteTransition remoteTransition = new RemoteTransition(appLaunchRemoteTransition,
+                mLauncher.getIApplicationThread(), "QuickstepLaunch");
+
+        if (com.android.window.flags.Flags.crossDisplayTransition()) {
+            TransitionFilter filter = new TransitionFilter();
+            filter.mRequirements = new TransitionFilter.Requirement[]{
+                    new TransitionFilter.Requirement()};
+
+            // This animation should not run on cross-display transitions.
+            filter.mRequirements[0].mNot = true;
+            filter.mRequirements[0].mIsCrossDisplayMove = true;
+            remoteTransition.setFilter(filter);
+        }
+
         // Note that this duration is a guess as we do not know if the animation will be a
         // recents launch or not for sure until we know the opening app targets.
         long duration = fromRecents
@@ -435,8 +459,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 - STATUS_BAR_TRANSITION_PRE_DELAY;
       ActivityOptions options = ActivityOptions.makeRemoteAnimation(
               new RemoteAnimationAdapter(appLaunchRunner, duration, statusBarTransitionDelay),
-              new RemoteTransition(appLaunchRemoteTransition, mLauncher.getIApplicationThread(),
-                    "QuickstepLaunch"));
+              remoteTransition);
         IRemoteCallback endCallback = completeRunnableListCallback(
                 onEndCallback, mLauncher, MAIN_EXECUTOR);
         options.setOnAnimationAbortListener(endCallback);
@@ -501,7 +524,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             Runnable onEndCallback
     ) {
         IRemoteTransition defaultAppLaunchTransition = defaultAppLaunchRunner.toRemoteTransition();
-        if (!com.android.window.flags.Flags.enableCrossDisplaysAppLaunchTransition()) {
+        if (!com.android.window.flags.Flags.enableCrossDisplaysAppLaunchTransition()
+                || com.android.window.flags.Flags.crossDisplayTransition()) {
             return defaultAppLaunchTransition;
         }
 
@@ -945,6 +969,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                     NAV_FADE_IN_INTERPOLATOR, ANIMATION_DELAY_NAV_FADE_IN,
                     ANIMATION_NAV_FADE_IN_DURATION, APP_LAUNCH_DURATION));
 
+            FloatProp mBlurRadius = new FloatProp(0f, mMaxBlurRadius, DECELERATE_1_5);
+            FloatProp mBlurScrimAlpha = new FloatProp(0f, scrimAlpha, DECELERATE_1_5);
+
             @Override
             public void onUpdate(float percent, boolean initOnly) {
                 if (cropToInset && bottomInsetPos[0] != mSystemUiProxy.getHomeVisibilityState()
@@ -1097,8 +1124,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
                 if (mIsAppLaunchBlurEnabled && scrimLayer != null && scrimLayer.isValid()) {
                     SurfaceProperties builder = transaction.forSurface(scrimLayer);
-                    builder.setAlpha(percent * scrimAlpha);
-                    builder.setBackgroundBlurRadius((int) (percent * mMaxBlurRadius));
+                    builder.setAlpha(mBlurScrimAlpha.value);
+                    builder.setBackgroundBlurRadius((int) mBlurRadius.value);
                 }
 
                 surfaceApplier.scheduleApply(transaction);
@@ -1456,7 +1483,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
          * launch happens via a different means (e.g. desktop mode), we also need to handle the
          * cross-display move via a remote transition.
          */
-        if (com.android.window.flags.Flags.enableCrossDisplaysAppLaunchTransition()) {
+        if (com.android.window.flags.Flags.enableCrossDisplaysAppLaunchTransition()
+                && !com.android.window.flags.Flags.crossDisplayTransition()) {
             mMoveDisplayTransition = new RemoteTransition(new MoveDisplayChangeRunner(this),
                     mLauncher.getIApplicationThread(), "QuickstepDisplayMove");
             TransitionFilter changeCheck = new TransitionFilter();
@@ -1771,7 +1799,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
      * Closing window animator that moves the window down and offscreen.
      */
     private Animator getFallbackClosingWindowAnimators(RemoteAnimationTarget[] appTargets) {
-        AnimatedSurface[] appSurfaces = AnimatedSurface.from(appTargets);
+        AnimatedSurface[] appSurfaces = AnimatedSurface.mapFromTargets(appTargets);
         final int rotationChange = getRotationChange(appSurfaces);
         SurfaceTransactionApplier surfaceApplier = new SurfaceTransactionApplier(mDragLayer);
         Matrix matrix = new Matrix();
@@ -1944,7 +1972,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         RectFSpringAnim rectFSpringAnim = null;
 
         final boolean launcherIsForceInvisibleOrOpening = mLauncher.isForceInvisible()
-                || launcherIsASurfaceWithMode(AnimatedSurface.from(appTargets),
+                || launcherIsASurfaceWithMode(AnimatedSurface.mapFromTargets(appTargets),
                 AnimatedSurface.Mode.OPENING);
 
         boolean playFallBackAnimation = (launcherView == null
@@ -2065,6 +2093,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             boolean isPersistentTaskbarAndNotInDesktopMode) {
         if (isPersistentTaskbarAndNotInDesktopMode) {
             return PINNED_TASKBAR_TRANSITION_DURATION;
+        } else if (enableRecentsInTaskbar()) {
+            return TASKBAR_STASH_DURATION_WITHOUT_ICON_ALIGNMENT;
         } else if (!shouldOverrideToFastAnimation) {
             return TASKBAR_TO_HOME_DURATION_SLOW;
         } else {
@@ -2095,7 +2125,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 mLauncher.getStateManager().moveToRestState();
             }
 
-            AnimatedSurface[] appSurfaces = AnimatedSurface.from(appTargets);
+            AnimatedSurface[] appSurfaces = AnimatedSurface.mapFromTargets(appTargets);
 
             RectF windowTargetBounds =
                     new RectF(getWindowTargetBounds(appSurfaces, getRotationChange(appSurfaces)));
@@ -2141,9 +2171,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 RemoteAnimationTarget[] wallpaperTargets,
                 RemoteAnimationTarget[] nonAppTargets,
                 LauncherAnimationRunner.AnimationResult result) {
-            AnimatedSurface[] appSurfaces = AnimatedSurface.from(appTargets);
-            AnimatedSurface[] wallpaperSurfaces = AnimatedSurface.from(wallpaperTargets);
-            AnimatedSurface[] nonAppSurfaces = AnimatedSurface.from(nonAppTargets);
+            AnimatedSurface[] appSurfaces = AnimatedSurface.mapFromTargets(appTargets);
+            AnimatedSurface[] wallpaperSurfaces = AnimatedSurface.mapFromTargets(wallpaperTargets);
+            AnimatedSurface[] nonAppSurfaces = AnimatedSurface.mapFromTargets(nonAppTargets);
 
             AnimatorSet anim = new AnimatorSet();
             boolean launcherClosing =

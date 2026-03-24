@@ -355,7 +355,7 @@ public abstract class AbsSwipeUpHandler<
     private AnimatorControllerWithResistance mLauncherTransitionController;
     private boolean mHasEndedLauncherTransition;
 
-    private AnimationFactory mAnimationFactory = (t) -> { };
+    private AnimationFactory mAnimationFactory = (t, b) -> { };
 
     private boolean mWasLauncherAlreadyVisible;
 
@@ -961,7 +961,10 @@ public abstract class AbsSwipeUpHandler<
             return;
         }
         initTransitionEndpoints(mContainer.getDeviceProfile());
-        mAnimationFactory.createContainerInterface(mTransitionDragLength);
+        mAnimationFactory.createContainerInterface(
+                mTransitionDragLength,
+                mGestureState.getRunningTask() != null
+                        && mGestureState.getRunningTask().isHomeTask());
     }
 
     /**
@@ -1191,10 +1194,11 @@ public abstract class AbsSwipeUpHandler<
                     }
                     mHandled = true;
 
-                    InteractionJankMonitorWrapper.begin(
-                            rv, Cuj.CUJ_LAUNCHER_QUICK_SWITCH, /* timeoutMs= */ 2000);
+                    InteractionJankMonitorWrapper.begin(rv, Cuj.CUJ_LAUNCHER_QUICK_SWITCH);
                     InteractionJankMonitorWrapper.begin(rv, Cuj.CUJ_LAUNCHER_APP_CLOSE_TO_HOME);
-                    InteractionJankMonitorWrapper.begin(rv, Cuj.CUJ_LAUNCHER_APP_SWIPE_TO_RECENTS);
+                    // This gesture can need additional time in tests
+                    InteractionJankMonitorWrapper.begin(
+                            rv, Cuj.CUJ_LAUNCHER_APP_SWIPE_TO_RECENTS, /* timeoutMs= */ 3000);
 
                     rv.post(() -> rv.getViewTreeObserver().removeOnDrawListener(this));
                 }

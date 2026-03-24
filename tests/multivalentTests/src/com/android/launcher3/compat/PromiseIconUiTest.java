@@ -21,6 +21,8 @@ import static android.os.Process.myUserHandle;
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
 import static com.android.launcher3.Flags.FLAG_ENABLE_SUPPORT_FOR_ARCHIVING;
+import static com.android.launcher3.util.rule.TestStabilityRule.LOCAL;
+import static com.android.launcher3.util.rule.TestStabilityRule.PLATFORM_POSTSUBMIT;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -43,6 +45,7 @@ import com.android.launcher3.LauncherState;
 import com.android.launcher3.util.BaseLauncherActivityTest;
 import com.android.launcher3.util.LauncherBindableItemsContainer.ItemOperator;
 import com.android.launcher3.util.TestUtil;
+import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability;
 
 import org.junit.After;
 import org.junit.Before;
@@ -110,6 +113,7 @@ public class PromiseIconUiTest extends BaseLauncherActivityTest<Launcher> {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL | PLATFORM_POSTSUBMIT, bug = 486279161)
     public void testPromiseIcon_addedFromEligibleSession() throws Throwable {
         final String appLabel = "Test Promise App " + UUID.randomUUID().toString();
         final ItemOperator findPromiseApp = (info, view) ->

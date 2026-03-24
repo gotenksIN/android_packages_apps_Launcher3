@@ -21,14 +21,6 @@ import com.android.launcher3.Flags
 
 object TaskbarDesktopExperienceFlags {
     @JvmField
-    val enableAltTabKqsOnConnectedDisplays: DesktopExperienceFlag =
-        DesktopExperienceFlag(
-            Flags::enableAltTabKqsOnConnectedDisplays,
-            /* shouldOverrideByDevOption= */ true,
-            Flags.FLAG_ENABLE_ALT_TAB_KQS_ON_CONNECTED_DISPLAYS,
-        )
-
-    @JvmField
     val enableAltTabKqsFlatenning: DesktopExperienceFlag =
         DesktopExperienceFlag(
             Flags::enableAltTabKqsFlatenning,
@@ -50,5 +42,13 @@ object TaskbarDesktopExperienceFlags {
             Flags::enableAutoStashConnectedDisplayTaskbar,
             /* shouldOverrideByDevOption= */ true,
             Flags.FLAG_ENABLE_AUTO_STASH_CONNECTED_DISPLAY_TASKBAR,
+        )
+
+    @JvmField
+    val enableTaskbarA11yMoreOptionsButton: DesktopExperienceFlag =
+        DesktopExperienceFlag(
+            Flags::enableTaskbarA11yMoreOptionsButton,
+            /* shouldOverrideByDevOption= */ true,
+            Flags.FLAG_ENABLE_TASKBAR_A11Y_MORE_OPTIONS_BUTTON,
         )
 }

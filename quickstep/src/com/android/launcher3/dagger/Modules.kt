@@ -19,6 +19,7 @@ package com.android.launcher3.dagger
 import android.annotation.ElapsedRealtimeLong
 import android.content.Context
 import android.net.Uri
+import android.uilatencystats.UiLatencyStatsManager
 import android.os.SystemClock
 import android.view.CrossWindowBlurListeners
 import android.widget.ImageView
@@ -51,6 +52,8 @@ import com.android.launcher3.model.WellbeingModel
 import com.android.launcher3.secondarydisplay.SecondaryDisplayDelegate
 import com.android.launcher3.LauncherModel
 import com.android.launcher3.ModelReloader
+import com.android.launcher3.folder.FolderBlurBackgroundHelper
+import com.android.launcher3.folder.QuickstepFolderBackgroundBlurHelper
 import com.android.launcher3.secondarydisplay.SecondaryDisplayQuickstepDelegateImpl
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator
 import com.android.launcher3.testing.TestInformationHandler
@@ -109,6 +112,11 @@ abstract class ActivityContextModule {
     abstract fun bindSecondaryDisplayDelegate(
         impl: SecondaryDisplayQuickstepDelegateImpl
     ): SecondaryDisplayDelegate
+
+    @Binds
+    abstract fun bindFolderBackgroundBlurHelper(
+        quickstepFolderBackgroundBlurHelper: QuickstepFolderBackgroundBlurHelper
+    ): FolderBlurBackgroundHelper
 
     companion object {
         @JvmStatic
@@ -234,6 +242,16 @@ object StaticObjectModule {
     fun provideComputerControlExtensions(
         @ApplicationContext context: Context
     ): ComputerControlExtensions? = ComputerControlExtensions.getInstance(context)
+
+    @Provides
+    fun provideUiLatencyStatsManager(
+        @ApplicationContext context: Context
+    ): UiLatencyStatsManager? =
+        if (com.android.server.ui_latency_stats.Flags.uiLatencyStatsService()) {
+            context.getSystemService(UiLatencyStatsManager::class.java)
+        } else {
+            null
+        }
 }
 
 @Module

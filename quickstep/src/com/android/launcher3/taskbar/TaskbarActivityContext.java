@@ -33,7 +33,6 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_ON_BOARD_POPUP;
 import static com.android.launcher3.AbstractFloatingView.TYPE_TASKBAR_OVERLAY_PROXY;
 import static com.android.launcher3.Utilities.calculateTextHeight;
 import static com.android.launcher3.Utilities.isRunningInTestHarness;
-import static com.android.launcher3.config.FeatureFlags.enableTaskbarPinning;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_FOLDER_OPEN;
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_DRAGGING;
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_FULLSCREEN;
@@ -50,10 +49,10 @@ import static com.android.quickstep.util.ExternalDisplaysKt.isExternalDisplay;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DUAL_SHADE_ENABLED;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_NOTIFICATION_PANEL_VISIBLE;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_VOICE_INTERACTION_WINDOW_SHOWING;
-import static com.android.window.flags.Flags.enableDesktopFirstSplitscreenRefocusBugfix;
 import static com.android.wm.shell.Flags.enableBubbleBar;
 import static com.android.wm.shell.Flags.enableBubbleBarOnPhones;
 import static com.android.wm.shell.Flags.enableTinyTaskbar;
+import static com.android.wm.shell.Flags.fixSwipeUpNotificationShadeWithBubbleBar;
 
 import static java.lang.invoke.MethodHandles.Lookup.PROTECTED;
 
@@ -203,6 +202,8 @@ import com.android.systemui.shared.system.QuickStepContract;
 import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags;
 import com.android.systemui.unfold.updates.RotationChangeProvider;
 import com.android.systemui.unfold.util.ScopedUnfoldTransitionProgressProvider;
+import com.android.wm.shell.shared.bubbles.BubbleFeatureConfig;
+import com.android.wm.shell.shared.bubbles.BubbleFeatureConfigImpl;
 import com.android.wm.shell.shared.desktopmode.DesktopModeTransitionSource;
 import com.android.wm.shell.shared.desktopmode.DesktopState;
 import com.android.wm.shell.shared.desktopmode.DesktopTaskToFrontReason;
@@ -316,6 +317,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     private int mFolderCount = 0;
     private int mVisiblePopupCount = 0;
 
+    private BubbleFeatureConfig mBubbleFeatureConfig;
+
     public TaskbarActivityContext(int displayId, Context windowContext,
             @Nullable Context navigationBarPanelContext, DeviceProfile launcherDp,
             TaskbarNavButtonController buttonController,
@@ -336,6 +339,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         SettingsCache settingsCache = SettingsCache.INSTANCE.get(this);
         mIsUserSetupComplete = settingsCache.getValue(URI_USER_SETUP_COMPLETE);
         mIsNavBarKidsMode = settingsCache.getValue(URI_NAV_BAR_KIDS_MODE);
+        mBubbleFeatureConfig = new BubbleFeatureConfigImpl(mWindowContext,
+                DesktopState.getInstance(mWindowContext));
 
         applyDeviceProfile(launcherDp);
         mTaskbarSpecsEvaluator = new TaskbarSpecsEvaluator(
@@ -349,9 +354,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mIsSafeModeEnabled = TraceHelper.allowIpcs("isSafeMode",
                 () -> getPackageManager().isSafeMode());
 
-        // Get display and corners first, as views might use them in constructor.
-        Context c = getApplicationContext();
-        mWindowManager = c.getSystemService(WindowManager.class);
+        mWindowManager = windowContext.getSystemService(WindowManager.class);
 
         // Inflate views.
         boolean isTransientTaskbar = isTransientTaskbar();
@@ -401,17 +404,17 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                     new BubbleDragController(this, mWindowContext, mDragLayer, mTaskbarUiState),
                     new BubbleDismissController(this, mDragLayer),
                     bubbleBarSwipeController,
-                    new DragToBubbleController(mWindowContext, bubbleBarContainer),
+                    new DragToBubbleController(mWindowContext, bubbleBarContainer, this),
                     new BubbleCreator(this)
             ));
         }
 
         // Construct controllers.
         RotationButtonController rotationButtonController = new RotationButtonController(
-                new RotationPolicyWrapperImpl(c),
+                new RotationPolicyWrapperImpl(windowContext),
                 this,
-                c.getColor(R.color.floating_rotation_button_light_color),
-                c.getColor(R.color.floating_rotation_button_dark_color),
+                windowContext.getColor(R.color.floating_rotation_button_light_color),
+                windowContext.getColor(R.color.floating_rotation_button_dark_color),
                 R.drawable.ic_sysbar_rotate_button_ccw_start_0,
                 R.drawable.ic_sysbar_rotate_button_ccw_start_90,
                 R.drawable.ic_sysbar_rotate_button_cw_start_0,
@@ -430,7 +433,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 new TaskbarScrimViewController(this, taskbarScrimView),
                 new TaskbarUnfoldAnimationController(this, unfoldTransitionProgressProvider,
                         mWindowManager,
-                        new RotationChangeProvider(c.getSystemService(DisplayManager.class), this,
+                        new RotationChangeProvider(
+                                windowContext.getSystemService(DisplayManager.class), this,
                                 UI_HELPER_EXECUTOR.getHandler(), getMainThreadHandler())),
                 new TaskbarKeyguardController(this),
                 new StashedHandleViewController(this, stashedHandleView),
@@ -525,13 +529,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     }
 
     /**
-     * Used to confirm we are on AL device.
-     */
-    public boolean shouldShowHomeBehindDesktop() {
-        return DesktopState.getInstance(this).getShouldShowHomeBehindDesktop();
-    }
-
-    /**
      * Copy the original DeviceProfile, match the number of hotseat icons and qsb width and update
      * the icon size
      */
@@ -580,12 +577,25 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mControllers.taskbarViewController.adjustTaskbarForBubbleBar();
     }
 
+    /** Whether app bubbles are supported on this device. */
+    public boolean areAppBubblesSupported() {
+        return mBubbleFeatureConfig.areAppBubblesSupported();
+    }
+
+    /**
+     * Sets an override for {@link #mBubbleFeatureConfig} for testing.
+     */
+    @VisibleForTesting
+    public void overrideBubbleFeatureConfigForTests(BubbleFeatureConfig featureConfig) {
+        mBubbleFeatureConfig = featureConfig;
+    }
+
     /**
      * Init of taskbar activity context.
      * @param duration If duration is greater than 0, it will be used to create an animation
  *                     for the taskbar create/recreate process.
      */
-    public void init(@NonNull TaskbarSharedState sharedState, int duration) {
+    public void init(@NonNull TaskbarSharedState sharedState, boolean userUnlocked, int duration) {
         mImeDrawsImeNavBar = getBoolByName(IME_DRAWS_IME_NAV_BAR_RES_NAME, getResources(), false)
                 && isPrimaryDisplay();
         mLastRequestedNonFullscreenSize = getDefaultTaskbarWindowSize();
@@ -599,7 +609,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         }
 
         // Initialize controllers after all are constructed.
-        mControllers.init(sharedState, recreateAnim, mTaskbarUiState);
+        mControllers.init(sharedState, recreateAnim, mTaskbarUiState, userUnlocked);
         // This may not be necessary and can be reverted once we move towards recreating all
         // controllers without re-creating the window
         mControllers.rotationButtonController.onNavigationModeChanged(mNavMode.resValue);
@@ -1254,6 +1264,11 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         });
     }
 
+    /** Whether the notification shade is currently expanded */
+    public boolean isNotificationShadeExpanded() {
+        return mIsNotificationShadeExpanded;
+    }
+
     /**
      * Hides the taskbar icons and background when the notification shade is expanded.
      */
@@ -1286,6 +1301,13 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             mControllers.bubbleControllers.ifPresent(controllers -> {
                 BubbleBarViewController bubbleBarViewController =
                         controllers.bubbleBarViewController;
+                if (fixSwipeUpNotificationShadeWithBubbleBar()
+                        && bubbleBarViewController.isExpanded()) {
+                    // If bubbles are expanded when the shade expansion changes, then the touchable
+                    // insets need to be updated.
+                    mControllers.taskbarInsetsController
+                            .onTaskbarOrBubblebarWindowHeightOrInsetsChanged();
+                }
                 anim.play(bubbleBarViewController.getBubbleBarAlpha().get(0).animateToValue(alpha));
                 MultiPropertyFactory<View>.MultiProperty handleAlpha =
                         controllers.bubbleStashController.getHandleViewAlpha();
@@ -1401,6 +1423,13 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 darkIntensity);
     }
 
+    /**
+     * Called when assistant long press enabled state changes.
+     */
+    public void onLongPressHomeEnabledChanged() {
+        mControllers.navbarButtonsViewController.onLongPressHomeEnabledChanged();
+    }
+
     public void onNavigationBarLumaSamplingEnabled(int displayId, boolean enable) {
         mControllers.stashedHandleViewController.onNavigationBarLumaSamplingEnabled(displayId,
                 enable);
@@ -1417,7 +1446,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      * Updates and applies {@link TaskbarStashController#FLAG_IN_SECONDARY_LAUNCHER_ON_CD} to
      * {@link TaskbarStashController} state flags.
      */
-    public void updateStashControllerLauncherStateFlag(boolean enabled) {
+    void updateStashControllerLauncherStateFlag(boolean enabled) {
         if (isPrimaryDisplay() || !enableAutoStashConnectedDisplayTaskbar.isTrue()) {
             return;
         }
@@ -1548,9 +1577,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         ).orElse(0);
         int taskbarWindowSize;
         boolean shouldTreatAsTransient =
-                isTransientTaskbar() || (enableTaskbarPinning()
-                        && mTaskbarFeatureEvaluator.getSupportsTransitionToTransientTaskbar()
-                        && isPrimaryDisplay());
+                isTransientTaskbar() || (
+                        mTaskbarFeatureEvaluator.getSupportsTransitionToTransientTaskbar()
+                                && isPrimaryDisplay());
 
         int extraHeightForTaskbarTooltips = resources.getDimensionPixelSize(
                 R.dimen.arrow_toast_arrow_height)
@@ -2116,9 +2145,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     private boolean shouldLaunchInDesktop(int displayId, ItemInfo info) {
         final SingleTask singleTask = mControllers.taskbarRecentAppsController.getSingleTask(info);
-        final Task nonDesktopTask = enableDesktopFirstSplitscreenRefocusBugfix()
-                ? mControllers.taskbarRecentAppsController.getNonDesktopTask(info)
-                : (singleTask == null ? null : singleTask.getTask());
+        final Task nonDesktopTask =
+                mControllers.taskbarRecentAppsController.getNonDesktopTask(info);
         if (DisplayController.getInfo(this).isInDesktopFirstMode && nonDesktopTask != null) {
             if (!DesktopExperienceFlags.ENABLE_DESKTOP_FIRST_POLICY_IN_LPM.isTrue()) {
                 // Keep the fullscreen mode in desktop-first mode.
@@ -2312,11 +2340,16 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     /**
      * Unstashes the Taskbar if it is stashed.
+     *
+     * @return true if transient taskbar and caller can expect taskbar to be unstashed.
      */
     @VisibleForTesting
-    public void unstashTaskbarIfStashed() {
+    public boolean unstashTaskbarIfStashed() {
         if (isTransientTaskbar()) {
             mControllers.taskbarStashController.updateAndAnimateTransientTaskbar(false);
+            return true;
+        } else {
+            return false;
         }
     }
 

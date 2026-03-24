@@ -34,9 +34,11 @@ import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FOLDER
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_QSB
 import com.android.launcher3.R
 import com.android.launcher3.homescreenfiles.HomeScreenFile
+import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils
 import com.android.launcher3.logging.StatsLogManager.LauncherEvent
 import com.android.launcher3.model.data.ItemInfo
+import com.android.launcher3.model.data.WorkspaceChangeEvent.FullRefresh
 import com.android.launcher3.model.data.WorkspaceData.ImmutableWorkspaceData
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.model.repository.HomeScreenRepository
@@ -46,10 +48,17 @@ import com.android.launcher3.util.TestUtil
 import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.views.BaseDragLayer
 import com.android.providers.media.flags.Flags.FLAG_ENABLE_TRASH_AND_RESTORE_BY_FILE_PATH_API
+import java.io.File
+import java.util.concurrent.CompletableFuture
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.Mock
+import org.mockito.junit.MockitoJUnit
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argThat
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
@@ -59,10 +68,12 @@ import org.mockito.kotlin.whenever
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 class PopupDataRepositoryImplUnitTest {
+    @get:Rule val mockitoRule = MockitoJUnit.rule()
     @get:Rule val setFlagsRule = SetFlagsRule()
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val homeScreenRepository = HomeScreenRepository()
-    private val lifeCycle: DaggerSingletonTracker = mock()
+    @Mock private lateinit var homeScreenFilesProvider: HomeScreenFilesProvider
+    @Mock private lateinit var lifeCycle: DaggerSingletonTracker
 
     private lateinit var popupDataSource: PopupDataSource
     private lateinit var popupDataRepository: PopupDataRepository
@@ -71,7 +82,7 @@ class PopupDataRepositoryImplUnitTest {
     fun setup() {
         // Late initialization of `PopupDataSource` is required because some of the created
         // `PopupData` use feature flags.
-        popupDataSource = PopupDataSource()
+        popupDataSource = PopupDataSource(homeScreenFilesProvider)
         popupDataRepository =
             PopupDataRepositoryImpl(popupDataSource, context, homeScreenRepository, lifeCycle)
     }
@@ -198,23 +209,48 @@ class PopupDataRepositoryImplUnitTest {
 
     @Test
     @DisableFlags(
+        Flags.FLAG_ENABLE_HOME_SCREEN_FILES_RENAMING,
         Flags.FLAG_ENABLE_HOME_SCREEN_FILES_TRASHING,
         FLAG_ENABLE_TRASH_AND_RESTORE_BY_FILE_PATH_API,
     )
-    fun getPopupDataForFileSystemItemsWhenTrashingDisabled() {
-        testPopupDataForFileSystemItems(supportsTrashing = false)
+    fun getPopupDataForFileSystemItemsWhenRenamingAndTrashingDisabled() {
+        testPopupDataForFileSystemItems(supportsRenaming = false, supportsTrashing = false)
     }
 
     @Test
     @EnableFlags(
+        Flags.FLAG_ENABLE_HOME_SCREEN_FILES_RENAMING,
         Flags.FLAG_ENABLE_HOME_SCREEN_FILES_TRASHING,
         FLAG_ENABLE_TRASH_AND_RESTORE_BY_FILE_PATH_API,
     )
-    fun getPopupDataForFileSystemItemsWhenTrashingEnabled() {
-        testPopupDataForFileSystemItems(supportsTrashing = true)
+    fun getPopupDataForFileSystemItemsWhenRenamingAndTrashingEnabled() {
+        testPopupDataForFileSystemItems(supportsRenaming = true, supportsTrashing = true)
     }
 
-    private fun testPopupDataForFileSystemItems(supportsTrashing: Boolean) {
+    @Test
+    @EnableFlags(Flags.FLAG_ENABLE_HOME_SCREEN_FILES_RENAMING)
+    @DisableFlags(
+        Flags.FLAG_ENABLE_HOME_SCREEN_FILES_TRASHING,
+        FLAG_ENABLE_TRASH_AND_RESTORE_BY_FILE_PATH_API,
+    )
+    fun getPopupDataForFileSystemItemsWhenRenamingEnabledAndTrashingDisabled() {
+        testPopupDataForFileSystemItems(supportsRenaming = true, supportsTrashing = false)
+    }
+
+    @Test
+    @DisableFlags(Flags.FLAG_ENABLE_HOME_SCREEN_FILES_RENAMING)
+    @EnableFlags(
+        Flags.FLAG_ENABLE_HOME_SCREEN_FILES_TRASHING,
+        FLAG_ENABLE_TRASH_AND_RESTORE_BY_FILE_PATH_API,
+    )
+    fun getPopupDataForFileSystemItemsWhenRenamingDisabledAndTrashingEnabled() {
+        testPopupDataForFileSystemItems(supportsRenaming = false, supportsTrashing = true)
+    }
+
+    private fun testPopupDataForFileSystemItems(
+        supportsRenaming: Boolean,
+        supportsTrashing: Boolean,
+    ) {
         testPopupDataForFileSystemItem(
             HomeScreenFile(
                 uri = Uri.parse("content://media/external_primary/file/1"),
@@ -223,21 +259,27 @@ class PopupDataRepositoryImplUnitTest {
                 isDirectory = false,
                 user = Process.myUserHandle(),
             ),
+            supportsRenaming,
             supportsTrashing,
         )
         testPopupDataForFileSystemItem(
             HomeScreenFile(
-                uri = Uri.parse("content://media/external_primary/file/1"),
-                displayName = "folder_a",
+                uri = Uri.parse("content://media/external_primary/file/2"),
+                displayName = "folder",
                 mimeType = null,
                 isDirectory = true,
                 user = Process.myUserHandle(),
             ),
+            supportsRenaming,
             supportsTrashing,
         )
     }
 
-    private fun testPopupDataForFileSystemItem(file: HomeScreenFile, supportsTrashing: Boolean) {
+    private fun testPopupDataForFileSystemItem(
+        file: HomeScreenFile,
+        supportsRenaming: Boolean,
+        supportsTrashing: Boolean,
+    ) {
         val activityContext = mock<ActivityContext>()
         val view = mock<View>()
         val item =
@@ -245,19 +287,44 @@ class PopupDataRepositoryImplUnitTest {
                 id = 1
                 itemType = HomeScreenFilesUtils.buildItemType(file)
                 intent = HomeScreenFilesUtils.buildLaunchIntent(file.uri, file)
+                title = file.displayName
             }
         val popupData = popupDataRepository.getPopupDataByItemInfo(item)
+        var popupDataIndex = 0
 
-        assert(popupData!!.size == 2)
-        with(popupData[0]) {
+        assert(popupData!!.size == if (supportsRenaming) 3 else 2)
+        with(popupData[popupDataIndex++]) {
             assert(category == PopupCategory.SYSTEM_SHORTCUT_FIXED)
             assert(iconResId == R.drawable.ic_home_screen_files_context_menu_open_in_app)
             assert(labelResId == R.string.home_screen_files_context_menu_open_in_app_label)
             assert(eventId == LauncherEvent.LAUNCHER_HOME_SCREEN_FILES_OPEN_VIA_CONTEXT_MENU)
+
             popupAction.invoke(activityContext, item, view)
             verify(activityContext, times(1)).startActivitySafely(view, item.intent, item)
         }
-        with(popupData[1]) {
+        if (supportsRenaming) {
+            with(popupData[popupDataIndex++]) {
+                assert(category == PopupCategory.SYSTEM_SHORTCUT_FIXED)
+                assert(iconResId == R.drawable.ic_home_screen_files_context_menu_rename)
+                assert(labelResId == R.string.home_screen_files_context_menu_rename_label)
+                assert(eventId == LauncherEvent.LAUNCHER_HOME_SCREEN_FILES_RENAME_VIA_CONTEXT_MENU)
+
+                // TODO(b/450710219): Replace assertion once dialog is implemented.
+                whenever(homeScreenFilesProvider.rename(any(), any()))
+                    .thenReturn(CompletableFuture.completedFuture(true))
+                popupAction.invoke(activityContext, item, view)
+                verify(homeScreenFilesProvider)
+                    .rename(
+                        eq(file.uri),
+                        argThat {
+                            val extension = File(file.displayName).extension
+                            val suffix = if (extension.isNotEmpty()) ".$extension" else ""
+                            matches("\\d+$suffix".toRegex())
+                        },
+                    )
+            }
+        }
+        with(popupData[popupDataIndex++]) {
             assert(category == PopupCategory.SYSTEM_SHORTCUT_FIXED)
             assert(iconResId == R.drawable.ic_home_screen_files_context_menu_move_to_trash)
             if (supportsTrashing) {
@@ -283,7 +350,7 @@ class PopupDataRepositoryImplUnitTest {
         items.forEachIndexed { i: Int, item: ItemInfo -> data[i] = item }
         homeScreenRepository.dispatchWorkspaceDataChange(
             ImmutableWorkspaceData(version = 0, modificationId = 0, items = data),
-            null,
+            FullRefresh(reason = "seedData"),
         )
         TestUtil.runOnExecutorSync(Executors.DATA_HELPER_EXECUTOR) {}
     }

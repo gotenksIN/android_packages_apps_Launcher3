@@ -42,21 +42,23 @@ import android.view.SurfaceControlViewHost
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewStub
+import android.view.WindowlessWindowManager
 import android.window.BackEvent
 import android.window.DesktopExperienceFlags
+import android.window.InputTransferToken
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import android.window.RemoteTransition
 import android.window.SplashScreen
 import android.window.TransitionInfo
+import androidx.annotation.AnyThread
 import androidx.annotation.UiThread
 import androidx.core.animation.addListener
 import androidx.core.view.isVisible
 import com.android.app.displaylib.PerDisplayRepository
 import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.BaseActivity
-import com.android.launcher3.Flags.enablePredictiveBackInOverview
-import com.android.launcher3.Flags.enableRecentsWindowBlur
+import com.android.launcher3.Flags
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.LauncherAnimationRunner
 import com.android.launcher3.LauncherAnimationRunner.RemoteAnimationFactory
@@ -89,6 +91,8 @@ import com.android.launcher3.util.ActivityOptionsWrapper
 import com.android.launcher3.util.DaggerSingletonObject
 import com.android.launcher3.util.ListenableRef
 import com.android.launcher3.util.LooperExecutor
+import com.android.launcher3.util.OverviewReleaseFlags.enablePredictiveBackInOverview
+import com.android.launcher3.util.OverviewReleaseFlags.enableRecentsWindowBlur
 import com.android.launcher3.util.RunnableList
 import com.android.launcher3.util.SafeCloseable
 import com.android.launcher3.util.ScreenOnTracker
@@ -129,6 +133,7 @@ import com.android.quickstep.util.QuickstepProtoLogGroup
 import com.android.quickstep.util.RecentsAtomicAnimationFactory
 import com.android.quickstep.util.RecentsWindowProtoLogProxy
 import com.android.quickstep.util.SurfaceTransactionApplier
+import com.android.quickstep.util.TraceStateLoggerHelper
 import com.android.quickstep.views.OverviewActionsView
 import com.android.quickstep.views.RecentsView
 import com.android.quickstep.views.RecentsViewContainer
@@ -154,7 +159,7 @@ import javax.inject.Named
 class RecentsWindowManager
 @Inject
 constructor(
-    @WindowContext windowContext: Context,
+    @WindowContext private val windowContext: Context,
     private val fallbackWindowInterface: FallbackWindowInterface,
     private val recentsWindowTracker: RecentsWindowTracker,
     wallpaperColorHints: WallpaperColorHints,
@@ -188,13 +193,21 @@ constructor(
 
     private val recentsComponent = recentsComponentFactory.build(this)
     private var recentsView: FallbackWindowRecentsView? = null
+    private var windowlessWindowManager: WindowlessWindowManager? = null
     private var surfaceControlViewHost: SurfaceControlViewHost? = null
     private val layoutInflater: LayoutInflater = LayoutInflater.from(this).cloneInContext(this)
     private val stateManager: StateManager<RecentsState, RecentsWindowManager> =
         StateManager<RecentsState, RecentsWindowManager>(this, HIDDEN)
     private var systemUiController: SystemUiController? = null
 
+    // The actual surface containing the view root
+    private var recentsWindowSurface: SurfaceControl? = null
+
+    // The overview container surface that holds the recents window surface
     private var overviewOverlay: SurfaceControl? = null
+
+    // The home overlay surface that we'll making the overview container relative to have correct z
+    // order
     private var homeOverlay: SurfaceControl? = null
     private var dragLayer: RecentsDragLayer<RecentsWindowManager>? = null
     private val windowRootView = RecentsWindowRootView(this)
@@ -204,7 +217,7 @@ constructor(
 
     private var callbacks: RecentsAnimationCallbacks? = null
 
-    private var taskbarInteractor: TaskbarInteractor? = null
+    @Volatile private var taskbarInteractor: TaskbarInteractor? = null
 
     private var oldConfiguration: Configuration? = null
     private var oldRotation: Int = -1
@@ -336,6 +349,8 @@ constructor(
 
         lifeCycle.addTask { destroy() }
         propertyHolder.value = this
+
+        TraceStateLoggerHelper(displayId).startTraceStateLogger(this)
     }
 
     @SuppressLint("InflateParams")
@@ -423,6 +438,7 @@ constructor(
         displayChangesSafeCloseable?.close()
         displayChangesSafeCloseable = null
         fallbackWindowInterface.setRecentsWindowManager(null)
+        recentsView?.post { requestInputFocus(focused = false) }
         uiExecutor.execute {
             onViewDestroyed()
             hideRecentsWindow()
@@ -440,43 +456,77 @@ constructor(
     }
 
     private fun createSurfaceControlViewHost() {
-        if (surfaceControlViewHost != null) return
-        surfaceControlViewHost =
-            SurfaceControlViewHost(this, display, windowRootView.viewRootImpl?.inputToken)
+        if (this.surfaceControlViewHost != null) return
 
-        surfaceControlViewHost?.let { scvh ->
+        val recentsWindowSurface: SurfaceControl
+        val surfaceControlViewHost: SurfaceControlViewHost
+        if (Flags.updateRecentsWmWwmConfiguration()) {
+            recentsWindowSurface = SurfaceControl.Builder()
+                .setContainerLayer()
+                .setName(TAG)
+                .setCallsite(TAG)
+                .build()
+                .also { this.recentsWindowSurface = it }
+
+            val windowlessWindowManager = WindowlessWindowManager(
+                windowContext.resources.configuration,
+                recentsWindowSurface,
+                windowRootView.viewRootImpl?.inputToken?.let { InputTransferToken(it) }
+            ).also { this.windowlessWindowManager = it }
+
+            surfaceControlViewHost =
+                SurfaceControlViewHost(this, display, windowlessWindowManager, TAG)
+                    .also { this.surfaceControlViewHost = it }
+        } else {
+            surfaceControlViewHost =
+                SurfaceControlViewHost(this, display, windowRootView.viewRootImpl?.inputToken)
+                    .also { this.surfaceControlViewHost = it }
+            recentsWindowSurface = surfaceControlViewHost.surfacePackage!!.surfaceControl
+        }
+
+        surfaceControlViewHost.let { scvh ->
             scvh.setView(windowRootView, getWindowLayoutParams())
-            scvh.surfacePackage?.let { surfacePackage ->
-                getOverviewOverlay()?.let { overviewOverlay ->
-                    val transaction =
-                        Transaction()
-                            .reparent(surfacePackage.surfaceControl, overviewOverlay)
-                            .show(surfacePackage.surfaceControl)
+            getOverviewOverlay()?.let { overviewOverlay ->
+                val transaction =
+                    Transaction()
+                        .reparent(recentsWindowSurface, overviewOverlay)
+                        .show(recentsWindowSurface)
 
-                    getHomeTaskOverlay()?.let { homeOverlay ->
-                        // Use an arbitrarily large z-order since the home task can have multiple
-                        // child tasks
-                        transaction.setRelativeLayer(overviewOverlay, homeOverlay, 1000)
-                    }
-
-                    transaction.apply(true)
+                getHomeTaskOverlay()?.let { homeOverlay ->
+                    // Use an arbitrarily large z-order since the home task can have multiple
+                    // child tasks
+                    transaction.setRelativeLayer(overviewOverlay, homeOverlay, 1000)
                 }
-                    ?: run {
-                        Log.e(TAG, "OverviewOverlay is null, can't reparent surface", Exception())
-                    }
-            } ?: run { Log.e(TAG, "SurfaceControlViewHost.SurfacePackage is null", Exception()) }
+
+                transaction.apply(true)
+            }
+                ?: run {
+                    Log.e(
+                        TAG,
+                        "OverviewOverlay is null, can't reparent surface",
+                        Exception()
+                    )
+                }
         }
     }
 
     @UiThread
     private fun cleanUpSurfaceControlViewHostInternal() {
         RecentsWindowProtoLogProxy.logCleanUpSurfaceControlViewHostInternal()
-        surfaceControlViewHost?.let {
-            it.surfacePackage?.let { surfacePackage ->
-                Transaction().hide(surfacePackage.surfaceControl).apply(true)
-                surfacePackage.release()
+        if (Flags.updateRecentsWmWwmConfiguration()) {
+            surfaceControlViewHost?.release()
+            recentsWindowSurface?.let {
+                Transaction().hide(it).apply(true)
+                it.release()
             }
-            it.release()
+        } else {
+            surfaceControlViewHost?.let {
+                it.surfacePackage?.let { surfacePackage ->
+                    Transaction().hide(surfacePackage.surfaceControl).apply(true)
+                    surfacePackage.release()
+                }
+                it.release()
+            }
         }
         overviewOverlay?.let {
             systemUiProxy.unregisterOverviewOverlayLeashInvalidationListener(
@@ -487,6 +537,8 @@ constructor(
         homeOverlay = null
         overviewOverlay = null
         surfaceControlViewHost = null
+        windowlessWindowManager = null
+        recentsWindowSurface = null
     }
 
     @UiThread
@@ -538,6 +590,9 @@ constructor(
             onHandleConfigurationChanged()
         }
 
+        if (Flags.updateRecentsWmWwmConfiguration()) {
+            windowlessWindowManager?.setConfiguration(newConfiguration)
+        }
         oldConfiguration = newConfiguration
         oldRotation = rotation
     }
@@ -810,6 +865,7 @@ constructor(
             displayId != DEFAULT_DISPLAY
     }
 
+    @AnyThread
     override fun setTaskbarInteractor(taskbarInteractor: TaskbarInteractor?) {
         this.taskbarInteractor = taskbarInteractor
     }

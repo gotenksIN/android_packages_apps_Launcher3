@@ -30,6 +30,7 @@ import com.android.launcher3.Flags.FLAG_ENABLE_TASKBAR_DRAG_AND_DROP
 import com.android.launcher3.Flags.FLAG_ENABLE_TASKBAR_ICON_CONTAINER
 import com.android.launcher3.R
 import com.android.launcher3.apppairs.AppPairIcon
+import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.TaskItemInfo
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
@@ -52,6 +53,10 @@ import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.ForceRtl
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext.Companion.getDeviceParams
 import com.android.launcher3.util.TestUtil.getOnTaskbarUiThread
+import com.android.launcher3.util.rule.TestStabilityRule
+import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability
+import com.android.launcher3.util.rule.TestStabilityRule.LOCAL
+import com.android.launcher3.util.rule.TestStabilityRule.PLATFORM_POSTSUBMIT
 import com.android.window.flags.Flags.FLAG_ENABLE_OVERFLOW_BUTTON_FOR_TASKBAR_PINNED_ITEMS
 import com.android.window.flags.Flags.FLAG_ENABLE_TASKBAR_OVERFLOW
 import com.google.common.truth.Truth
@@ -85,9 +90,10 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     }
 
     @get:Rule(order = 0) val animatorTestRule = TaskbarAnimatorTestRule(this)
-    @get:Rule(order = 1) val setFlagsRule = SetFlagsRule(flags)
-    @get:Rule(order = 2) val context = TaskbarWindowSandboxContext.create(deviceName)
+    @get:Rule(order = 1) val context = TaskbarWindowSandboxContext.create(deviceName)
+    @get:Rule(order = 2) val setFlagsRule = SetFlagsRule(flags)
     @get:Rule(order = 3) val taskbarUnitTestRule = TaskbarUnitTestRule(context)
+    @get:Rule val testStabilityRule = TestStabilityRule()
 
     private val activityContext by taskbarUnitTestRule::activityContext
 
@@ -121,6 +127,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_hotseatItems_hasDividerBetweenAllAppsAndHotseat() {
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(createHotseatItems(2), emptyList(), emptyList())
@@ -130,6 +137,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
 
     @Test
     @ForceRtl
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_rtlWithHotseatItems_hasDividerBetweenHotseatAndAllApps() {
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(createHotseatItems(2), emptyList(), emptyList())
@@ -138,6 +146,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_withNullHotseatItem_filtersNullItem() {
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(arrayOf(*createHotseatItems(2), null), emptyList(), emptyList())
@@ -147,6 +156,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
 
     @Test
     @ForceRtl
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_rtlWithNullHotseatItem_filtersNullItem() {
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(arrayOf(*createHotseatItems(2), null), emptyList(), emptyList())
@@ -277,6 +287,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
 
     @Test
     @ForceRtl
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_rtl_hotseatItems_hasDividerBetweenHotseatAndAllApps() {
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(createHotseatItems(2), emptyList(), emptyList())
@@ -313,6 +324,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
 
     @Test
     @ForceRtl
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_rtl_addHotseatItemWithoutRecents_updatesHotseat() {
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(createHotseatItems(1), emptyList(), emptyList())
@@ -362,6 +374,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_addFirstHotseatItem_addsDivider() {
         // GIVEN no items are present, so there is no divider
         runOnTaskbarUiThreadSync { taskbarView.updateItems(emptyArray(), emptyList(), emptyList()) }
@@ -377,6 +390,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_removeLastHotseatItem_removesDivider() {
         // GIVEN a hotseat item is present, so there is a divider
         runOnTaskbarUiThreadSync {
@@ -393,6 +407,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
 
     @Test
     @ForceRtl
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_rtl_addFirstHotseatItem_addsDivider() {
         // GIVEN no items are present, so there is no divider
         runOnTaskbarUiThreadSync { taskbarView.updateItems(emptyArray(), emptyList(), emptyList()) }
@@ -409,6 +424,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
 
     @Test
     @ForceRtl
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_rtl_removeLastHotseatItem_removesDivider() {
         // GIVEN a hotseat item is present, so there is a divider
         runOnTaskbarUiThreadSync {
@@ -756,6 +772,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_qsbInline_removesDividerWhenOnlyStaticViewsRemain() {
         // This test runs only on devices with an inline QSB, like tablets.
         assume().that(activityContext.deviceProfile.hotseatProfile.isQsbInline).isTrue()
@@ -802,6 +819,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
 
     @Test
     @EnableFlags(FLAG_ENABLE_OVERFLOW_BUTTON_FOR_TASKBAR_PINNED_ITEMS)
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_hotseatOverflow_noRecents() {
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(
@@ -817,6 +835,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
     @Test
     @EnableFlags(FLAG_ENABLE_OVERFLOW_BUTTON_FOR_TASKBAR_PINNED_ITEMS)
     @ForceRtl
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486280120)
     fun testUpdateItems_rtl_hotseatOverflow_noRecents() {
         runOnTaskbarUiThreadSync {
             taskbarView.updateItems(
@@ -865,6 +884,7 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
                 emptyList(),
             )
         }
+
         assertThat(taskbarView)
             .hasIconTypes(
                 *RECENT * getExpectedNumRecentsWithOverflow(maxShownHotseat),
@@ -1249,6 +1269,34 @@ class TaskbarViewTest(deviceName: String, flags: FlagsParameterization) {
 
         runOnTaskbarUiThreadSync { taskbarView.releaseDropSlot() }
         assertThat(container.childCount).isEqualTo(initialChildCount)
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_OVERFLOW_BUTTON_FOR_TASKBAR_PINNED_ITEMS)
+    fun testUpdateItems_withPinnedOverflow_addsOverflowIconAndReturnsAllTaskIds() {
+
+        val numShownHotseat = activityContext.taskbarSpecsEvaluator.numShownHotseatIcons
+        val numItemsToAdd = numShownHotseat + 1
+        val hotseatItems = createHotseatItems(numItemsToAdd)
+
+        // Wrap the last item in a TaskItemInfo to simulate it's running.
+        val taskItem = TaskItemInfo(123, hotseatItems.last())
+        val finalHotseatItems: Array<ItemInfo> =
+            Array(numItemsToAdd) { i -> if (i == numItemsToAdd - 1) taskItem else hotseatItems[i] }
+
+        runOnTaskbarUiThreadSync {
+            taskbarView.updateItems(finalHotseatItems, emptyList(), emptyList())
+        }
+
+        val shownTaskIds = viewController.shownTaskIds
+
+        // If the overflow icon is showing, it should contain the task ID.
+        val isOverflowShowing = getOnTaskbarUiThread { taskbarView.isOverflowViewShowing }
+        if (isOverflowShowing) {
+            assertThat(shownTaskIds).contains(123)
+        } else {
+            assertThat(shownTaskIds).doesNotContain(123)
+        }
     }
 
     /** Returns the number of expected recents outside of the overflow based on [hotseatSize]. */

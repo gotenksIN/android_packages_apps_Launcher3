@@ -38,6 +38,7 @@ import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.PredictedContainerInfo;
 import com.android.launcher3.model.data.WorkspaceChangeEvent.AddEvent;
+import com.android.launcher3.model.data.WorkspaceChangeEvent.FullRefresh;
 import com.android.launcher3.model.data.WorkspaceChangeEvent.RemoveEvent;
 import com.android.launcher3.model.data.WorkspaceChangeEvent.UpdateEvent;
 import com.android.launcher3.model.data.WorkspaceData;
@@ -96,15 +97,18 @@ public class TaskbarModelCallbacks implements
         var state = repo.getWorkspaceState();
 
         mContext.closeOnDestroy(state.getChanges().forEach(getTaskbarUiThread(), ev -> {
-            if (ev == null) {
-                bindCompleteModel(state.getValue());
-                return null;
-            }
-            if (ev.isSource(mContext)) return null;
             switch (ev) {
                 case AddEvent ae -> bindWorkspaceItemsAdded(ae.getItems());
-                case UpdateEvent ue -> bindWorkspaceItemsUpdated(ue.getItems());
+                case UpdateEvent ue ->  {
+                    // Items may get updated in response to drag and drop within taskbar - taskbar's
+                    // view of hotseat model updates get handled directly using
+                    // [updateItemsForDragAndDrop] so all updates that drop event produces get
+                    // handled in one swoop.
+                    if (ev.isSource(mContext)) return null;
+                    bindWorkspaceItemsUpdated(ue.getItems());
+                }
                 case RemoveEvent re -> bindWorkspaceItemsRemoved(re.getItems());
+                case FullRefresh fr -> bindCompleteModel(state.getValue());
                 default -> { }
             }
             return null;
@@ -166,6 +170,14 @@ public class TaskbarModelCallbacks implements
     @Override
     public void bindItemsUpdated(@NonNull Set<ItemInfo> updates) {
         if (useModelRepositoryBinding()) return;
+        getTaskbarUiThread().execute(() -> bindWorkspaceItemsUpdated(updates));
+    }
+
+    /**
+     * Updates the model with updates produced by an item drop event in taskbar.
+     * @param updates List of item updates to be applied.
+     */
+    public void updateItemsForDragAndDrop(@NonNull Set<ItemInfo> updates) {
         getTaskbarUiThread().execute(() -> bindWorkspaceItemsUpdated(updates));
     }
 

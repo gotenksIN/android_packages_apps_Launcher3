@@ -1600,6 +1600,8 @@ class BubbleBarViewAnimatorTest {
                 override fun setIsDragging(dragging: Boolean) {}
 
                 override fun onBubbleBarExpandedStateChanged(expanded: Boolean) {}
+
+                override fun onMarginUpdated() {}
             }
         )
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -1657,6 +1659,7 @@ class BubbleBarViewAnimatorTest {
                 override val collapsedColor = Color.BLUE
                 override val collapsedElevation = 1f
                 override val distanceToRevealTriangle = 10f
+                override val horizontalMargin = 20
             }
         val flyoutCallbacks =
             object : FlyoutCallbacks {
@@ -1836,6 +1839,8 @@ class BubbleBarViewAnimatorTest {
         override fun getHandleTranslationY() = 0f
 
         override fun getHandleBounds(bounds: Rect) {}
+
+        override fun updateHandleBounds() {}
     }
 }
 

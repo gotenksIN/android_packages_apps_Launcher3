@@ -23,7 +23,6 @@ import android.view.InsetsState
 import android.view.WindowInsets
 import androidx.annotation.AnyThread
 import com.android.launcher3.Utilities
-import com.android.launcher3.config.FeatureFlags
 import com.android.launcher3.util.Executors
 import com.android.wm.shell.shared.IHomeTransitionListener.Stub
 import com.android.wm.shell.shared.IShellTransitions
@@ -38,6 +37,10 @@ class HomeVisibilityState {
     var isHomeVisible = true
         private set
 
+    @Volatile
+    var isHomeBehindDesktop = false
+        private set
+
     @Volatile var navbarInsetPosition = 0
 
     private var listeners = CopyOnWriteArrayList<VisibilityChangeListener>()
@@ -47,18 +50,28 @@ class HomeVisibilityState {
     @AnyThread fun removeListener(l: VisibilityChangeListener) = listeners.remove(l)
 
     fun init(transitions: IShellTransitions?) {
-        if (!FeatureFlags.enableHomeTransitionListener()) return
         try {
             transitions?.setHomeTransitionListener(
                 object : Stub() {
                     override fun onHomeVisibilityChanged(
                         isVisible: Boolean,
                         keyguardGoingAwayOrWaking: Boolean,
+                        behindDesktop: Boolean,
                     ) {
                         Utilities.postAsyncCallback(Executors.MAIN_EXECUTOR.handler) {
+                            val homeVisibilityChanged = isHomeVisible != isVisible
                             isHomeVisible = isVisible
+                            isHomeBehindDesktop = behindDesktop
                             listeners.forEach {
-                                it.onHomeVisibilityChanged(isVisible, keyguardGoingAwayOrWaking)
+                                if (
+                                    homeVisibilityChanged || it.handleDesktopVisibilityOnlyChanges()
+                                ) {
+                                    it.onHomeVisibilityChanged(
+                                        isVisible,
+                                        keyguardGoingAwayOrWaking,
+                                        behindDesktop,
+                                    )
+                                }
                             }
                         }
                     }
@@ -85,7 +98,13 @@ class HomeVisibilityState {
     }
 
     interface VisibilityChangeListener {
-        fun onHomeVisibilityChanged(isVisible: Boolean, keyguardGoingAwayOrWaking: Boolean)
+        fun handleDesktopVisibilityOnlyChanges(): Boolean
+
+        fun onHomeVisibilityChanged(
+            isVisible: Boolean,
+            keyguardGoingAwayOrWaking: Boolean,
+            behindDesktop: Boolean,
+        )
     }
 
     override fun toString() = "{HomeVisibilityState isHomeVisible=$isHomeVisible}"

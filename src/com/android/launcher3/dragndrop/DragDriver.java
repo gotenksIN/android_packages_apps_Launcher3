@@ -16,8 +16,6 @@
 
 package com.android.launcher3.dragndrop;
 
-import static com.android.launcher3.Flags.enableDragEnterExitSupport;
-
 import android.os.SystemClock;
 import android.view.DragEvent;
 import android.view.MotionEvent;
@@ -45,8 +43,8 @@ public abstract class DragDriver {
         mSecondaryEventConsumer = sec;
     }
 
-    /** Returns whether the drag/drop operation is currently within the launcher window. */
-    public abstract boolean isDragWithinLauncherWindow();
+    /** Returns whether the drag/drop operation is currently within the window. */
+    public abstract boolean isDragWithinWindow();
 
     /**
      * Called to handle system touch event
@@ -90,7 +88,7 @@ public abstract class DragDriver {
     static class SystemDragDriver extends DragDriver {
 
         private final long mDragStartTime;
-        private boolean mIsDragWithinLauncherWindow;
+        private boolean mIsDragWithinWindow;
         float mLastX = 0;
         float mLastY = 0;
 
@@ -100,8 +98,8 @@ public abstract class DragDriver {
         }
 
         @Override
-        public boolean isDragWithinLauncherWindow() {
-            return mIsDragWithinLauncherWindow;
+        public boolean isDragWithinWindow() {
+            return mIsDragWithinWindow;
         }
 
         @Override
@@ -145,10 +143,8 @@ public abstract class DragDriver {
                     return true;
 
                 case DragEvent.ACTION_DRAG_ENTERED:
-                    if (enableDragEnterExitSupport()) {
-                        mIsDragWithinLauncherWindow = true;
-                        mEventListener.onDriverDragEnterWindow();
-                    }
+                    mIsDragWithinWindow = true;
+                    mEventListener.onDriverDragEnterWindow();
                     return true;
 
                 case DragEvent.ACTION_DRAG_LOCATION:
@@ -165,9 +161,7 @@ public abstract class DragDriver {
                     return true;
 
                 case DragEvent.ACTION_DRAG_EXITED:
-                    if (enableDragEnterExitSupport()) {
-                        mIsDragWithinLauncherWindow = false;
-                    }
+                    mIsDragWithinWindow = false;
                     mEventListener.onDriverDragExitWindow();
                     return true;
 
@@ -193,8 +187,7 @@ public abstract class DragDriver {
         }
 
         @Override
-        public boolean isDragWithinLauncherWindow() {
-            // NOTE: Internal drag/drop operations never leave the launcher window.
+        public boolean isDragWithinWindow() {
             return true;
         }
 

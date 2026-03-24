@@ -18,12 +18,16 @@ package com.android.quickstep;
 
 import static com.android.launcher3.LauncherState.ALL_APPS;
 import static com.android.launcher3.LauncherState.NORMAL;
+import static com.android.launcher3.util.rule.TestStabilityRule.LOCAL;
+import static com.android.launcher3.util.rule.TestStabilityRule.PLATFORM_POSTSUBMIT;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeTrue;
 
 import android.os.Process;
+import android.os.UserManager;
 import android.util.Log;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -34,6 +38,7 @@ import com.android.launcher3.tapl.HomeAllApps;
 import com.android.launcher3.tapl.LauncherInstrumentation;
 import com.android.launcher3.tapl.PrivateSpaceContainer;
 import com.android.launcher3.util.TestUtil;
+import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability;
 
 import org.junit.After;
 import org.junit.Test;
@@ -59,6 +64,7 @@ public class TaplPrivateSpaceTest extends AbstractQuickStepTest {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        assumeTrue("Device does not support PRIVATE user type", isPrivateSpaceSupported());
         createAndStartPrivateProfileUser();
 
         mDevice.pressHome();
@@ -102,6 +108,7 @@ public class TaplPrivateSpaceTest extends AbstractQuickStepTest {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL | PLATFORM_POSTSUBMIT, bug = 486281068)
     public void testPrivateSpaceContainerIsPresent() {
         // Scroll to the bottom of All Apps
         executeOnLauncher(launcher -> launcher.getAppsView().resetAndScrollToPrivateSpaceHeader());
@@ -120,6 +127,7 @@ public class TaplPrivateSpaceTest extends AbstractQuickStepTest {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL | PLATFORM_POSTSUBMIT, bug = 486281068)
     public void testUserInstalledAppIsShownAboveDivider() throws IOException {
         // Ensure that the App is not installed in main user otherwise, it may not be found in
         // PS container.
@@ -144,6 +152,7 @@ public class TaplPrivateSpaceTest extends AbstractQuickStepTest {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL | PLATFORM_POSTSUBMIT, bug = 486281068)
     public void testPrivateSpaceAppLongPressUninstallMenu() throws IOException {
         // Ensure that the App is not installed in main user otherwise, it may not be found in
         // PS container.
@@ -167,6 +176,7 @@ public class TaplPrivateSpaceTest extends AbstractQuickStepTest {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL | PLATFORM_POSTSUBMIT, bug = 486281068)
     public void testPrivateSpaceLockingBehaviour() throws IOException {
         assumeFalse("Ignoring test because device is tablet",
             mLauncher.isTablet()); // b/367258373
@@ -287,6 +297,16 @@ public class TaplPrivateSpaceTest extends AbstractQuickStepTest {
         } catch (IOException e) {
             Log.e(TAG, "error running shell command", e);
             throw new RuntimeException(e);
+        }
+    }
+
+    protected boolean isPrivateSpaceSupported() {
+        try {
+            return mTargetContext.getSystemService(UserManager.class).isUserTypeEnabled(
+                    "android.os.usertype.profile.PRIVATE");
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException checking isUserTypeEnabled", e);
+            return false;
         }
     }
 }

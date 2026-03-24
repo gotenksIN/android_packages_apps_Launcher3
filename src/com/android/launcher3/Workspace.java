@@ -120,6 +120,7 @@ import com.android.launcher3.folder.PreviewBackground;
 import com.android.launcher3.graphics.DragPreviewProvider;
 import com.android.launcher3.homescreenfiles.HomeScreenFile;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider;
+import com.android.launcher3.homescreenfiles.HomeScreenFilesUpdate;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtilsKt;
 import com.android.launcher3.icons.FastBitmapDrawable;
@@ -132,6 +133,7 @@ import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
+import com.android.launcher3.model.data.WorkspaceItemCoordinates;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pageindicators.PageIndicator;
 import com.android.launcher3.pageindicators.PageIndicatorDotsWithArrows;
@@ -341,7 +343,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 @Override
                 public void onStateTransitionComplete(LauncherState finalState) {
                     if (finalState == NORMAL) {
-                        performAccessibilityActionOnViewTree(Workspace.this);
+                        ViewEx.performAccessibilityActionOnViewTree(Workspace.this);
                     }
                 }
             };
@@ -572,16 +574,6 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         mStatsLogManager.logger().withItemInfo(dragObject.dragInfo)
                 .withInstanceId(dragObject.logInstanceId)
                 .log(LauncherEvent.LAUNCHER_ITEM_DRAG_STARTED);
-    }
-
-    @Override
-    public void onDragEnterWindow(DropTarget.DragObject dragObject, DragOptions options) {
-        // No-op
-    }
-
-    @Override
-    public void onDragExitWindow(DropTarget.DragObject dragObject, DragOptions options) {
-        // No-op
     }
 
     private boolean isTwoPanelEnabled() {
@@ -2241,7 +2233,13 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
                 final List<CompletableFuture<Boolean>> results =
                         HomeScreenFilesProvider.INSTANCE.get(mLauncher)
-                                .moveToHomeScreen(uriList, relativeFolderPath);
+                                .moveToHomeScreen(uriList,
+                                        HomeScreenFilesUpdate.Extras.builder()
+                                                .findSpaceStartingFrom(new WorkspaceItemCoordinates(
+                                                        dropOverInfo.screenId, dropOverInfo.cellX,
+                                                        dropOverInfo.cellY, dropOverInfo.container))
+                                                .build(),
+                                        relativeFolderPath);
 
                 runOnFirstFailure(
                         results,
@@ -3262,7 +3260,14 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
                 // (2) the creation of new workspace items for any additionally dropped URIs.
                 List<Uri> uriList = requireNonNull(payload.getUriList());
                 HomeScreenFilesProvider provider = HomeScreenFilesProvider.INSTANCE.get(mLauncher);
-                List<CompletableFuture<Boolean>> results = provider.moveToHomeScreen(uriList);
+                List<CompletableFuture<Boolean>> results =
+                        provider.moveToHomeScreen(uriList,
+                                HomeScreenFilesUpdate.Extras.builder()
+                                        .findSpaceStartingFrom(new WorkspaceItemCoordinates(
+                                                firstItemInfo.screenId, firstItemInfo.cellX,
+                                                firstItemInfo.cellY, firstItemInfo.container))
+                                        .build(),
+                                /*relativeFolderPath=*/ null);
 
                 runOnFirstFailure(
                         results,
@@ -3887,24 +3892,6 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         @Override
         public void onAnimationEnd(Animator animation) {
             onEndStateTransition();
-        }
-    }
-
-    /**
-     * Recursively check view tag {@link R.id.perform_a11y_action_on_launcher_state_normal_tag} and
-     * call {@link View#performAccessibilityAction(int, Bundle)} on view tree. The tag is cleared
-     * after this call.
-     */
-    private static void performAccessibilityActionOnViewTree(View view) {
-        Object tag = view.getTag(R.id.perform_a11y_action_on_launcher_state_normal_tag);
-        if (tag instanceof Integer) {
-            view.performAccessibilityAction((int) tag, null);
-            view.setTag(R.id.perform_a11y_action_on_launcher_state_normal_tag, null);
-        }
-        if (view instanceof ViewGroup viewgroup) {
-            for (int i = 0; i < viewgroup.getChildCount(); i++) {
-                performAccessibilityActionOnViewTree(viewgroup.getChildAt(i));
-            }
         }
     }
 

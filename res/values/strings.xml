@@ -257,11 +257,11 @@
     <string name="app_removed_from_taskbar">App removed from Taskbar</string>
     <!-- Label for remove item system shortcut [CHAR_LIMIT=20] -->
     <string name="remove_system_shortcut_label">Remove</string>
-    <!-- Context menu action for a file/folder on the home screen.
-         This opens the item using its corresponding application. [CHAR_LIMIT=20] -->
+    <!-- Context menu action for a file/folder on the home screen which opens the item using its corresponding application. [CHAR_LIMIT=20] -->
     <string name="home_screen_files_context_menu_open_in_app_label">Open</string>
-    <!-- Context menu action for a file / files folder on the home screen,
-         which permanently deletes the item. [CHAR_LIMIT=20] -->
+    <!-- Context menu action for a file/folder on the home screen which renames the item. [CHAR_LIMIT=20] -->
+    <string name="home_screen_files_context_menu_rename_label">Rename</string>
+    <!-- Context menu action for a file/folder on the home screen which permanently deletes the item. [CHAR_LIMIT=20] -->
     <string name="home_screen_files_context_menu_delete_permanently_label">
         Delete permanently
     </string>
@@ -285,6 +285,11 @@
     <string name="actions_popup_menu_button">Actions</string>
     <!-- Label for expanding app shortcuts in popup menu-->
     <string name="shortcuts_popup_menu_button">Shortcuts</string>
+
+    <!-- Description for expanding system shortcuts in popup menu-->
+    <string name="actions_popup_menu_button_description">Show actions menu</string>
+    <!-- Description for expanding app shortcuts in popup menu-->
+    <string name="shortcuts_popup_menu_button_description">Show app shortcuts menu</string>
 
     <!-- Label for pausing an app [CHAR_LIMIT=20] -->
     <string name="pause_app_label">Pause app</string>
@@ -362,16 +367,22 @@
     <string name="folder_closed">Folder closed</string>
     <!-- Folder renamed format -->
     <string name="folder_renamed">Folder renamed to <xliff:g id="name" example="Games">%1$s</xliff:g></string>
+    <!-- Folder type name when home screen files folder is not supported -->
+    <string name="folder_type_name">Folder</string>
+    <!-- Folder type name when the home screen files folder is supported -->
+    <string name="app_folder_type_name">App folder</string>
     <!-- Folder name format when folder has less than 4 items -->
-    <string name="folder_name_format_exact">Folder: <xliff:g id="name" example="Games">%1$s</xliff:g>, <xliff:g id="size" example="2">%2$d</xliff:g> items</string>
+    <string name="apps_folder_name_format_exact"><xliff:g id="type" example="App folder">%1$s</xliff:g>: <xliff:g id="name" example="Games">%2$s</xliff:g>, <xliff:g id="size" example="2">%3$d</xliff:g> items</string>
     <!-- Folder name format when folder has less than 4 items and a notification dot -->
-    <string name="folder_name_format_exact_with_dot">Folder: <xliff:g id="name" example="Games">%1$s</xliff:g>, <xliff:g id="size" example="2">%2$d</xliff:g> items, has notifications</string>
+    <string name="apps_folder_name_format_exact_with_dot"><xliff:g id="type" example="App folder">%1$s</xliff:g>: <xliff:g id="name" example="Games">%2$s</xliff:g>, <xliff:g id="size" example="2">%3$d</xliff:g> items, has notifications</string>
     <!-- Folder name format when folder has 4 or more items shown in preview-->
-    <string name="folder_name_format_overflow">Folder: <xliff:g id="name" example="Games">%1$s</xliff:g>, <xliff:g id="size" example="2">%2$d</xliff:g> or more items</string>
+    <string name="apps_folder_name_format_overflow"><xliff:g id="type" example="App folder">%1$s</xliff:g>: <xliff:g id="name" example="Games">%2$s</xliff:g>, <xliff:g id="size" example="2">%3$d</xliff:g> or more items</string>
     <!-- Folder name format when folder has 4 or more items shown in preview and a notification dot -->
-    <string name="folder_name_format_overflow_with_dot">Folder: <xliff:g id="name" example="Games">%1$s</xliff:g>, <xliff:g id="size" example="2">%2$d</xliff:g> or more items, has notifications</string>
+    <string name="apps_folder_name_format_overflow_with_dot"><xliff:g id="type" example="App folder">%1$s</xliff:g>: <xliff:g id="name" example="Games">%2$s</xliff:g>, <xliff:g id="size" example="2">%3$d</xliff:g> or more items, has notifications</string>
     <!-- Accessibility announement for unnamed folders -->
     <string name="unnamed_folder">Unnamed folder</string>
+    <!-- Home screen files folder name -->
+    <string name="files_folder_name">File folder: <xliff:g id="name" example="Documents">%1$s</xliff:g></string>
 
     <!-- App pair accessibility -->
     <!-- App pair name -->
@@ -386,6 +397,8 @@
     <string name="settings_button_text">Home settings</string>
     <!-- Message shown when a feature is disabled by the administrator -->
     <string name="msg_disabled_by_admin">Disabled by your admin</string>
+    <!-- Text for settings button [CHAR LIMIT=20]-->
+    <string name="settings_home_organizer">Home organizer</string>
 
     <!-- Strings for settings -->
     <!-- Text explaining when the home screen will get rotated. [CHAR LIMIT=100] -->
@@ -651,4 +664,38 @@
     <!-- Strings for errors -->
     <!-- Displayed when an error occurs but exact causality cannot be determined/communicated. -->
     <string name="something_went_wrong">Something went wrong</string>
+
+    <!-- Categories for home screen topics -->
+    <string name="topic_category_games" translatable="false">Games</string>
+    <string name="topic_category_audio" translatable="false">Audio</string>
+    <string name="topic_category_video" translatable="false">Video</string>
+    <string name="topic_category_image" translatable="false">Image</string>
+    <string name="topic_category_social" translatable="false">Social</string>
+    <string name="topic_category_news" translatable="false">News</string>
+    <string name="topic_category_maps" translatable="false">Maps</string>
+    <string name="topic_category_productivity" translatable="false">Productivity</string>
+    <string name="topic_category_accessibility" translatable="false">Accessibility</string>
+
+
+    <!-- Screen Creation -->
+    <!-- Title for the screen to create new workspace screens using the organizer. [CHAR_LIMIT=300] -->
+    <string name="organizer_create_screen_title">Create screen</string>
+    <string name="organizer_create_screen_description" >Choose a category to add apps and widgets from your phone</string>
+    <string name="organizer_topic_0" translatable="false">Most used</string>
+    <string name="organizer_topic_1" translatable="false">Games</string>
+    <string name="organizer_topic_2" translatable="false">Health &amp; Fitness</string>
+    <string name="organizer_topic_3" translatable="false">Productivity</string>
+    <string name="organizer_topic_4" translatable="false">Travel</string>
+    <string name="organizer_topic_5" translatable="false">Social</string>
+    <string name="organizer_topic_6" translatable="false">Entertainment</string>
+
+    <!-- Title for the screen where the users chooses a layout of apps and widgets to add to their
+     home screen. [CHAR_LIMIT=300]-->
+    <string name="organizer_choose_layout_title">Choose layout</string>
+
+
+    <!-- Strings for App Functions -->
+    <!-- Description for the App Functions app metadata. -->
+    <string name="workspace_functions_app_display_description" translatable="false">[PLACEHOLDER] A tool to manage the Workspace</string>
+
 </resources>

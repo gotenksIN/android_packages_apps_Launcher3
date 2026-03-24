@@ -23,6 +23,8 @@ import android.util.Log;
 import android.view.View;
 
 import androidx.annotation.Nullable;
+import androidx.test.uiautomator.By;
+import androidx.test.uiautomator.Until;
 
 import com.android.launcher3.Launcher;
 import com.android.launcher3.LauncherState;
@@ -34,7 +36,9 @@ import com.android.launcher3.util.TestUtil;
 import com.android.launcher3.util.rule.FailureWatcher;
 import com.android.launcher3.util.rule.ShellCommandRule;
 import com.android.launcher3.util.rule.TestIsolationRule;
+import com.android.launcher3.util.rule.TestStabilityRule;
 
+import org.junit.Rule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
@@ -57,6 +61,8 @@ public abstract class AbstractLauncherUiTest<LAUNCHER_TYPE extends Launcher,
 
     protected LooperExecutor mMainThreadExecutor = MAIN_EXECUTOR;
 
+    @Rule public TestStabilityRule mTestStabilityRule = new TestStabilityRule();
+
     protected AbstractLauncherUiTest() {
         if (TestHelpers.isInLauncherProcess()) {
             Utilities.enableRunningInTestHarnessForTests();
@@ -78,8 +84,12 @@ public abstract class AbstractLauncherUiTest<LAUNCHER_TYPE extends Launcher,
     protected void performInitialization() {
         reinitializeLauncherData();
         mDevice.pressHome();
-        // Check that we switched to home.
-        mLauncher.getWorkspace();
+
+        // Wait for all apps view to be gone.
+        mDevice.wait(Until.gone(By.res(mTargetPackage, "apps_view")), DEFAULT_UI_TIMEOUT);
+
+        // Check that we switched to home
+        getBaseContainer();
 
         waitForLauncherCondition("Launcher didn't start", Objects::nonNull);
         waitForState(

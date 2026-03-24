@@ -29,7 +29,6 @@ import android.view.Display
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.WorkerThread
 import androidx.core.content.getSystemService
-import com.android.launcher3.Flags.enableLaterIsLockedCheck
 import com.android.launcher3.Flags.hideAutomatedTasksInOverview
 import com.android.launcher3.automation.AutomationRepository
 import com.android.launcher3.concurrent.annotations.LightweightBackground
@@ -39,6 +38,7 @@ import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.util.DaggerSingletonTracker
 import com.android.launcher3.util.LooperExecutor
+import com.android.launcher3.util.OverviewReleaseFlags.enableLaterIsLockedCheck
 import com.android.quickstep.RecentsModel.RecentTasksChangedListener
 import com.android.quickstep.SystemUiProxy.GetRecentTasksException
 import com.android.quickstep.recents.data.RecentTasksKeysDataSource
@@ -194,7 +194,7 @@ constructor(
     ): Int {
         val requestLoadId = changeId
         if (resultsUi.isValidForRequest(requestLoadId, loadKeysOnly)) {
-            Log.d("b/417220811", "getTasks - mResultsUi still valid: ${resultsUi.requestId}")
+            Log.d(TAG, "getTasks - mResultsUi still valid: ${resultsUi.requestId}")
             // The list is up to date, send the callback on the next frame,
             // so that requestID can be returned first.
             if (callback != null) {
@@ -212,12 +212,12 @@ constructor(
         lightweightBackgroundExecutor.execute {
             if (!resultsBg.isValidForRequest(requestLoadId, loadKeysOnly)) {
                 resultsBg = loadTasksInBackground(Int.MAX_VALUE, requestLoadId, loadKeysOnly)
-                Log.d("b/417220811", "getTasks - loadTasksInBackground: ${resultsBg.requestId}")
+                Log.d(TAG, "getTasks - loadTasksInBackground: ${resultsBg.requestId}")
             }
             val loadResult = resultsBg
             mainThreadExecutor.execute {
                 resultsUi = loadResult
-                Log.d("b/417220811", "getTasks - updating mResultsUi: ${resultsUi.requestId}")
+                Log.d(TAG, "getTasks - updating mResultsUi: ${resultsUi.requestId}")
                 if (callback != null) {
                     // filter the tasks if needed before passing them into the callback
                     val result = resultsUi.filter { filter.test(it) }.map { it.copy() }
@@ -239,10 +239,7 @@ constructor(
 
     @Synchronized
     private fun invalidateLoadedTasks() {
-        Log.d(
-            "b/417220811",
-            "invalidateLoadedTasks - previous requestLoadId: ${resultsBg.requestId}",
-        )
+        Log.d(TAG, "invalidateLoadedTasks - previous requestLoadId: ${resultsBg.requestId}")
         lightweightBackgroundExecutor.execute { resultsBg = INVALID_RESULT }
         resultsUi = INVALID_RESULT
         changeId++
@@ -281,10 +278,7 @@ constructor(
                     if (!enableLaterIsLockedCheck() && indexOfKey(key) < 0) {
                         // Fill the cached locked state as we fetch
                         put(key, keyguardManager?.isDeviceLocked(key) == true)
-                        Log.d(
-                            "b/417220811",
-                            "loadTasksInBackground - isDeviceLocked($key): ${get(key)}",
-                        )
+                        Log.d(TAG, "loadTasksInBackground - isDeviceLocked($key): ${get(key)}")
                     }
                     return super.get(key)
                 }
@@ -452,5 +446,6 @@ constructor(
 
     companion object {
         private val INVALID_RESULT = TaskLoadResult(requestId = -1, keysOnly = false, size = 0)
+        private const val TAG = "RecentTasksList"
     }
 }

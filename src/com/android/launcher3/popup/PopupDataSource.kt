@@ -20,6 +20,7 @@ import android.content.Intent
 import android.os.Process
 import android.util.Log
 import android.view.View
+import android.widget.Toast
 import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.AbstractFloatingViewHelper
 import com.android.launcher3.DropTargetHandler
@@ -30,7 +31,9 @@ import com.android.launcher3.Utilities
 import com.android.launcher3.accessibility.LauncherAccessibilityDelegate
 import com.android.launcher3.allapps.PrivateProfileManager
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils
+import com.android.launcher3.homescreenfiles.homeScreenFile
 import com.android.launcher3.logging.StatsLogManager.LauncherEvent
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.WorkspaceItemInfo
@@ -43,12 +46,14 @@ import com.android.launcher3.util.PendingRequestArgs
 import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.views.Snackbar
 import com.android.launcher3.widget.LauncherAppWidgetHostView
-import com.android.launcher3.widget.WidgetsBottomSheet
 import com.android.wm.shell.shared.bubbles.logging.EntryPoint
+import java.io.File
 import javax.inject.Inject
 
 @LauncherAppSingleton
-class PopupDataSource @Inject constructor() {
+class PopupDataSource
+@Inject
+constructor(@LauncherAppSingleton private val homeScreenFilesProvider: HomeScreenFilesProvider) {
     // Handles action from tapping remove shortcut.
     private val handleRemove = { activityContext: ActivityContext, itemInfo: ItemInfo, view: View ->
         AbstractFloatingView.closeAllOpenViews(activityContext)
@@ -120,28 +125,6 @@ class PopupDataSource @Inject constructor() {
             labelResId = R.string.widget_settings,
             popupAction = handleWidgetSettings,
             category = PopupCategory.SYSTEM_SHORTCUT_FIXED,
-        )
-
-    // Handles action from tapping widgets shortcut.
-    private val handleWidgets =
-        { activityContext: ActivityContext, itemInfo: ItemInfo, view: View ->
-            AbstractFloatingView.closeAllOpenViews(activityContext)
-            val widgetsBottomSheet =
-                activityContext
-                    .getLayoutInflater()
-                    .inflate(R.layout.widgets_bottom_sheet, activityContext.getDragLayer(), false)
-                    as WidgetsBottomSheet
-            widgetsBottomSheet.populateAndShow(itemInfo)
-        }
-
-    // Popup data for widgets shortcut.
-    val widgetsPopupData =
-        PopupData(
-            iconResId = R.drawable.widgets_24px,
-            labelResId = R.string.widget_button_text,
-            popupAction = handleWidgets,
-            category = PopupCategory.SYSTEM_SHORTCUT_FIXED,
-            eventId = LauncherEvent.LAUNCHER_SYSTEM_SHORTCUT_WIDGETS_TAP,
         )
 
     // Handle action from tapping app info shortcut.
@@ -344,6 +327,38 @@ class PopupDataSource @Inject constructor() {
             popupAction = handleRemove,
             category = PopupCategory.SYSTEM_SHORTCUT_FIXED,
             eventId = LauncherEvent.LAUNCHER_HOME_SCREEN_FILES_DELETE_VIA_CONTEXT_MENU,
+        )
+
+    private val handleRenameFileSystemItem =
+        fun(activityContext: ActivityContext, itemInfo: ItemInfo, _: View) {
+            val hsf = itemInfo.homeScreenFile ?: return
+
+            // TODO(b/450710219): Replace w/ dialog.
+            val extension = File(hsf.displayName).extension
+            val suffix = if (extension.isNotEmpty()) ".$extension" else ""
+            val name = "${System.currentTimeMillis()}$suffix"
+
+            homeScreenFilesProvider.rename(hsf.uri, name).whenComplete { result, throwable ->
+                if (throwable != null || !result) {
+                    activityContext.uiExecutor.post {
+                        Toast.makeText(
+                                activityContext.asContext(),
+                                R.string.something_went_wrong,
+                                Toast.LENGTH_SHORT,
+                            )
+                            .show()
+                    }
+                }
+            }
+        }
+
+    val renameFileSystemItem =
+        PopupData(
+            iconResId = R.drawable.ic_home_screen_files_context_menu_rename,
+            labelResId = R.string.home_screen_files_context_menu_rename_label,
+            popupAction = handleRenameFileSystemItem,
+            category = PopupCategory.SYSTEM_SHORTCUT_FIXED,
+            eventId = LauncherEvent.LAUNCHER_HOME_SCREEN_FILES_RENAME_VIA_CONTEXT_MENU,
         )
 
     companion object {

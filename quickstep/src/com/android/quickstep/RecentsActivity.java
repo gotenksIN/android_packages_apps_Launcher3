@@ -57,6 +57,7 @@ import android.view.ViewStub;
 import android.window.RemoteTransition;
 import android.window.SplashScreen;
 
+import androidx.annotation.AnyThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -101,6 +102,7 @@ import com.android.quickstep.split.SplitSelectStateController;
 import com.android.quickstep.sysuiconnection.SysUIConnectionTracker;
 import com.android.quickstep.util.RecentsAtomicAnimationFactory;
 import com.android.quickstep.util.SurfaceTransactionApplier;
+import com.android.quickstep.util.TraceStateLoggerHelper;
 import com.android.quickstep.views.OverviewActionsView;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.RecentsViewContainer;
@@ -133,7 +135,7 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
     private FallbackActivityRecentsView mFallbackRecentsView;
     private OverviewActionsView<?> mActionsView;
     private SysUIConnectionTracker mSysUIConnectionTracker;
-    private @Nullable TaskbarInteractor mTaskbarInteractor;
+    private @Nullable volatile TaskbarInteractor mTaskbarInteractor;
 
     private StateManager<RecentsState, RecentsActivity> mStateManager;
 
@@ -193,6 +195,7 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
         mSysUIConnectionTracker.onConnected(this, c -> c.getTaskbarManager().setActivity(this));
     }
 
+    @AnyThread
     @Override
     public void setTaskbarInteractor(@Nullable TaskbarInteractor taskbarInteractor) {
         mTaskbarInteractor = taskbarInteractor;
@@ -426,6 +429,7 @@ public final class RecentsActivity extends StatefulActivity<RecentsState> implem
         setTitle(R.string.accessibility_recent_apps);
 
         restoreState(savedInstanceState);
+        new TraceStateLoggerHelper(getDisplayId()).startTraceStateLogger(this);
     }
 
     @Override

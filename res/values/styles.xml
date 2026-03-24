@@ -183,6 +183,13 @@
     <!-- Theme overrides in All Apps when blur is enabled. -->
     <style name="AllAppsBlurStyle" />
 
+    <style name="FolderBlurStyle">
+        <item name="folderBackgroundColor">@color/customColorSurfaceEffect0</item>
+    </style>
+    <style name="FolderBlurFallbackStyle">
+        <item name="folderBackgroundColor">@color/customColorSurfaceEffect0Fallback</item>
+    </style>
+
     <style name="HomeSettings.Theme" parent="@android:style/Theme.DeviceDefault.Settings">
         <item name="android:navigationBarColor">?android:colorPrimaryDark</item>
         <item name="android:windowActionBar">false</item>
@@ -481,6 +488,22 @@
     <style name="PopupItemIconOnly">
         <item name="android:colorControlHighlight">?attr/popupColorTertiary</item>
         <item name="android:background">?android:attr/selectableItemBackgroundBorderless</item>
+    </style>
+
+    <style name="PopupMenuItemText" parent="@android:style/TextAppearance.DeviceDefault">
+        <item name="android:fontFamily">variable-label-medium</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:lineHeight">16sp</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:textFontWeight">500</item>
+    </style>
+
+    <style name="ExpandButtonText" parent="PopupMenuItemText">
+        <item name="android:fontFamily">variable-label-medium</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:lineHeight">16sp</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:textFontWeight">600</item>
     </style>
 
     <!-- Drop targets -->

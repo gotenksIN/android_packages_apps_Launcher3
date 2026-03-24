@@ -45,7 +45,6 @@ import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.R
 import com.android.launcher3.RemoveAnimationSettingsTracker
 import com.android.launcher3.Utilities
-import com.android.launcher3.config.FeatureFlags.enableTaskbarPinning
 import com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_EDU_OPEN
 import com.android.launcher3.taskbar.TaskbarControllers.LoggableTaskbarController
 import com.android.launcher3.taskbar.edu.TooltipEduCombinator
@@ -130,6 +129,7 @@ constructor(
 
     private lateinit var controllers: TaskbarControllers
     private lateinit var taskbarUIState: TaskbarUiState
+    private var userUnlocked: Boolean = false
 
     @VisibleForTesting lateinit var tooltipEduCombinator: TooltipEduCombinator
 
@@ -165,9 +165,15 @@ constructor(
 
     private var waiterForSearchEduAnchor: OnAttachStateChangeListener? = null
 
-    fun init(controllers: TaskbarControllers, taskbarUiState: TaskbarUiState) {
+    fun init(
+        controllers: TaskbarControllers,
+        taskbarUiState: TaskbarUiState,
+        userUnlocked: Boolean,
+    ) {
         this.controllers = controllers
         this.taskbarUIState = taskbarUiState
+        this.userUnlocked = userUnlocked
+
         tooltipEduCombinator =
             TooltipEduCombinator(
                 activityContext,
@@ -192,7 +198,9 @@ constructor(
 
     fun updateStateForSysuiFlags(@SystemUiStateFlags stateFlags: Long) {
         blockedBySysuiState =
-            isLocked(stateFlags) || (stateFlags and QuickStepContract.SYSUI_STATE_AWAKE == 0L)
+            !userUnlocked ||
+                isLocked(stateFlags) ||
+                (stateFlags and QuickStepContract.SYSUI_STATE_AWAKE == 0L)
         if (blockedBySysuiState) {
             hide()
         }
@@ -315,7 +323,7 @@ constructor(
                 splitscreenAnim.setAnimation(R.raw.taskbar_edu_splitscreen_transient)
                 bubblesAnim.setAnimation(R.raw.taskbar_edu_bubbles_transient)
                 suggestionsAnim.setAnimation(R.raw.taskbar_edu_suggestions_transient)
-                pinningEdu.visibility = if (enableTaskbarPinning()) VISIBLE else GONE
+                pinningEdu.visibility = VISIBLE
             } else {
                 splitscreenAnim.setAnimation(R.raw.taskbar_edu_splitscreen_persistent)
                 bubblesAnim.setAnimation(R.raw.taskbar_edu_bubbles_persistent)
@@ -350,9 +358,7 @@ constructor(
                 if (activityContext.isTransientTaskbar) {
                     width =
                         resources.getDimensionPixelSize(
-                            if (enableTaskbarPinning())
-                                R.dimen.taskbar_edu_features_tooltip_width_with_three_features
-                            else R.dimen.taskbar_edu_features_tooltip_width_with_two_features
+                            R.dimen.taskbar_edu_features_tooltip_width_with_three_features
                         )
 
                     bottomMargin += activityContext.deviceProfile.taskbarProfile.height
@@ -380,7 +386,6 @@ constructor(
         // for the original 2 edu steps) as a proxy to needing to show the separate pinning edu
         if (
             blockedBySysuiState ||
-                !enableTaskbarPinning() ||
                 !activityContext.isTransientTaskbar ||
                 !isTooltipEnabled ||
                 tooltipStep > TOOLTIP_STEP_PINNING ||
@@ -472,8 +477,7 @@ constructor(
             return
         }
         if (
-            !enableTaskbarPinning() ||
-                !activityContext.isPinnedTaskbar ||
+            !activityContext.isPinnedTaskbar ||
                 !isTooltipEnabled ||
                 blockedBySysuiState ||
                 !shouldShowSearchEdu ||

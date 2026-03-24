@@ -26,11 +26,13 @@ import static com.android.launcher3.anim.AnimatorListeners.forEndCallback;
 import static com.android.launcher3.taskbar.LauncherTaskbarUIController.IME_PROGRESS_INDEX;
 import static com.android.launcher3.taskbar.LauncherTaskbarUIController.SYSUI_SURFACE_PROGRESS_INDEX;
 import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar;
+import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableTaskbarA11yMoreOptionsButton;
 import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_A11Y;
 import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_BACK;
 import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_HOME;
 import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_IME_SWITCH;
 import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_RECENTS;
+import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_MORE_OPTIONS;
 import static com.android.launcher3.taskbar.TaskbarNavButtonController.BUTTON_SPACE;
 import static com.android.launcher3.taskbar.TaskbarViewController.ALPHA_INDEX_KEYGUARD;
 import static com.android.launcher3.taskbar.TaskbarViewController.ALPHA_INDEX_SMALL_SCREEN;
@@ -38,6 +40,7 @@ import static com.android.launcher3.util.Executors.getTaskbarUiThread;
 import static com.android.launcher3.util.FlagDebugUtils.appendFlag;
 import static com.android.launcher3.util.MultiPropertyFactory.MULTI_PROPERTY_VALUE;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_A11Y_BUTTON_CLICKABLE;
+import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DIALOG_SHOWING;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_A11Y_BUTTON_LONG_CLICKABLE;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_BACK_DISABLED;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_BACK_DISMISS_IME;
@@ -162,6 +165,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
     private static final int FLAG_SLIDE_IN_VIEW_VISIBLE = 1 << 14;
     private static final int FLAG_KEYBOARD_SHORTCUT_HELPER_SHOWING = 1 << 15;
     private static final int FLAG_TASKBAR_STASHED_ON_CD = 1 << 16;
+    private static final int FLAG_SYSUI_DIALOG_SHOWING = 1 << 17;
 
     /**
      * Flags where a UI could be over Taskbar surfaces, so the color override should be disabled.
@@ -245,6 +249,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
     private TaskbarControllers mControllers;
     private boolean mIsImeRenderingNavButtons;
     private ImageView mA11yButton;
+    private ImageView mMoreOptionsButton;
     @SystemUiStateFlags
     private long mSysuiStateFlags;
     private ImageView mBackButton;
@@ -299,6 +304,14 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                 || SUWTheme.equals(GLIF_EXPRESSIVE_LIGHT_THEME);
 
         mIsUserUnlocked = LockedUserState.get(context).isUserUnlocked();
+    }
+
+    /**
+     * Called after assistant long press enabled state changes. We assume that this new value is
+     * in {@link TaskbarSharedState#assistantLongPressEnabled} before calling this method.
+     */
+    public void onLongPressHomeEnabledChanged() {
+        applyState();
     }
 
     /**
@@ -371,9 +384,11 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         // - IME is visible (e.g. when editing a Folder name)
         // - VoiceInteractionWindow (assistant) is showing
         // - Keyboard shortcuts helper is showing
+        // - A System UI Dialog is showing (e.g. Mirroring bottom sheet)
         if (!isPhoneMode) {
             int flagsToRemoveTranslation = FLAG_NOTIFICATION_SHADE_EXPANDED
-                    | FLAG_VOICE_INTERACTION_WINDOW_SHOWING | FLAG_KEYBOARD_SHORTCUT_HELPER_SHOWING;
+                    | FLAG_VOICE_INTERACTION_WINDOW_SHOWING | FLAG_KEYBOARD_SHORTCUT_HELPER_SHOWING
+                    | FLAG_SYSUI_DIALOG_SHOWING;
             mPropertyHolders.add(new StatePropertyHolder(mNavButtonInAppDisplayProgressForSysui,
                     flags -> (flags & flagsToRemoveTranslation) != 0, AnimatedFloat.VALUE,
                     1, 0));
@@ -532,6 +547,15 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         mPropertyHolders.add(new StatePropertyHolder(mA11yButton,
                 flags -> (flags & FLAG_A11Y_VISIBLE) != 0));
 
+        if (enableTaskbarA11yMoreOptionsButton.isTrue()) {
+            mMoreOptionsButton = addButton(R.drawable.ic_more_vert_dots,
+                    BUTTON_MORE_OPTIONS, endContainer,
+                    navButtonController, R.id.more_options_button,
+                    R.layout.taskbar_contextual_button);
+            mPropertyHolders.add(new StatePropertyHolder(mMoreOptionsButton,
+                    flags -> (flags & FLAG_A11Y_VISIBLE) != 0));
+        }
+
         mSpace = new Space(mNavButtonsView.getContext());
         mSpace.setOnClickListener(view -> navButtonController.onButtonClick(BUTTON_SPACE, view));
         mSpace.setOnLongClickListener(view ->
@@ -542,7 +566,10 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                     .getListenableRef(mButtonOrderChangedUri).forEach(
                             getTaskbarUiThread(), (isEnabled) -> {
                                 getLayoutterForCurrentState().layoutButtons(
-                                        mContext, isA11yButtonPersistent());
+                                        mContext,
+                                        isA11yButtonPersistent(),
+                                        isA11yButtonVisible(),
+                                        isMoreOptionsButtonVisible());
                                 return null;
                             });
         }
@@ -612,6 +639,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                 (sysUiStateFlags & SYSUI_STATE_SHORTCUT_HELPER_SHOWING) != 0;
         boolean splitAnimationRunning =
                 (sysUiStateFlags & SYSUI_STATE_DISABLE_GESTURE_SPLIT_INVOCATION) != 0;
+        boolean isSysuiDialogShowing = (sysUiStateFlags & SYSUI_STATE_DIALOG_SHOWING) != 0;
         updateStateForFlag(FLAG_IME_SWITCHER_BUTTON_VISIBLE, isImeSwitcherButtonVisible);
         updateStateForFlag(FLAG_IME_VISIBLE, isImeVisible);
         updateStateForFlag(FLAG_BACK_DISMISS_IME, isBackDismissIme);
@@ -623,6 +651,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         updateStateForFlag(FLAG_SCREEN_PINNING_ACTIVE, isScreenPinningActive);
         updateStateForFlag(FLAG_VOICE_INTERACTION_WINDOW_SHOWING, isVoiceInteractionWindowShowing);
         updateStateForFlag(FLAG_KEYBOARD_SHORTCUT_HELPER_SHOWING, isKeyboardShortcutHelperShowing);
+        updateStateForFlag(FLAG_SYSUI_DIALOG_SHOWING, isSysuiDialogShowing);
 
         if (mA11yButton != null) {
             // Only used in 3 button
@@ -630,12 +659,6 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                     (sysUiStateFlags & SYSUI_STATE_A11Y_BUTTON_LONG_CLICKABLE) != 0;
             mA11yButton.setLongClickable(a11yLongClickable);
             updateButtonLayoutSpacing();
-        }
-
-        if (mRecentsButton != null) {
-            boolean screenPinned = (sysUiStateFlags & SYSUI_STATE_SCREEN_PINNING) != 0;
-            // Recents button is only long clickable to exit screen pinning.
-            mRecentsButton.setLongClickable(screenPinned);
         }
 
         if (mNavButtonContainer.getChildCount() > 0) {
@@ -658,10 +681,26 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
     }
 
     /**
+     * @return {@code true} if the A11y button should be considered visible based on current flags.
+     */
+    private boolean isA11yButtonVisible() {
+        return (mState & FLAG_A11Y_VISIBLE) != 0;
+    }
+
+    /**
+     * @return {@code true} if the More Options button should be visible.
+     * Dependencies: Feature flag must be on, AND A11y button must be visible.
+     */
+    private boolean isMoreOptionsButtonVisible() {
+        return enableTaskbarA11yMoreOptionsButton.isTrue()
+                && isA11yButtonVisible();
+    }
+
+    /**
      * @return {@code true} if A11y is showing in 3 button nav taskbar
      */
     private boolean isA11yButtonPersistent() {
-        return mContext.isThreeButtonNav() && (mState & FLAG_A11Y_VISIBLE) != 0;
+        return mContext.isThreeButtonNav() && isA11yButtonVisible();
     }
 
     /**
@@ -857,6 +896,20 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
         int count = mPropertyHolders.size();
         for (int i = 0; i < count; i++) {
             mPropertyHolders.get(i).setState(mState, mContext.isGestureNav());
+        }
+
+        boolean isScreenPinningActive = (mState & FLAG_SCREEN_PINNING_ACTIVE) != 0;
+        if (mHomeButton != null) {
+            boolean isHomeLongClickable = (mControllers.getSharedState() == null
+                    || mControllers.getSharedState().assistantLongPressEnabled)
+                    && !isScreenPinningActive;
+            mHomeButton.setLongClickable(isHomeLongClickable);
+        }
+        if (mBackButton != null) {
+            mBackButton.setLongClickable(isScreenPinningActive);
+        }
+        if (mRecentsButton != null) {
+            mRecentsButton.setLongClickable(isScreenPinningActive);
         }
     }
 
@@ -1139,7 +1192,9 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
      */
     private void updateButtonLayoutSpacing() {
         NavButtonLayoutter navButtonLayoutter = getLayoutterForCurrentState();
-        navButtonLayoutter.layoutButtons(mContext, isA11yButtonPersistent());
+
+        navButtonLayoutter.layoutButtons(mContext, isA11yButtonPersistent(),
+                isA11yButtonVisible(), isMoreOptionsButtonVisible());
         updateButtonsBackground();
         updateNavButtonColor();
     }
@@ -1147,7 +1202,7 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
     private NavButtonLayoutter getLayoutterForCurrentState() {
         return NavButtonLayoutFactory.Companion.getUiLayoutter(
                         mContext.getDeviceProfile(), mNavButtonsView, mImeSwitcherButton,
-                        mA11yButton, mSpace, mContext.getResources(),
+                        mA11yButton, mMoreOptionsButton, mSpace, mContext.getResources(),
                         mContext.isNavBarKidsModeActive(),
                         !mContext.isUserSetupComplete(), mContext.isThreeButtonNav(),
                         mContext.isPhoneMode(), mWindowManagerProxy.getRotation(mContext));
@@ -1311,6 +1366,8 @@ public class NavbarButtonsViewController implements TaskbarControllers.LoggableT
                 "FLAG_VOICE_INTERACTION_WINDOW_SHOWING");
         appendFlag(str, flags, FLAG_KEYBOARD_SHORTCUT_HELPER_SHOWING,
                 "FLAG_KEYBOARD_SHORTCUT_HELPER_SHOWING");
+        appendFlag(str, flags, FLAG_SYSUI_DIALOG_SHOWING,
+                "FLAG_SYSUI_DIALOG_SHOWING");
         return str.toString();
     }
 

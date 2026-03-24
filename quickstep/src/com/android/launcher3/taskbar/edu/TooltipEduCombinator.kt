@@ -27,7 +27,6 @@ import androidx.core.text.HtmlCompat
 import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.R
 import com.android.launcher3.Utilities
-import com.android.launcher3.config.FeatureFlags.enableTaskbarPinning
 import com.android.launcher3.taskbar.TOOLTIP_STEP_FEATURES
 import com.android.launcher3.taskbar.TaskbarActivityContext
 import com.android.launcher3.taskbar.TaskbarStashController
@@ -36,7 +35,6 @@ import com.android.launcher3.util.OnboardingPrefs.TASKBAR_EDU_TOOLTIP_STEP
 import com.android.launcher3.util.OnboardingPrefs.TASKBAR_SEEN_EDU_FLAGS
 import com.android.launcher3.views.ActivityContext
 import com.android.systemui.shared.Flags.enableRecentsInTaskbar
-import com.android.wm.shell.shared.bubbles.BubbleFlagHelper
 import java.io.PrintWriter
 
 /**
@@ -75,9 +73,8 @@ class TooltipEduCombinator(
     private val userHasSeenOldPinningEdu: Boolean
         get() = TASKBAR_EDU_TOOLTIP_STEP.get(context) > TOOLTIP_STEP_FEATURES
 
-    /** Indicates whether the createAnyBubbleEnabled is enabled. */
-    @VisibleForTesting
-    var createAnyBubbleEnabled: Boolean = BubbleFlagHelper.enableCreateAnyBubble()
+    /** Indicates whether app bubbles are enabled. */
+    @VisibleForTesting var createAnyBubbleEnabled: Boolean = context.areAppBubblesSupported()
 
     /** Creates the [TooltipInfo] for the split-screen educational tooltip. */
     private val splitTooltipInfo: TooltipInfo
@@ -224,7 +221,6 @@ class TooltipEduCombinator(
                 optionalCondition = {
                     isTooltipEnabled &&
                         context.isPinnedTaskbar &&
-                        enableTaskbarPinning() &&
                         taskbarStashController.isTaskbarVisibleAndNotStashing &&
                         shouldShowSearchEduResolver.invoke()
                 },
@@ -358,11 +354,7 @@ class TooltipEduCombinator(
 
         if (
             setFlagIfUnset(
-                optionalCondition = {
-                    context.isTransientTaskbar &&
-                        enableTaskbarPinning() &&
-                        !userHasSeenOldPinningEdu
-                },
+                optionalCondition = { context.isTransientTaskbar && !userHasSeenOldPinningEdu },
                 flag = TASKBAR_PINNING_EDU_SEEN_FLAG,
                 updateFlag = updateFlags,
             )

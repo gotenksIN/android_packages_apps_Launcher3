@@ -651,7 +651,8 @@ public class TaskbarManagerImpl {
     public void setActivityInteractor(@NonNull ActivityInteractor activityInteractor) {
         mPrimaryResource.debugMsg(
                 "setActivityInteractor: mActivityInteractor=" + mActivityInteractor);
-        if (mActivityInteractor == activityInteractor) {
+        if (mActivityInteractor == activityInteractor
+                || activityInteractor.isActivitySameObj(mActivityInteractor)) {
             mPrimaryResource.debugMsg("setActivityInteractor: No need to set activityInteractor!");
             return;
         }
@@ -833,7 +834,7 @@ public class TaskbarManagerImpl {
             sharedState.allAppsVisible = sharedState.allAppsVisible && isLargeScreenTaskbar;
             Trace.beginSection("taskbar.init");
             try {
-                taskbar.init(sharedState, duration);
+                taskbar.init(sharedState, mUserUnlocked, duration);
             } finally {
                 Trace.endSection();
             }
@@ -895,8 +896,13 @@ public class TaskbarManagerImpl {
     }
 
     public void onLongPressHomeEnabled(boolean assistantLongPressEnabled) {
-        mResources.forEach(res ->
-                res.getSharedState().assistantLongPressEnabled = assistantLongPressEnabled);
+        mResources.forEach(res -> {
+            res.getSharedState().assistantLongPressEnabled = assistantLongPressEnabled;
+            TaskbarActivityContext taskbar = res.getTaskbar();
+            if (taskbar != null) {
+                taskbar.onLongPressHomeEnabledChanged();
+            }
+        });
     }
 
     /**
@@ -1123,7 +1129,8 @@ public class TaskbarManagerImpl {
             TaskbarActivityContext taskbarActivityContext =
                     new TaskbarActivityContext(displayId, windowContext, navigationBarPanelContext,
                             dp, resource.getNavButtonController(), mUnfoldProgressProvider,
-                            !resource.isExternalDisplay(), getPrimaryDisplayId(), mSystemUiProxy);
+                            !resource.isExternalDisplay(), getPrimaryDisplayId(),
+                            mSystemUiProxy);
             mAmbientCueRepository = taskbarActivityContext.getControllers().cueBarController
                     .getAmbientCueRepository();
             return taskbarActivityContext;

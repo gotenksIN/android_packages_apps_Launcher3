@@ -19,7 +19,7 @@ import android.platform.test.rule.AllowedDevices
 import android.platform.test.rule.DeviceProduct
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator
 import com.android.launcher3.util.rule.ScreenRecordRule
-import com.android.launcher3.util.ui.ActivityStartUtils.startAppFast
+import com.android.launcher3.util.ui.BaseLauncherTaplTest.AllowInRecentsWindowTests
 import com.android.quickstep.TaskbarModeSwitchRule.TaskbarModeSwitch
 import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
@@ -28,17 +28,15 @@ import org.junit.Test
 @AllowedDevices(
     allowed = [DeviceProduct.TANGORPRO, DeviceProduct.CF_TABLET, DeviceProduct.CF_DESKTOP]
 )
+@AllowInRecentsWindowTests
 class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
 
     @get:Rule val screenRecordRule = ScreenRecordRule()
 
     private lateinit var taskbarFeatureEvaluator: TaskbarFeatureEvaluator
 
-    override fun startCalculatorAppDuringSetup(): Boolean = false
-
     override fun setUp() {
         super.setUp()
-        startAppFast(CALCULATOR_APP_PACKAGE)
         taskbarFeatureEvaluator =
             TaskbarFeatureEvaluator.INSTANCE[mTargetContext][mTargetContext.displayId]!!
     }
@@ -57,6 +55,7 @@ class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
         mLauncher.goHome().switchToOverview()
         // Pinning
         mLauncher.launchedAppState.taskbar.toggleAlwaysShowTaskbarOption()
+        mLauncher.launchedAppState.assertTaskbarVisible()
         mLauncher.goHome()
 
         assertThat(taskbarFeatureEvaluator.isTransient).isFalse()
@@ -65,6 +64,7 @@ class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
         // unpinning
         mLauncher.goHome().switchToOverview()
         mLauncher.launchedAppState.taskbar.toggleAlwaysShowTaskbarOption()
+        mLauncher.launchedAppState.assertTaskbarVisible()
         mLauncher.goHome()
 
         assertThat(taskbarFeatureEvaluator.isTransient).isTrue()

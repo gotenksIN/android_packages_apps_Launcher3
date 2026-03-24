@@ -310,20 +310,30 @@ class TaskbarPinnedAppIconContainer(context: Context) :
         addView(dropTargetGhostView, min(insertionIndex, childCount), lp)
     }
 
-    fun updateItemViewVisibilityForDragState(itemView: View, isDragged: Boolean) {
+    fun updateItemViewVisibilityForDragState(itemView: View, isDragged: Boolean): Boolean {
         val indexOfDraggedView = indexOfChild(itemView)
         if (indexOfDraggedView < 0) {
             indexOfChildHiddenForDrag = -1
-            return
+            return false
         }
         indexOfChildHiddenForDrag = if (isDragged) indexOfDraggedView else -1
         itemView.visibility = if (isDragged) GONE else VISIBLE
+        return true
     }
 
     /** Removes the ghost view and restores the original item if it was hidden. */
     fun releaseDropSlot() {
         dropSpotIndex = -1
         dropTargetGhostView?.let { removeView(it) }
+    }
+
+    fun removeDraggedView() {
+        if (indexOfChildHiddenForDrag < 0 || indexOfChildHiddenForDrag >= childCount) {
+            return
+        }
+        removeViewAt(indexOfChildHiddenForDrag)
+        indexOfChildHiddenForDrag = -1
+        clearDisappearingChildren()
     }
 
     /** Applies and traces [body] for each [icons] instance. */

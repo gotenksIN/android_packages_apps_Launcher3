@@ -17,6 +17,9 @@
 package com.android.quickstep;
 
 import static com.android.launcher3.Flags.FLAG_ENABLE_MOUSE_INTERACTION_CHANGES;
+import static com.android.launcher3.util.Executors.getTaskbarUiThread;
+import static com.android.launcher3.util.rule.TestStabilityRule.LOCAL;
+import static com.android.launcher3.util.rule.TestStabilityRule.PLATFORM_POSTSUBMIT;
 import static com.android.quickstep.InputConsumerUtils.newBaseConsumer;
 import static com.android.quickstep.InputConsumerUtils.newConsumer;
 
@@ -40,6 +43,7 @@ import android.view.Display;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 
+import androidx.lifecycle.LifecycleRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -70,6 +74,8 @@ import com.android.launcher3.taskbar.bubbles.stashing.BubbleStashController;
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator;
 import com.android.launcher3.util.LockedUserState;
 import com.android.launcher3.util.SandboxApplication;
+import com.android.launcher3.util.rule.TestStabilityRule;
+import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability;
 import com.android.launcher3.views.BaseDragLayer;
 import com.android.quickstep.inputconsumers.AccessibilityInputConsumer;
 import com.android.quickstep.inputconsumers.BubbleBarInputConsumer;
@@ -146,6 +152,8 @@ public class InputConsumerUtilsTest {
     @Rule
     public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
+    @Rule public TestStabilityRule mTestStabilityRule = new TestStabilityRule();
+
     @Before
     public void setupTaskAnimationManager() {
         DisplayController displayController = DisplayController.INSTANCE.get(mContext);
@@ -176,12 +184,17 @@ public class InputConsumerUtilsTest {
     @Before
     public void setUpTaskbarActivityContext() {
         NavHandle navHandle = mock(NavHandle.class);
+        LifecycleRegistry lifecycleRegistry =
+                LifecycleRegistry.createUnsafe(mTaskbarActivityContext);
+        lifecycleRegistry.setCurrentState(androidx.lifecycle.Lifecycle.State.INITIALIZED);
 
         when(navHandle.canNavHandleBeLongPressed()).thenReturn(true);
 
+        when(mTaskbarActivityContext.getLifecycle()).thenReturn(lifecycleRegistry);
         when(mTaskbarActivityContext.getDeviceProfile()).thenReturn(new DeviceProfile());
         when(mTaskbarActivityContext.getNavHandle()).thenReturn(navHandle);
         when(mTaskbarActivityContext.getResources()).thenReturn(mContext.getResources());
+        when(mTaskbarActivityContext.getUiExecutor()).thenReturn(getTaskbarUiThread());
     }
 
     @Before
@@ -371,6 +384,7 @@ public class InputConsumerUtilsTest {
 
     @Test
     @EnableFlags(FLAG_ENABLE_MOUSE_INTERACTION_CHANGES)
+    @DesktopStability(flavors = LOCAL | PLATFORM_POSTSUBMIT, bug = 486280960)
     public void testNewBaseConsumer_nonTrackpadMouseEvent_nonDesktop_returnsDefaultInputConsumer() {
         when(mCurrentGestureState.isTrackpadGesture()).thenReturn(false);
         MotionEvent mouseEvent = MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 0, 0, 0);

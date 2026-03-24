@@ -17,12 +17,14 @@
 package com.android.launcher3
 
 import android.content.Intent
+import android.graphics.Point
 import android.net.Uri
 import android.os.Process
 import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.SetFlagsRule
 import android.provider.DocumentsContract.Document.MIME_TYPE_DIR
+import android.util.Size
 import android.view.DragAndDropPermissions
 import android.view.View
 import androidx.core.net.toUri
@@ -43,12 +45,19 @@ import com.android.launcher3.dragndrop.DragOptions
 import com.android.launcher3.dragndrop.SystemDragItemInfo
 import com.android.launcher3.homescreenfiles.HomeScreenFile
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider
+import com.android.launcher3.homescreenfiles.HomeScreenFilesUpdate
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils
 import com.android.launcher3.integration.util.LauncherActivityScenarioRule
+import com.android.launcher3.model.data.ItemInfo
+import com.android.launcher3.model.data.WorkspaceItemCoordinates
 import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.testutil.rule.ApplicationOverrideRule
 import com.android.launcher3.util.RoboApiWrapper.convertToSpy
 import com.android.launcher3.util.SandboxApplication
+import com.android.launcher3.util.rule.TestStabilityRule
+import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability
+import com.android.launcher3.util.rule.TestStabilityRule.LOCAL
+import com.android.launcher3.util.rule.TestStabilityRule.PLATFORM_POSTSUBMIT
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -74,6 +83,7 @@ class WorkspaceTest {
     @get:Rule val app = SandboxApplication().withModelDependency()
     @get:Rule val appOverride = ApplicationOverrideRule(app, mockito)
     @get:Rule val launcherActivity = LauncherActivityScenarioRule<Launcher>()
+    @get:Rule val testStabilityRule = TestStabilityRule()
 
     private val nextUniqueId = AtomicInteger(1)
 
@@ -145,6 +155,7 @@ class WorkspaceTest {
 
     @Test
     @EnableFlags(FLAG_ENABLE_FILE_SYSTEM_FOLDERS_AS_DROP_TARGETS)
+    @DesktopStability(flavors = LOCAL or PLATFORM_POSTSUBMIT, bug = 486279940)
     fun testAddToExistingFileSystemFolderWithFeatureEnabled() {
         testAddToExistingFileSystemFolder()
     }
@@ -153,6 +164,7 @@ class WorkspaceTest {
         launcherActivity.executeOnLauncher { launcher ->
             val displayName = "Folder"
             val dropOverView = createDropOverView(createFolder(displayName))
+            val dropOverInfo = dropOverView.tag as ItemInfo
             val expected = enableFileSystemFoldersAsDropTargets()
             val provider = HomeScreenFilesProvider.INSTANCE[launcher].apply { convertToSpy() }
             val times = if (expected) times(1) else times(0)
@@ -167,7 +179,21 @@ class WorkspaceTest {
                     false,
                 ),
             )
-            verify(provider, times).moveToHomeScreen(listOf(uri), displayName)
+            verify(provider, times)
+                .moveToHomeScreen(
+                    listOf(uri),
+                    HomeScreenFilesUpdate.Extras.builder()
+                        .findSpaceStartingFrom(
+                            WorkspaceItemCoordinates(
+                                dropOverInfo.screenId,
+                                dropOverInfo.cellX,
+                                dropOverInfo.cellY,
+                                dropOverInfo.container,
+                            )
+                        )
+                        .build(),
+                    displayName,
+                )
 
             // Case: Dropping internal file system folder on file system folder.
             uri = createUniqueMediaStoreUri()
@@ -179,7 +205,21 @@ class WorkspaceTest {
                     false,
                 ),
             )
-            verify(provider, times).moveToHomeScreen(listOf(uri), displayName)
+            verify(provider, times)
+                .moveToHomeScreen(
+                    listOf(uri),
+                    HomeScreenFilesUpdate.Extras.builder()
+                        .findSpaceStartingFrom(
+                            WorkspaceItemCoordinates(
+                                dropOverInfo.screenId,
+                                dropOverInfo.cellX,
+                                dropOverInfo.cellY,
+                                dropOverInfo.container,
+                            )
+                        )
+                        .build(),
+                    displayName,
+                )
 
             // Case: Dropping external file system file/folder on file system folder.
             uri = createUniqueMediaStoreUri()
@@ -191,7 +231,21 @@ class WorkspaceTest {
                     true,
                 ),
             )
-            verify(provider, times).moveToHomeScreen(listOf(uri), displayName)
+            verify(provider, times)
+                .moveToHomeScreen(
+                    listOf(uri),
+                    HomeScreenFilesUpdate.Extras.builder()
+                        .findSpaceStartingFrom(
+                            WorkspaceItemCoordinates(
+                                dropOverInfo.screenId,
+                                dropOverInfo.cellX,
+                                dropOverInfo.cellY,
+                                dropOverInfo.container,
+                            )
+                        )
+                        .build(),
+                    displayName,
+                )
 
             // Case: Dropping application on file system folder.
             uri = createUniqueMediaStoreUri()
@@ -277,21 +331,21 @@ class WorkspaceTest {
 
     private fun createDropOverView(folder: HomeScreenFile) =
         mock<View>().apply {
-            doReturn(
-                    CellLayoutLayoutParams(
-                        /*cellX=*/ 1,
-                        /*cellY=*/ 1,
-                        /*cellHSpan=*/ 1,
-                        /*cellVSpan=*/ 1,
-                    )
-                )
+            val cell = Point(1, 2)
+            val span = Size(3, 4)
+
+            doReturn(CellLayoutLayoutParams(cell.x, cell.y, span.width, span.height))
                 .whenever(this@apply)
                 .layoutParams
 
             doReturn(
                     WorkspaceItemInfo().apply {
+                        cellX = cell.x
+                        cellY = cell.y
                         intent = HomeScreenFilesUtils.buildLaunchIntent(folder.uri, folder)
                         itemType = HomeScreenFilesUtils.buildItemType(folder)
+                        spanX = span.width
+                        spanY = span.height
                         title = folder.displayName
                     }
                 )

@@ -164,6 +164,12 @@ class TaskbarManagerImplWrapper @Inject constructor(implProvider: Provider<Taskb
         return impl.getTaskbarForDisplay(displayId)
     }
 
+    override fun updateStashControllerLauncherStateFlag(displayId: Int, isVisible: Boolean) {
+        getTaskbarUiThread().execute {
+            getTaskbarForDisplay(displayId)?.updateStashControllerLauncherStateFlag(isVisible)
+        }
+    }
+
     override fun dumpLogs(prefix: String, pw: PrintWriter) {
         // Stay on caller thread because PrinterWriter is not thread safe.
         impl.dumpLogs(prefix, pw)
@@ -209,9 +215,10 @@ class TaskbarManagerImplWrapper @Inject constructor(implProvider: Provider<Taskb
     }
 
     @VisibleForTesting
-    override fun unstashTaskbarIfStashed() {
-        getTaskbarUiThread().execute { impl.currentActivityContext!!.unstashTaskbarIfStashed() }
-    }
+    override fun unstashTaskbarIfStashed(): Boolean =
+        getTaskbarUiThread()
+            .submit<Boolean> { impl.currentActivityContext!!.unstashTaskbarIfStashed() }
+            .get()
 
     @VisibleForTesting
     override fun enableBlockingTimeoutDuringTests(enableBlockingTimeout: Boolean) {
@@ -219,8 +226,13 @@ class TaskbarManagerImplWrapper @Inject constructor(implProvider: Provider<Taskb
     }
 
     @VisibleForTesting
-    override fun isTransient(displayId: Int): Boolean =
-        impl.getTaskbarForDisplay(displayId)?.taskbarFeatureEvaluator?.isTransient ?: false
+    override fun isTransient(displayId: Int): Boolean {
+        return if (::impl.isInitialized) {
+            impl.getTaskbarForDisplay(displayId)?.taskbarFeatureEvaluator?.isTransient ?: false
+        } else {
+            false
+        }
+    }
 
     @VisibleForTesting
     override fun injectTestInsights() {

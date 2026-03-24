@@ -31,6 +31,7 @@ import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.DragSource
 import com.android.launcher3.DropTarget.DragObject
 import com.android.launcher3.Launcher
+import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.R
 import com.android.launcher3.accessibility.LauncherAccessibilityDelegate
 import com.android.launcher3.dragndrop.DragController
@@ -112,6 +113,7 @@ open class PopupContainer<T>(
     }
 
     open fun showComposePopup(systemShortcuts: List<PopupItem>, deepShortcutCount: Int = 0) {
+        mElevation = 0f
         mIsOpen = true
         popupContainer.addView(this)
         visibility = GONE
@@ -123,7 +125,12 @@ open class PopupContainer<T>(
         val deviceProfile = mActivityContext.deviceProfile
         val availableHeightDp =
             deviceProfile.pxToDp(deviceProfile.deviceProperties.availableHeightPx.toFloat())
-        viewModel.init(systemShortcuts, deepShortcutCount, availableHeightDp)
+        viewModel.init(
+            systemShortcuts,
+            deepShortcutCount,
+            availableHeightDp,
+            LauncherPrefs.get(context),
+        )
 
         val composePopup =
             ComposeView(context).apply {
@@ -263,16 +270,6 @@ open class PopupContainer<T>(
         // Hide the container, but don't remove it yet because that interferes with touch events.
         mDeferContainerRemoval = true
         handleClose(/* animate */ true)
-    }
-
-    @CallSuper
-    override fun onDragEnterWindow(dragObject: DragObject, options: DragOptions) {
-        // No-op
-    }
-
-    @CallSuper
-    override fun onDragExitWindow(dragObject: DragObject, options: DragOptions) {
-        // No-op
     }
 
     override fun onDropCompleted(target: View, d: DragObject, success: Boolean) {}

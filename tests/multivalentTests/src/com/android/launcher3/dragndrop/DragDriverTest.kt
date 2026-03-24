@@ -16,16 +16,10 @@
 
 package com.android.launcher3.dragndrop
 
-import android.platform.test.annotations.DisableFlags
-import android.platform.test.annotations.EnableFlags
-import android.platform.test.flag.junit.SetFlagsRule
 import android.view.DragEvent
 import androidx.test.filters.SmallTest
-import com.android.launcher3.Flags.FLAG_ENABLE_DRAG_ENTER_EXIT_SUPPORT
-import com.android.launcher3.Flags.enableDragEnterExitSupport
 import com.android.launcher3.util.LauncherMultivalentJUnit
 import com.google.common.truth.Truth.assertThat
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.verify
@@ -39,20 +33,14 @@ import org.mockito.kotlin.whenever
 @RunWith(LauncherMultivalentJUnit::class)
 class DragDriverTest {
 
-    @get:Rule val flags: SetFlagsRule = SetFlagsRule()
-
     @Test
-    @DisableFlags(FLAG_ENABLE_DRAG_ENTER_EXIT_SUPPORT)
-    fun testDragEnterExitSupportWithFlagDisabled() {
-        testDragEnterExitSupport(useSystemDriver = true)
+    fun testDragEnterExitSupportWithInternalDriver() {
         testDragEnterExitSupport(useSystemDriver = false)
     }
 
     @Test
-    @EnableFlags(FLAG_ENABLE_DRAG_ENTER_EXIT_SUPPORT)
-    fun testDragEnterExitSupportWithFlagEnabled() {
+    fun testDragEnterExitSupportWithSystemDriver() {
         testDragEnterExitSupport(useSystemDriver = true)
-        testDragEnterExitSupport(useSystemDriver = false)
     }
 
     private fun testDragEnterExitSupport(useSystemDriver: Boolean) {
@@ -67,14 +55,14 @@ class DragDriverTest {
         // Step 0: Initial state.
         assertThat(driver is DragDriver.InternalDragDriver).isEqualTo(useInternalDriver)
         assertThat(driver is DragDriver.SystemDragDriver).isEqualTo(useSystemDriver)
-        assertThat(driver.isDragWithinLauncherWindow).isEqualTo(useInternalDriver)
+        assertThat(driver.isDragWithinWindow).isEqualTo(useInternalDriver)
 
         // Step 1: Drag start.
         whenever(event.action).thenReturn(DragEvent.ACTION_DRAG_STARTED)
         whenever(event.x).thenReturn(++eventX)
         whenever(event.y).thenReturn(++eventY)
         driver.onDragEvent(event)
-        assertThat(driver.isDragWithinLauncherWindow).isEqualTo(useInternalDriver)
+        assertThat(driver.isDragWithinWindow).isEqualTo(useInternalDriver)
         verifyNoMoreInteractions(controller)
         clearInvocations(controller)
 
@@ -83,9 +71,8 @@ class DragDriverTest {
         whenever(event.x).thenReturn(++eventX)
         whenever(event.y).thenReturn(++eventY)
         driver.onDragEvent(event)
-        assertThat(driver.isDragWithinLauncherWindow)
-            .isEqualTo(useInternalDriver || enableDragEnterExitSupport())
-        if (enableDragEnterExitSupport() && useSystemDriver) {
+        assertThat(driver.isDragWithinWindow).isEqualTo(true)
+        if (useSystemDriver) {
             verify(controller).onDriverDragEnterWindow()
         }
         verifyNoMoreInteractions(controller)
@@ -96,8 +83,7 @@ class DragDriverTest {
         whenever(event.x).thenReturn(++eventX)
         whenever(event.y).thenReturn(++eventY)
         driver.onDragEvent(event)
-        assertThat(driver.isDragWithinLauncherWindow)
-            .isEqualTo(useInternalDriver || enableDragEnterExitSupport())
+        assertThat(driver.isDragWithinWindow).isEqualTo(true)
         if (useSystemDriver) {
             verify(controller).onDriverDragMove(eventX, eventY)
         }
@@ -109,7 +95,7 @@ class DragDriverTest {
         whenever(event.x).thenReturn(++eventX)
         whenever(event.y).thenReturn(++eventY)
         driver.onDragEvent(event)
-        assertThat(driver.isDragWithinLauncherWindow).isEqualTo(useInternalDriver)
+        assertThat(driver.isDragWithinWindow).isEqualTo(useInternalDriver)
         if (useSystemDriver) {
             verify(controller).onDriverDragExitWindow()
         }
@@ -121,7 +107,7 @@ class DragDriverTest {
         whenever(event.x).thenReturn(++eventX)
         whenever(event.y).thenReturn(++eventY)
         driver.onDragEvent(event)
-        assertThat(driver.isDragWithinLauncherWindow).isEqualTo(useInternalDriver)
+        assertThat(driver.isDragWithinWindow).isEqualTo(useInternalDriver)
         if (useSystemDriver) {
             verify(controller).onDriverDragMove(eventX, eventY)
             verify(controller).onDriverDragEnd(eventX, eventY)
@@ -134,7 +120,7 @@ class DragDriverTest {
         whenever(event.x).thenReturn(++eventX)
         whenever(event.y).thenReturn(++eventY)
         driver.onDragEvent(event)
-        assertThat(driver.isDragWithinLauncherWindow).isEqualTo(useInternalDriver)
+        assertThat(driver.isDragWithinWindow).isEqualTo(useInternalDriver)
         if (useSystemDriver) {
             verify(controller).onDriverDragCancel()
         }
