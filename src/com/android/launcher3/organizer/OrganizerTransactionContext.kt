@@ -73,8 +73,29 @@ constructor(
     /**
      * Adds multiple folders to the workspace, automatically finding available space for each to
      * avoid collisions.
+     *
+     * @param folders The list of folders to create
+     * @param removeDuplicates Indicates whether we want to remove any items on the home screen
+     *   which are being added into a folder.
      */
-    fun addFolders(folders: List<FolderInfo>) {
+    fun addFolders(folders: List<FolderInfo>, removeDuplicates: Boolean = false) {
+        if (removeDuplicates) {
+            val itemsInFolders = folders.flatMap { it.getContents() }.mapNotNull { it.componentKey }
+            val itemsInDesktop =
+                homeScreenRepository.workspaceState.value.filter {
+                    it.container == Favorites.CONTAINER_DESKTOP
+                }
+            val itemsToDelete =
+                itemsInDesktop.filter { desktopItem ->
+                    desktopItem.componentKey != null &&
+                        itemsInFolders.contains(desktopItem.componentKey)
+                }
+
+            if (itemsToDelete.isNotEmpty()) {
+                deleteItemsFromDatabase(itemsToDelete, "Duplicates removed during folder creation")
+            }
+        }
+
         val placedItems = ArrayList<ItemInfo>()
         for (folder in folders) {
             addFolder(folder, placedItems)

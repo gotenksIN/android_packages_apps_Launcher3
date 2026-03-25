@@ -118,7 +118,9 @@ constructor(
     private suspend fun persistAndBindFolders(folders: List<FolderInfo>) {
         try {
             modelWriter.scheduleTransactionSuspending { context ->
-                organizerTransactionContextFactory.create(context).addFolders(folders)
+                organizerTransactionContextFactory
+                    .create(context)
+                    .addFolders(folders, state.value.removeDuplicates)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to persist folders", e)
