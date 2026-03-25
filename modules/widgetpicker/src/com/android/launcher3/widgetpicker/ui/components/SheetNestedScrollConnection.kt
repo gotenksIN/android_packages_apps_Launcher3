@@ -31,7 +31,6 @@ class SheetNestedScrollConnection(
     private val sheetState: SheetDismissState,
     private val flingBehavior: FlingBehavior,
     private val enabled: Boolean,
-    private val enableDragOnScrollToEnd: Boolean,
 ) : NestedScrollConnection {
     private var sheetConsumedPreScrollDelta = 0f
     private var childConsumedAnyScroll = false
@@ -63,9 +62,8 @@ class SheetNestedScrollConnection(
         childConsumedAnyScroll = sheetConsumedPreScrollDelta != consumed.y
 
         return when {
-            // If child didn't accept scroll and drag is enabled, assume we can scroll.
-            enableDragOnScrollToEnd && !childConsumedAnyScroll ->
-                Offset(x = 0f, y = dispatchRawDelta(available.y))
+            // If child didn't accept scroll, assume we can scroll.
+            !childConsumedAnyScroll -> Offset(x = 0f, y = dispatchRawDelta(available.y))
             else -> Offset.Zero
         }
     }

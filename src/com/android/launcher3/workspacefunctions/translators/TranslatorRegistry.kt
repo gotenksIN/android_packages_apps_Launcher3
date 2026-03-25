@@ -20,11 +20,10 @@ import com.android.launcher3.appfunctions.workspace.HotseatItemSpec
 import com.android.launcher3.appfunctions.workspace.Translator
 import com.android.launcher3.appfunctions.workspace.UnplacedAppSpec
 import com.android.launcher3.appfunctions.workspace.UnplacedAppTypeTranslator
-import com.android.launcher3.appfunctions.workspace.UnplacedWidgetSpec
-import com.android.launcher3.appfunctions.workspace.UnplacedWidgetTypeTranslator
 import com.android.launcher3.appfunctions.workspace.WorkspaceItemSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceTypeTranslator
+import com.android.launcher3.dagger.LauncherAppSingleton
 import javax.inject.Inject
 import javax.inject.Provider
 import kotlin.reflect.KClass
@@ -34,6 +33,7 @@ import kotlin.reflect.KClass
  *
  * It wraps multiple Dagger multibinding maps into a single access point.
  */
+@LauncherAppSingleton
 class TranslatorRegistry
 @Inject
 constructor(
@@ -47,8 +47,6 @@ constructor(
         Map<Class<*>, @JvmSuppressWildcards Provider<WorkspaceTypeTranslator<*>>>,
     private val unplacedAppTypeTranslators:
         Map<Class<*>, @JvmSuppressWildcards Provider<UnplacedAppTypeTranslator<*>>>,
-    private val unplacedWidgetTypeTranslators:
-        Map<Class<*>, @JvmSuppressWildcards Provider<UnplacedWidgetTypeTranslator<*>>>,
 ) {
     /** Returns the translator for the given [target] and [sourceClass] types. */
     @PublishedApi
@@ -63,13 +61,11 @@ constructor(
                 AppInFolderSpec::class -> appInFolderTranslators
                 WorkspaceSpec::class -> workspaceTypeTranslators
                 UnplacedAppSpec::class -> unplacedAppTypeTranslators
-                UnplacedWidgetSpec::class -> unplacedWidgetTypeTranslators
                 else -> throw IllegalArgumentException("Unknown target type: $target")
             }
 
-        val provider =
-            map[sourceClass]
-                ?: map.entries.firstOrNull { it.key.isAssignableFrom(sourceClass) }?.value
+        val provider = map[sourceClass]
+            ?: map.entries.firstOrNull { it.key.isAssignableFrom(sourceClass) }?.value
 
         return provider?.get() as? Translator<Any, Any>
             ?: throw IllegalArgumentException(

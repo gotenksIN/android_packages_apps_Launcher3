@@ -144,9 +144,6 @@ constructor(
     private val allowStashing: Boolean
         get() = launcherState == BubbleLauncherState.IN_APP
 
-    override val isStashingAllowed: Boolean
-        get() = allowStashing
-
     override var launcherState: BubbleLauncherState = BubbleLauncherState.IN_APP
         set(state) {
             if (field == state) return

@@ -44,7 +44,6 @@ class TaplOverviewExternalDisplayTest : AbstractQuickStepTest() {
 
     @Test
     @MultiDisplayTest
-    @DesktopStability(flavors = LOCAL, bug = 489810466)
     fun testOpeningCurrentTaskFromOverview() {
         val task = baseContainer.switchToOverview().currentTask
         assertThat(task).isNotNull()
@@ -62,7 +61,6 @@ class TaplOverviewExternalDisplayTest : AbstractQuickStepTest() {
 
     @Test
     @MultiDisplayTest
-    @DesktopStability(flavors = LOCAL, bug = 489810588)
     fun testDismissAllTasksFromOverview() {
         baseContainer.switchToOverview().dismissAllTasks()
         assertThat(mLauncher.recentTasks).isEmpty()

@@ -1308,7 +1308,8 @@ public class Launcher extends StatefulActivity<LauncherState>
 
         LauncherAppWidgetInfo launcherInfo;
         launcherInfo =
-                new LauncherAppWidgetInfo(appWidgetId, appWidgetInfo);
+                new LauncherAppWidgetInfo(
+                        appWidgetId, appWidgetInfo.provider, appWidgetInfo, hostView);
         launcherInfo.spanX = itemInfo.spanX;
         launcherInfo.spanY = itemInfo.spanY;
         launcherInfo.minSpanX = itemInfo.minSpanX;
@@ -1499,8 +1500,7 @@ public class Launcher extends StatefulActivity<LauncherState>
                         public void onAnimationSuccess(Animator animator) {
                             if (focusSearch
                                     && mAppsView.getSearchUiManager().getEditText() != null) {
-                                mAppsView.getSearchUiManager().getEditText()
-                                    .requestFocusExplicitly();
+                                mAppsView.getSearchUiManager().getEditText().requestFocus();
                             }
                         }
                     });

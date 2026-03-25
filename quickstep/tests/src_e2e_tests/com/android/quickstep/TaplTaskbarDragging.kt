@@ -20,8 +20,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import com.android.launcher3.util.TestConstants
 import com.android.launcher3.util.rule.ScreenRecordRule
-import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability
-import com.android.launcher3.util.rule.TestStabilityRule.LOCAL
 import com.android.quickstep.TaskbarModeSwitchRule.TaskbarModeSwitch
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,14 +37,12 @@ class TaplTaskbarDragging : AbstractTaplTestsTaskbar() {
 
     @Test
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.TRANSIENT)
-    @DesktopStability(flavors = LOCAL, bug = 489811260)
     fun testLaunchAppInSplitscreen_fromTaskbarAllApps_transient() {
         testLaunchAppInSplitscreen_fromTaskbarAllApps()
     }
 
     @Test
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.PERSISTENT)
-    @DesktopStability(flavors = LOCAL, bug = 491563553)
     fun testLaunchAppInSplitscreen_fromTaskbarAllApps_persistent() {
         testLaunchAppInSplitscreen_fromTaskbarAllApps()
     }
@@ -62,14 +58,12 @@ class TaplTaskbarDragging : AbstractTaplTestsTaskbar() {
 
     @Test
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.TRANSIENT)
-    @DesktopStability(flavors = LOCAL, bug = 489811260)
     fun testLaunchShortcutInSplitscreen_fromTaskbarAllApps_transient() {
         testLaunchShortcutInSplitscreen_fromTaskbarAllApps()
     }
 
     @Test
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.PERSISTENT)
-    @DesktopStability(flavors = LOCAL, bug = 491563553)
     fun testLaunchShortcutInSplitscreen_fromTaskbarAllApps_persistent() {
         testLaunchShortcutInSplitscreen_fromTaskbarAllApps()
     }
@@ -85,7 +79,6 @@ class TaplTaskbarDragging : AbstractTaplTestsTaskbar() {
     @Test
     @ScreenRecordRule.ScreenRecord // b/414900465
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.TRANSIENT)
-    @DesktopStability(flavors = LOCAL, bug = 489811260)
     fun testLaunchShortcutInSplitscreen_transient() {
         testLaunchShortcutInSplitscreen()
     }
@@ -93,7 +86,6 @@ class TaplTaskbarDragging : AbstractTaplTestsTaskbar() {
     @Test
     @ScreenRecordRule.ScreenRecord // b/414900465
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.PERSISTENT)
-    @DesktopStability(flavors = LOCAL, bug = 491563553)
     fun testLaunchShortcutInSplitscreen_persistent() {
         testLaunchShortcutInSplitscreen()
     }
@@ -113,14 +105,12 @@ class TaplTaskbarDragging : AbstractTaplTestsTaskbar() {
     @Test
     @ScreenRecordRule.ScreenRecord // b/414900465
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.TRANSIENT)
-    @DesktopStability(flavors = LOCAL, bug = 489811260)
     fun testLaunchAppInSplitscreen_transient() {
         testLaunchAppInSplitscreen()
     }
 
     @Test
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.PERSISTENT)
-    @DesktopStability(flavors = LOCAL, bug = 491563553)
     fun testLaunchAppInSplitscreen_persistent() {
         testLaunchAppInSplitscreen()
     }

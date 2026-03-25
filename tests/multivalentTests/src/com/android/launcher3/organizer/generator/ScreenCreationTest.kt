@@ -92,9 +92,11 @@ class ScreenCreationTest {
             .thenReturn("Accessibility")
         whenever(context.getString(R.string.topic_category_most_used)).thenReturn("Most Used")
 
+        whenever(appComponent.appsListRepository).thenReturn(appsListRepository)
         whenever(appsListRepository.appsListStateRef).thenReturn(appsListStateRef)
         whenever(appsListStateRef.value).thenAnswer { AppsListData(appsList.toTypedArray(), 0) }
 
+        whenever(appComponent.idp).thenReturn(idp)
         idp.numColumns = 4
         idp.numRows = 5
     }
@@ -132,8 +134,7 @@ class ScreenCreationTest {
         assertEquals(2, classifiedItems.size)
 
         // 2. Generation
-        val result = session.startGeneration(listOf("Games"))
-        val screens = (result as CreationSession.GenerationResult.Screens).pages
+        val screens = session.startGeneration(listOf("Games"))
 
         // PresetTemplateGenerator generates 3 templates.
         // HeuristicScreenPlacer tries to place items into them.
@@ -179,8 +180,7 @@ class ScreenCreationTest {
         session.startClassification()
 
         // Generate for both
-        val result = session.startGeneration(listOf("Games", "Social"))
-        val screens = (result as CreationSession.GenerationResult.Screens).pages
+        val screens = session.startGeneration(listOf("Games", "Social"))
         val allPlacedItems = screens.flatten()
         assertTrue(
             "Game 1 should be placed",

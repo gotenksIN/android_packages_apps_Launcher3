@@ -2,13 +2,6 @@ package: "com.android.launcher3"
 container: "system_ext"
 
 flag {
-    name: "enable_compose_for_options_popup_menu_dialog"
-    namespace: "launcher"
-    description: "Gate the refactor of OptionsPopupDialog to compose."
-    bug: "316027081"
-}
-
-flag {
     name: "enable_expanding_pause_work_button"
     namespace: "launcher"
     description: "Expand and collapse pause work button while scrolling."
@@ -72,13 +65,6 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
-}
-
-flag {
-  name: "enable_taskbar_icon_desktop_clicks"
-  namespace: "lse_desktop_experience"
-  description: "Enables desktop style tasakbar icon clicks, including click-to-minimize and multi-window picking."
-  bug: "433770976"
 }
 
 flag {
@@ -170,6 +156,16 @@ flag {
     namespace: "launcher"
     description: "Menu in Taskbar with options to launch and manage multiple instances of the same app"
     bug: "355237285"
+}
+
+flag {
+    name: "use_new_icon_for_archived_apps"
+    namespace: "launcher"
+    description: "Archived apps will use new cloud icon in app title instead of overlay"
+    bug: "350758155"
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
 }
 
 flag {
@@ -583,13 +579,6 @@ flag {
 }
 
 flag {
-    name: "enable_restoredbtask_modelwriter_refactor"
-    namespace: "launcher"
-    description: "Enables the refactored RestoreDbTask using ModelWriter."
-    bug: "489010281"
-}
-
-flag {
   name: "enable_transactional_model_writer"
   namespace: "launcher"
   description: "Enables the new transactional model writer for Launcher persistence."
@@ -717,11 +706,4 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
-}
-
-flag {
-  name: "enable_fixed_qsb_at_bottom"
-  namespace: "launcher"
-  description: "Enables fixed QSB at the bottom of hotseat"
-  bug: "489141317"
 }

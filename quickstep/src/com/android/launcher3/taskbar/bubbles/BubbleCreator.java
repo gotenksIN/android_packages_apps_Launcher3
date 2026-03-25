@@ -112,7 +112,7 @@ public class BubbleCreator {
         Drawable appIcon = null;
         // Prioritize the icon provided in BubbleInfo. This icon is resolved by WMShell
         // (BubbleData) to be the activity-specific icon.
-        if (Flags.useBubbleIconFromActivityInfo() && info.isApp()) {
+        if (Flags.useBubbleIconFromActivityInfo()) {
             Icon iconFromBubbleInfo = info.getIcon();
             if (iconFromBubbleInfo != null) {
                 appIcon = iconFromBubbleInfo.loadDrawable(context);

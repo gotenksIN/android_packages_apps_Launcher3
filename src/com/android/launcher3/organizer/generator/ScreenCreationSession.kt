@@ -20,6 +20,7 @@ import android.Manifest
 import android.graphics.Point
 import androidx.annotation.RequiresPermission
 import com.android.launcher3.InvariantDeviceProfile
+import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.repository.AppsListRepository
 import javax.inject.Inject
 
@@ -65,9 +66,7 @@ constructor(
      *
      * @param selectedTopics The list of topic names selected by the user for generation.
      */
-    override suspend fun startGeneration(
-        selectedTopics: List<String>
-    ): CreationSession.GenerationResult {
+    override suspend fun startGeneration(selectedTopics: List<String>): List<List<ItemInfo>> {
         val templateGenerator = PresetTemplateGenerator()
         val templates =
             templateGenerator.generateTemplates(
@@ -75,12 +74,10 @@ constructor(
                 Point(idp.numColumns, idp.numRows),
             )
         val placer = HeuristicScreenPlacer()
-        val pages =
-            placer.place(
-                topicClassifiedItems.filter { selectedTopics.contains(it.topic) },
-                templates,
-            )
-        return CreationSession.GenerationResult.Screens(pages)
+        return placer.place(
+            topicClassifiedItems.filter { selectedTopics.contains(it.topic) },
+            templates,
+        )
     }
 
     override suspend fun cancelSession() {

@@ -21,7 +21,6 @@ import com.android.launcher3.LauncherPrefs.Companion.TASKBAR_PINNING
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
 import com.android.launcher3.display.LauncherDisplayInfo
-import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.util.window.WindowManagerProxy
 import javax.inject.Inject
 
@@ -39,7 +38,6 @@ class TaskbarModeUtil
 constructor(
     private val windowManagerProxy: WindowManagerProxy,
     private val launcherPrefs: LauncherPrefs,
-    private val desktopVisibilityController: DesktopVisibilityController,
 ) {
 
     fun isTransient(info: LauncherDisplayInfo): Boolean {
@@ -57,7 +55,7 @@ constructor(
                 ?: return launcherPrefs.get(TASKBAR_PINNING)
         return if (
             info.showDesktopTaskbarForFreeformDisplay ||
-                desktopVisibilityController.isInDesktopMode(displayId)
+                windowManagerProxy.isInDesktopMode(displayId)
         ) {
             true
         } else {

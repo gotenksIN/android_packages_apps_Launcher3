@@ -33,7 +33,6 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_ON_BOARD_POPUP;
 import static com.android.launcher3.AbstractFloatingView.TYPE_TASKBAR_OVERLAY_PROXY;
 import static com.android.launcher3.Utilities.calculateTextHeight;
 import static com.android.launcher3.Utilities.isRunningInTestHarness;
-import static com.android.launcher3.desktop.DesktopStateProvider.getDesktopState;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_FOLDER_OPEN;
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_DRAGGING;
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_FULLSCREEN;
@@ -352,8 +351,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         SettingsCache settingsCache = SettingsCache.INSTANCE.get(this);
         mIsUserSetupComplete = settingsCache.getValue(URI_USER_SETUP_COMPLETE);
         mIsNavBarKidsMode = settingsCache.getValue(URI_NAV_BAR_KIDS_MODE);
-        mBubbleFeatureConfig =
-                new BubbleFeatureConfigImpl(mWindowContext, getDesktopState(mWindowContext));
+        mBubbleFeatureConfig = new BubbleFeatureConfigImpl(mWindowContext,
+                DesktopState.getInstance(mWindowContext));
 
         applyDeviceProfile(launcherDp);
         mTaskbarSpecsEvaluator = new TaskbarSpecsEvaluator(
@@ -1291,13 +1290,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     }
 
     /**
-     * Returns whether the taskbar should remain touchable when the notification shade is expanded.
-     */
-    public boolean isTaskbarTouchableBehindNotificationShade() {
-        return !fixSwipeUpNotificationShadeWithBubbleBar() || isDesktopFormFactor();
-    }
-
-    /**
      * Hides the taskbar icons and background when the notification shade is expanded.
      */
     private void onNotificationShadeExpandChanged(long systemUiStateFlags,
@@ -1329,7 +1321,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             mControllers.bubbleControllers.ifPresent(controllers -> {
                 BubbleBarViewController bubbleBarViewController =
                         controllers.bubbleBarViewController;
-                if (!isTaskbarTouchableBehindNotificationShade()
+                if (fixSwipeUpNotificationShadeWithBubbleBar()
                         && bubbleBarViewController.isExpanded()) {
                     // If bubbles are expanded when the shade expansion changes, then the touchable
                     // insets need to be updated.

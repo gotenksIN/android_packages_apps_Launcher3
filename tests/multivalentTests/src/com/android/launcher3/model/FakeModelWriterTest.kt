@@ -163,7 +163,7 @@ class FakeModelWriterTest {
         fakeModelWriter.suspendWrites()
 
         var completed = false
-        fakeModelWriter.scheduleTransaction({ success, _ -> completed = success }) { context ->
+        fakeModelWriter.scheduleTransaction({ completed = it }) { context ->
             context.addItemToDatabase(WorkspaceItemInfo())
         }
 
@@ -192,15 +192,5 @@ class FakeModelWriterTest {
         // Queued second
         val action1 = fakeModelWriter.actions[1] as WriterAction.AddItem
         assertThat(action1.item).isEqualTo(item1)
-    }
-
-    @Test
-    fun scheduleTransaction_returnsResult() {
-        val fakeModelWriter = FakeModelWriter()
-        var result: Int? = null
-
-        fakeModelWriter.scheduleTransaction(onComplete = { _, res -> result = res }) { 42 }
-
-        assertThat(result).isEqualTo(42)
     }
 }

@@ -52,12 +52,9 @@ open class ModelWriter(
     protected val modelExecutor: Executor = Executors.MODEL_EXECUTOR,
 ) : IModelWriter {
 
-    private interface QueuedTransaction {
-        fun execute()
-    }
-
     private var isSuspended = false
-    private val transactionQueue = mutableListOf<QueuedTransaction>()
+    private val transactionQueue =
+        mutableListOf<Pair<((Boolean) -> Unit)?, Consumer<TransactionContext>>>()
 
     open fun createTransactionContext(outChangeLog: ChangeLog): TransactionContext =
         TransactionContextImpl(outChangeLog, model, modificationSource, context, bgDataModel)
@@ -195,29 +192,22 @@ open class ModelWriter(
         }
     }
 
-    override fun <T> scheduleTransaction(
-        onComplete: ((success: Boolean, result: T?) -> Unit)?,
-        block: (TransactionContext) -> T,
+    override fun scheduleTransaction(
+        onComplete: ((success: Boolean) -> Unit)?,
+        block: Consumer<TransactionContext>,
     ) {
         if (isSuspended) {
-            transactionQueue.add(
-                object : QueuedTransaction {
-                    override fun execute() {
-                        scheduleTransaction(onComplete, block)
-                    }
-                }
-            )
+            transactionQueue.add(onComplete to block)
             return
         }
 
         // TODO(b/457449059): Should this be a submit() instead?
         modelExecutor.execute {
             var success = false
-            var result: T? = null
             val outChangeLog = ChangeLog()
             try {
                 model.modelDbController.newTransaction().use { t ->
-                    result = block(createTransactionContext(outChangeLog))
+                    block.accept(createTransactionContext(outChangeLog))
                     t.commit()
                     success = true
                 }
@@ -228,7 +218,7 @@ open class ModelWriter(
             if (success) {
                 launcherStateNotifier.notifyModelChanged(outChangeLog, this.owner)
             }
-            onComplete?.invoke(success, result)
+            onComplete?.invoke(success)
         }
     }
 
@@ -243,14 +233,14 @@ open class ModelWriter(
         isSuspended = false
 
         if (pendingTransaction != null) {
-            scheduleTransaction(null) { pendingTransaction.accept(it) }
+            scheduleTransaction(null, pendingTransaction)
         }
 
         val queue = transactionQueue.toList()
         transactionQueue.clear()
 
         if (!discardPending) {
-            queue.forEach { it.execute() }
+            queue.forEach { (onComplete, block) -> scheduleTransaction(onComplete, block) }
         }
     }
 
@@ -287,7 +277,7 @@ open class ModelWriter(
 
     private fun execute(block: (TransactionContext) -> Unit) {
         if (Flags.enableTransactionalModelWriter() || isSuspended) {
-            scheduleTransaction(block = block)
+            scheduleTransaction(block = Consumer { block(it) })
         } else {
             modelExecutor.execute {
                 val changeLog = ChangeLog()

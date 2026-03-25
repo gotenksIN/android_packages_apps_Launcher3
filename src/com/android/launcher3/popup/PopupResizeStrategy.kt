@@ -20,7 +20,6 @@ import android.view.View
 import com.android.launcher3.CellLayout
 import com.android.launcher3.LauncherSettings.Favorites.CONTAINER_DESKTOP
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPWIDGET
-import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_CUSTOM_APPWIDGET
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.widget.LauncherAppWidgetHostView
 
@@ -55,7 +54,6 @@ class DefaultPopupResizeStrategy : PopupResizeStrategy {
     ): Boolean =
         itemInfo.container == CONTAINER_DESKTOP &&
             cellLayout != null &&
-            (itemInfo.itemType == ITEM_TYPE_APPWIDGET ||
-                itemInfo.itemType == ITEM_TYPE_CUSTOM_APPWIDGET) &&
+            itemInfo.itemType == ITEM_TYPE_APPWIDGET &&
             view is LauncherAppWidgetHostView
 }

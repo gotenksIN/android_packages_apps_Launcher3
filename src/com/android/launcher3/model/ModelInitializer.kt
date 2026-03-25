@@ -45,7 +45,6 @@ import com.android.launcher3.model.tasks.PackageUpdatedTask
 import com.android.launcher3.model.tasks.ShortcutsChangedTask
 import com.android.launcher3.model.tasks.UserAvailabilityChangedTask
 import com.android.launcher3.model.tasks.UserLockStateChangedTask
-import com.android.launcher3.model.tasks.WidgetFeaturesUpdateTask
 import com.android.launcher3.notification.NotificationListener
 import com.android.launcher3.pm.InstallSessionHelper
 import com.android.launcher3.pm.UserCache
@@ -61,10 +60,8 @@ import com.android.launcher3.util.SettingsCache.NOTIFICATION_BADGING_URI
 import com.android.launcher3.util.SettingsCache.PRIVATE_SPACE_HIDE_WHEN_LOCKED_URI
 import com.android.launcher3.util.SimpleBroadcastReceiver
 import com.android.launcher3.util.SimpleBroadcastReceiver.Companion.actionsFilter
-import com.android.launcher3.widget.ProvidersUpdateDispatcher
 import com.android.launcher3.widget.custom.CustomWidgetManager
 import javax.inject.Inject
-import javax.inject.Provider
 
 /** Utility class for initializing all model callbacks */
 class ModelInitializer
@@ -85,7 +82,6 @@ constructor(
     private val iconChangeTracker: IconChangeTracker,
     private val prefs: LauncherPrefs,
     private val automationRepo: AutomationRepository,
-    private val updateDispatcher: Provider<ProvidersUpdateDispatcher>,
 ) {
 
     // only allow this once per reboot to reload work apps
@@ -110,7 +106,7 @@ constructor(
             launcherApps.setArchiveCompatibility(
                 ArchiveCompatibilityParams().apply {
                     setEnableUnarchivalConfirmation(false)
-                    setEnableIconOverlay(false)
+                    setEnableIconOverlay(!Flags.useNewIconForArchivedApps())
                 }
             )
         }
@@ -176,15 +172,6 @@ constructor(
         lifeCycle.addCloseable(
             homeScreenFilesProvider.updates.forEach(MODEL_EXECUTOR) {
                 model.enqueueModelUpdateTask(homeScreenFilesUpdateTask.create(it))
-            }
-        )
-
-        // Monitor widget features
-        lifeCycle.addCloseable(
-            updateDispatcher.get().updates.forEach(MODEL_EXECUTOR) { update ->
-                model.enqueueModelUpdateTask(
-                    WidgetFeaturesUpdateTask(update.appWidgetId, update.info)
-                )
             }
         )
     }

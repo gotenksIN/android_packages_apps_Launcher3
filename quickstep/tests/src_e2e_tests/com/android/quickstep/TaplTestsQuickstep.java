@@ -16,7 +16,6 @@
 
 package com.android.quickstep;
 
-import static com.android.launcher3.util.rule.TestStabilityRule.LOCAL;
 import static com.android.launcher3.util.ui.ActivityStartUtils.resolveSystemApp;
 import static com.android.launcher3.util.ui.ActivityStartUtils.startImeTestActivity;
 
@@ -38,7 +37,6 @@ import com.android.launcher3.tapl.LaunchedAppState;
 import com.android.launcher3.tapl.LauncherInstrumentation.NavigationModel;
 import com.android.launcher3.util.TestUtil;
 import com.android.launcher3.util.rule.ScreenRecordRule;
-import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability;
 import com.android.launcher3.util.ui.BaseLauncherTaplTest.AllowInRecentsWindowTests;
 import com.android.launcher3.util.ui.PortraitLandscapeRunner.PortraitLandscape;
 import com.android.quickstep.NavigationModeSwitchRule.NavigationModeSwitch;
@@ -87,7 +85,6 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     @NavigationModeSwitch
     @PortraitLandscape
     @ScreenRecordRule.ScreenRecord  // b/415877373
-    @DesktopStability(flavors = LOCAL, bug = 489809350)
     public void testQuickSwitchFromApp() throws Exception {
         startTestActivity(2);
         startTestActivity(3);
@@ -117,7 +114,6 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
 
     @Test
     @TaskbarModeSwitch
-    @DesktopStability(flavors = LOCAL, bug = 489811260)
     public void testQuickSwitchToPreviousAppForTablet() throws Exception {
         assumeTrue("Ignoring test because device is not a tablet",
             mLauncher.isTablet());
@@ -159,7 +155,6 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     @Test
     @NavigationModeSwitch
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489786011)
     public void testQuickSwitchFromHome() throws Exception {
         startTestActivity(2);
         mLauncher.goHome().quickSwitchToPreviousApp();
@@ -171,7 +166,6 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     @Test
     @PortraitLandscape
     @NavigationModeSwitch
-    @DesktopStability(flavors = LOCAL, bug = 489812017)
     public void testPressBack() throws Exception {
         InstrumentationRegistry.getInstrumentation().getUiAutomation().adoptShellPermissionIdentity(
                 READ_DEVICE_CONFIG_PERMISSION);
@@ -207,7 +201,6 @@ public class TaplTestsQuickstep extends AbstractQuickStepTest {
     @Test
     @NavigationModeSwitch
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489811602)
     public void testNotificationsFromHome() {
         Root.get().openNotificationShadeViaSwipe();
     }

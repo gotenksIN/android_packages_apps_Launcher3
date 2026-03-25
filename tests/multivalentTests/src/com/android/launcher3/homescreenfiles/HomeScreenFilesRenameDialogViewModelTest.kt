@@ -25,7 +25,6 @@ import com.android.launcher3.util.SandboxApplication
 import com.android.tools.dagger.mutation.annotations.BindValue
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -69,8 +68,8 @@ class HomeScreenFilesRenameDialogViewModelTest {
     fun testPositiveButtonClick() {
         // Verify that triggering a positive button click event performs a rename.
         val name = "${file.displayName} (1)"
-        viewModel.name.value = viewModel.name.value.copy(text = name)
-        assertTrue(viewModel.onPositiveButtonClick?.invoke(viewModel) ?: false)
+        viewModel.name.value = name
+        viewModel.onPositiveButtonClick?.invoke(viewModel)
         verify(provider).rename(file.uri, name)
     }
 }

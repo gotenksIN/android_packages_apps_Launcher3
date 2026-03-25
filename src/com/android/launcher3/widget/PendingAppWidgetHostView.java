@@ -131,7 +131,7 @@ public class PendingAppWidgetHostView extends LauncherAppWidgetHostView
     public PendingAppWidgetHostView(
             Context context, LauncherWidgetHolder widgetHolder,
             int appWidgetId, @NonNull LauncherAppWidgetProviderInfo appWidget) {
-        this(context, widgetHolder, new LauncherAppWidgetInfo(appWidgetId, appWidget),
+        this(context, widgetHolder, new LauncherAppWidgetInfo(appWidgetId, appWidget.provider),
                 appWidget, appWidget.label, null);
         getBackground().mutate().setAlpha(DEFERRED_ALPHA);
 

@@ -30,10 +30,7 @@ import com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_HOME
 import com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_OVERVIEW_GESTURE
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.views.ActivityContext
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedFactory
-import dagger.assisted.AssistedInject
-import javax.inject.Provider
+import javax.inject.Inject
 
 /**
  * Handles the user event logging in R+.
@@ -43,16 +40,10 @@ import javax.inject.Provider
  * Actual call happens only for Launcher variant that implements QuickStep.
  * </pre> *
  */
-class StatsLogManager
-@AssistedInject
-constructor(
-    @Assisted context: Context,
-    private val loggerProvider: Provider<StatsLogger>,
-    private val latencyLoggerProvider: Provider<StatsLatencyLogger>,
-    private val impressionLoggerProvider: Provider<StatsImpressionLogger>,
-) {
-
-    private val activityContext: ActivityContext? = ActivityContext.lookupContextNoThrow(context)
+open class StatsLogManager protected constructor(@JvmField protected val mContext: Context) {
+    @JvmField
+    protected val mActivityContext: ActivityContext? =
+        ActivityContext.lookupContextNoThrow(mContext)
 
     private var mInstanceId: InstanceId? = null
 
@@ -61,10 +52,11 @@ constructor(
      * Very similar to [dagger.assisted.AssistedFactory]. But [dagger.assisted.AssistedFactory]
      * cannot be overridden and this makes dagger binding difficult.
      */
-    @AssistedFactory
-    interface StatsLogManagerFactory {
+    open class StatsLogManagerFactory @Inject constructor() {
 
-        fun create(@Assisted context: Context): StatsLogManager
+        open fun create(context: Context): StatsLogManager {
+            return StatsLogManager(context)
+        }
     }
 
     interface EventEnum {
@@ -735,6 +727,11 @@ constructor(
         @UiEvent(doc = "The duration to recreate taskbar.") LAUNCHER_LATENCY_RECREATE_TASKBAR(2683),
     }
 
+    /** Launcher specific ranking related events. */
+    enum class LauncherRankingEvent(override val id: Int) : EventEnum {
+        UNKNOWN(0) // ADD MORE
+    }
+
     /** Helps to construct and log launcher event. */
     interface StatsLogger {
         /** Sets log fields from provided [ItemInfo]. */
@@ -742,9 +739,6 @@ constructor(
 
         /** Sets [InstanceId] of log message. */
         fun withInstanceId(instanceId: InstanceId?) = this
-
-        /** Sets the [activityContext] on which the event occurred */
-        fun withActivityContext(activityContext: ActivityContext?) = this
 
         /** Sets rank field of log message. */
         fun withRank(rank: Int) = this
@@ -797,7 +791,7 @@ constructor(
          * Builds the final message and logs it to two different atoms, one for event tracking and
          * the other for jank tracking.
          */
-        fun sendToInteractionJankMonitor(event: EventEnum?, view: View?) {}
+        fun sendToInteractionJankMonitor(event: EventEnum?, v: View?) {}
     }
 
     /** Helps to construct and log latency event. */
@@ -901,27 +895,48 @@ constructor(
     }
 
     /** Returns new logger object. */
-    fun logger(): StatsLogger =
-        loggerProvider.get().withActivityContext(activityContext).forInstanceId {
-            withInstanceId(it)
+    fun logger(): StatsLogger {
+        val logger = createLogger()
+        if (mInstanceId != null) {
+            logger.withInstanceId(mInstanceId)
         }
+        return logger
+    }
 
     /** Returns new latency logger object. */
-    fun latencyLogger(): StatsLatencyLogger =
-        latencyLoggerProvider.get().forInstanceId { withInstanceId(it) }
+    fun latencyLogger(): StatsLatencyLogger {
+        val logger = createLatencyLogger()
+        if (mInstanceId != null) {
+            logger.withInstanceId(mInstanceId)
+        }
+        return logger
+    }
 
     /** Returns new impression logger object. */
-    fun impressionLogger(): StatsImpressionLogger =
-        impressionLoggerProvider.get().forInstanceId { withInstanceId(it) }
+    fun impressionLogger(): StatsImpressionLogger {
+        val logger = createImpressionLogger()
+        if (mInstanceId != null) {
+            logger.withInstanceId(mInstanceId)
+        }
+        return logger
+    }
+
+    protected open fun createLogger(): StatsLogger {
+        return object : StatsLogger {}
+    }
+
+    protected open fun createLatencyLogger(): StatsLatencyLogger {
+        return object : StatsLatencyLogger {}
+    }
+
+    protected open fun createImpressionLogger(): StatsImpressionLogger {
+        return object : StatsImpressionLogger {}
+    }
 
     /** Sets InstanceId to every new [StatsLogger] object returned by [.logger] when not-null. */
     fun withDefaultInstanceId(instanceId: InstanceId?): StatsLogManager {
         this.mInstanceId = instanceId
         return this
-    }
-
-    private inline fun <T> T.forInstanceId(block: T.(InstanceId) -> Unit) = apply {
-        mInstanceId?.let { block.invoke(this, it) }
     }
 
     companion object {

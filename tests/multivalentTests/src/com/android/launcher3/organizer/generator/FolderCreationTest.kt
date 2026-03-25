@@ -90,6 +90,7 @@ class FolderCreationTest {
             .thenReturn("Accessibility")
         whenever(context.getString(R.string.topic_category_most_used)).thenReturn("Most Used")
 
+        whenever(appComponent.appsListRepository).thenReturn(appsListRepository)
         whenever(appsListRepository.appsListStateRef).thenReturn(appsListStateRef)
         whenever(appsListStateRef.value).thenAnswer { AppsListData(appsList.toTypedArray(), 0) }
     }
@@ -126,14 +127,13 @@ class FolderCreationTest {
         // 2. Generation
         // FolderCreationSession filters score > 0.8 and size >= 3
         // PackageManagerClassifier returns score 1.0f
-        val result = session.startGeneration(listOf("Games"))
-        val folders = (result as CreationSession.GenerationResult.Folders).folders
+        val folders = session.startGeneration(listOf("Games"))
 
         assertEquals(1, folders.size)
-        assertEquals(3, folders[0].getContents().size)
-        assertTrue(folders[0].getContents().any { it.getTargetPackage() == "pkg.game1" })
-        assertTrue(folders[0].getContents().any { it.getTargetPackage() == "pkg.game2" })
-        assertTrue(folders[0].getContents().any { it.getTargetPackage() == "pkg.game3" })
+        assertEquals(3, folders[0].size)
+        assertTrue(folders[0].any { it.getTargetPackage() == "pkg.game1" })
+        assertTrue(folders[0].any { it.getTargetPackage() == "pkg.game2" })
+        assertTrue(folders[0].any { it.getTargetPackage() == "pkg.game3" })
     }
 
     @Test
@@ -174,21 +174,16 @@ class FolderCreationTest {
         session.startClassification()
 
         // 2. Generation for multiple topics
-        val result = session.startGeneration(listOf("Games", "Social"))
-        val folders = (result as CreationSession.GenerationResult.Folders).folders
+        val folders = session.startGeneration(listOf("Games", "Social"))
 
         assertEquals(2, folders.size)
         assertTrue(
             "Should have a Games folder",
-            folders.any { folder ->
-                folder.getContents().any { it.getTargetPackage() == "pkg.game1" }
-            },
+            folders.any { folder -> folder.any { it.getTargetPackage() == "pkg.game1" } },
         )
         assertTrue(
             "Should have a Social folder",
-            folders.any { folder ->
-                folder.getContents().any { it.getTargetPackage() == "pkg.social1" }
-            },
+            folders.any { folder -> folder.any { it.getTargetPackage() == "pkg.social1" } },
         )
     }
 

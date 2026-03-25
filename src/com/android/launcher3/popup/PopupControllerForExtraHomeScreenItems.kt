@@ -54,7 +54,7 @@ class PopupControllerForExtraHomeScreenItems<T>(
             dragController.addDragListener(container)
             if (Flags.expandableLongPressMenu()) {
                 popupDataRepository
-                    .getAllSupportedPopupActions(itemInfo)
+                    .getPopupDataByItemInfo(itemInfo)
                     ?.map { popupData ->
                         PopupItem(
                             iconResId = popupData.iconResId,
@@ -98,7 +98,7 @@ class PopupControllerForExtraHomeScreenItems<T>(
     ) {
         popup.systemShortcutContainer =
             popup.inflateAndAdd(R.layout.system_shortcut_rows_container, popup)
-        val popupData = popupDataRepository.getAllSupportedPopupActions(itemInfo)?.toList()
+        val popupData = popupDataRepository.getPopupDataByItemInfo(itemInfo)?.toList()
         popupData?.forEach { systemShortcut ->
             val view: DeepShortcutView =
                 popup.inflateAndAdd(R.layout.system_shortcut, popup.systemShortcutContainer)

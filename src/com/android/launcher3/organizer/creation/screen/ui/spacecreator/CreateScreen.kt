@@ -60,7 +60,7 @@ import com.android.launcher3.R
 fun CreateScreen(
     onArrowBack: () -> Unit,
     viewModel: SpaceCreatorViewModel,
-    onNavigateToChooser: (topic: String) -> Unit,
+    onNavigateToChooser: () -> Unit,
 ) {
     val state by viewModel.createScreenState.collectAsStateWithLifecycle()
     Scaffold(
@@ -101,7 +101,7 @@ fun CreateScreen(
             CreateScreenContent(
                 padding = padding,
                 topics = state.topics,
-                onTopicClick = { topic -> onNavigateToChooser.invoke(topic) },
+                onTopicClick = { onNavigateToChooser.invoke() },
             )
         },
     )
@@ -209,7 +209,6 @@ fun TopicPreview(
     }
 }
 
-// TODO(b/493996430): Remove hardcoded dimensions and move them to resources.
 object CreateScreenDimens {
     val iconSize = 41.dp
     val topicPadding = 20.dp

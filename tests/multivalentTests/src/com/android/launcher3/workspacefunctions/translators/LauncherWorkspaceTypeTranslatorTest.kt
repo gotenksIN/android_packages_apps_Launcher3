@@ -63,7 +63,6 @@ class LauncherWorkspaceTypeTranslatorTest {
                 appInFolderTranslators,
                 emptyMap(),
                 emptyMap(),
-                emptyMap(),
             )
 
         workspaceItemTranslators[WorkspaceItemInfo::class.java] = Provider {

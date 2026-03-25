@@ -16,14 +16,8 @@
 
 package com.android.launcher3.organizer.creation.screen.ui.spacecreator.chooselayout
 
-import com.android.launcher3.model.data.ItemInfo
-
-/** Size of the Workspace grid used for the ChooseLayoutState. */
-data class ChooseLayoutGridSize(val x: Int, val y: Int)
-
-/** Data class that represents the ChooseLayout view state. */
 data class ChooseLayoutState(
-    val chooseLayoutGridSize: ChooseLayoutGridSize = ChooseLayoutGridSize(0, 0),
-    val layouts: List<List<ItemInfo>> = listOf(),
+    // TODO(): Add real item instead of Int
+    val layouts: List<Int> = listOf(),
     val selectedLayout: Int = 0,
 )

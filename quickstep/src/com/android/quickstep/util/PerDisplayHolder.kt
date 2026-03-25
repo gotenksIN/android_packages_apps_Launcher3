@@ -14,22 +14,17 @@
  * limitations under the License.
  */
 
-package com.android.launcher3.widget
+package com.android.quickstep.util
 
-import com.android.launcher3.dagger.LauncherAppSingleton
-import com.android.launcher3.util.MutableListenableStream
+import com.android.launcher3.dagger.PerDisplaySingleton
 import javax.inject.Inject
 
-/** Class to dispatch updates to bound AppWidgetProvider */
-@LauncherAppSingleton
-open class ProvidersUpdateDispatcher @Inject constructor() {
+/**
+ * Simple class to hold reference of [PerDisplaySingleton] objects. This is useful to keeping track
+ * of lazily initialized singletons
+ */
+@PerDisplaySingleton
+class PerDisplayHolder<T> @Inject constructor() {
 
-    private val _updates = MutableListenableStream<Update>()
-    val updates = _updates.asListenable()
-
-    internal fun dispatchUpdate(appWidgetId: Int, info: LauncherAppWidgetProviderInfo) {
-        _updates.dispatchValue(Update(appWidgetId, info))
-    }
-
-    data class Update(val appWidgetId: Int, val info: LauncherAppWidgetProviderInfo)
+    var value: T? = null
 }

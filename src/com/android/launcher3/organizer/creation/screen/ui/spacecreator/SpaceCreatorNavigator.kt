@@ -38,10 +38,7 @@ fun SpaceCreatorNavigator(onArrowBack: () -> Unit) {
             CreateScreen(
                 onArrowBack,
                 viewModel,
-                onNavigateToChooser = { topic ->
-                    viewModel.prepareLayoutsForTopic(topic)
-                    navController.navigate("Chooser")
-                },
+                onNavigateToChooser = { navController.navigate("Chooser") },
             )
         }
 

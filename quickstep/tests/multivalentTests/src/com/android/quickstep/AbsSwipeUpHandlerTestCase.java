@@ -66,7 +66,6 @@ import android.view.SurfaceControl;
 import android.view.ViewTreeObserver;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.UiThread;
 
 import com.android.app.displaylib.fakes.FakePerDisplayRepository;
 import com.android.launcher3.DeviceProfile;
@@ -527,15 +526,15 @@ public abstract class AbsSwipeUpHandlerTestCase<
         verify(container)
                 .addEventCallback(eq(EVENT_DESTROYED), onContainerDestroyCallbackCaptor.capture());
 
+        assertNotNull(swipeHandler.mRecentsView);
+        assertNotNull(swipeHandler.mContainer);
+
+        onContainerDestroyCallbackCaptor.getValue().run();
+
+        assertNull(swipeHandler.mRecentsView);
+        assertNull(swipeHandler.mContainer);
+        verify(mTaskAnimationManager).onLauncherDestroyed();
         runOnMainSync(() -> {
-            assertNotNull(swipeHandler.mRecentsView);
-            assertNotNull(swipeHandler.mContainer);
-
-            onContainerDestroyCallbackCaptor.getValue().run();
-
-            assertNull(swipeHandler.mRecentsView);
-            assertNull(swipeHandler.mContainer);
-            verify(mTaskAnimationManager).onLauncherDestroyed();
             verify(mContextInitListener).unregister(any());
             assertTrue(
                     "Swipe handler wasn't invalidated on container destroyed",
@@ -701,7 +700,6 @@ public abstract class AbsSwipeUpHandlerTestCase<
      * callback that was passed to it. This ensures that STATE_CURRENT_TASK_FINISHED is correctly
      * set for example.
      */
-    @UiThread
     private void verifyRecentsAnimationFinishedAndCallCallback() {
         ArgumentCaptor<Runnable> finishCallback = ArgumentCaptor.forClass(Runnable.class);
         // Check if the 2 parameter method is called.
@@ -764,7 +762,6 @@ public abstract class AbsSwipeUpHandlerTestCase<
                 remoteAnimationTargets, /* transitionInfo= */ null));
     }
 
-    @UiThread
     private void onContainerDestroyed() {
         RECENTS_CONTAINER container = getRecentsContainer();
         ArgumentCaptor<Runnable> onContainerDestroyCallbackCaptor =

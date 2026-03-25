@@ -35,6 +35,7 @@ import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.AttributeSet;
+import android.util.SparseIntArray;
 import android.view.ContextThemeWrapper;
 import android.view.Display;
 import android.view.LayoutInflater;
@@ -75,7 +76,6 @@ import com.android.launcher3.util.ItemInflater;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.window.WindowManagerProxy;
 import com.android.launcher3.views.BaseDragLayer;
-import com.android.launcher3.widget.ColorsOverride;
 import com.android.launcher3.widget.LauncherWidgetHolder;
 
 import java.util.ArrayList;
@@ -111,7 +111,7 @@ public class LauncherPreviewRenderer extends BaseContext
 
     public LauncherPreviewRenderer(Context context,
             int workspaceScreenId,
-            ColorsOverride colorsOverride,
+            @Nullable SparseIntArray wallpaperColorResources,
             LauncherModel model,
             int themeRes) {
 
@@ -133,8 +133,9 @@ public class LauncherPreviewRenderer extends BaseContext
         mDp.updateInsets(insets);
         mWidgetHolder =
                 LauncherComponentProvider.get(this).getWidgetHolderFactory().newInstance(this);
-        if (colorsOverride != null) {
-            mWidgetHolder.setOnViewCreationCallback(colorsOverride::applyTo);
+        if (wallpaperColorResources != null) {
+            mWidgetHolder.setOnViewCreationCallback(
+                    v -> v.setColorResources(wallpaperColorResources));
         }
 
         mHomeElementInflater = LayoutInflater.from(

@@ -28,8 +28,6 @@ import com.android.launcher3.LauncherApplication
 import com.android.launcher3.concurrent.annotations.LightweightBackgroundContext
 import com.android.launcher3.concurrent.annotations.LightweightBackgroundPriority.UI
 import com.android.launcher3.model.data.AppInfo
-import com.android.launcher3.model.data.ItemInfo
-import com.android.launcher3.organizer.creation.screen.ui.spacecreator.chooselayout.ChooseLayoutGridSize
 import com.android.launcher3.organizer.creation.screen.ui.spacecreator.chooselayout.ChooseLayoutState
 import com.android.launcher3.organizer.creation.screen.ui.workspaceorganizer.WorkspaceOrganizerViewModel
 import com.android.launcher3.organizer.generator.CreationSession
@@ -39,6 +37,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SpaceCreatorViewModel
 @Inject
@@ -57,16 +56,18 @@ constructor(
         creationSessionFactory.createSession(CreationSession.SessionType.SCREEN)
 
     init {
-        viewModelScope.launch(lightweightBackgroundContext) {
-            val allClassifiedItems = screenCreationSession.startClassification()
-            val topics = allClassifiedItems.map { it.topic }.distinct()
-            val topicIcons =
-                allClassifiedItems
-                    .filter { it.itemInfo is AppInfo }
-                    .groupBy({ it.topic }, { (it.itemInfo as AppInfo).bitmap.icon })
+        viewModelScope.launch {
+            withContext(lightweightBackgroundContext) {
+                val classifiedItems = screenCreationSession.startClassification()
+                val topics = classifiedItems.map { it.topic }.distinct()
+                val topicIcons =
+                    classifiedItems
+                        .filter { it.itemInfo is AppInfo }
+                        .groupBy({ it.topic }, { (it.itemInfo as AppInfo).bitmap.icon })
 
-            val topicDataList = topics.map { TopicData(it, topicIcons[it] ?: emptyList()) }
-            updateState(topicDataList)
+                val topicDataList = topics.map { TopicData(it, topicIcons[it] ?: emptyList()) }
+                updateState(topicDataList)
+            }
         }
     }
 
@@ -80,20 +81,6 @@ constructor(
     }
 
     /**
-     * Generates layouts for the selected topic and updates the state.
-     *
-     * @param topic The selected topic.
-     */
-    fun prepareLayoutsForTopic(topic: String) {
-        viewModelScope.launch(lightweightBackgroundContext) {
-            val result = screenCreationSession.startGeneration(listOf(topic))
-            if (result is CreationSession.GenerationResult.Screens) {
-                updateLayouts(result.pages)
-            }
-        }
-    }
-
-    /**
      * Set to keep track of the currently selected Layout.
      *
      * @param index The index of the selected layout.
@@ -102,14 +89,10 @@ constructor(
         chooseLayoutState = chooseLayoutState.copy(selectedLayout = index)
     }
 
-    /** Update the Layouts to be shown. Each list is a different page. */
-    fun updateLayouts(items: List<List<ItemInfo>>) {
-        chooseLayoutState = chooseLayoutState.copy(layouts = items)
-    }
-
-    /** Update the [ChooseLayoutGridSize] for the chooseLayoutState. */
-    fun updateGridSize(chooseLayoutGridSize: ChooseLayoutGridSize) {
-        chooseLayoutState = chooseLayoutState.copy(chooseLayoutGridSize = chooseLayoutGridSize)
+    /** TODO(): Add a real implementation to update the Layouts. */
+    fun updateLayouts(n: Int) {
+        chooseLayoutState =
+            chooseLayoutState.copy(layouts = (0 until n).toList(), selectedLayout = 0)
     }
 
     companion object {
@@ -120,13 +103,11 @@ constructor(
                     this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                         as LauncherApplication
                 val appComponent = application.appComponent
-                val idp = appComponent.idp
                 SpaceCreatorViewModel(
-                        creationSessionFactory = appComponent.creationSessionFactory,
-                        lightweightBackgroundContext =
-                            appComponent.productionDispatchers.lightweightBackgroundUiDispatcher,
-                    )
-                    .apply { updateGridSize(ChooseLayoutGridSize(idp.numColumns, idp.numRows)) }
+                    creationSessionFactory = appComponent.creationSessionFactory,
+                    lightweightBackgroundContext =
+                        appComponent.productionDispatchers.lightweightBackgroundUiDispatcher,
+                )
             }
         }
     }

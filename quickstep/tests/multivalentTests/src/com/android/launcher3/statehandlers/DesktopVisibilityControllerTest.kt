@@ -24,8 +24,9 @@ import androidx.test.filters.SmallTest
 import androidx.test.platform.app.InstrumentationRegistry.getInstrumentation
 import com.android.launcher3.Flags.FLAG_ENABLE_TASKBAR_UI_THREAD
 import com.android.launcher3.LauncherState
-import com.android.launcher3.statehandlers.DesktopVisibilityController.DesktopVisibilityListener
+import com.android.launcher3.statehandlers.DesktopVisibilityController.TaskbarDesktopModeListener
 import com.android.launcher3.util.DaggerSingletonTracker
+import com.android.launcher3.util.window.WindowManagerProxy.DesktopVisibilityListener
 import com.android.quickstep.SystemUiProxy
 import com.android.quickstep.util.binder.OneWayBinderList
 import com.android.wm.shell.desktopmode.DisplayDeskState
@@ -191,8 +192,8 @@ class DesktopVisibilityControllerTest {
 
     fun taskbarCornerRoundingListener_isNotifiedWithCorrectDisplayId() {
         // Arrange
-        val taskbarListener = mock<DesktopVisibilityListener>()
-        desktopVisibilityController.registerDesktopVisibilityListener(taskbarListener)
+        val taskbarListener = mock<TaskbarDesktopModeListener>()
+        desktopVisibilityController.registerTaskbarDesktopModeListener(taskbarListener)
         val desktopTaskListener = listenerCaptor.lastValue!!
         val displayId1 = 10
         val displayId2 = 20
@@ -210,9 +211,9 @@ class DesktopVisibilityControllerTest {
     @Test
     fun taskbarCornerRoundingListener_isNotCalledAfterUnregister() {
         // Arrange
-        val taskbarListener = mock<DesktopVisibilityListener>()
-        desktopVisibilityController.registerDesktopVisibilityListener(taskbarListener)
-        desktopVisibilityController.unregisterDesktopVisibilityListener(taskbarListener)
+        val taskbarListener = mock<TaskbarDesktopModeListener>()
+        desktopVisibilityController.registerTaskbarDesktopModeListener(taskbarListener)
+        desktopVisibilityController.unregisterTaskbarDesktopModeListener(taskbarListener)
         val desktopTaskListener = listenerCaptor.lastValue!!
         val displayId = 10
 
@@ -261,7 +262,7 @@ class DesktopVisibilityControllerTest {
         assertThat(listener).isNotNull()
         listener!!.onListenerConnected(states, /* canCreateDesks= */ true)
         getInstrumentation().waitForIdleSync()
-        assertThat(desktopVisibilityController.canCreateDesks.value).isTrue()
+        assertThat(desktopVisibilityController.canCreateDesks).isTrue()
     }
 
     companion object {

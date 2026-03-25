@@ -62,8 +62,6 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
     @VisibleForTesting var closeActions = RunnableList()
     private val activityContext: ActivityContext = ActivityContext.lookupContext(context)
 
-    internal var autoUpdateTag = true
-
     init {
         activityContext.appWidgetHolder?.onViewCreationCallback?.accept(this)
         setOnLongClickListener { onWidgetLongClick(it) }
@@ -86,14 +84,14 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
                 // We will get valid updateAppWidget remoteview call from OseWidgetManager again.
                 // This is only for resetting the remoteviews using a broken remote view.
                 updateAppWidget(RemoteViews(context.packageName, 0))
-                if (autoUpdateTag) tag = getTagInfo(it)
-                Log.i(TAG, "setAppWidget providerInfo=$it")
+                tag = getTagInfo(it)
+                Log.i(TAG, "setAppWidget providerInfo= " + it)
             }::close
         )
         closeActions.add(
             oseWidgetManager.views.forEach(activityContext.uiExecutor) {
                 updateAppWidget(it)
-                Log.i(TAG, "updateAppWidget view=$it")
+                Log.i(TAG, "updateAppWidget view= " + it)
             }::close
         )
     }

@@ -26,8 +26,6 @@ import com.android.launcher3.tapl.BaseOverview
 import com.android.launcher3.tapl.LaunchedAppState
 import com.android.launcher3.tapl.OverviewTask
 import com.android.launcher3.util.TestUtil
-import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability
-import com.android.launcher3.util.rule.TestStabilityRule.LOCAL
 import com.android.launcher3.util.ui.ActivityStartUtils.getAppPackageName
 import com.android.launcher3.util.ui.ActivityStartUtils.resolveSystemApp
 import com.android.launcher3.util.ui.PortraitLandscapeRunner.PortraitLandscape
@@ -53,7 +51,6 @@ class TaplOverviewDesktopTest : AbstractQuickStepTest() {
     }
 
     @Test
-    @DesktopStability(flavors = LOCAL, bug = 489831995)
     fun testAllTasksRemovalFromCloseButtonInExplodedView() {
         mLauncher.workspace
             .switchToOverview()
@@ -70,7 +67,6 @@ class TaplOverviewDesktopTest : AbstractQuickStepTest() {
     }
 
     @Test
-    @DesktopStability(flavors = LOCAL, bug = 489831995)
     fun testActivateIndividualTaskFromExplodedView() {
         mLauncher.workspace
             .switchToOverview()
@@ -101,7 +97,6 @@ class TaplOverviewDesktopTest : AbstractQuickStepTest() {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489831995)
     fun enterDesktopViaOverviewMenu() {
         // Move last launched TEST_ACTIVITY_2 into Desktop
         mLauncher.workspace.switchToOverview().moveTaskToDesktop(TEST_ACTIVITY_2)
@@ -135,7 +130,6 @@ class TaplOverviewDesktopTest : AbstractQuickStepTest() {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489831995)
     fun testCreateMultiDesktopsViaAddDesktopButton() {
         // Tap add desk button to create a desk.
         val overview = mLauncher.workspace.switchToOverview().createDeskViaClickAddDesktopButton()
@@ -146,7 +140,6 @@ class TaplOverviewDesktopTest : AbstractQuickStepTest() {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489831995)
     fun testEmptyDesk() {
         mLauncher.workspace
             .switchToOverview()
@@ -172,7 +165,6 @@ class TaplOverviewDesktopTest : AbstractQuickStepTest() {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489831995)
     fun testSwitchMultiDesktopsViaOverview() {
         val overview =
             mLauncher.workspace
@@ -209,7 +201,6 @@ class TaplOverviewDesktopTest : AbstractQuickStepTest() {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489831995)
     fun testQuickSwitchBetweenDesksForwardAndBackward() {
         // Create two empty desks and 1 non-empty desk, and keep record of deskId.
         var overview =
@@ -267,7 +258,6 @@ class TaplOverviewDesktopTest : AbstractQuickStepTest() {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489831995)
     fun testDismissMultipleDesksViaSwipeUpGesture() {
         var overview =
             mLauncher.workspace
@@ -288,7 +278,6 @@ class TaplOverviewDesktopTest : AbstractQuickStepTest() {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489831995)
     fun testDismissDeskViaTaskMenuClearButton() {
         var overview =
             mLauncher.workspace
@@ -310,7 +299,6 @@ class TaplOverviewDesktopTest : AbstractQuickStepTest() {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489831995)
     fun dismissFocusedTasks_thenDesktopIsCentered() {
         // Create DesktopTaskView
         mLauncher.goHome().switchToOverview().moveTaskToDesktop(TEST_ACTIVITY_2)
@@ -343,7 +331,6 @@ class TaplOverviewDesktopTest : AbstractQuickStepTest() {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489831995)
     fun dismissTasks_whenDesktopTask_IsInTheCenter() {
         // Create extra activity to be DesktopTaskView
         startTestActivity(TEST_ACTIVITY_EXTRA)

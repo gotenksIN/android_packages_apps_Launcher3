@@ -25,8 +25,6 @@ import com.android.launcher3.util.LauncherLayoutBuilder
 import com.android.launcher3.util.TestConstants.AppNames.TEST_APP_NAME
 import com.android.launcher3.util.TestUtil
 import com.android.launcher3.util.rule.ScreenRecordRule.ScreenRecord
-import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability
-import com.android.launcher3.util.rule.TestStabilityRule.LOCAL
 import com.android.wm.shell.Flags
 import org.junit.After
 import org.junit.Assume
@@ -66,7 +64,6 @@ class TaplTestTaskbarIconDrag : AbstractQuickStepTest() {
     }
 
     @Test
-    @DesktopStability(flavors = LOCAL, bug = 490563735)
     fun testAppIconDragOnOverviewFromTaskBarToBubbleBar() {
         val overview = mLauncher.workspace.switchToOverview()
         // test left drop target
@@ -76,7 +73,6 @@ class TaplTestTaskbarIconDrag : AbstractQuickStepTest() {
     }
 
     @Test
-    @DesktopStability(flavors = LOCAL, bug = 490563735)
     fun testAppIconDragInRunningAppFromTaskBarToBubbleBar() {
         startAppFast(AbstractTaplTestsTaskbar.CALCULATOR_APP_PACKAGE)
         val launchedAppState = mLauncher.launchedAppState
@@ -89,7 +85,6 @@ class TaplTestTaskbarIconDrag : AbstractQuickStepTest() {
 
     @Test
     @ScreenRecord
-    @DesktopStability(flavors = LOCAL, bug = 490563735)
     fun testAppIconDragOnOverviewFromTaskBarAllAppsToBubbleBar() {
         val overview = mLauncher.workspace.switchToOverview()
         // test right drop target
@@ -100,7 +95,6 @@ class TaplTestTaskbarIconDrag : AbstractQuickStepTest() {
     }
 
     @Test
-    @DesktopStability(flavors = LOCAL, bug = 490563735)
     fun testAppIconDragInRunningAppFromTaskBarAllAppsToBubbleBar() {
         startAppFast(AbstractTaplTestsTaskbar.CALCULATOR_APP_PACKAGE)
         val launchedAppState = mLauncher.launchedAppState

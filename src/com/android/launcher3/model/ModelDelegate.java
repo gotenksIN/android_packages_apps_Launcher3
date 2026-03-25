@@ -65,6 +65,9 @@ public class ModelDelegate {
     @WorkerThread
     public void loadAndAddExtraModelItems(@NonNull IntSparseArrayMap<ItemInfo> outLoadedItems) { }
 
+    /** Marks the ModelDelegate as active */
+    public void markActive() { }
+
     /**
      * Called during loader after workspace loading is complete
      */

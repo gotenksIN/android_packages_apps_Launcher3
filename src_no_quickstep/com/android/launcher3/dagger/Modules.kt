@@ -58,8 +58,6 @@ abstract class ActivityContextModule {
     }
 }
 
-@Module(includes = [NoOpLoggerModule::class]) abstract class StatsLoggerModule {}
-
 @Module
 abstract class ApiWrapperModule {
 

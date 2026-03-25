@@ -17,7 +17,7 @@
 package com.android.quickstep.util
 
 import android.app.Instrumentation
-import com.android.launcher3.desktop.DesktopStateProvider.getDesktopState
+import com.android.wm.shell.shared.desktopmode.DesktopState.Companion.fromContext
 import kotlin.annotation.AnnotationRetention.RUNTIME
 import kotlin.annotation.AnnotationTarget.FUNCTION
 import org.junit.Assume.assumeTrue
@@ -55,7 +55,7 @@ class MultiDisplayTestRule(
     private fun switchToExternalDisplay() {
         assumeTrue(
             "Cannot enter desktop mode for external display tests. Skipping Tests",
-            instrumentation.targetContext.getDesktopState().canEnterDesktopMode,
+            fromContext(instrumentation.targetContext).canEnterDesktopMode
         )
         val displayId = simulatedConnectedDisplayTestRule.setupTestDisplay()
         onTestDisplayChangeListener.onTestDisplayChanged(displayId)

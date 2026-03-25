@@ -324,7 +324,7 @@ object InputConsumerUtils {
             }
 
             if (
-                gestureState.isThreeFingerTrackpadGesture &&
+                gestureState.isTrackpadGesture &&
                     canStartSystemGesture &&
                     !previousGestureState.isRecentsAnimationRunning
             ) {

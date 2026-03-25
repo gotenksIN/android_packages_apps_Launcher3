@@ -105,9 +105,6 @@ class PersistentBubbleStashController(
     /** Determines whether stashing is allowed. */
     private var allowStashing: Boolean = false
 
-    override val isStashingAllowed: Boolean
-        get() = allowStashing
-
     override val bubbleBarTranslationYForTaskbar: Float
         get() {
             val taskbarBottomMargin = taskbarHotseatDimensionsProvider.getTaskbarBottomSpace()

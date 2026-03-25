@@ -213,11 +213,7 @@ constructor(
             }
         // Handle timeout activation
         if (isRootAttached) {
-            if (isExpanded) {
-                cancelDeactivation()
-            } else {
-                scope.launch { delayAndDeactivateCueBar() }
-            }
+            scope.launch { delayAndDeactivateCueBar() }
         } else {
             cancelDeactivation()
         }

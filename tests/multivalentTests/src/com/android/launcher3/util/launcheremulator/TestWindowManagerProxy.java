@@ -43,6 +43,8 @@ public class TestWindowManagerProxy extends WindowManagerProxy {
 
     private DeviceEmulationData mDevice;
 
+    private boolean mIsInDesktopMode;
+
     private NavigationMode mNavigationMode;
 
     private boolean mShowDesktopTaskbarForFreeformDisplay;
@@ -155,6 +157,15 @@ public class TestWindowManagerProxy extends WindowManagerProxy {
         CachedDisplayInfo info = getSecondaryDisplayInfo(ROTATION_0).normalize(this);
         result.put(info, estimateWindowBounds(displayInfoContext, info));
         return result;
+    }
+
+    @Override
+    public boolean isInDesktopMode(int displayId) {
+        return mIsInDesktopMode;
+    }
+
+    public void setInDesktopMode(boolean isInDesktopMode) {
+        mIsInDesktopMode = isInDesktopMode;
     }
 
     public void setDevice(DeviceEmulationData device) {

@@ -21,6 +21,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.LayoutManager
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
+import androidx.test.annotation.UiThreadTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.launcher3.util.AsyncObjectAllocator
@@ -87,6 +88,7 @@ class AllAppsRecyclerViewPoolTest {
     }
 
     @Test
+    @UiThreadTest
     fun preinflate_cancel_before_runOnMainThread() {
         underTest.preInflateAllAppsViewHolders(adapter, VIEW_TYPE, parent, 10, MAIN_EXECUTOR) { 10 }
         assertThat((underTest.mCancellableTask as JobDescription<*>).cancelled).isFalse()
@@ -94,7 +96,7 @@ class AllAppsRecyclerViewPoolTest {
         // Calling clear() is only a best effort to cancel the pre-inflation. Due different
         // threading set up in on-device test vs robolectric test, there is no guarantee that the
         // job will be 100% cancelled.
-        activityContext.uiExecutor.submit { underTest.clear() }.get()
+        underTest.clear()
 
         awaitTasksCompleted()
         assertThat((underTest.mCancellableTask as JobDescription<*>).cancelled).isTrue()

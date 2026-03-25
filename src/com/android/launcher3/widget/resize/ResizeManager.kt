@@ -75,32 +75,24 @@ class ResizeManager(
     private val logInstanceId: InstanceId = InstanceIdSequence().newInstanceId()
 
     init {
-        val itemInfo = widgetView.tag as LauncherAppWidgetInfo
-
-        val widgetProviderInfo =
-            if (itemInfo.isCustomWidget)
-                cellLayout.context.appComponent.customWidgetManager.getWidgetProvider(
-                    itemInfo.providerName
-                )
-            else widgetView.appWidgetInfo as? LauncherAppWidgetProviderInfo
-
-        val resizeMode = widgetProviderInfo?.resizeMode ?: 0
+        val widgetProviderInfo = widgetView.appWidgetInfo as LauncherAppWidgetProviderInfo
         val idp = cellLayout.context.appComponent.idp
+
         resizeConstraints =
             ResizeConstraints(
-                minHSpan = widgetProviderInfo?.minSpanX ?: itemInfo.spanX,
-                minVSpan = widgetProviderInfo?.minSpanY ?: itemInfo.spanY,
-                maxHSpan = widgetProviderInfo?.maxSpanX ?: itemInfo.spanX,
-                maxVSpan = widgetProviderInfo?.maxSpanY ?: itemInfo.spanY,
+                minHSpan = widgetProviderInfo.minSpanX,
+                minVSpan = widgetProviderInfo.minSpanY,
+                maxHSpan = widgetProviderInfo.maxSpanX,
+                maxVSpan = widgetProviderInfo.maxSpanY,
                 cellCountX = idp.numRows,
                 cellCountY = idp.numColumns,
                 horizontalResizeModeEnabled =
-                    resizeMode and AppWidgetProviderInfo.RESIZE_HORIZONTAL != 0,
+                    widgetProviderInfo.resizeMode and AppWidgetProviderInfo.RESIZE_HORIZONTAL != 0,
                 verticalResizeModeEnabled =
-                    resizeMode and AppWidgetProviderInfo.RESIZE_VERTICAL != 0,
+                    widgetProviderInfo.resizeMode and AppWidgetProviderInfo.RESIZE_VERTICAL != 0,
             )
 
-        initializeWidgetViewForResize(itemInfo)
+        initializeWidgetViewForResize(widgetView.tag as LauncherAppWidgetInfo)
     }
 
     private fun initializeWidgetViewForResize(widgetInfo: ItemInfo) {

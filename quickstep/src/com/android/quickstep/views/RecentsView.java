@@ -743,7 +743,7 @@ public abstract class RecentsView<
      * Placeholder view indicating where the first split screen selected app will be placed
      */
     @Nullable
-    private SplitSelectStateController mSplitSelectStateController;
+    protected SplitSelectStateController mSplitSelectStateController;
 
     /**
      * The first task that split screen selection was initiated with. When split select state is
@@ -901,13 +901,7 @@ public abstract class RecentsView<
 
             // Update its visibility based on whether we can create a desk or not.
             mUtils.onCanCreateDesksChanged(
-                    mDesktopVisibilityController.getCanCreateDesks().getValue());
-            ViewEx.registerLifecycleTask(this,
-                    () -> mDesktopVisibilityController.getCanCreateDesks().forEach(
-                            mContainer.getUiExecutor(), b -> {
-                                mUtils.onCanCreateDesksChanged(b);
-                                return Unit.INSTANCE;
-                            }));
+                    mDesktopVisibilityController.getCanCreateDesks());
         }
 
         mTaskViewPool = new ViewPool<>(context, this, R.layout.task, 20 /* max size */,
@@ -2532,8 +2526,6 @@ public abstract class RecentsView<
         //  scheduled for those jobs resulting in delays.
         mUtils.getTaskViews().forEach(TaskView::cancelJobs);
 
-        mUtils.setLaunchingTaskView(null);
-
         // These are relatively expensive and don't need to be done this frame (RecentsView isn't
         // visible anyway), so defer by a frame to get off the critical path, e.g. app to home.
         // Defer onto the main thread rather than the view message queue since this will not always
@@ -3303,11 +3295,6 @@ public abstract class RecentsView<
         SplitAnimInitProps splitAnimInitProps =
                 mSplitSelectStateController.getSplitAnimationController().getFirstAnimInitViews(
                         () -> mSplitHiddenTaskView, () -> mSplitSelectSource);
-        if (splitAnimInitProps == null) {
-            Log.w(TAG, "createInitialSplitSelectAnimation: skipping SplitAnimation as properties"
-                    + " are null");
-            return;
-        }
         if (mSplitSelectStateController.isAnimateCurrentTaskDismissal()) {
             // Create the split select animation from Overview
             mSplitHiddenTaskView.setThumbnailVisibility(false,
@@ -5561,16 +5548,6 @@ public abstract class RecentsView<
         return mDesktopRecentsTransitionController;
     }
 
-    @Nullable
-    protected SplitSelectStateController getSplitSelectStateController() {
-        return mSplitSelectStateController;
-    }
-
-    @Nullable
-    protected RunnableList getSideTaskLaunchCallback() {
-        return mSideTaskLaunchCallback;
-    }
-
     /** Enables or disables modal state for RecentsView */
     public abstract void setModalStateEnabled(int taskId, boolean animate);
 
@@ -5999,13 +5976,5 @@ public abstract class RecentsView<
 
     public Map<TaskView, Integer> getTaskViewsDismissPrimaryTranslations() {
         return mTaskViewsDismissPrimaryTranslations;
-    }
-
-    protected void setLaunchingTaskView(@Nullable TaskView taskView) {
-        mUtils.setLaunchingTaskView(taskView);
-    }
-
-    public boolean hasOngoingTaskViewLaunch() {
-        return mUtils.hasOngoingTaskViewLaunch();
     }
 }

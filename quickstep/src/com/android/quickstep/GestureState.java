@@ -196,8 +196,6 @@ public class GestureState implements RecentsAnimationCallbacks.RecentsAnimationL
 
     private GestureEndTarget mAtomicEndTarget;
     private boolean mIsInExtendedSlopRegion;
-    private boolean mIsTaskbarAlreadyOpen;
-    private boolean mIsTaskbarAllAppsOpen;
 
     public GestureState(OverviewComponentObserver componentObserver, int displayId, int gestureId) {
         mDisplayId = displayId;
@@ -221,8 +219,6 @@ public class GestureState implements RecentsAnimationCallbacks.RecentsAnimationL
         mLastAppearedTaskTargets = other.mLastAppearedTaskTargets;
         mPreviouslyAppearedTaskIds = other.mPreviouslyAppearedTaskIds;
         mLastStartedTaskId = other.mLastStartedTaskId;
-        mIsTaskbarAlreadyOpen = other.mIsTaskbarAlreadyOpen;
-        mIsTaskbarAllAppsOpen = other.mIsTaskbarAllAppsOpen;
     }
 
     public GestureState() {
@@ -234,34 +230,6 @@ public class GestureState implements RecentsAnimationCallbacks.RecentsAnimationL
         mStateCallback = new MultiStateCallback(
                 STATE_NAMES.toArray(new String[0]), GestureState::getTrackedEventForState);
         mGestureId = -1;
-    }
-
-    /**
-     * @return true if the taskbar was already open when the gesture started.
-     */
-    public boolean isTaskbarAlreadyOpen() {
-        return mIsTaskbarAlreadyOpen;
-    }
-
-    /**
-     * Sets whether the taskbar was already open when the gesture started.
-     */
-    public void setTaskbarAlreadyOpen(boolean taskbarAlreadyOpen) {
-        mIsTaskbarAlreadyOpen = taskbarAlreadyOpen;
-    }
-
-    /**
-     * @return true if the taskbar all apps was open when the gesture started.
-     */
-    public boolean isTaskbarAllAppsOpen() {
-        return mIsTaskbarAllAppsOpen;
-    }
-
-    /**
-     * Sets whether the taskbar all apps was open when the gesture started.
-     */
-    public void setTaskbarAllAppsOpen(boolean taskbarAllAppsOpen) {
-        mIsTaskbarAllAppsOpen = taskbarAllAppsOpen;
     }
 
     @Nullable

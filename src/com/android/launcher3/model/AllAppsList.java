@@ -263,8 +263,7 @@ public class AllAppsList {
                 .getActivityList(packageName, user);
 
         Map<ComponentName, LauncherActivityInfo> activityMap = matches.stream().collect(
-                Collectors.toMap(LauncherActivityInfo::getComponentName, lai -> lai,
-                    (existing, replacement) -> existing));
+                Collectors.toMap(LauncherActivityInfo::getComponentName, lai -> lai));
 
         Iterator<AppInfo> iterator = data.iterator();
         while (iterator.hasNext()) {

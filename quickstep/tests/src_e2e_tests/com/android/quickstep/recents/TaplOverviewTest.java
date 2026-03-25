@@ -16,7 +16,6 @@
 
 package com.android.quickstep.recents;
 
-import static com.android.launcher3.util.rule.TestStabilityRule.LOCAL;
 import static com.android.launcher3.util.ui.ActivityStartUtils.getAppPackageName;
 import static com.android.launcher3.util.ui.ActivityStartUtils.resolveSystemApp;
 import static com.android.launcher3.util.ui.ActivityStartUtils.startExcludeFromRecentsTestActivity;
@@ -44,7 +43,6 @@ import com.android.launcher3.tapl.Overview;
 import com.android.launcher3.tapl.OverviewActions;
 import com.android.launcher3.tapl.OverviewTask;
 import com.android.launcher3.util.TestUtil;
-import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability;
 import com.android.launcher3.util.ui.BaseLauncherTaplTest.AllowInRecentsWindowTests;
 import com.android.launcher3.util.ui.PortraitLandscapeRunner.PortraitLandscape;
 import com.android.quickstep.AbstractQuickStepTest;
@@ -81,7 +79,6 @@ public class TaplOverviewTest extends AbstractQuickStepTest {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489810466)
     public void testOverview() throws Exception {
         startTestAppsWithCheck();
         // mLauncher.pressHome() also tests an important case of pressing home while in background.
@@ -140,7 +137,6 @@ public class TaplOverviewTest extends AbstractQuickStepTest {
     @Test
     @NavigationModeSwitch
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489810466)
     public void testOpenOverviewFromHome() throws Exception {
         startTestAppsWithCheck();
         assertNotNull("Workspace.switchToOverview() returned null",
@@ -152,7 +148,6 @@ public class TaplOverviewTest extends AbstractQuickStepTest {
     @Test
     @NavigationModeSwitch
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489811260)
     public void testOpenOverviewFromApp() throws Exception {
         startAppFast(CALCULATOR_APP_PACKAGE);
         final LaunchedAppState launchedAppState = getAndAssertLaunchedApp();
@@ -165,7 +160,6 @@ public class TaplOverviewTest extends AbstractQuickStepTest {
 
     @Test
     @TaskbarModeSwitch(mode = TRANSIENT)
-    @DesktopStability(flavors = LOCAL, bug = 489811260)
     public void testOpenOverviewFromAppWithStashedTaskbar() throws Exception {
         try {
             startTestAppsWithCheck();
@@ -178,7 +172,6 @@ public class TaplOverviewTest extends AbstractQuickStepTest {
     }
 
     @Test
-    @DesktopStability(flavors = LOCAL, bug = 489927668)
     public void testOpenOverviewFromExcludeFromRecentsApps() throws Exception {
         startExcludeFromRecentsTestActivity();
         OverviewTask currentTask = getAndAssertLaunchedApp().switchToOverview().getCurrentTask();
@@ -197,7 +190,6 @@ public class TaplOverviewTest extends AbstractQuickStepTest {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489811178)
     public void testOverviewDeadzones() throws Exception {
         startTestAppsWithCheck();
 
@@ -219,7 +211,6 @@ public class TaplOverviewTest extends AbstractQuickStepTest {
     @Test
     @PortraitLandscape
     @TaskbarModeSwitch
-    @DesktopStability(flavors = LOCAL, bug = 489811260)
     public void testTaskbarDeadzonesForTablet() throws Exception {
         assumeTrue("Ignoring test because device is not a tablet", mLauncher.isTablet());
 
@@ -257,7 +248,6 @@ public class TaplOverviewTest extends AbstractQuickStepTest {
     @Test
     @NavigationModeSwitch
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489810466)
     public void testOverviewScreenshotAction() throws Exception {
         assumeFalse("Skipping Overview Actions tests for tablet", mLauncher.isTablet());
         startTestAppsWithCheck();
@@ -272,7 +262,6 @@ public class TaplOverviewTest extends AbstractQuickStepTest {
     @Test
     @NavigationModeSwitch
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489810466)
     public void testOverviewSelectAction() throws Exception {
         assumeFalse("Skipping Overview Actions tests for tablet", mLauncher.isTablet());
         startTestAppsWithCheck();

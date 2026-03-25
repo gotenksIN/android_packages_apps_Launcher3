@@ -56,17 +56,14 @@ interface IModelWriter {
      * 4. If the operation is cancelled, revert the UI state using the retained data. No database
      *    transaction is needed.
      *
-     * @param T The type of the result returned by the [block]. This result will be passed back to
-     *   the onComplete callback, allowing the transaction block to communicate state or data back
-     *   to the caller.
      * @param onComplete An optional lambda that will be executed on the UI thread after the
-     *   transaction has completed, indicating success or failure and the result of the block.
+     *   transaction has completed, indicating success or failure.
      * @param block The block of code to execute within the transaction, receiving a
      *   [TransactionContext] handle for performing mutations.
      */
-    fun <T> scheduleTransaction(
-        onComplete: ((success: Boolean, result: T?) -> Unit)? = null,
-        block: (TransactionContext) -> T,
+    fun scheduleTransaction(
+        onComplete: ((success: Boolean) -> Unit)? = null,
+        block: Consumer<TransactionContext>,
     )
 
     /**

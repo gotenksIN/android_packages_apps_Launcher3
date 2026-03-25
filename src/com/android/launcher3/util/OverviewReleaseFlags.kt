@@ -43,6 +43,4 @@ object OverviewReleaseFlags {
     @JvmStatic fun enableLauncherOverviewInWindow() = Flags.enableLauncherOverviewInWindow()
 
     @JvmStatic fun enableFallbackOverviewInWindow() = Flags.enableFallbackOverviewInWindow()
-
-    @JvmStatic fun enableSaveActionInOverviewShare() = Flags.enableSaveActionInOverviewShare()
 }

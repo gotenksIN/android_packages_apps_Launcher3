@@ -41,7 +41,6 @@ import android.view.View;
 import com.android.launcher3.taskbar.TaskbarActivityContext;
 import com.android.launcher3.taskbar.TaskbarSharedState;
 import com.android.launcher3.taskbar.bubbles.stashing.BubbleStashController;
-import com.android.launcher3.util.BubbleProtoLog;
 import com.android.launcher3.util.Executors.SimpleThreadFactory;
 import com.android.launcher3.util.MultiPropertyFactory;
 import com.android.launcher3.util.SafeCloseable;
@@ -54,6 +53,7 @@ import com.android.wm.shell.shared.bubbles.BubbleBarUpdate;
 import com.android.wm.shell.shared.bubbles.BubbleInfo;
 import com.android.wm.shell.shared.bubbles.RemovedBubble;
 import com.android.wm.shell.shared.bubbles.logging.BubbleLog;
+import com.android.wm.shell.shared.bubbles.logging.LogcatDebugLogger;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -182,7 +182,7 @@ public class BubbleBarController {
         mBarView = bubbleView; // Need the view for inflating bubble views.
 
         mSystemUiProxy = SystemUiProxy.INSTANCE.get(context);
-        BubbleLog.addLogger(new BubbleProtoLog());
+        BubbleLog.addLogger(new LogcatDebugLogger());
     }
 
     public void onDestroy() {

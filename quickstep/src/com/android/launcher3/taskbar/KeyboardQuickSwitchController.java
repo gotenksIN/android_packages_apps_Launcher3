@@ -18,7 +18,6 @@ package com.android.launcher3.taskbar;
 import static android.window.DesktopModeFlags.ENABLE_TASKBAR_OVERFLOW;
 
 import static com.android.launcher3.Flags.enableKqsForceTakeRunningTaskThumbnail;
-import static com.android.launcher3.desktop.DesktopStateProvider.getDesktopState;
 import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAltTabKqsFlatenning;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.getTaskbarUiThread;
@@ -46,6 +45,7 @@ import com.android.quickstep.util.SingleTask;
 import com.android.systemui.shared.recents.model.Task;
 import com.android.systemui.shared.recents.model.ThumbnailData;
 import com.android.systemui.shared.system.ActivityManagerWrapper;
+import com.android.wm.shell.shared.desktopmode.DesktopState;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -99,7 +99,8 @@ public final class KeyboardQuickSwitchController implements
     public void init(@NonNull TaskbarControllers controllers) {
         mControllers = controllers;
         mModel = RecentsModel.INSTANCE.get(controllers.taskbarActivityContext);
-        mIsProjectedMode = getDesktopState(mControllers.taskbarActivityContext).isProjectedMode();
+        mIsProjectedMode = DesktopState.getInstance(
+                mControllers.taskbarActivityContext).isProjectedMode();
     }
 
     void onConfigurationChanged(@ActivityInfo.Config int configChanges) {

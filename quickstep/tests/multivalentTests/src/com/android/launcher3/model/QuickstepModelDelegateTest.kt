@@ -94,6 +94,7 @@ class QuickstepModelDelegateTest {
     fun hotseatActionPin_recreateHotSeat() {
         assertSame(underTest.mHotseatPredictionState.predictor, hotseatPredictor)
         val appTargetEvent = AppTargetEvent.Builder(target, AppTargetEvent.ACTION_PIN).build()
+        underTest.markActive()
 
         underTest.onAppTargetEvent(appTargetEvent, CONTAINER_HOTSEAT_PREDICTION)
 
@@ -104,6 +105,7 @@ class QuickstepModelDelegateTest {
     @Test
     fun hotseatActionUnpin_recreateHotSeat() {
         assertSame(underTest.mHotseatPredictionState.predictor, hotseatPredictor)
+        underTest.markActive()
         val appTargetEvent = AppTargetEvent.Builder(target, AppTargetEvent.ACTION_UNPIN).build()
 
         underTest.onAppTargetEvent(appTargetEvent, CONTAINER_HOTSEAT_PREDICTION)
@@ -116,6 +118,7 @@ class QuickstepModelDelegateTest {
     fun container_actionPin_notRecreateHotSeat() {
         assertSame(underTest.mHotseatPredictionState.predictor, hotseatPredictor)
         val appTargetEvent = AppTargetEvent.Builder(target, AppTargetEvent.ACTION_UNPIN).build()
+        underTest.markActive()
 
         underTest.onAppTargetEvent(appTargetEvent, CONTAINER_ALL_APPS_PREDICTION)
 

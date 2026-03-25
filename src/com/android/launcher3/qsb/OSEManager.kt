@@ -191,7 +191,12 @@ class OSEManager(
         // Listen to the OseSettingValue package as well if it's installed little later or
         // if the app gets archived/restored.
         if (oseSettingsValue != targetPackage) oseSettingsValue?.listenForPackageChanges()
-        if (oldOseInfo.isDifferentFrom(newOseInfo)) {
+        if (
+            oldOseInfo.pkg != newOseInfo.pkg ||
+                oldOseInfo.overlayPackage != newOseInfo.overlayPackage ||
+                oldOseInfo.installPending != newOseInfo.installPending ||
+                oldOseInfo.isOseConfigured != newOseInfo.isOseConfigured
+        ) {
             mutableOSEInfoRef.dispatchValue(newOseInfo)
         }
     }
@@ -243,7 +248,7 @@ class OSEManager(
     }
 
     /** Object representing properties of the on-device search engine */
-    data class OSEInfo(
+    class OSEInfo(
         val pkg: String?,
         val overlayTarget: ActivityInfo? = null,
         val installPending: Boolean = false,
@@ -253,15 +258,18 @@ class OSEManager(
         val overlayPackage: String?
             get() = overlayTarget?.packageName ?: pkg
 
-        private fun hasOverlay() = overlayTarget != null
-
-        @VisibleForTesting
-        fun isDifferentFrom(other: OSEInfo) =
-            pkg != other.pkg ||
-                overlayPackage != other.overlayPackage ||
-                installPending != other.installPending ||
-                isOseConfigured != other.isOseConfigured ||
-                hasOverlay() != other.hasOverlay()
+        override fun toString(): String {
+            return "pkg=" +
+                pkg +
+                " overlayPackage=" +
+                overlayPackage +
+                " installPending=" +
+                installPending +
+                " isOseConfigured=" +
+                isOseConfigured +
+                " supportsSearchIntent=" +
+                supportsSearchIntent
+        }
     }
 
     companion object {

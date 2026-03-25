@@ -34,10 +34,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import com.android.launcher3.R
 
-// TODO(b/493665827): Add test coverage.
 /** Composable which renders the view for a [Dialog<T>]. */
 @Composable
-fun <T> DialogScope.DialogView(viewModel: T) where T : DialogViewModel<T> {
+fun <T> DialogView(viewModel: T, onDismiss: () -> Unit) where T : DialogViewModel<T> {
     if (viewModel.title.isEmpty()) {
         throw IllegalStateException("Dialog must have a title.")
     }
@@ -68,7 +67,7 @@ fun <T> DialogScope.DialogView(viewModel: T) where T : DialogViewModel<T> {
                                 bottom = dimensionResource(R.dimen.dialog_content_padding_bottom),
                             )
                 ) {
-                    viewModel.content.invoke(this@DialogView, viewModel)
+                    viewModel.content.invoke(viewModel)
                 }
 
                 // Buttons.
@@ -78,7 +77,7 @@ fun <T> DialogScope.DialogView(viewModel: T) where T : DialogViewModel<T> {
                     if (hasNeutralButton) {
                         OutlinedButton(
                             modifier = Modifier.testTag(NEUTRAL_BUTTON_TAG),
-                            onClick = { dismiss(animate = true) },
+                            onClick = { onDismiss.invoke() },
                         ) {
                             Text(text = viewModel.neutralButton!!)
                         }
@@ -100,7 +99,7 @@ fun <T> DialogScope.DialogView(viewModel: T) where T : DialogViewModel<T> {
                             modifier = Modifier.testTag(POSITIVE_BUTTON_TAG),
                             onClick = {
                                 if (viewModel.onPositiveButtonClick?.invoke(viewModel) == true) {
-                                    dismiss(animate = true)
+                                    onDismiss()
                                 }
                             },
                         ) {

@@ -22,8 +22,6 @@ import java.util.concurrent.CompletableFuture
 
 /** No-op implementation of [HomeScreenFilesProvider]. */
 class HomeScreenFilesNoOpProvider : HomeScreenFilesProvider {
-    override val iconProvider = HomeScreenFilesNoOpIconProvider()
-
     override val updates = MutableListenableStream<HomeScreenFilesUpdate>()
 
     override fun onReady(): CompletableFuture<Void> = CompletableFuture.completedFuture(null)

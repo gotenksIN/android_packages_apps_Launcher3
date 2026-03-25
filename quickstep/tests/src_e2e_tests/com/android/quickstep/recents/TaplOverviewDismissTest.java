@@ -16,7 +16,6 @@
 
 package com.android.quickstep.recents;
 
-import static com.android.launcher3.util.rule.TestStabilityRule.LOCAL;
 import static com.android.launcher3.util.ui.ActivityStartUtils.resolveSystemApp;
 
 import static org.junit.Assert.assertEquals;
@@ -34,7 +33,6 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.tapl.Overview;
 import com.android.launcher3.tapl.OverviewTask;
-import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability;
 import com.android.launcher3.util.ui.BaseLauncherTaplTest.AllowInRecentsWindowTests;
 import com.android.launcher3.util.ui.PortraitLandscapeRunner.PortraitLandscape;
 import com.android.quickstep.AbstractQuickStepTest;
@@ -90,7 +88,6 @@ public class TaplOverviewDismissTest extends AbstractQuickStepTest {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489811439)
     public void testDismissBottomRow() throws Exception {
         assumeTrue("Ignoring test because device is not a tablet", mLauncher.isTablet());
         startTestAppsWithCheck();
@@ -111,7 +108,6 @@ public class TaplOverviewDismissTest extends AbstractQuickStepTest {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489810784)
     public void testDismissLastGridRow() throws Exception {
         assumeTrue("Ignoring test because device is not a tablet", mLauncher.isTablet());
         startTestAppsWithCheck();
@@ -147,7 +143,6 @@ public class TaplOverviewDismissTest extends AbstractQuickStepTest {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489811542)
     // When dismissing multiple apps, the apps off screen should "re-balance" i.e. re-arrange
     // themselves evenly across both top and bottom rows.
     public void gridRebalancesOffScreenAfterDismissingMultipleApps() throws Exception {
@@ -177,7 +172,6 @@ public class TaplOverviewDismissTest extends AbstractQuickStepTest {
 
     @Test
     @PortraitLandscape
-    @DesktopStability(flavors = LOCAL, bug = 489811542)
     // When dismissing multiple apps, the apps on screen should not "re-balance" i.e. dismissing
     // 2 apps from the top row, will move the top row along 2 and so it will not be balanced
     // across the bottom row.

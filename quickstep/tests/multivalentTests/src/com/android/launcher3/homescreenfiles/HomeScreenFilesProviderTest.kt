@@ -91,7 +91,6 @@ class HomeScreenFilesProviderTest {
     @Mock private lateinit var contentProviderClient: ContentProviderClient
     @Mock private lateinit var fileFactory: (path: String) -> File
     @Mock private lateinit var environmentWrapper: EnvironmentWrapper
-    @Mock private lateinit var iconProvider: HomeScreenFilesIconProvider
 
     private lateinit var provider: HomeScreenFilesProvider
 
@@ -970,7 +969,6 @@ class HomeScreenFilesProviderTest {
             executorService ?: MoreExecutors.newDirectExecutorService(),
             fileFactory,
             environmentWrapper,
-            iconProvider,
             context.appComponent.daggerSingletonTracker,
         )
 

@@ -39,7 +39,6 @@ import com.android.launcher3.concurrent.annotations.BackgroundContext
 import com.android.launcher3.concurrent.annotations.UiContext
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator
 import com.android.launcher3.util.LooperExecutor
-import com.android.quickstep.FallbackWindowInterface
 import com.android.quickstep.RecentsAnimationDeviceState
 import com.android.quickstep.RotationTouchHelper
 import com.android.quickstep.TaskAnimationManager
@@ -142,7 +141,7 @@ object PerDisplayRepositoriesModule {
         repositoryFactory.createOptional(
             "RecentsWindowManagerRepo",
             objectGetter = { it.recentsWindowManager },
-            optionalObjectGetter = { it.fallbackWindowInterface.createdContainer },
+            optionalObjectGetter = { it.recentsWindowManagerHolder.value },
         )
 
     @Provides
@@ -151,13 +150,6 @@ object PerDisplayRepositoriesModule {
         repositoryFactory: PerDisplayComponentRepository.Factory<RecentsWindowTracker>
     ): PerDisplayRepository<RecentsWindowTracker> =
         repositoryFactory.create("RecentsWindowTrackerRepo") { it.recentsWindowTracker }
-
-    @Provides
-    @LauncherAppSingleton
-    fun provideFallbackWindowInterfaceRepo(
-        repositoryFactory: PerDisplayComponentRepository.Factory<FallbackWindowInterface>
-    ): PerDisplayRepository<FallbackWindowInterface> =
-        repositoryFactory.create("FallbackWindowInterface") { it.fallbackWindowInterface }
 
     @Provides
     @LauncherAppSingleton

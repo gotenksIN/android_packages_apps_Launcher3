@@ -382,14 +382,8 @@ constructor(
         // bubble bar and shows the flyout. The second part hides the flyout and transforms the
         // bubble bar to the handle if we're in an app.
         val showAnimation = buildBubbleBarSpringInAnimation()
-        val canStash =
-            if (Flags.fixDismissFlyoutPersistentTaskbar()) {
-                bubbleStashController.isStashingAllowed
-            } else {
-                isInApp
-            }
         val hideAnimation =
-            if (canStash && !isExpanding && !isDragging) {
+            if (isInApp && !isExpanding && !isDragging) {
                 buildBubbleBarToHandleAnimation()
             } else {
                 Runnable {

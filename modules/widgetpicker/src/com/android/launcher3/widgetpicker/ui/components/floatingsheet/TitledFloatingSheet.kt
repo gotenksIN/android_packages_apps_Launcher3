@@ -94,7 +94,6 @@ fun TitledFloatingSheet(
     modifier: Modifier = Modifier,
     title: String?,
     description: String?,
-    shouldEnableDragOnScrollToEnd: Boolean = false,
     onDismissSheet: () -> Unit,
     onSheetOpen: () -> Unit,
     onSheetProgress: (Float) -> Unit,
@@ -160,7 +159,6 @@ fun TitledFloatingSheet(
                         onDismissSheet = onDismissSheet,
                         maxHeight = sheetHeight,
                         enableNestedScrolling = !accessibilityState.isEnabled,
-                        enableDragOnScrollToEnd = shouldEnableDragOnScrollToEnd,
                     )
                     .background(
                         color = WidgetPickerTheme.colors.sheetBackgroundBottomLayer,
