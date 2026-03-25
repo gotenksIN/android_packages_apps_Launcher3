@@ -59,7 +59,12 @@ constructor(
                     .filter { it.itemInfo is AppInfo }
                     .groupBy({ it.topic }, { (it.itemInfo as AppInfo).bitmap.icon })
 
-            val topicDataList = topics.map { FolderTopicData(it, topicIcons[it] ?: emptyList()) }
+            val topicDataList =
+                topics
+                    .map { FolderTopicData(it, topicIcons[it] ?: emptyList()) }
+                    .filter { it.icons.size >= 2 }
+                    .sortedByDescending { it.icons.size }
+                    .take(6)
             updateState(topicDataList)
         }
     }
@@ -87,6 +92,11 @@ constructor(
                 currentSelected + topic
             }
         _state.value = _state.value.copy(selectedTopics = newSelected)
+    }
+
+    /** Toggles the remove duplicates option. */
+    fun toggleRemoveDuplicates() {
+        _state.value = _state.value.copy(removeDuplicates = !_state.value.removeDuplicates)
     }
 
     /**
