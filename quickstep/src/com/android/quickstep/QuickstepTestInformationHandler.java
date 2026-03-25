@@ -3,6 +3,7 @@ package com.android.quickstep;
 import static android.view.Display.DEFAULT_DISPLAY;
 
 import static com.android.launcher3.LauncherPrefs.SELECT_TIP_SEEN;
+import static com.android.launcher3.desktop.DesktopStateProvider.getDesktopState;
 import static com.android.launcher3.taskbar.TaskbarThresholdUtils.getFromNavThreshold;
 import static com.android.launcher3.testing.shared.TestProtocol.REQUEST_INFO_DISPLAY_ID;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
@@ -33,14 +34,12 @@ import com.android.quickstep.dagger.SysUIConnectionComponent;
 import com.android.quickstep.sysuiconnection.SysUIConnectionTracker;
 import com.android.quickstep.util.ActiveTrackpadList;
 import com.android.quickstep.util.GroupTask;
-import com.android.quickstep.util.LayoutUtils;
 import com.android.quickstep.views.DesktopTaskView;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.RecentsViewContainer;
 import com.android.quickstep.views.TaskView;
 import com.android.systemui.shared.recents.model.Task;
 import com.android.wm.shell.shared.bubbles.DeviceConfig;
-import com.android.wm.shell.shared.desktopmode.DesktopState;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -113,14 +112,7 @@ public class QuickstepTestInformationHandler extends TestInformationHandler {
                 return response;
             }
 
-            case TestProtocol.REQUEST_HOME_TO_OVERVIEW_SWIPE_HEIGHT: {
-                final float swipeHeight =
-                        LayoutUtils.getDefaultSwipeHeight(mContext, getDeviceProfile(displayId));
-                response.putInt(TestProtocol.TEST_INFO_RESPONSE_FIELD, (int) swipeHeight);
-                return response;
-            }
-
-            case TestProtocol.REQUEST_BACKGROUND_TO_OVERVIEW_SWIPE_HEIGHT: {
+            case TestProtocol.REQUEST_SWIPE_TO_OVERVIEW_HEIGHT: {
                 final float swipeHeight =
                         getDeviceProfile(displayId).getDeviceProperties().getHeightPx() / 2f;
                 response.putInt(TestProtocol.TEST_INFO_RESPONSE_FIELD, (int) swipeHeight);
@@ -292,7 +284,7 @@ public class QuickstepTestInformationHandler extends TestInformationHandler {
                 return getTaskbarProperty(Bundle::putBoolean, t -> t.isTransient(displayId));
             case TestProtocol.REQUEST_FLAG_IS_DESKTOP_MODE_SUPPORTED: {
                 response.putBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD,
-                        DesktopState.fromContext(mContext).isDesktopModeSupportedOnDisplay(
+                        getDesktopState(mContext).isDesktopModeSupportedOnDisplay(
                                 Integer.parseInt(arg)));
                 return response;
             }

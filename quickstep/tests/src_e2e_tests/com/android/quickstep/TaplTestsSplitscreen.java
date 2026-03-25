@@ -16,7 +16,7 @@
 package com.android.quickstep;
 
 
-import static com.android.launcher3.util.ui.ActivityStartUtils.getAppPackageName;
+import static com.android.launcher3.util.rule.TestStabilityRule.LOCAL;
 import static com.android.launcher3.util.ui.ActivityStartUtils.resolveSystemApp;
 
 import static org.junit.Assert.assertFalse;
@@ -30,8 +30,10 @@ import androidx.test.filters.LargeTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.launcher3.tapl.Overview;
+import com.android.launcher3.tapl.SplitScreenSelect;
 import com.android.launcher3.tapl.Taskbar;
 import com.android.launcher3.tapl.TaskbarAppIcon;
+import com.android.launcher3.util.rule.TestStabilityRule.DesktopStability;
 import com.android.quickstep.util.SplitScreenTestUtils;
 
 import org.junit.After;
@@ -70,6 +72,7 @@ public class TaplTestsSplitscreen extends AbstractQuickStepTest {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL, bug = 491264140)
     public void testSplitAppFromHomeWithItself() throws Exception {
         // Currently only tablets have Taskbar in Overview, so test is only active on tablets
         assumeTrue("Ignoring test because device is not a tablet",
@@ -97,6 +100,7 @@ public class TaplTestsSplitscreen extends AbstractQuickStepTest {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL, bug = 489799688)
     public void testSaveAppPairMenuItemOrActionExistsOnSplitPair() {
         clearAllRecentTasks();
         Overview overview = SplitScreenTestUtils.createAndLaunchASplitPairInOverview(mLauncher);
@@ -108,7 +112,8 @@ public class TaplTestsSplitscreen extends AbstractQuickStepTest {
     }
 
     @Test
-    public void testSaveAppPairMenuItemDoesNotExistOnSingleTask() throws Exception {
+    @DesktopStability(flavors = LOCAL, bug = 489799688)
+    public void testSaveAppPairMenuItemDoesNotExistOnSingleTask() {
         startAppFast(CALCULATOR_APP_PACKAGE);
 
         assertFalse("Save app pair menu item is erroneously appearing on single task",
@@ -120,16 +125,21 @@ public class TaplTestsSplitscreen extends AbstractQuickStepTest {
     }
 
     @Test
+    @DesktopStability(flavors = LOCAL, bug = 489799688)
     public void testSplitSingleTaskFromTaskbar() {
         // Currently only tablets have Taskbar in Overview, so test is only active on tablets
         assumeTrue("Ignoring test because device is not a tablet",
             mLauncher.isTablet());
 
         clearAllRecentTasks();
-        startAppFast(getAppPackageName());
+        startAppFast(CALCULATOR_APP_PACKAGE);
 
-        Overview overview = mLauncher.goHome().switchToOverview();
-        overview.getCurrentTask().tapMenu().tapSplitMenuItem();
+        SplitScreenSelect overview =
+                mLauncher.getLaunchedAppState()
+                        .switchToOverview()
+                        .getCurrentTask()
+                        .tapMenu()
+                        .tapSplitMenuItem();
 
         Taskbar taskbar = overview.getTaskbar();
         String firstAppName = taskbar.getIconNames().get(0);
