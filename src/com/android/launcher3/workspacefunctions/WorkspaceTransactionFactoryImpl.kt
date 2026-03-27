@@ -13,25 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.android.launcher3.workspacefunctions
 
-import com.android.launcher3.appfunctions.workspace.WorkspaceRepository
+import com.android.launcher3.appfunctions.workspace.RemoveItemParamsSpec
+import com.android.launcher3.appfunctions.workspace.WorkspaceTransaction
 import com.android.launcher3.appfunctions.workspace.WorkspaceTransactionFactory
-import dagger.Subcomponent
+import javax.inject.Inject
 
-/** Subcomponent for Dagger injection for WorkspaceFunctions. */
-@Subcomponent(modules = [WorkspaceFunctionsModule::class])
-interface WorkspaceFunctionsComponent {
+/** Concrete implementation of [WorkspaceTransactionFactory]. */
+class WorkspaceTransactionFactoryImpl
+@Inject
+constructor(private val removeItemFactory: RemoveItemTransaction.Factory) :
+    WorkspaceTransactionFactory {
 
-    /** Returns the WorkspaceRepository instance. */
-    fun getWorkspaceRepository(): WorkspaceRepository
-
-    /** Returns the WorkspaceTransactionFactory instance. */
-    fun getWorkspaceTransactionFactory(): WorkspaceTransactionFactory
-
-    /** Builder for WorkspaceFunctionsComponent. */
-    @Subcomponent.Builder
-    interface Builder {
-        fun build(): WorkspaceFunctionsComponent
+    override fun createRemoveItemTransaction(params: RemoveItemParamsSpec): WorkspaceTransaction {
+        return removeItemFactory.create(params)
     }
 }

@@ -19,7 +19,7 @@ package com.android.launcher3.appfunctions.workspace
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.launcher3.appfunctions.workspace.WorkspaceAppFunctions.Proof
 import com.android.launcher3.workspacefunctions.testing.FakeWorkspaceRepository
-import com.android.launcher3.workspacefunctions.testing.FakeWorkspaceTransaction
+import com.android.launcher3.workspacefunctions.testing.FakeWorkspaceTransactionFactory
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -29,18 +29,21 @@ import org.junit.runner.RunWith
 class WorkspaceMutationManagerTest {
 
     private val fakeRepository = FakeWorkspaceRepository()
-    private val mutationManager = WorkspaceMutationManager(fakeRepository)
+    private val fakeTransactionFactory = FakeWorkspaceTransactionFactory()
+    private val mutationManager = WorkspaceMutationManager(fakeRepository, fakeTransactionFactory)
 
     @Test
     fun removeItem_validRequest_callsTransactionAndReturnsSuccess(): Unit = runBlocking {
         // Setup repository with an item that matches the selector
         // Let's use coordinates (0, 1, 1)
-        fakeRepository.workspace = WorkspaceSpec(
-            screens = listOf(WorkspaceScreenSpec(items = listOf(WorkspaceItemSpec(x = 1, y = 1)))),
-            hotseat = HotseatSpec(emptyList()),
-            rows = null,
-            columns = null
-        )
+        fakeRepository.workspace =
+            WorkspaceSpec(
+                screens =
+                    listOf(WorkspaceScreenSpec(items = listOf(WorkspaceItemSpec(x = 1, y = 1)))),
+                hotseat = HotseatSpec(emptyList()),
+                rows = null,
+                columns = null,
+            )
 
         val params = RemoveItemParamsSpec(item = createSelector(screenIndex = 0, x = 1, y = 1))
         val result = mutationManager.removeItem(params)
@@ -49,9 +52,8 @@ class WorkspaceMutationManagerTest {
         assertThat(result.message).isEqualTo("Item removed")
         assertThat(result.proof).isEqualTo(Proof.REMOVE_ITEM_PROOF)
 
-        val transaction = fakeRepository.lastTransaction as FakeWorkspaceTransaction
-        assertThat(transaction.removeItemCalledWith).isEqualTo(params)
-        assertThat(transaction.commitCalled).isTrue()
+        assertThat(fakeTransactionFactory.lastRemoveItemParams).isEqualTo(params)
+        assertThat(fakeTransactionFactory.lastCreatedTransaction?.executeCalled).isTrue()
     }
 
     @Test
@@ -62,25 +64,26 @@ class WorkspaceMutationManagerTest {
 
         assertThat(result.success).isFalse()
         assertThat(result.errorCode?.code).isEqualTo(ErrorCode.INVALID_PARAMETERS)
-        assertThat(fakeRepository.lastTransaction).isNull()
+        assertThat(fakeTransactionFactory.lastCreatedTransaction).isNull()
     }
 
     @Test
     fun removeItem_itemNotFound_returnsFailureWithItemNotFound(): Unit = runBlocking {
         // Empty workspace, selector will not find any item
-        fakeRepository.workspace = WorkspaceSpec(
-            screens = listOf(WorkspaceScreenSpec(items = emptyList())),
-            hotseat = HotseatSpec(emptyList()),
-            rows = null,
-            columns = null
-        )
+        fakeRepository.workspace =
+            WorkspaceSpec(
+                screens = listOf(WorkspaceScreenSpec(items = emptyList())),
+                hotseat = HotseatSpec(emptyList()),
+                rows = null,
+                columns = null,
+            )
 
         val params = RemoveItemParamsSpec(item = createSelector(label = "NonExistent"))
         val result = mutationManager.removeItem(params)
 
         assertThat(result.success).isFalse()
         assertThat(result.errorCode?.code).isEqualTo(ErrorCode.ITEM_NOT_FOUND)
-        assertThat(fakeRepository.lastTransaction).isNull()
+        assertThat(fakeTransactionFactory.lastCreatedTransaction).isNull()
     }
 
     private fun createSelector(
@@ -90,14 +93,15 @@ class WorkspaceMutationManagerTest {
         y: Int? = null,
         hotseatRank: Int? = null,
         packageName: String? = null,
-        className: String? = null
-    ) = ItemSelectorSpec(
-        label = label,
-        screenIndex = screenIndex,
-        x = x,
-        y = y,
-        hotseatRank = hotseatRank,
-        packageName = packageName,
-        className = className
-    )
+        className: String? = null,
+    ) =
+        ItemSelectorSpec(
+            label = label,
+            screenIndex = screenIndex,
+            x = x,
+            y = y,
+            hotseatRank = hotseatRank,
+            packageName = packageName,
+            className = className,
+        )
 }

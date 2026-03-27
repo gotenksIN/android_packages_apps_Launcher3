@@ -9,31 +9,24 @@
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- *
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.workspacefunctions
+package com.android.launcher3.workspacefunctions.testing
 
 import com.android.launcher3.appfunctions.workspace.RemoveItemParamsSpec
-import com.android.launcher3.appfunctions.workspace.WorkspaceSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceTransaction
+import com.android.launcher3.appfunctions.workspace.WorkspaceTransactionFactory
 
-/**
- * The concrete implementation of a [WorkspaceTransaction].
- *
- * This class would hold a real `IModelWriter.TransactionContext` and the
- * [LauncherWorkspaceTypeTranslator] to convert `Spec` objects into real `ItemInfo` objects before
- * executing database operations.
- */
-class WorkspaceTransactionImpl : WorkspaceTransaction {
+/** A fake implementation of [WorkspaceTransactionFactory] for testing purposes. */
+class FakeWorkspaceTransactionFactory : WorkspaceTransactionFactory {
+    var lastRemoveItemParams: RemoveItemParamsSpec? = null
+    var lastCreatedTransaction: FakeWorkspaceTransaction? = null
 
-    override fun removeItem(target: RemoveItemParamsSpec): WorkspaceTransaction {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun commit(): WorkspaceSpec {
-        TODO("Not yet implemented")
+    override fun createRemoveItemTransaction(params: RemoveItemParamsSpec): WorkspaceTransaction {
+        lastRemoveItemParams = params
+        lastCreatedTransaction = FakeWorkspaceTransaction()
+        return lastCreatedTransaction!!
     }
 }

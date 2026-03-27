@@ -16,11 +16,11 @@
 package com.android.launcher3.workspacefunctions
 
 import android.content.pm.LauncherActivityInfo
-import com.android.launcher3.Flags
 import com.android.launcher3.appfunctions.workspace.UnplacedAppTypeTranslator
 import com.android.launcher3.appfunctions.workspace.UnplacedWidgetTypeTranslator
 import com.android.launcher3.appfunctions.workspace.WorkspaceAppFunctions
 import com.android.launcher3.appfunctions.workspace.WorkspaceRepository
+import com.android.launcher3.appfunctions.workspace.WorkspaceTransactionFactory
 import com.android.launcher3.appfunctions.workspace.WorkspaceTypeTranslator
 import com.android.launcher3.appfunctions.workspace.provider.InstalledItemsProvider
 import com.android.launcher3.model.data.FolderInfo
@@ -50,10 +50,7 @@ import dagger.multibindings.IntoMap
 @Module
 abstract class WorkspaceFunctionsModule {
 
-    @Binds
-    abstract fun bindWorkspaceRepository(
-        impl: WorkspaceRepositoryImpl
-    ): WorkspaceRepository
+    @Binds abstract fun bindWorkspaceRepository(impl: WorkspaceRepositoryImpl): WorkspaceRepository
 
     @Binds
     abstract fun bindInstalledAppsProvider(
@@ -64,6 +61,11 @@ abstract class WorkspaceFunctionsModule {
     abstract fun bindInstalledWidgetsProvider(
         impl: LauncherInstalledWidgetsProvider
     ): InstalledItemsProvider<LauncherAppWidgetProviderInfo>
+
+    @Binds
+    abstract fun bindWorkspaceTransactionFactory(
+        impl: WorkspaceTransactionFactoryImpl
+    ): WorkspaceTransactionFactory
 
     @Binds
     @IntoMap
@@ -129,12 +131,12 @@ abstract class WorkspaceFunctionsModule {
     ): @JvmSuppressWildcards WorkspaceItemTranslator<*>
 
     companion object {
-
         @Provides
         fun provideWorkspaceAppFunctions(
-            repository: WorkspaceRepository
+            repository: WorkspaceRepository,
+            transactionFactory: WorkspaceTransactionFactory,
         ): WorkspaceAppFunctions {
-            return WorkspaceAppFunctions(repository)
+            return WorkspaceAppFunctions(repository, transactionFactory)
         }
     }
 }

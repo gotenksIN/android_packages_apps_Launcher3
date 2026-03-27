@@ -133,10 +133,10 @@ data class HotseatItemSpec(
  */
 @AppFunctionSerializable(isDescribedByKDoc = true)
 data class AppInFolderSpec(
-  val packageName: String,
-  val className: String,
-  val label: String? = null,
-  val category: String? = null,
+    val packageName: String,
+    val className: String,
+    val label: String? = null,
+    val category: String? = null,
 )
 
 /**
@@ -149,10 +149,10 @@ data class AppInFolderSpec(
  */
 @AppFunctionSerializable(isDescribedByKDoc = true)
 data class UnplacedAppSpec(
-  val packageName: String,
-  val className: String,
-  val label: String? = null,
-  val category: String? = null,
+    val packageName: String,
+    val className: String,
+    val label: String? = null,
+    val category: String? = null,
 )
 
 /**
@@ -168,13 +168,13 @@ data class UnplacedAppSpec(
  */
 @AppFunctionSerializable(isDescribedByKDoc = true)
 data class UnplacedWidgetSpec(
-  val packageName: String,
-  val className: String,
-  val spanX: Int,
-  val spanY: Int,
-  val label: String? = null,
-  val description: String? = null,
-  val category: String? = null,
+    val packageName: String,
+    val className: String,
+    val spanX: Int,
+    val spanY: Int,
+    val label: String? = null,
+    val description: String? = null,
+    val category: String? = null,
 )
 
 /**
@@ -194,13 +194,13 @@ data class UnplacedWidgetSpec(
  */
 @AppFunctionSerializable(isDescribedByKDoc = true)
 data class WorkspaceUpdateResult(
-  val success: Boolean,
-  val message: String,
-  val changes: String? = null,
-  val errorCode: ErrorCode? = null,
-  val resolvedItemIdentifier: String? = null,
-  val resolutionDetails: String? = null,
-  val proof: Proof,
+    val success: Boolean,
+    val message: String,
+    val changes: String? = null,
+    val errorCode: ErrorCode? = null,
+    val resolvedItemIdentifier: String? = null,
+    val resolutionDetails: String? = null,
+    val proof: Proof,
 )
 
 /**
@@ -225,14 +225,14 @@ data class WorkspaceUpdateResult(
  */
 @AppFunctionSerializable(isDescribedByKDoc = true)
 data class ErrorCode(val code: String) {
-  companion object {
-    const val ITEM_NOT_FOUND = "ITEM_NOT_FOUND"
-    const val SCREEN_NOT_FOUND = "SCREEN_NOT_FOUND"
-    const val LOCATION_OCCUPIED = "LOCATION_OCCUPIED"
-    const val INVALID_PARAMETERS = "INVALID_PARAMETERS"
-    const val NO_CHANGE_MADE = "NO_CHANGE_MADE"
-    const val PROVIDER_ERROR = "PROVIDER_ERROR"
-  }
+    companion object {
+        const val ITEM_NOT_FOUND = "ITEM_NOT_FOUND"
+        const val SCREEN_NOT_FOUND = "SCREEN_NOT_FOUND"
+        const val LOCATION_OCCUPIED = "LOCATION_OCCUPIED"
+        const val INVALID_PARAMETERS = "INVALID_PARAMETERS"
+        const val NO_CHANGE_MADE = "NO_CHANGE_MADE"
+        const val PROVIDER_ERROR = "PROVIDER_ERROR"
+    }
 }
 
 /**
@@ -254,13 +254,13 @@ data class ErrorCode(val code: String) {
  */
 @AppFunctionSerializable(isDescribedByKDoc = true)
 data class ItemSelectorSpec(
-  val label: String?,
-  val screenIndex: Int?,
-  val x: Int?,
-  val y: Int?,
-  val hotseatRank: Int?,
-  val packageName: String?,
-  val className: String?,
+    val label: String?,
+    val screenIndex: Int?,
+    val x: Int?,
+    val y: Int?,
+    val hotseatRank: Int?,
+    val packageName: String?,
+    val className: String?,
 )
 
 /**
