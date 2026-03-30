@@ -16,8 +16,10 @@
 
 package com.android.launcher3
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.Point
+import android.graphics.Rect
 import android.net.Uri
 import android.os.Process
 import android.platform.test.annotations.DisableFlags
@@ -32,16 +34,20 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import com.android.launcher3.DropTarget.DragObject
 import com.android.launcher3.Flags.FLAG_ENABLE_CURSOR_DRIVEN_WORKFLOWS
+import com.android.launcher3.Flags.FLAG_ENABLE_DRAG_START_END_MULTI_DISPATCH
 import com.android.launcher3.Flags.FLAG_ENABLE_FILE_SYSTEM_FOLDERS_AS_DROP_TARGETS
+import com.android.launcher3.Flags.enableDragStartEndMultiDispatch
 import com.android.launcher3.Flags.enableFileSystemFoldersAsDropTargets
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPLICATION
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FILE_SYSTEM_FILE
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FILE_SYSTEM_FOLDER
 import com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_SYSTEM_DRAG
 import com.android.launcher3.LauncherState.DESKTOP_DRAG_MODE
+import com.android.launcher3.LauncherState.NORMAL
 import com.android.launcher3.LauncherState.SPRING_LOADED
 import com.android.launcher3.celllayout.CellLayoutLayoutParams
 import com.android.launcher3.dragndrop.DragOptions
+import com.android.launcher3.dragndrop.DragView
 import com.android.launcher3.dragndrop.SystemDragItemInfo
 import com.android.launcher3.homescreenfiles.HomeScreenFile
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider
@@ -54,6 +60,7 @@ import com.android.launcher3.model.data.WorkspaceItemInfo
 import com.android.launcher3.testutil.rule.TestRules.overrideApplicationInActivity
 import com.android.launcher3.util.RoboApiWrapper.convertToSpy
 import com.android.launcher3.util.SandboxApplication
+import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -61,7 +68,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.junit.MockitoJUnit
-import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.reset
@@ -83,14 +89,68 @@ class WorkspaceTest {
     private val nextUniqueId = AtomicInteger(1)
 
     @Test
+    @DisableFlags(FLAG_ENABLE_DRAG_START_END_MULTI_DISPATCH)
+    fun testLauncherStateChangesDuringDragOperationWithMultiDispatchDisabled() {
+        testLauncherStateChangesDuringDragOperation()
+    }
+
+    @Test
+    @EnableFlags(FLAG_ENABLE_DRAG_START_END_MULTI_DISPATCH)
+    fun testLauncherStateChangesDuringDragOperationWithMultiDispatchEnabled() {
+        testLauncherStateChangesDuringDragOperation()
+    }
+
+    private fun testLauncherStateChangesDuringDragOperation() {
+        launcherActivity.executeOnLauncher { launcher ->
+            // Verify initial state.
+            assertThat(launcher.getTargetOrElseStableState()).isEqualTo(NORMAL)
+
+            // Set up drag object.
+            val dragObject = createDragObject(launcher, ITEM_TYPE_APPLICATION)
+            dragObject.dragSource = mock<DragSource>()
+
+            // Set up drag options.
+            val options = DragOptions()
+            launcher.dragController.mOptions = options
+
+            // Start drag session.
+            launcher.workspace.onDragSessionStart(dragObject, options)
+            assertThat(launcher.getTargetOrElseStableState())
+                .isEqualTo(if (!enableDragStartEndMultiDispatch()) SPRING_LOADED else NORMAL)
+
+            // Move the drag into the Launcher.
+            launcher.workspace.onDragStart(dragObject, options)
+            assertThat(launcher.getTargetOrElseStableState()).isEqualTo(SPRING_LOADED)
+
+            // Move the drag out of the Launcher.
+            launcher.workspace.onDragEnd()
+            assertThat(launcher.getTargetOrElseStableState())
+                .isEqualTo(if (enableDragStartEndMultiDispatch()) NORMAL else SPRING_LOADED)
+
+            // Begin winding down the drag session.
+            // NOTE: [LauncherDragController] updates state in [exitDrag()].
+            launcher.dragController.exitDrag()
+            assertThat(launcher.getTargetOrElseStableState()).isEqualTo(NORMAL)
+
+            // End drag session.
+            launcher.workspace.onDragSessionEnd()
+            assertThat(launcher.getTargetOrElseStableState()).isEqualTo(NORMAL)
+        }
+    }
+
+    @Test
     @EnableFlags(FLAG_ENABLE_CURSOR_DRIVEN_WORKFLOWS)
     fun testTouchDrag_RemainsInSpringLoaded() {
-        val dragObject = createDragObject(ITEM_TYPE_APPLICATION, createUniqueMediaStoreUri())
-        val options = DragOptions().apply { isMouseDrag = false }
-        launcherActivity.executeOnLauncher { launcher ->
-            launcher.dragController.mOptions = options
-            launcher.workspace.onDragStart(dragObject, options)
-        }
+        val dragObject =
+            launcherActivity.getFromLauncher { launcher ->
+                createDragObject(launcher, ITEM_TYPE_APPLICATION).also {
+                    val options = DragOptions().apply { isMouseDrag = false }
+                    launcher.dragController.mOptions = options
+                    launcher.workspace.onDragSessionStart(it, options)
+                    launcher.workspace.onDragStart(it, options)
+                }
+            }!!
+
         // Ensure launcher enters SPRING_LOADED after starting touch drag.
         launcherActivity.waitUntil("Launcher didn't switch to SPRING_LOADED") {
             it.stateManager.state == SPRING_LOADED
@@ -109,13 +169,16 @@ class WorkspaceTest {
     @Test
     @EnableFlags(FLAG_ENABLE_CURSOR_DRIVEN_WORKFLOWS)
     fun testMouseDrag_TransitionsToDesktopDragMode() {
-        val dragObject = createDragObject(ITEM_TYPE_APPLICATION, createUniqueMediaStoreUri())
-        val options = DragOptions().apply { isMouseDrag = true }
+        val dragObject =
+            launcherActivity.getFromLauncher { launcher ->
+                createDragObject(launcher, ITEM_TYPE_APPLICATION).also {
+                    val options = DragOptions().apply { isMouseDrag = true }
+                    launcher.dragController.mOptions = options
+                    launcher.workspace.onDragSessionStart(it, options)
+                    launcher.workspace.onDragStart(it, options)
+                }
+            }!!
 
-        launcherActivity.executeOnLauncher { launcher ->
-            launcher.dragController.mOptions = options
-            launcher.workspace.onDragStart(dragObject, options)
-        }
         // Ensure launcher enters DESKTOP_DRAG_MODE after starting mouse drag.
         launcherActivity.waitUntil("Launcher didn't switch to DESKTOP_DRAG_MODE") {
             it.stateManager.state == DESKTOP_DRAG_MODE
@@ -157,22 +220,19 @@ class WorkspaceTest {
     private fun testAddToExistingFileSystemFolder() {
         launcherActivity.executeOnLauncher { launcher ->
             val displayName = "Folder"
+            val dragController = launcher.dragController
             val dropOverView = createDropOverView(createFolder(displayName))
             val dropOverInfo = dropOverView.tag as ItemInfo
             val expected = enableFileSystemFoldersAsDropTargets()
             val provider = HomeScreenFilesProvider.INSTANCE[launcher].apply { convertToSpy() }
             val times = if (expected) times(1) else times(0)
+            val workspace = launcher.workspace
 
             // Case: Dropping internal file system file on file system folder.
             var uri = createUniqueMediaStoreUri()
-            assertEquals(
-                expected,
-                launcher.workspace.addToExistingFolder(
-                    dropOverView,
-                    createDragObject(ITEM_TYPE_FILE_SYSTEM_FILE, uri),
-                    false,
-                ),
-            )
+            var dragObject = createDragObject(launcher, ITEM_TYPE_FILE_SYSTEM_FILE, uri)
+            dragController.mDragObject = dragObject
+            assertEquals(expected, workspace.addToExistingFolder(dropOverView, dragObject, false))
             verify(provider, times)
                 .moveToHomeScreen(
                     listOf(uri),
@@ -191,14 +251,9 @@ class WorkspaceTest {
 
             // Case: Dropping internal file system folder on file system folder.
             uri = createUniqueMediaStoreUri()
-            assertEquals(
-                expected,
-                launcher.workspace.addToExistingFolder(
-                    dropOverView,
-                    createDragObject(ITEM_TYPE_FILE_SYSTEM_FOLDER, uri),
-                    false,
-                ),
-            )
+            dragObject = createDragObject(launcher, ITEM_TYPE_FILE_SYSTEM_FOLDER, uri)
+            dragController.mDragObject = dragObject
+            assertEquals(expected, workspace.addToExistingFolder(dropOverView, dragObject, false))
             verify(provider, times)
                 .moveToHomeScreen(
                     listOf(uri),
@@ -217,14 +272,9 @@ class WorkspaceTest {
 
             // Case: Dropping external file system file/folder on file system folder.
             uri = createUniqueMediaStoreUri()
-            assertEquals(
-                expected,
-                launcher.workspace.addToExistingFolder(
-                    dropOverView,
-                    createDragObject(ITEM_TYPE_SYSTEM_DRAG, uri),
-                    true,
-                ),
-            )
+            dragObject = createDragObject(launcher, ITEM_TYPE_SYSTEM_DRAG, uri)
+            dragController.mDragObject = dragObject
+            assertEquals(expected, workspace.addToExistingFolder(dropOverView, dragObject, true))
             verify(provider, times)
                 .moveToHomeScreen(
                     listOf(uri),
@@ -243,13 +293,9 @@ class WorkspaceTest {
 
             // Case: Dropping application on file system folder.
             uri = createUniqueMediaStoreUri()
-            assertFalse(
-                launcher.workspace.addToExistingFolder(
-                    dropOverView,
-                    createDragObject(ITEM_TYPE_APPLICATION, uri),
-                    false,
-                )
-            )
+            dragObject = createDragObject(launcher, ITEM_TYPE_APPLICATION, uri)
+            dragController.mDragObject = dragObject
+            assertFalse(workspace.addToExistingFolder(dropOverView, dragObject, false))
             verifyNoMoreInteractions(provider)
 
             reset(provider)
@@ -310,17 +356,11 @@ class WorkspaceTest {
         }
     }
 
-    private fun createDragObject(itemType: Int, uri: Uri) =
-        mock<DragObject>().apply {
+    private fun createDragObject(context: Context, itemType: Int, uri: Uri? = null) =
+        DragObject(context).apply {
             dragInfo = createWorkspaceItemInfo(itemType, uri)
             originalDragInfo = dragInfo.makeShallowCopy()
-            whenever(getVisualCenter(any())).thenAnswer {
-                val args = it.arguments
-                val res = (args[0] as? FloatArray) ?: FloatArray(2)
-                res[0] = x.toFloat()
-                res[1] = y.toFloat()
-                res
-            }
+            dragView = mock<DragView>().apply { whenever(dragRegion).thenReturn(Rect()) }
         }
 
     private fun createDropOverView(folder: HomeScreenFile) =
@@ -378,4 +418,7 @@ class WorkspaceTest {
 
     private fun createUniqueMediaStoreUri(): Uri =
         "content://media/external_primary/file/${nextUniqueId.getAndIncrement()}".toUri()
+
+    private fun Launcher.getTargetOrElseStableState() =
+        stateManager.let { it.targetState ?: it.state }
 }

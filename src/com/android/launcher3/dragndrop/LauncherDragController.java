@@ -28,6 +28,7 @@ import android.view.MotionEvent;
 import android.view.View;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
 import com.android.launcher3.DropTarget;
 import com.android.launcher3.Launcher;
@@ -133,7 +134,8 @@ public class LauncherDragController extends DragController {
     }
 
     @Override
-    protected void exitDrag() {
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
+    public void exitDrag() {
         if (!mIsInPreDrag && !mLauncher.isInState(EDIT_MODE)) {
             mLauncher.getStateManager().goToState(NORMAL, SPRING_LOADED_EXIT_DELAY);
         }
