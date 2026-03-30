@@ -38,9 +38,9 @@ import androidx.core.animation.addListener
 import androidx.core.view.updateLayoutParams
 import com.android.app.animation.Interpolators
 import com.android.launcher3.Flags
-import com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY
 import com.android.launcher3.LauncherAnimUtils.VIEW_TRANSLATE_X
 import com.android.launcher3.LauncherAnimUtils.VIEW_TRANSLATE_Y
+import com.android.launcher3.LauncherAnimUtils.getScaleProperty
 import com.android.launcher3.R
 import com.android.launcher3.Utilities
 import com.android.launcher3.util.MSDLPlayerWrapper
@@ -458,7 +458,6 @@ constructor(
                 ObjectAnimator.ofFloat(iconArrowView, TRANSLATION_X, arrowTranslationWithRtl),
                 ObjectAnimator.ofFloat(iconArrowView, SCALE_Y, -1f),
             )
-            animator!!.duration = MENU_BACKGROUND_REVEAL_DURATION.toLong()
             status = AppChipStatus.Expanded
         } else {
             // Clip expanded text with reveal animation so it doesn't go beyond the edge of the menu
@@ -483,17 +482,15 @@ constructor(
             animator!!.playTogether(
                 expandedTextClipAnim,
                 backgroundAnimator,
-                ObjectAnimator.ofFloat(iconView, SCALE_PROPERTY, 1f),
+                ObjectAnimator.ofFloat(iconView, getScaleProperty(), 1f),
                 ObjectAnimator.ofFloat(appTitle, TRANSLATION_X, 0f),
                 ObjectAnimator.ofFloat(iconArrowView, TRANSLATION_X, 0f),
                 ObjectAnimator.ofFloat(iconArrowView, SCALE_Y, 1f),
             )
-            animator!!.duration = MENU_BACKGROUND_HIDE_DURATION.toLong()
             status = AppChipStatus.Collapsed
             sendToBack()
         }
 
-        if (!animated) animator!!.duration = 0
         animator!!.interpolator = Interpolators.EMPHASIZED
 
         // Increase the chip and appTitle size before the animation starts when it's expanding.
@@ -660,9 +657,6 @@ constructor(
 
     private companion object {
         private val SUM_AGGREGATOR = FloatBiFunction { a: Float, b: Float -> a + b }
-
-        private const val MENU_BACKGROUND_REVEAL_DURATION = 417
-        private const val MENU_BACKGROUND_HIDE_DURATION = 333
 
         private const val Z_INDEX_FRONT = 10f
 

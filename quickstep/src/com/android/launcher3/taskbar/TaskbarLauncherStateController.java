@@ -291,6 +291,7 @@ public class TaskbarLauncherStateController {
 
     /**
      * Callback for when launcher state transition completes after user swipes to home.
+     *
      * @param finalState The final state of the transition.
      */
     public void onStateTransitionCompletedAfterSwipeToHome(LauncherState finalState) {
@@ -351,8 +352,8 @@ public class TaskbarLauncherStateController {
                     if (launcherUiState.isDeviceProfileInitialized()) {
                         mOnDeviceProfileChangeListener.onDeviceProfileChanged(dp);
                     }
-            return Unit.INSTANCE;
-        });
+                    return Unit.INSTANCE;
+                });
         updateOverviewDragState(mLauncherState);
     }
 
@@ -368,9 +369,8 @@ public class TaskbarLauncherStateController {
 
         mIconAlignment.finishAnimation();
 
-        if (shouldShowTransientTaskbarAnimation()) {
-            mLauncher.setHotseatIconsAlpha(1f, ALPHA_CHANNEL_TASKBAR_ALIGNMENT);
-        }
+        mLauncher.setHotseatIconsAlpha(1f, ALPHA_CHANNEL_TASKBAR_ALIGNMENT);
+
         if (mStateListenerClosable != null) {
             mStateListenerClosable.close();
         }
@@ -715,23 +715,24 @@ public class TaskbarLauncherStateController {
 
         float backgroundAlpha = isInLauncher && isTaskbarAlignedWithHotseat() ? 0 : 1;
         AnimatedFloat taskbarBgOffset =
-                mControllers.taskbarDragLayerController.getTaskbarBackgroundOffset();
-        boolean showTaskbar = shouldShowTaskbar(mControllers.taskbarActivityContext, isInLauncher,
-                isInOverview);
+                mControllers.taskbarDragLayerController.getTaskbarBackgroundOffsetForHome();
+        boolean showTaskbarInLauncher =
+                shouldShowTaskbar(mControllers.taskbarActivityContext, isInLauncher, isInOverview);
 
+        boolean showTaskbar = showTaskbarInLauncher;
         if (mControllers.taskbarActivityContext.shouldAllowTaskbarToAutoStash()
                 && shouldShowTransientTaskbarAnimation()) {
             showTaskbar &= !mControllers.taskbarStashController.isStashed();
         }
 
-        float taskbarBgOffsetEnd = showTaskbar ? 0f : 1f;
-        float taskbarBgOffsetStart = showTaskbar ? 1f : 0f;
-
-        // Don't animate if background has reached desired value.
-        if (mTaskbarBackgroundAlpha.isAnimating()
-                || mTaskbarBackgroundAlpha.value != backgroundAlpha
-                || taskbarBgOffset.isAnimatingToValue(taskbarBgOffsetStart)
-                || taskbarBgOffset.value != taskbarBgOffsetEnd) {
+        if (isPersistent) {
+            float taskbarBgOffsetEnd = showTaskbarInLauncher ? 0f : 1f;
+            float taskbarBgOffsetStart = showTaskbarInLauncher ? 1f : 0f;
+            setupPersistentTaskbarAnimation(animatorSet, showTaskbar, showTaskbarInLauncher,
+                    isThreeButtonNav, taskbarBgOffset, taskbarBgOffsetStart, taskbarBgOffsetEnd,
+                    duration, backgroundAlpha);
+        } else if (mTaskbarBackgroundAlpha.isAnimating()
+                || mTaskbarBackgroundAlpha.value != backgroundAlpha) {
             mTaskbarBackgroundAlpha.cancelAnimation();
             if (DEBUG) {
                 Log.d(TAG, "onStateChangeApplied - taskbarBackgroundAlpha - "
@@ -764,11 +765,7 @@ public class TaskbarLauncherStateController {
             }
             Animator taskbarBackgroundAlpha = mTaskbarBackgroundAlpha.animateToValue(
                     backgroundAlpha);
-            if (isPersistent) {
-                setupPersistentTaskbarAnimation(animatorSet, showTaskbar, isThreeButtonNav,
-                        taskbarBgOffset, taskbarBgOffsetStart, taskbarBgOffsetEnd, duration,
-                        taskbarBackgroundAlpha);
-            } else if (!shouldShowTransientTaskbarAnimation()) {
+            if (!shouldShowTransientTaskbarAnimation()) {
                 setupTransientTaskbarAnimation(animatorSet, showTaskbar, isInLauncher,
                         (long) newDuration);
             } else {
@@ -902,43 +899,56 @@ public class TaskbarLauncherStateController {
         return !isInLauncher || isInOverview;
     }
 
-    // Used to stash/unstash pinned/persistent taskbar between home, overview, in app states.
-    private void setupPersistentTaskbarAnimation(AnimatorSet animatorSet, boolean showTaskbar,
-            boolean isThreeNavButton, AnimatedFloat taskbarBgOffset, float taskbarBgOffsetStart,
-            float taskbarBgOffsetEnd, long duration, Animator taskbarBackgroundAlpha) {
-        float targetAlpha = !showTaskbar ? 1 : 0;
-        mLauncher.setHotseatIconsAlpha(targetAlpha, ALPHA_CHANNEL_TASKBAR_ALIGNMENT);
-        if (mIsQsbInline) {
-            mLauncher.setHotseatQsbAlpha(targetAlpha, ALPHA_CHANNEL_TASKBAR_ALIGNMENT);
-        }
+    // Returns whether animated float value needs to be changed to evantualy end up in
+    // `targetValue`.
+    private boolean animatedValueRequiresAnimationTo(AnimatedFloat currentAnimatedValue,
+            float targetValue) {
+        return currentAnimatedValue.isAnimating()
+                ? !currentAnimatedValue.isAnimatingToValue(targetValue)
+                : currentAnimatedValue.value != targetValue;
+    }
 
-        if ((taskbarBgOffset.value != taskbarBgOffsetEnd && !taskbarBgOffset.isAnimating())
-                || !taskbarBgOffset.isAnimatingToValue(taskbarBgOffsetEnd)) {
-            taskbarBgOffset.cancelAnimation();
-            AnimatedFloat taskbarIconTranslationYForHome =
-                    mControllers.taskbarViewController.mTaskbarIconTranslationYForHome;
+    // Used to stash/unstash pinned/persistent taskbar between home, overview, in app states.
+    private void setupPersistentTaskbarAnimation(AnimatorSet animatorSet,
+            boolean showUnstashedTaskbar, boolean showTaskbarInLauncher, boolean isThreeNavButton,
+            AnimatedFloat taskbarBgOffset, float taskbarBgOffsetStart, float taskbarBgOffsetEnd,
+            long duration, float taskbarBackgroundAlpha) {
+        updateHotseatIconAlpha(showTaskbarInLauncher ? 0 : 1,
+                ALPHA_CHANNEL_TASKBAR_ALIGNMENT);
+
+        if (animatedValueRequiresAnimationTo(taskbarBgOffset, taskbarBgOffsetEnd)) {
             ObjectAnimator taskbarBackgroundOffset = taskbarBgOffset.animateToValue(
                     taskbarBgOffsetStart,
                     taskbarBgOffsetEnd);
-            ObjectAnimator taskbarIconsYTranslation = null;
-            float taskbarHeight = mControllers
-                    .taskbarActivityContext
-                    .getDeviceProfile()
-                    .getTaskbarProfile()
-                    .getHeight();
-            if (showTaskbar) {
-                taskbarIconsYTranslation = taskbarIconTranslationYForHome.animateToValue(
-                        taskbarHeight, 0);
-            } else {
-                taskbarIconsYTranslation = taskbarIconTranslationYForHome.animateToValue(0,
-                        taskbarHeight);
-            }
 
-            taskbarIconsYTranslation.setDuration(duration);
             taskbarBackgroundOffset.setDuration(duration);
-
-            animatorSet.play(taskbarIconsYTranslation);
             animatorSet.play(taskbarBackgroundOffset);
+        }
+
+        if (animatedValueRequiresAnimationTo(mTaskbarBackgroundAlpha, taskbarBackgroundAlpha)) {
+            ObjectAnimator alphaAnimator =
+                    mTaskbarBackgroundAlpha.animateToValue(taskbarBackgroundAlpha);
+            alphaAnimator.setInterpolator(showUnstashedTaskbar ? INSTANT : FINAL_FRAME);
+            alphaAnimator.setDuration(duration);
+            animatorSet.play(alphaAnimator);
+        }
+
+        AnimatedFloat taskbarIconTranslationYForHome =
+                mControllers.taskbarViewController.mTaskbarIconTranslationYForHome;
+        float taskbarHeight = mControllers
+                .taskbarActivityContext
+                .getDeviceProfile()
+                .getTaskbarProfile()
+                .getHeight();
+        float targetYTranslation = showTaskbarInLauncher ? 0 : taskbarHeight;
+        if (animatedValueRequiresAnimationTo(taskbarIconTranslationYForHome,
+                targetYTranslation)) {
+            float startYTranslation = showUnstashedTaskbar ? targetYTranslation : 0;
+            ObjectAnimator taskbarIconsYTranslation =
+                    taskbarIconTranslationYForHome.animateToValue(
+                            startYTranslation, targetYTranslation);
+            taskbarIconsYTranslation.setDuration(duration);
+            animatorSet.play(taskbarIconsYTranslation);
         }
 
         if (isThreeNavButton) {
@@ -947,35 +957,40 @@ public class TaskbarLauncherStateController {
             AnimatedFloat taskbarNavButtonTranslationYForInAppDisplay =
                     mControllers.navbarButtonsViewController
                             .getTaskbarNavButtonTranslationYForInAppDisplay();
-
             DeviceProfile taskbarDp = mControllers.taskbarActivityContext.getDeviceProfile();
             int offsetY =
                     mControllers.taskbarStashController.isDeviceLocked()
                             ? taskbarDp.getTaskbarOffsetY()
                             : getDeviceProfile().getTaskbarOffsetY();
 
-            int collapsedHeight = mControllers.taskbarActivityContext.getDefaultTaskbarWindowSize();
+            int collapsedHeight =
+                    mControllers.taskbarActivityContext.getDefaultTaskbarWindowSize();
             int expandedHeight = Math.max(collapsedHeight,
                     taskbarDp.getTaskbarProfile().getHeight() + offsetY);
 
             mControllers.taskbarActivityContext.setTaskbarWindowSize(
-                    showTaskbar ? collapsedHeight : expandedHeight);
+                    showUnstashedTaskbar ? collapsedHeight : expandedHeight);
 
-            ObjectAnimator taskbarNavButtonTranslateY =
-                    taskbarNavButtonTranslationY.animateToValue(
-                            showTaskbar ? 0 : -offsetY);
-            ObjectAnimator taskbarNavButtonTranslateYForInAppDisplay =
-                    taskbarNavButtonTranslationYForInAppDisplay.animateToValue(
-                            showTaskbar ? 0 : offsetY);
+            float targetNavButtonTranslation = showUnstashedTaskbar ? 0 : -offsetY;
+            float targetNavButtonTranslationForInAppDisplay = showUnstashedTaskbar ? 0 : offsetY;
 
-            taskbarNavButtonTranslateY.setDuration(duration);
-            taskbarNavButtonTranslateYForInAppDisplay.setDuration(duration);
-            animatorSet.playTogether(taskbarNavButtonTranslateY,
-                    taskbarNavButtonTranslateYForInAppDisplay);
+            if (animatedValueRequiresAnimationTo(taskbarNavButtonTranslationY,
+                    targetNavButtonTranslation)
+                    || animatedValueRequiresAnimationTo(taskbarNavButtonTranslationYForInAppDisplay,
+                    targetNavButtonTranslationForInAppDisplay)) {
+
+                ObjectAnimator taskbarNavButtonTranslateY =
+                        taskbarNavButtonTranslationY.animateToValue(targetNavButtonTranslation);
+                ObjectAnimator taskbarNavButtonTranslateYForInAppDisplay =
+                        taskbarNavButtonTranslationYForInAppDisplay.animateToValue(
+                                targetNavButtonTranslationForInAppDisplay);
+
+                taskbarNavButtonTranslateY.setDuration(duration);
+                taskbarNavButtonTranslateYForInAppDisplay.setDuration(duration);
+                animatorSet.playTogether(taskbarNavButtonTranslateY,
+                        taskbarNavButtonTranslateYForInAppDisplay);
+            }
         }
-
-        taskbarBackgroundAlpha.setInterpolator(showTaskbar ? INSTANT : FINAL_FRAME);
-        taskbarBackgroundAlpha.setDuration(duration);
     }
 
     /**
@@ -1163,6 +1178,8 @@ public class TaskbarLauncherStateController {
     private void updateIconAlphaForHome(float taskbarAlpha,
             @HotseatQsbAlphaId int alphaChannel,
             boolean updateTaskbarAlpha) {
+
+        // TODO : return early when icon alignment animation is removed.
         if (mIsDestroyed) {
             return;
         }
@@ -1187,10 +1204,14 @@ public class TaskbarLauncherStateController {
         if ((mControllers.taskbarActivityContext.isTransientTaskbar()
                 && !mControllers.taskbarDesktopModeController.isLauncherAnimationRunning())
                 || mControllers.taskbarActivityContext.showDesktopTaskbarForFreeformDisplay()) {
-            mLauncher.setHotseatIconsAlpha(targetAlpha, alphaChannel);
-            if (mIsQsbInline) {
-                mLauncher.setHotseatQsbAlpha(targetAlpha, alphaChannel);
-            }
+            updateHotseatIconAlpha(targetAlpha, alphaChannel);
+        }
+    }
+
+    private void updateHotseatIconAlpha(float targetAlpha, @HotseatQsbAlphaId int alphaChannel) {
+        mLauncher.setHotseatIconsAlpha(targetAlpha, alphaChannel);
+        if (mIsQsbInline) {
+            mLauncher.setHotseatQsbAlpha(targetAlpha, alphaChannel);
         }
     }
 

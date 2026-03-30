@@ -28,6 +28,7 @@ import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.MainProcessInitializer;
 import com.android.launcher3.RemoveAnimationSettingsTracker;
+import com.android.launcher3.appfunctions.workspace.WorkspaceAppFunctions;
 import com.android.launcher3.automation.AutomationRepository;
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger;
 import com.android.launcher3.display.DisplayController;
@@ -46,21 +47,21 @@ import com.android.launcher3.model.LayoutParserFactory;
 import com.android.launcher3.model.LoaderCursor.LoaderCursorFactory;
 import com.android.launcher3.model.ModelProxyProvider;
 import com.android.launcher3.model.TestableModelState;
-import com.android.launcher3.appfunctions.workspace.WorkspaceAppFunctions;
-import com.android.launcher3.model.data.WorkspaceData;
+import com.android.launcher3.model.repository.AppsListRepository;
 import com.android.launcher3.model.repository.HomeScreenRepository;
 import com.android.launcher3.model.repository.StringCacheRepository;
 import com.android.launcher3.notification.NotificationRepository;
+import com.android.launcher3.organizer.generator.CreationSession;
 import com.android.launcher3.pm.InstallSessionHelper;
 import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.popup.PopupDataRepository;
 import com.android.launcher3.qsb.OSEManager;
 import com.android.launcher3.qsb.OseWidgetManager;
-import com.android.launcher3.qsb.QsbAppWidgetHost;
 import com.android.launcher3.qsb.QsbWidgetFactory;
 import com.android.launcher3.testing.TestInformationHandler;
 import com.android.launcher3.util.ApiWrapper;
 import com.android.launcher3.util.DaggerSingletonTracker;
+import com.android.launcher3.util.DefaultsValueProvider;
 import com.android.launcher3.util.DynamicResource;
 import com.android.launcher3.util.InstantAppResolver;
 import com.android.launcher3.util.LayoutImportExportHelper;
@@ -134,7 +135,6 @@ public interface LauncherBaseAppComponent {
     MainProcessInitializer getMainProcessInitializer();
     OseWidgetManager getOseWidgetManager();
     OSEManager getOseManager();
-    QsbAppWidgetHost getQsbAppWidgetHost();
     TestInformationHandler getTestInformationHandler();
     TaskbarModeUtil getTaskbarModeUtil();
     ProductionDispatchers getProductionDispatchers();
@@ -178,6 +178,15 @@ public interface LauncherBaseAppComponent {
 
     /** Returns the WorkspaceAppFunctions instance */
     WorkspaceAppFunctions getWorkspaceAppFunctions();
+
+    /** Returns the Apps List Repository */
+    AppsListRepository getAppsListRepository();
+
+    /** Returns the CreationSession Factory */
+    CreationSession.Factory getCreationSessionFactory();
+
+    /** Provider for default values */
+    DefaultsValueProvider getDefaultsValueProvider();
 
     /** Builder for LauncherBaseAppComponent. */
     interface Builder {

@@ -19,14 +19,15 @@ package com.android.launcher3.dagger
 import android.annotation.ElapsedRealtimeLong
 import android.content.Context
 import android.net.Uri
-import android.uilatencystats.UiLatencyStatsManager
 import android.os.SystemClock
+import android.uilatencystats.UiLatencyStatsManager
 import android.view.CrossWindowBlurListeners
 import android.widget.ImageView
 import com.android.app.displaylib.PerDisplayRepository
 import com.android.extensions.computercontrol.ComputerControlExtensions
 import com.android.internal.R
 import com.android.internal.policy.DesktopModeCompatPolicy
+import com.android.internal.util.LatencyTracker
 import com.android.launcher3.AbstractFloatingViewHelper
 import com.android.launcher3.Flags.enableSystemDrag
 import com.android.launcher3.InvariantDeviceProfile
@@ -49,24 +50,23 @@ import com.android.launcher3.icons.LauncherIconProvider
 import com.android.launcher3.icons.LauncherIconProviderImpl
 import com.android.launcher3.logging.StatsLogManager.StatsLogManagerFactory
 import com.android.launcher3.model.WellbeingModel
+import com.android.launcher3.qsb.QsbAppWidgetHost
+import com.android.launcher3.qsb.QuickstepQsbHostImpl
 import com.android.launcher3.secondarydisplay.SecondaryDisplayDelegate
-import com.android.launcher3.LauncherModel
-import com.android.launcher3.ModelReloader
-import com.android.launcher3.folder.FolderBlurBackgroundHelper
-import com.android.launcher3.folder.QuickstepFolderBackgroundBlurHelper
 import com.android.launcher3.secondarydisplay.SecondaryDisplayQuickstepDelegateImpl
-import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator
 import com.android.launcher3.testing.TestInformationHandler
 import com.android.launcher3.uioverrides.QuickstepWidgetHolder.QuickstepWidgetHolderFactory
 import com.android.launcher3.uioverrides.SystemApiWrapper
 import com.android.launcher3.uioverrides.plugins.PluginManagerWrapperImpl
 import com.android.launcher3.util.ApiWrapper
+import com.android.launcher3.util.BlurBackgroundHelper
 import com.android.launcher3.util.DaggerSingletonTracker
 import com.android.launcher3.util.Executors.IMMEDIATE_EXECUTOR
 import com.android.launcher3.util.InstantAppResolver
 import com.android.launcher3.util.ListenableRef
 import com.android.launcher3.util.MutableListenableRef
 import com.android.launcher3.util.PluginManagerWrapper
+import com.android.launcher3.util.QuickstepBackgroundBlurHelper
 import com.android.launcher3.util.WindowBlurState.WINDOW_BLUR_STATE
 import com.android.launcher3.util.window.RefreshRateTracker
 import com.android.launcher3.util.window.WindowManagerProxy
@@ -106,7 +106,14 @@ abstract class WindowManagerProxyModule {
     @Binds abstract fun bindWindowManagerProxy(proxy: SystemWindowManagerProxy): WindowManagerProxy
 }
 
-@Module(includes = [SystemDragModule::class])
+@Module(
+    includes =
+        [
+            SystemDragModule::class,
+            LauncherRecentsModule::class,
+            PerDisplayScopedProviderModule::class,
+        ]
+)
 abstract class ActivityContextModule {
     @Binds
     abstract fun bindSecondaryDisplayDelegate(
@@ -114,9 +121,9 @@ abstract class ActivityContextModule {
     ): SecondaryDisplayDelegate
 
     @Binds
-    abstract fun bindFolderBackgroundBlurHelper(
-        quickstepFolderBackgroundBlurHelper: QuickstepFolderBackgroundBlurHelper
-    ): FolderBlurBackgroundHelper
+    abstract fun bindBackgroundBlurHelper(
+        quickstepBackgroundBlurHelper: QuickstepBackgroundBlurHelper
+    ): BlurBackgroundHelper
 
     companion object {
         @JvmStatic
@@ -125,18 +132,6 @@ abstract class ActivityContextModule {
         @DisplayId
         fun provideDisplayId(activityContext: ActivityContext): Int =
             activityContext.asContext().displayId
-
-        @JvmStatic
-        @Provides
-        @ActivityContextSingleton
-        fun provideTaskbarFeatureEvaluator(
-            @DisplayId displayId: Int,
-            repository: PerDisplayRepository<TaskbarFeatureEvaluator>,
-        ): TaskbarFeatureEvaluator {
-            return checkNotNull(repository[displayId]) {
-                "no TaskbarFeatureEvaluator for display id : $displayId"
-            }
-        }
     }
 }
 
@@ -244,14 +239,18 @@ object StaticObjectModule {
     ): ComputerControlExtensions? = ComputerControlExtensions.getInstance(context)
 
     @Provides
-    fun provideUiLatencyStatsManager(
-        @ApplicationContext context: Context
-    ): UiLatencyStatsManager? =
+    fun provideUiLatencyStatsManager(@ApplicationContext context: Context): UiLatencyStatsManager? =
         if (com.android.server.ui_latency_stats.Flags.uiLatencyStatsService()) {
             context.getSystemService(UiLatencyStatsManager::class.java)
         } else {
             null
         }
+
+    @Provides
+    fun provideLatencyTracker(@ApplicationContext context: Context): LatencyTracker =
+        LatencyTracker.getInstance(context)
+
+    @Provides fun provideQsbAppWidgetHost(): QsbAppWidgetHost = QuickstepQsbHostImpl.instance
 }
 
 @Module
@@ -267,6 +266,7 @@ object SystemDragModule {
             SystemDragControllerImpl(
                 context,
                 { ctx, params -> SystemDragListener(ctx, idp, ::ImageView, params) },
+                HomeScreenFilesUtils.isFeatureEnabled,
             )
         } else {
             SystemDragControllerStub()
