@@ -26,6 +26,9 @@ QUERY FUNCTIONS:
 - getInstalledApps(): Returns a list of all installed apps on the device.
 - getInstalledWidgets(): Returns a list of all installed widgets on the device.
 
+ACTION_FUNCTIONS:
+- removeItem(params: RemoveItemParamsSpec, workspaceProof: Proof): Removes an item using selectors.
+
 Some of the functions have complex recipes that must be followed to ensure success. As part of verifying that the recipes were followed,
 a proof of invocation process is followed by requiring that the function receives the underlying proof from each dependent function call
 detailed in the recipe.
