@@ -92,15 +92,6 @@ class ThemeManagerTest {
         TestUtil.runOnExecutorSync(MAIN_EXECUTOR) {}
         assertEquals(disabledIconState, themeManager.iconState)
     }
-
-    @Test
-    fun `folderShapeData changes with icon shape generation`() {
-        var iconSize = ShapeDelegate.DEFAULT_PATH_SIZE_INT
-        assertEquals(iconSize, themeManager.fileShapeData.pathSize)
-
-        themeManager.generateIconShape(++iconSize)
-        assertEquals(iconSize, themeManager.fileShapeData.pathSize)
-    }
 }
 
 @LauncherAppSingleton

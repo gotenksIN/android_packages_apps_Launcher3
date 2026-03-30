@@ -84,10 +84,8 @@ val ItemInfo.homeScreenFile: HomeScreenFile?
     }
 
 /** Returns whether an [ItemInfo] represents a file system item. */
-fun ItemInfo.isFileSystemItem(): Boolean = isFileSystemFileItem() || isFileSystemFolderItem()
-
-/** Returns whether an [ItemInfo] represents a file system file. */
-fun ItemInfo.isFileSystemFileItem(): Boolean = itemType == ITEM_TYPE_FILE_SYSTEM_FILE
+fun ItemInfo.isFileSystemItem(): Boolean =
+    itemType == ITEM_TYPE_FILE_SYSTEM_FILE || itemType == ITEM_TYPE_FILE_SYSTEM_FOLDER
 
 /** Returns whether an [ItemInfo] represents a file system folder. */
 fun ItemInfo.isFileSystemFolderItem(): Boolean = itemType == ITEM_TYPE_FILE_SYSTEM_FOLDER
