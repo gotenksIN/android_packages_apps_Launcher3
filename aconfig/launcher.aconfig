@@ -470,7 +470,7 @@ flag {
   name: "blur_on_more_surfaces"
   namespace: "launcher"
   description: "Enable blur in more Launcher surfaces"
-  bug: "444141641"
+  bug: "496223648"
 }
 
 flag {
