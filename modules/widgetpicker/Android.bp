@@ -190,6 +190,7 @@ android_library {
         "androidx.activity_activity-compose",
         "kotlinx-coroutines-android",
         "kotlinx-coroutines-core",
+        "com_android_launcher3_flags_lib",
     ],
     resource_dirs: [
         "res",

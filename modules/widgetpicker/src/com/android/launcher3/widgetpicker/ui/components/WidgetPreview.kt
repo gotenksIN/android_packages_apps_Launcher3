@@ -25,6 +25,9 @@ import android.widget.FrameLayout
 import android.widget.RemoteViews
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -49,7 +52,11 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
@@ -64,6 +71,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.coerceAtMost
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.android.launcher3.Flags
 import com.android.launcher3.widgetpicker.shared.model.WidgetId
 import com.android.launcher3.widgetpicker.shared.model.WidgetInfo
 import com.android.launcher3.widgetpicker.shared.model.WidgetPreview
@@ -224,32 +232,38 @@ private fun BitmapWidgetPreview(
                 // the details is focusable.
                 .focusProperties { canFocus = false }
                 .pointerInput(bitmap) {
-                    detectDragGesturesAfterLongPress(
-                        onDrag = { change, _ -> change.consume() },
-                        onDragStart = { offset ->
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val onDrag: (PointerInputChange, Offset) -> Unit = { change, _ ->
+                        change.consume()
+                    }
+                    val onDragStart: (Offset) -> Unit = { offset ->
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
-                            dragState.startDrag(dragView)
+                        dragState.startDrag(dragView)
 
-                            val bounds =
-                                calculateImageDragBounds(
-                                    scaledBitmapDimensions = scaledBitmapDimensions,
-                                    imagePositionInParent = imagePositionInParent,
-                                    offset = offset,
-                                )
-                            onWidgetInteraction(
-                                WidgetInteractionInfo.WidgetDragInfo(
-                                    source = widgetInteractionSource,
-                                    mimeType = dragState.pickerMimeType,
-                                    widgetInfo = widgetInfo,
-                                    bounds = bounds,
-                                    widthPx = scaledBitmapDimensions.scaledSizePx.width,
-                                    heightPx = scaledBitmapDimensions.scaledSizePx.height,
-                                    previewInfo = WidgetPreview.BitmapWidgetPreview(bitmap = bitmap),
-                                )
+                        val bounds =
+                            calculateImageDragBounds(
+                                scaledBitmapDimensions = scaledBitmapDimensions,
+                                imagePositionInParent = imagePositionInParent,
+                                offset = offset,
                             )
-                        },
-                    )
+                        onWidgetInteraction(
+                            WidgetInteractionInfo.WidgetDragInfo(
+                                source = widgetInteractionSource,
+                                mimeType = dragState.pickerMimeType,
+                                widgetInfo = widgetInfo,
+                                bounds = bounds,
+                                widthPx = scaledBitmapDimensions.scaledSizePx.width,
+                                heightPx = scaledBitmapDimensions.scaledSizePx.height,
+                                previewInfo = WidgetPreview.BitmapWidgetPreview(bitmap = bitmap),
+                            )
+                        )
+                    }
+
+                    if (Flags.enableCursorDrivenWorkflows()) {
+                        detectDragGesturesByPointerType(onDragStart = onDragStart, onDrag = onDrag)
+                    } else {
+                        detectDragGesturesAfterLongPress(onDragStart = onDragStart, onDrag = onDrag)
+                    }
                 }
                 .width(scaledBitmapDimensions.scaledSizeDp.width)
                 .height(scaledBitmapDimensions.scaledSizeDp.height)
@@ -354,41 +368,53 @@ private fun RemoteViewsWidgetPreview(
                     // the details is focusable.
                     .focusProperties { canFocus = false }
                     .pointerInput(appWidgetHostView) {
-                        detectDragGesturesAfterLongPress(
-                            onDrag = { change, _ -> change.consume() },
-                            onDragStart = { offset ->
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                dragState.startDrag(appWidgetHostView)
+                        val onDrag: (PointerInputChange, Offset) -> Unit = { change, _ ->
+                            change.consume()
+                        }
+                        val onDragStart: (Offset) -> Unit = { offset ->
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            dragState.startDrag(appWidgetHostView)
 
-                                onWidgetInteraction(
-                                    WidgetInteractionInfo.WidgetDragInfo(
-                                        source = widgetInteractionSource,
-                                        mimeType = dragState.pickerMimeType,
-                                        widgetInfo = widgetInfo,
-                                        bounds = appWidgetHostView.getDragBoundsForOffset(offset),
-                                        widthPx = appWidgetHostView.measuredWidth,
-                                        heightPx = appWidgetHostView.measuredHeight,
-                                        previewInfo =
-                                            when {
-                                                remoteViews != null ->
-                                                    WidgetPreview.RemoteViewsWidgetPreview(
-                                                        remoteViews = remoteViews
-                                                    )
+                            onWidgetInteraction(
+                                WidgetInteractionInfo.WidgetDragInfo(
+                                    source = widgetInteractionSource,
+                                    mimeType = dragState.pickerMimeType,
+                                    widgetInfo = widgetInfo,
+                                    bounds = appWidgetHostView.getDragBoundsForOffset(offset),
+                                    widthPx = appWidgetHostView.measuredWidth,
+                                    heightPx = appWidgetHostView.measuredHeight,
+                                    previewInfo =
+                                        when {
+                                            remoteViews != null ->
+                                                WidgetPreview.RemoteViewsWidgetPreview(
+                                                    remoteViews = remoteViews
+                                                )
 
-                                                previewLayoutProviderInfo != null ->
-                                                    WidgetPreview.ProviderInfoWidgetPreview(
-                                                        providerInfo = previewLayoutProviderInfo
-                                                    )
+                                            previewLayoutProviderInfo != null ->
+                                                WidgetPreview.ProviderInfoWidgetPreview(
+                                                    providerInfo = previewLayoutProviderInfo
+                                                )
 
-                                                else ->
-                                                    throw IllegalStateException(
-                                                        "No preview during drag"
-                                                    )
-                                            },
-                                    )
+                                            else ->
+                                                throw IllegalStateException(
+                                                    "No preview during drag"
+                                                )
+                                        },
                                 )
-                            },
-                        )
+                            )
+                        }
+
+                        if (Flags.enableCursorDrivenWorkflows()) {
+                            detectDragGesturesByPointerType(
+                                onDragStart = onDragStart,
+                                onDrag = onDrag,
+                            )
+                        } else {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = onDragStart,
+                                onDrag = onDrag,
+                            )
+                        }
                     }
                     .wrapContentSize()
                     .clip(RoundedCornerShape(widgetRadius)),
@@ -410,3 +436,72 @@ private fun RemoteViewsWidgetPreview(
 
 // We don't care about appWidgetId since this is a preview.
 private const val NO_OP_APP_WIDGET_ID = -1
+
+/**
+ * A custom gesture detector that branches its drag behavior based on the pointer type.
+ * - For [PointerType.Mouse]: Behaves like `detectDragGestures`, initiating a drag immediately upon
+ *   movement. This provides a standard, snappy desktop drag-and-drop experience.
+ * - For [PointerType.Touch] (and others): Behaves like `detectDragGesturesAfterLongPress`,
+ *   requiring the user to hold the pointer in place for the long-press timeout before dragging.
+ */
+private suspend fun PointerInputScope.detectDragGesturesByPointerType(
+    onDragStart: (Offset) -> Unit,
+    onDrag: (change: PointerInputChange, dragAmount: Offset) -> Unit,
+) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        if (down.type == PointerType.Mouse) {
+            // Mouse: Start dragging immediately as soon as the pointer moves.
+            var drag: PointerInputChange? = down
+            var isDragging = false
+            do {
+                // Wait for the next pointer event in the stream
+                val event = awaitPointerEvent()
+                drag = event.changes.firstOrNull { it.id == down.id }
+
+                if (drag != null && drag.pressed && !drag.isConsumed) {
+                    // Check if we have moved enough to transition from a "click" to a "drag"
+                    if (!isDragging) {
+                        if (
+                            (drag.position - down.position).getDistance() >
+                                viewConfiguration.touchSlop
+                        ) {
+                            isDragging = true
+                            drag.consume() // Consume the event so other gestures don't use it
+                            onDragStart(drag.position)
+                        }
+                    }
+
+                    // If we are currently dragging, calculate the movement and fire the callback
+                    if (isDragging) {
+                        val change = drag.positionChange()
+                        if (change.getDistance() > 0f) {
+                            onDrag(drag, change)
+                            drag.consume()
+                        }
+                    }
+                }
+            } while (drag != null && drag.pressed)
+        } else {
+            // Touch/Stylus: Wait for a long press before allowing a drag.
+            val longPress = awaitLongPressOrCancellation(down.id) != null
+
+            // If long press was successfully detected, start consuming movement as drag events.
+            if (longPress) {
+                onDragStart(down.position)
+                var drag: PointerInputChange? = down
+                do {
+                    val event = awaitPointerEvent()
+                    drag = event.changes.firstOrNull { it.id == down.id }
+                    if (drag != null && drag.pressed && !drag.isConsumed) {
+                        val change = drag.positionChange()
+                        if (change.getDistance() > 0f) {
+                            onDrag(drag, change)
+                            drag.consume()
+                        }
+                    }
+                } while (drag != null && drag.pressed)
+            }
+        }
+    }
+}
