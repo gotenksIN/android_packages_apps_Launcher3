@@ -107,14 +107,15 @@ class ItemSelectorValidatorTest {
         y: Int? = null,
         hotseatRank: Int? = null,
         packageName: String? = null,
-        className: String? = null
-    ) = ItemSelectorSpec(
-        label = label,
-        screenIndex = screenIndex,
-        x = x,
-        y = y,
-        hotseatRank = hotseatRank,
-        packageName = packageName,
-        className = className
-    )
+        className: String? = null,
+    ) =
+        ItemSelectorSpec(
+            label = label,
+            screenIndex = screenIndex,
+            x = x,
+            y = y,
+            hotseatRank = hotseatRank,
+            packageName = packageName,
+            className = className,
+        )
 }

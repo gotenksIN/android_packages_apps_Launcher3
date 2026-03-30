@@ -20,10 +20,11 @@ import com.android.launcher3.appfunctions.workspace.WorkspaceAppFunctions.Proof
 import com.android.launcher3.appfunctions.workspace.validators.RemoveItemValidator
 import com.android.launcher3.appfunctions.workspace.validators.ValidationResult
 
-/**
- * Manages workspace mutations by validating requests before execution.
- */
-class WorkspaceMutationManager(private val repository: WorkspaceRepository) {
+/** Manages workspace mutations by validating requests before execution. */
+class WorkspaceMutationManager(
+    private val repository: WorkspaceRepository,
+    private val transactionFactory: WorkspaceTransactionFactory,
+) {
 
     /**
      * Executes a remove item operation after validation.
@@ -35,12 +36,10 @@ class WorkspaceMutationManager(private val repository: WorkspaceRepository) {
         val validator = RemoveItemValidator(params, repository)
         return when (val validationResult = validator.validate()) {
             is ValidationResult.Valid -> {
-                val newWorkspace = repository.newTransaction()
-                    .removeItem(params)
-                    .commit()
+                val newWorkspace = transactionFactory.createRemoveItemTransaction(params).execute()
 
-        // TODO b/494314201: add diffing logic
-        // TODO b/493993708: replace any dummy data with real implementation
+                // TODO b/494314201: add diffing logic
+                // TODO b/493993708: replace any dummy data with real implementation
                 WorkspaceUpdateResult(
                     success = true,
                     message = "Item removed",
@@ -48,7 +47,7 @@ class WorkspaceMutationManager(private val repository: WorkspaceRepository) {
                     errorCode = null,
                     resolvedItemIdentifier = null,
                     resolutionDetails = null,
-                    proof = Proof.REMOVE_ITEM_PROOF
+                    proof = Proof.REMOVE_ITEM_PROOF,
                 )
             }
 
@@ -60,7 +59,7 @@ class WorkspaceMutationManager(private val repository: WorkspaceRepository) {
                     errorCode = validationResult.errorCode,
                     resolvedItemIdentifier = null,
                     resolutionDetails = validationResult.resolutionDetails,
-                    proof = Proof.REMOVE_ITEM_PROOF
+                    proof = Proof.REMOVE_ITEM_PROOF,
                 )
             }
         }

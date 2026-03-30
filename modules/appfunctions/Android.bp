@@ -29,6 +29,7 @@ android_library {
         "src/com/android/launcher3/appfunctions/workspace/WorkspaceAppFunctions.kt",
         "src/com/android/launcher3/appfunctions/workspace/WorkspaceFlatTypes.kt",
         "src/com/android/launcher3/appfunctions/workspace/WorkspaceRepository.kt",
+        "src/com/android/launcher3/appfunctions/workspace/WorkspaceTransactionFactory.kt",
         "src/com/android/launcher3/appfunctions/workspace/WorkspaceTypeTranslator.kt",
         "src/com/android/launcher3/appfunctions/workspace/WorkspaceMutationManager.kt",
         "src/com/android/launcher3/appfunctions/workspace/validators/SelectorValidator.kt",

@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.android.launcher3.workspacefunctions.testing
 
 import com.android.launcher3.appfunctions.workspace.HotseatSpec
@@ -21,20 +20,16 @@ import com.android.launcher3.appfunctions.workspace.UnplacedAppSpec
 import com.android.launcher3.appfunctions.workspace.UnplacedWidgetSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceRepository
 import com.android.launcher3.appfunctions.workspace.WorkspaceSpec
-import com.android.launcher3.appfunctions.workspace.WorkspaceTransaction
 
+/** A fake implementation of [WorkspaceRepository] for testing purposes. */
 class FakeWorkspaceRepository : WorkspaceRepository {
     var workspace = WorkspaceSpec(emptyList(), HotseatSpec(emptyList()), null, null)
-    var lastTransaction: FakeWorkspaceTransaction? = null
 
     override suspend fun getWorkspace(): WorkspaceSpec = workspace
 
-    override fun newTransaction(): WorkspaceTransaction {
-        lastTransaction = FakeWorkspaceTransaction()
-        return lastTransaction!!
-    }
+    override suspend fun getInstalledApps(orderByUsageStats: Boolean): List<UnplacedAppSpec> =
+        emptyList()
 
-    override suspend fun getInstalledApps(orderByUsageStats: Boolean): List<UnplacedAppSpec> = emptyList()
-
-    override suspend fun getInstalledWidgets(orderByUsageStats: Boolean): List<UnplacedWidgetSpec> = emptyList()
+    override suspend fun getInstalledWidgets(orderByUsageStats: Boolean): List<UnplacedWidgetSpec> =
+        emptyList()
 }

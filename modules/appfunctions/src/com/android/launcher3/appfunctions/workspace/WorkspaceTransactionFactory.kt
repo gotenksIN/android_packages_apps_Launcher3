@@ -13,18 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.launcher3.workspacefunctions.testing
 
-import com.android.launcher3.appfunctions.workspace.HotseatSpec
-import com.android.launcher3.appfunctions.workspace.WorkspaceSpec
-import com.android.launcher3.appfunctions.workspace.WorkspaceTransaction
+package com.android.launcher3.appfunctions.workspace
 
-/** A fake implementation of [WorkspaceTransaction] for testing purposes. */
-class FakeWorkspaceTransaction : WorkspaceTransaction {
-    var executeCalled = false
-
-    override suspend fun execute(): WorkspaceSpec {
-        executeCalled = true
-        return WorkspaceSpec(emptyList(), HotseatSpec(emptyList()), null, null)
-    }
+/** A factory for creating [WorkspaceTransaction] instances. */
+interface WorkspaceTransactionFactory {
+    /**
+     * Creates a new [WorkspaceTransaction] for removing an item.
+     *
+     * @param params Parameters for the remove operation.
+     * @return A [WorkspaceTransaction] instance.
+     */
+    fun createRemoveItemTransaction(params: RemoveItemParamsSpec): WorkspaceTransaction
 }
