@@ -16,6 +16,7 @@
 package com.android.launcher3.appfunctions.workspace
 
 import androidx.appfunctions.AppFunctionSerializable
+import androidx.appfunctions.AppFunctionStringValueConstraint
 import com.android.launcher3.appfunctions.workspace.WorkspaceAppFunctions.Proof
 
 /// Flat types, required by AppFunctions and btm ingestion
@@ -264,6 +265,38 @@ data class ItemSelectorSpec(
 )
 
 /**
+ * Selects a workspace/hotseat location for adding or moving items.
+ *
+ * Use one method:
+ * - Coordinates: `screenIndex`, `x`, `y`
+ * - Hotseat: `rank` (0-based; `null` for first available)
+ * - First available slot: `firstAvailableScreenIndex`, `searchFrom`
+ *
+ * @property screenIndex 0-based screen index.
+ * @property x 0-based x-coordinate.
+ * @property y 0-based y-coordinate.
+ * @property rank 0-based hotseat rank; `null` for first available.
+ * @property firstAvailableScreenIndex Screen index for finding first available slot.
+ * @property searchFrom **Required if using `firstAvailableScreenIndex`**: `"FROM_TOP_LEFT"`,
+ *   `"FROM_TOP_RIGHT"`, `"FROM_BOTTOM_LEFT"`, or `"FROM_BOTTOM_RIGHT"`.
+ */
+@AppFunctionSerializable(isDescribedByKDoc = true)
+data class LocationSelectorSpec(
+    // For LocationByCoordinates
+    val screenIndex: Int?,
+    val x: Int?,
+    val y: Int?,
+    // For HotseatLocation
+    val rank: Int?,
+    // For FirstAvailable
+    val firstAvailableScreenIndex: Int?,
+    @AppFunctionStringValueConstraint(
+        ["FROM_TOP_LEFT", "FROM_TOP_RIGHT", "FROM_BOTTOM_LEFT", "FROM_BOTTOM_RIGHT"]
+    )
+    val searchFrom: String?,
+)
+
+/**
  * Params for `removeItem`.
  *
  * ### Examples
@@ -274,3 +307,20 @@ data class ItemSelectorSpec(
  */
 @AppFunctionSerializable(isDescribedByKDoc = true)
 data class RemoveItemParamsSpec(val item: ItemSelectorSpec)
+
+/**
+ * Params for `moveItem`.
+ *
+ * ### Examples
+ * - "Move Gmail to dock": `source=ItemSelectorSpec(label="Gmail"),
+ *   destination=LocationSelectorSpec(rank=null)`
+ * - "Move YouTube to 2,1 on screen 0": `source=ItemSelectorSpec(label="YouTube"),
+ *   destination=LocationSelectorSpec(screenIndex=0, x=2, y=1)`
+ *
+ * Relative positions ("next to", etc.) must be computed from [WorkspaceSpec].
+ *
+ * @property source [ItemSelectorSpec] of item to move.
+ * @property destination [LocationSelectorSpec] of target location.
+ */
+@AppFunctionSerializable(isDescribedByKDoc = true)
+data class MoveItemParamsSpec(val source: ItemSelectorSpec, val destination: LocationSelectorSpec)

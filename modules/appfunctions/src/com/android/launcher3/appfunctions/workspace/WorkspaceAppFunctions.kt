@@ -86,6 +86,8 @@ class WorkspaceAppFunctions(
         )
     }
 
+    // Action or Mutation functions
+
     /**
      * Removes an item using a selector.
      *
@@ -95,32 +97,74 @@ class WorkspaceAppFunctions(
      * 1. `getCurrentWorkspace()` -> `wR`
      * 2. If label is generic (e.g., "mail"), check `wR.workspace` for an unambiguous match (e.g.,
      *    "Gmail"). If found, use it. If ambiguous or no match, stop and inform user.
-     * 3. `removeItem(params=RemoveItemParamsSpec(item=...), proof=wR.proof)`
+     * 3. `removeItem(params=RemoveItemParamsSpec(item=...), workspaceProof=wR.proof)`
      *
      * ### Examples
      * - "Get rid of News":
      *     1. `getCurrentWorkspace()` -> `wR`
      *     2. `removeItem(params=RemoveItemParamsSpec(item=ItemSelectorSpec(label="News")),
-     *        proof=wR.proof)`
+     *        workspaceProof=wR.proof)`
      * - "Delete 'Social' folder":
      *     1. `getCurrentWorkspace()` -> `wR`
      *     2. `removeItem(params=RemoveItemParamsSpec(item=ItemSelectorSpec(label="Social")),
-     *        proof=wR.proof)`
+     *        workspaceProof=wR.proof)`
      * - "Remove item at 0,1 on screen 0":
      *     1. `getCurrentWorkspace()` -> `wR`
      *     2. `removeItem(params=RemoveItemParamsSpec(item=ItemSelectorSpec(screenIndex=0,x=0,y=1)),
-     *        proof=wR.proof)`
+     *        workspaceProof=wR.proof)`
      *
      * @param params [RemoveItemParamsSpec] with item selector.
-     * @param proof Proof from `getCurrentWorkspace`.
+     * @param workspaceProof Proof from `getCurrentWorkspace`.
      */
     @AppFunction(isDescribedByKDoc = true)
     suspend fun removeItem(
         appFunctionContext: AppFunctionContext,
         params: RemoveItemParamsSpec,
-        proof: Proof,
+        workspaceProof: Proof,
     ): WorkspaceUpdateResult {
+        if (workspaceProof != Proof.GET_CURRENT_WORKSPACE_PROOF) {
+            return WorkspaceUpdateResult(
+                success = false,
+                message =
+                    "Invalid workspaceProof, make sure you called getCurrentWorkspace() first.",
+                errorCode = ErrorCode(ErrorCode.INVALID_PARAMETERS),
+                proof = Proof.NO_PROOF,
+            )
+        }
         return mutationManager.removeItem(params)
+    }
+
+    /**
+     * Moves an item (app, folder, or widget) to a new location.
+     *
+     * ### Recipe
+     * *CRITICAL:** Complete all steps sequentially without pausing for confirmation or intermediate
+     * results.
+     * 1. `getCurrentWorkspace()` -> `wR`
+     * 2. `moveItem(params=MoveItemParamsSpec(source=..., destination=...),
+     *    workspaceProof=wR.proof)`
+     *
+     * See [MoveItemParamsSpec] for parameter examples.
+     *
+     * @param params [MoveItemParamsSpec] with source and destination.
+     * @param workspaceProof Proof from `getCurrentWorkspace`.
+     */
+    @AppFunction(isDescribedByKDoc = true)
+    suspend fun moveItem(
+        appFunctionContext: AppFunctionContext,
+        params: MoveItemParamsSpec,
+        workspaceProof: Proof,
+    ): WorkspaceUpdateResult {
+        if (workspaceProof != Proof.GET_CURRENT_WORKSPACE_PROOF) {
+            return WorkspaceUpdateResult(
+                success = false,
+                message =
+                    "Invalid workspaceProof, make sure you called getCurrentWorkspace() first.",
+                errorCode = ErrorCode(ErrorCode.INVALID_PARAMETERS),
+                proof = Proof.NO_PROOF,
+            )
+        }
+        return mutationManager.moveItem(params)
     }
 
     /// Decorated responses to the AppFunction agents, the kdoc for these is used

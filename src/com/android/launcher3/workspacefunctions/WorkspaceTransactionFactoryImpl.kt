@@ -16,6 +16,7 @@
 
 package com.android.launcher3.workspacefunctions
 
+import com.android.launcher3.appfunctions.workspace.MoveItemParamsSpec
 import com.android.launcher3.appfunctions.workspace.RemoveItemParamsSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceTransaction
 import com.android.launcher3.appfunctions.workspace.WorkspaceTransactionFactory
@@ -24,10 +25,16 @@ import javax.inject.Inject
 /** Concrete implementation of [WorkspaceTransactionFactory]. */
 class WorkspaceTransactionFactoryImpl
 @Inject
-constructor(private val removeItemFactory: RemoveItemTransaction.Factory) :
-    WorkspaceTransactionFactory {
+constructor(
+    private val removeItemFactory: RemoveItemTransaction.Factory,
+    private val moveItemFactory: MoveItemTransaction.Factory,
+) : WorkspaceTransactionFactory {
 
     override fun createRemoveItemTransaction(params: RemoveItemParamsSpec): WorkspaceTransaction {
         return removeItemFactory.create(params)
+    }
+
+    override fun createMoveItemTransaction(params: MoveItemParamsSpec): WorkspaceTransaction {
+        return moveItemFactory.create(params)
     }
 }

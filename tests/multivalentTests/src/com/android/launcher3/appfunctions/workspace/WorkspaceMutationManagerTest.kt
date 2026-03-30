@@ -86,6 +86,11 @@ class WorkspaceMutationManagerTest {
         assertThat(fakeTransactionFactory.lastCreatedTransaction).isNull()
     }
 
+    @Test
+    fun moveItem_validRequest_callsTransactionAndReturnsSuccess(): Unit = runBlocking {
+        // TODO b/457458301: implement
+    }
+
     private fun createSelector(
         label: String? = null,
         screenIndex: Int? = null,
