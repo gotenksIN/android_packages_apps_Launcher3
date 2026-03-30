@@ -22,7 +22,6 @@ import androidx.annotation.AnyThread
 import com.android.launcher3.LauncherPrefChangeListener
 import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.LauncherPrefs.Companion.backedUpItem
-import com.android.launcher3.R
 import com.android.launcher3.concurrent.annotations.Ui
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppComponent
@@ -89,12 +88,6 @@ constructor(
     val folderShape
         get() = iconState.folderShape
 
-    val fileShape
-        get() = iconState.fileShape
-
-    var fileShapeData = fileShape.createIconShape(DEFAULT_PATH_SIZE_INT)
-        private set
-
     private val listeners = CopyOnWriteArrayList<ThemeChangeListener>()
 
     init {
@@ -136,12 +129,8 @@ constructor(
      * via [createIconShape]
      */
     fun generateIconShape(iconSize: Int) {
-        if (iconShapeData.value.pathSize != iconSize) {
-            _iconShapeData.dispatchValue(iconShape.createIconShape(iconSize))
-        }
-        if (fileShapeData.pathSize != iconSize) {
-            fileShapeData = fileShape.createIconShape(iconSize)
-        }
+        if (iconShapeData.value.pathSize == iconSize) return
+        _iconShapeData.dispatchValue(iconShape.createIconShape(iconSize))
     }
 
     private fun parseIconState(oldState: IconState?): IconState {
@@ -173,14 +162,6 @@ constructor(
                 ShapeDelegate.RoundedSquare(folderRadius)
             }
 
-        val fileShape =
-            oldState?.fileShape
-                ?: run {
-                    val res = context.resources
-                    val path = res.getString(R.string.home_screen_files_file_icon_path_data)
-                    ShapeDelegate.GenericPathShape(path)
-                }
-
         val themeKey = themePreference.value
         val themeCode = themeKey?.toString() ?: "no-theme"
 
@@ -200,7 +181,6 @@ constructor(
             folderShape = folderShape,
             shapeRadius = shapeModel?.shapeRadius ?: DEFAULT_ICON_RADIUS,
             themeCode = themeCode,
-            fileShape = fileShape,
         )
     }
 
@@ -214,7 +194,6 @@ constructor(
         val isCircle: Boolean = iconShape is ShapeDelegate.Circle,
         val folderShape: ShapeDelegate,
         val shapeRadius: Float,
-        val fileShape: ShapeDelegate,
     ) {
         val iconShapeInfo = IconShapeInfo.fromPath(iconShape.getPath(), DEFAULT_PATH_SIZE_INT)
     }
