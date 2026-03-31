@@ -39,4 +39,5 @@ data class FolderCreatorState(
     val topics: List<FolderTopicData> = emptyList(),
     val selectedTopics: Set<String> = emptySet(),
     val generatedFolders: CreationSession.GenerationResult? = null,
+    val removeDuplicates: Boolean = false,
 )
