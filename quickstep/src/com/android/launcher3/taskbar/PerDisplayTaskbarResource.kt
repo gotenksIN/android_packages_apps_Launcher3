@@ -192,6 +192,7 @@ class PerDisplayTaskbarResource(
     private fun removeExistingTaskbar() {
         taskbar?.onDestroy()
         taskbar = null
+        rootLayout.removeAllViews()
     }
 
     fun setCurrentTaskbar(activity: TaskbarActivityContext) {
