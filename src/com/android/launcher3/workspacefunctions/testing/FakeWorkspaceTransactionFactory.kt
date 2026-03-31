@@ -15,6 +15,7 @@
  */
 package com.android.launcher3.workspacefunctions.testing
 
+import com.android.launcher3.appfunctions.workspace.MoveItemParamsSpec
 import com.android.launcher3.appfunctions.workspace.RemoveItemParamsSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceTransaction
 import com.android.launcher3.appfunctions.workspace.WorkspaceTransactionFactory
@@ -22,10 +23,17 @@ import com.android.launcher3.appfunctions.workspace.WorkspaceTransactionFactory
 /** A fake implementation of [WorkspaceTransactionFactory] for testing purposes. */
 class FakeWorkspaceTransactionFactory : WorkspaceTransactionFactory {
     var lastRemoveItemParams: RemoveItemParamsSpec? = null
+    var lastMoveItemParams: MoveItemParamsSpec? = null
     var lastCreatedTransaction: FakeWorkspaceTransaction? = null
 
     override fun createRemoveItemTransaction(params: RemoveItemParamsSpec): WorkspaceTransaction {
         lastRemoveItemParams = params
+        lastCreatedTransaction = FakeWorkspaceTransaction()
+        return lastCreatedTransaction!!
+    }
+
+    override fun createMoveItemTransaction(params: MoveItemParamsSpec): WorkspaceTransaction {
+        lastMoveItemParams = params
         lastCreatedTransaction = FakeWorkspaceTransaction()
         return lastCreatedTransaction!!
     }

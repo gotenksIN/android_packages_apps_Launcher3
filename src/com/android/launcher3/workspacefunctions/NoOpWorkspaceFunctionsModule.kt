@@ -16,6 +16,7 @@
 package com.android.launcher3.workspacefunctions
 
 import com.android.launcher3.appfunctions.workspace.HotseatSpec
+import com.android.launcher3.appfunctions.workspace.MoveItemParamsSpec
 import com.android.launcher3.appfunctions.workspace.RemoveItemParamsSpec
 import com.android.launcher3.appfunctions.workspace.UnplacedAppSpec
 import com.android.launcher3.appfunctions.workspace.UnplacedWidgetSpec
@@ -64,6 +65,14 @@ class NoOpWorkspaceFunctionsModule {
         override fun createRemoveItemTransaction(
             params: RemoveItemParamsSpec
         ): WorkspaceTransaction {
+            return object : WorkspaceTransaction {
+                override suspend fun execute(): WorkspaceSpec {
+                    throw UnsupportedOperationException("Not implemented")
+                }
+            }
+        }
+
+        override fun createMoveItemTransaction(params: MoveItemParamsSpec): WorkspaceTransaction {
             return object : WorkspaceTransaction {
                 override suspend fun execute(): WorkspaceSpec {
                     throw UnsupportedOperationException("Not implemented")

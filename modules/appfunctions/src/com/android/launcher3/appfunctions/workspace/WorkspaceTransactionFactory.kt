@@ -25,4 +25,12 @@ interface WorkspaceTransactionFactory {
      * @return A [WorkspaceTransaction] instance.
      */
     fun createRemoveItemTransaction(params: RemoveItemParamsSpec): WorkspaceTransaction
+
+    /**
+     * Creates a new [WorkspaceTransaction] for moving an item.
+     *
+     * @param params Parameters for the move operation.
+     * @return A [WorkspaceTransaction] instance.
+     */
+    fun createMoveItemTransaction(params: MoveItemParamsSpec): WorkspaceTransaction
 }
