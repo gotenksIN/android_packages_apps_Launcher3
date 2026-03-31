@@ -82,6 +82,7 @@ android {
 }
 
 dependencies {
+    api(project(":NexusLauncher:Flags"))
     implementation(libs.androidx.core)
     implementation(libs.dagger)
     kapt(libs.dagger.compiler)
