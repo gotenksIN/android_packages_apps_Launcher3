@@ -36,6 +36,11 @@ final class WorkspaceAppIcon extends HomeAppIcon {
         return Workspace.LONG_CLICK_EVENT;
     }
 
+    @Override
+    protected Pattern getRightClickEvent() {
+        return Workspace.RIGHT_CLICK_EVENT;
+    }
+
     boolean isInCell(int cellX, int cellY) {
         final Point center = Workspace.getCellCenter(mLauncher, cellX, cellY);
         return mObject.getParent().getVisibleBounds().contains(center.x, center.y);
