@@ -25,6 +25,8 @@
     <color name="blur_shade_panel_fg">@androidprv:color/shade_panel_fg</color>
     <color name="blur_shade_panel_bg">@androidprv:color/shade_panel_bg</color>
 
+    <color name="notification_dot_outline_themed">@androidprv:color/system_on_theme_app_dark</color>
+
     <!-- Taskbar -->
     <color name="taskbar_nav_icon_selection_ripple">#E0E0E0</color>
     <color name="taskbar_nav_icon_light_color_on_home">#ffffff</color>

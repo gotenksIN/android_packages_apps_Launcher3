@@ -20,6 +20,7 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_FOLDER;
 import static com.android.launcher3.AbstractFloatingView.TYPE_WIDGET_RESIZE_FRAME;
 import static com.android.launcher3.BubbleTextView.DISPLAY_FOLDER;
 import static com.android.launcher3.Flags.enableCursorDrivenWorkflows;
+import static com.android.launcher3.Flags.enableDragStartEndMultiDispatch;
 import static com.android.launcher3.Flags.enableFileSystemFoldersAsDropTargets;
 import static com.android.launcher3.Flags.enableSystemDragToOtherApps;
 import static com.android.launcher3.Flags.enableTaskbarDragAndDrop;
@@ -185,8 +186,9 @@ import java.util.function.Predicate;
  */
 public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         implements DropTarget, DragSource, View.OnTouchListener, CellLayoutContainer,
-        DragController.DragListener, Insettable, StateHandler<LauncherState>,
-        WorkspaceLayoutManager, LauncherBindableItemsContainer, LauncherOverlayCallbacks {
+        DragController.DragListener, DragController.DragSessionListener, Insettable,
+        StateHandler<LauncherState>, WorkspaceLayoutManager, LauncherBindableItemsContainer,
+        LauncherOverlayCallbacks {
 
     /**
      * The value that {@link #mTransitionProgress} must be greater than for
@@ -388,7 +390,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             };
 
     @Nullable
-    private DragController.DragListener mAccessibilityDragListener;
+    private DragController.DragSessionListener mAccessibilityDragListener;
 
     /**
      * Used to inflate the Workspace from XML.
@@ -560,9 +562,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     }
 
     @Override
-    public void onDragStart(DragObject dragObject, DragOptions options) {
+    public void onDragSessionStart(DragObject dragObject, DragOptions options) {
         if (ENFORCE_DRAG_EVENT_ORDER) {
-            enforceDragParity("onDragStart", 0, 0);
+            enforceDragParity("onDragSessionStart", 0, 0);
         }
 
         if (mDragInfo != null && mDragInfo.cell != null) {
@@ -603,16 +605,35 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         }
 
         if (mAccessibilityDragListener != null) {
-            mAccessibilityDragListener.onDragStart(dragObject, options);
+            mAccessibilityDragListener.onDragSessionStart(dragObject, options);
         }
-        if (!mLauncher.isInState(EDIT_MODE)) {
-            mLauncher.getStateManager().goToState(
-                    (enableCursorDrivenWorkflows() && options.isMouseDrag)
-                            ? DESKTOP_DRAG_MODE : SPRING_LOADED);
+
+        if (!enableDragStartEndMultiDispatch()) {
+            if (!mLauncher.isInState(EDIT_MODE)) {
+                mLauncher.getStateManager().goToState(
+                        (enableCursorDrivenWorkflows() && options.isMouseDrag)
+                                ? DESKTOP_DRAG_MODE : SPRING_LOADED);
+            }
         }
+
         mStatsLogManager.logger().withItemInfo(dragObject.dragInfo)
                 .withInstanceId(dragObject.logInstanceId)
                 .log(LauncherEvent.LAUNCHER_ITEM_DRAG_STARTED);
+    }
+
+    @Override
+    public void onDragStart(DragObject dragObject, DragOptions options) {
+        if (ENFORCE_DRAG_EVENT_ORDER) {
+            enforceDragParity("onDragStart", 0, 0);
+        }
+
+        if (enableDragStartEndMultiDispatch()) {
+            if (!mLauncher.isInState(EDIT_MODE)) {
+                mLauncher.getStateManager().goToState(
+                        (enableCursorDrivenWorkflows() && options.isMouseDrag)
+                                ? DESKTOP_DRAG_MODE : SPRING_LOADED);
+            }
+        }
     }
 
     private boolean isTwoPanelEnabled() {
@@ -627,6 +648,19 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     public void onDragEnd() {
         if (ENFORCE_DRAG_EVENT_ORDER) {
             enforceDragParity("onDragEnd", 0, 0);
+        }
+
+        if (enableDragStartEndMultiDispatch()) {
+            if (!mLauncher.isInState(EDIT_MODE)) {
+                mLauncher.getStateManager().goToState(NORMAL);
+            }
+        }
+    }
+
+    @Override
+    public void onDragSessionEnd() {
+        if (ENFORCE_DRAG_EVENT_ORDER) {
+            enforceDragParity("onDragSessionEnd", 0, 0);
         }
 
         updateChildrenLayersEnabled();
@@ -644,8 +678,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         });
 
         if (mAccessibilityDragListener != null) {
-            mAccessibilityDragListener.onDragEnd();
+            mAccessibilityDragListener.onDragSessionEnd();
         }
+
         mDragInfo = null;
         mDragSourceInternal = null;
     }

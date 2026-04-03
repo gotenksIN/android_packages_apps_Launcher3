@@ -16,8 +16,6 @@
 
 package com.android.launcher3.popup
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Intent
 import android.os.Process
 import android.util.Log
@@ -149,12 +147,7 @@ constructor(private val renameDialogFactory: HomeScreenFilesRenameDialogFactory)
             eventId = LauncherEvent.LAUNCHER_HOME_SCREEN_FILES_COPY_VIA_CONTEXT_MENU,
         ) { activityContext: ActivityContext, itemInfo: ItemInfo, _: View ->
             val file = itemInfo.homeScreenFile ?: return@PopupData
-            activityContext
-                .asContext()
-                .getSystemService(ClipboardManager::class.java)
-                ?.setPrimaryClip(
-                    ClipData(/* label= */ "", arrayOf(file.mimeType), ClipData.Item(file.uri))
-                )
+            HomeScreenFilesUtils.copyToClipboard(activityContext.asContext(), file)
         }
 
     private val renameFileSystemItem =

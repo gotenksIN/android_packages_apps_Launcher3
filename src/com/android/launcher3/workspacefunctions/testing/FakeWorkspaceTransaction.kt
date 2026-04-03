@@ -13,25 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.android.launcher3.workspacefunctions.testing
 
 import com.android.launcher3.appfunctions.workspace.HotseatSpec
-import com.android.launcher3.appfunctions.workspace.RemoveItemParamsSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceTransaction
 
+/** A fake implementation of [WorkspaceTransaction] for testing purposes. */
 class FakeWorkspaceTransaction : WorkspaceTransaction {
-    var removeItemCalledWith: RemoveItemParamsSpec? = null
-    var commitCalled = false
+    var executeCalled = false
 
-    override fun removeItem(target: RemoveItemParamsSpec): WorkspaceTransaction {
-        removeItemCalledWith = target
-        return this
-    }
-
-    override suspend fun commit(): WorkspaceSpec {
-        commitCalled = true
+    override suspend fun execute(): WorkspaceSpec {
+        executeCalled = true
         return WorkspaceSpec(emptyList(), HotseatSpec(emptyList()), null, null)
     }
 }

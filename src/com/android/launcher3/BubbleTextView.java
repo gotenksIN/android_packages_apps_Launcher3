@@ -401,8 +401,15 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
             }
         }, this::shouldIgnoreTouchDown);
 
+        // Icon theme is only applied to workspace icons and not for all apps menu icons,
+        // so we only apply the outline color to themed workspace icons.
+        int outlineColor = ThemeManager.INSTANCE.get(context).isIconThemeEnabled()
+                && shouldUseTheme()
+                ? context.getColor(R.color.notification_dot_outline_themed) : Color.WHITE;
+
         mDotParams = new DotRenderer.DrawParams();
         mDotParams.setDotColor(Themes.getAttrColor(context, R.attr.notificationDotColor));
+        mDotParams.setOutlineColor(outlineColor);
 
         if (mDisplay == DISPLAY_ALL_APPS) {
             mDotRenderer = new DotRenderer(
@@ -674,8 +681,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     public int getIconCreationFlagsForInfo(ItemInfoWithIcon info) {
         // Set nonPendingIcon acts as a restart which should refresh the flag state when applicable.
         int flags = shouldUseTheme() ? FLAG_THEMED : 0;
-        // Remove badge on icons smaller than 48dp. Except for in 2026 refresh which uses 40dp
-        // for small icon.
+        // Remove badge on icons smaller than 48dp.
         if (mHideBadge || mDisplay == DISPLAY_SEARCH_RESULT_SMALL) {
             flags |= FLAG_NO_BADGE;
         }

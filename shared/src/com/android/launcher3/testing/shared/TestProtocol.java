@@ -127,6 +127,7 @@ public final class TestProtocol {
     public static final String INJECT_TEST_INSIGHTS = "inject-test-insights";
     public static final String REQUEST_SHOULD_SHOW_HOME_BEHIND_DESKTOP =
             "should-show-home-behind-desktop";
+    public static final String REQUEST_IS_DESKTOP = "is-desktop";
     public static final String REQUEST_IS_TABLET = "is-tablet";
     public static final String REQUEST_IS_PREDICTIVE_BACK_SWIPE_ENABLED =
             "is-predictive-back-swipe-enabled";

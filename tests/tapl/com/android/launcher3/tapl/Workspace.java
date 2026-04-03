@@ -67,6 +67,7 @@ public final class Workspace extends Home {
             "Key event: KeyEvent.*?action=ACTION_UP.*?keyCode=KEYCODE_W"
                     + ".*?metaState=META_CTRL_ON");
     static final Pattern LONG_CLICK_EVENT = Pattern.compile("onWorkspaceItemLongClick");
+    static final Pattern RIGHT_CLICK_EVENT = Pattern.compile("onWorkspaceItemRightClick");
     public static final int MAX_WORKSPACE_DRAG_TRIES = 100;
 
     private final UiObject2 mHotseat;

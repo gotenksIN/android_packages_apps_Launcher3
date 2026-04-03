@@ -43,6 +43,11 @@
         android:restoreAnyVersion="true"
         android:supportsRtl="true" >
 
+        <!-- App Functions Schema Version -->
+        <property
+            android:name="android.app.appfunctions.app_function_schema_version"
+            android:value="1" />
+
         <!-- App Functions Metadata -->
         <property
             android:name="android.app.appfunctions.app_metadata"

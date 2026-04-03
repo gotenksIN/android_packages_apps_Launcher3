@@ -27,6 +27,7 @@ import com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_LAUNCH
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_POPUP_MENU
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_START_DRAG
+import com.android.launcher3.touch.CustomActionsListener.Companion.ActionTrigger
 import com.android.launcher3.util.TouchUtil
 import kotlin.math.abs
 
@@ -117,7 +118,7 @@ class CustomEventsTouchHandler(
                 MotionEvent.obtain(event).apply { this.action = MotionEvent.ACTION_CANCEL }
             gestureDetector.onTouchEvent(cancelEvent)
             cancelEvent.recycle()
-            performActions(ACTION_POPUP_MENU)
+            performActions(ACTION_POPUP_MENU, ActionTrigger.RIGHT_CLICK_EVENT)
         }
         return true
     }
@@ -135,8 +136,11 @@ class CustomEventsTouchHandler(
         return true
     }
 
-    private fun performActions(actionMask: Int) {
-        customActionsListener?.performActions(view, actionMask)
+    private fun performActions(
+        actionMask: Int,
+        actionTrigger: ActionTrigger = ActionTrigger.UNSPECIFIED,
+    ) {
+        customActionsListener?.performActions(view, actionMask, actionTrigger)
     }
 
     private fun shouldStartMouseDrag(event: MotionEvent): Boolean {

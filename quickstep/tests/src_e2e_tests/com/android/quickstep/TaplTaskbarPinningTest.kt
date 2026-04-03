@@ -47,7 +47,6 @@ class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
 
     @Test
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.TRANSIENT)
-    @ScreenRecordRule.ScreenRecord // b/440078235
     fun testPinningUnpinningTransientTaskbar_whenInOverview() {
         assertThat(taskbarFeatureEvaluator.isTransient).isTrue()
         mLauncher.goHome().switchToOverview()
@@ -71,7 +70,6 @@ class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
 
     @Test
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.TRANSIENT)
-    @ScreenRecordRule.ScreenRecord // b/440078235
     fun testPinningUnpinningTransientTaskbar_whenInApp() {
         assertThat(taskbarFeatureEvaluator.isTransient).isTrue()
 
@@ -93,7 +91,6 @@ class TaplTaskbarPinningTest : AbstractTaplTestsTaskbar() {
 
     @Test
     @TaskbarModeSwitch(mode = TaskbarModeSwitchRule.Mode.TRANSIENT)
-    @ScreenRecordRule.ScreenRecord // b/440078235
     fun testPinningUnpinningTransientTaskbar_whenInDesktopMode() {
         assertThat(taskbarFeatureEvaluator.isTransient).isTrue()
         mLauncher.goHome().switchToOverview().currentTask.tapMenu().tapDesktopMenuItem()

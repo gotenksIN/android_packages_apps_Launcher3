@@ -28,7 +28,6 @@ import androidx.annotation.Nullable;
 import com.android.launcher3.Flags;
 import com.android.launcher3.automation.AutomationRepository;
 import com.android.launcher3.graphics.ThemeManager;
-import com.android.launcher3.homescreenfiles.HomeScreenFilesUtilsKt;
 import com.android.launcher3.icons.BitmapInfo;
 import com.android.launcher3.icons.BitmapInfo.DrawableCreationFlags;
 import com.android.launcher3.icons.FastBitmapDrawable;
@@ -361,9 +360,7 @@ public abstract class ItemInfoWithIcon extends ItemInfo {
     public FastBitmapDrawable newIcon(Context context, @DrawableCreationFlags int creationFlags) {
         ThemeManager themeManager = ThemeManager.INSTANCE.get(context);
         IconShape iconShape = null;
-        if (HomeScreenFilesUtilsKt.isFileSystemFileItem(this)) {
-            iconShape = themeManager.getFileShapeData();
-        } else if (supportsCustomShapes(creationFlags)) {
+        if (supportsCustomShapes(creationFlags)) {
             iconShape = themeManager.getIconShapeData().getValue();
         }
         if (!themeManager.isIconThemeEnabled()) {

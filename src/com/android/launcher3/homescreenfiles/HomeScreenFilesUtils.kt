@@ -16,6 +16,9 @@
 
 package com.android.launcher3.homescreenfiles
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
@@ -66,6 +69,15 @@ class HomeScreenFilesUtils {
                     else homeScreenFile?.mimeType,
                 )
             }
+
+        /** Copies a given [file] to the clipboard, returning success/failure. */
+        @JvmStatic
+        fun copyToClipboard(context: Context, file: HomeScreenFile): Boolean =
+            context.getSystemService(ClipboardManager::class.java)?.run {
+                val mimeType = if (file.isDirectory) MIME_TYPE_DIR else file.mimeType
+                setPrimaryClip(ClipData("", arrayOf(mimeType), ClipData.Item(file.uri)))
+                true
+            } == true
     }
 }
 
@@ -84,10 +96,8 @@ val ItemInfo.homeScreenFile: HomeScreenFile?
     }
 
 /** Returns whether an [ItemInfo] represents a file system item. */
-fun ItemInfo.isFileSystemItem(): Boolean = isFileSystemFileItem() || isFileSystemFolderItem()
-
-/** Returns whether an [ItemInfo] represents a file system file. */
-fun ItemInfo.isFileSystemFileItem(): Boolean = itemType == ITEM_TYPE_FILE_SYSTEM_FILE
+fun ItemInfo.isFileSystemItem(): Boolean =
+    itemType == ITEM_TYPE_FILE_SYSTEM_FILE || itemType == ITEM_TYPE_FILE_SYSTEM_FOLDER
 
 /** Returns whether an [ItemInfo] represents a file system folder. */
 fun ItemInfo.isFileSystemFolderItem(): Boolean = itemType == ITEM_TYPE_FILE_SYSTEM_FOLDER

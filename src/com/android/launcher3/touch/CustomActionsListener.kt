@@ -24,9 +24,12 @@ import com.android.launcher3.dragndrop.DragController
 import com.android.launcher3.dragndrop.DragOptions
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.ItemInfoWithIcon
+import com.android.launcher3.testing.TestLogging
+import com.android.launcher3.testing.shared.TestProtocol
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_LAUNCH
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_POPUP_MENU
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_START_DRAG
+import com.android.launcher3.touch.CustomActionsListener.Companion.ActionTrigger
 import com.android.launcher3.touch.CustomActionsListener.Companion.hasFlags
 import com.android.launcher3.util.ShortcutUtil
 import com.android.launcher3.views.BubbleTextHolder
@@ -45,14 +48,25 @@ interface CustomActionsListener {
      * @param view The view on which the actions are performed.
      * @param actionMask A bitmask representing the actions to be performed. See [Companion] for
      *   possible action flags.
+     * @param actionTrigger Indicates what triggered the actions to be performed.
      */
-    fun performActions(view: View, actionMask: Int)
+    fun performActions(
+        view: View,
+        actionMask: Int,
+        actionTrigger: ActionTrigger = ActionTrigger.UNSPECIFIED,
+    )
 
     /** Companion object containing action flags. */
     companion object {
         const val ACTION_POPUP_MENU = 1 shl 0
         const val ACTION_START_DRAG = 1 shl 1
         const val ACTION_LAUNCH = 1 shl 2
+
+        enum class ActionTrigger {
+            LONG_PRESS_EVENT,
+            RIGHT_CLICK_EVENT,
+            UNSPECIFIED,
+        }
 
         /** Checks if the mask contains ALL of the specified flags */
         fun hasFlags(mask: Int, flags: Int): Boolean {
@@ -73,7 +87,7 @@ internal val ItemInfoWithIcon.isNotPinnable: Boolean
 /** Base class for listeners that act on specific items (Icons, Folders, App Pairs). */
 abstract class BaseItemCustomActionsListener : CustomActionsListener {
 
-    final override fun performActions(view: View, actionMask: Int) {
+    final override fun performActions(view: View, actionMask: Int, actionTrigger: ActionTrigger) {
         val target = view.logicalTarget
         val btv = target.asBubbleTextView
 
@@ -81,7 +95,7 @@ abstract class BaseItemCustomActionsListener : CustomActionsListener {
             hasFlags(actionMask, ACTION_POPUP_MENU or ACTION_START_DRAG) ->
                 target.performLongClick()
             hasFlags(actionMask, ACTION_LAUNCH) -> target.performClick()
-            hasFlags(actionMask, ACTION_POPUP_MENU) -> onOpenPopupMenu(target, btv)
+            hasFlags(actionMask, ACTION_POPUP_MENU) -> onOpenPopupMenu(target, btv, actionTrigger)
             hasFlags(actionMask, ACTION_START_DRAG) -> onStartDrag(target, btv)
         }
     }
@@ -94,8 +108,9 @@ abstract class BaseItemCustomActionsListener : CustomActionsListener {
      * @param btv The [BubbleTextView] associated with the target, if it exists. Implementers should
      *   generally prefer using this view for operations that require a [BubbleTextView] or its
      *   [ItemInfo].
+     * @param actionTrigger Indicates what triggered this action.
      */
-    abstract fun onOpenPopupMenu(target: View, btv: BubbleTextView?)
+    abstract fun onOpenPopupMenu(target: View, btv: BubbleTextView?, actionTrigger: ActionTrigger)
 
     /**
      * Called to start a drag operation for the given target.
@@ -111,7 +126,7 @@ abstract class BaseItemCustomActionsListener : CustomActionsListener {
 
 /** Implementation of [CustomActionsListener] for widgets. */
 object WorkspaceWidgetCustomActionsListener : CustomActionsListener {
-    override fun performActions(view: View, actionMask: Int) {
+    override fun performActions(view: View, actionMask: Int, actionTrigger: ActionTrigger) {
         view as? LauncherAppWidgetHostView ?: return
         when (actionMask) {
             ACTION_POPUP_MENU or ACTION_START_DRAG -> view.onLongClick(view)
@@ -140,9 +155,16 @@ object WorkspaceWidgetCustomActionsListener : CustomActionsListener {
  * pairs).
  */
 object WorkspaceItemCustomActionsListener : BaseItemCustomActionsListener() {
-    override fun onOpenPopupMenu(target: View, btv: BubbleTextView?) {
+    override fun onOpenPopupMenu(target: View, btv: BubbleTextView?, actionTrigger: ActionTrigger) {
         val viewForPopup = btv ?: target
         val tag = viewForPopup.tag as? ItemInfo ?: return
+
+        when (actionTrigger) {
+            ActionTrigger.RIGHT_CLICK_EVENT ->
+                TestLogging.recordEvent(TestProtocol.SEQUENCE_MAIN, "onWorkspaceItemRightClick")
+            ActionTrigger.LONG_PRESS_EVENT,
+            ActionTrigger.UNSPECIFIED -> {}
+        }
 
         val launcher = Launcher.getLauncher(viewForPopup.context)
         if (ShortcutUtil.supportsShortcuts(tag)) {
@@ -169,11 +191,18 @@ object WorkspaceItemCustomActionsListener : BaseItemCustomActionsListener() {
 
 /** Implementation of [BaseItemCustomActionsListener] for AllApps items. */
 object AllAppsItemCustomActionsListener : BaseItemCustomActionsListener() {
-    override fun onOpenPopupMenu(target: View, btv: BubbleTextView?) {
+    override fun onOpenPopupMenu(target: View, btv: BubbleTextView?, actionTrigger: ActionTrigger) {
         if (btv == null) return
 
         // Allow the view to handle its own popup menu if it has a custom implementation.
         if (btv.showPopup() != null) return
+
+        when (actionTrigger) {
+            ActionTrigger.RIGHT_CLICK_EVENT ->
+                TestLogging.recordEvent(TestProtocol.SEQUENCE_MAIN, "onAllAppsItemRightClick")
+            ActionTrigger.LONG_PRESS_EVENT,
+            ActionTrigger.UNSPECIFIED -> {}
+        }
 
         Launcher.getLauncher(btv.context).popupControllerForAppIcons.show(btv)
     }

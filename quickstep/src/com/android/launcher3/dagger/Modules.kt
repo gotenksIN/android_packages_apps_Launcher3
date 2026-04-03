@@ -22,6 +22,7 @@ import android.net.Uri
 import android.os.SystemClock
 import android.uilatencystats.UiLatencyStatsManager
 import android.view.CrossWindowBlurListeners
+import android.view.SurfaceControl
 import com.android.app.displaylib.PerDisplayRepository
 import com.android.extensions.computercontrol.ComputerControlExtensions
 import com.android.internal.R
@@ -276,7 +277,7 @@ object SystemDragModule {
     ): SystemDragController =
         // TODO(b/456787959): Fix drop targets and enable for other contexts.
         if (enableSystemDrag() && context is Launcher) {
-            factory.create(HomeScreenFilesUtils.isFeatureEnabled)
+            factory.create(HomeScreenFilesUtils.isFeatureEnabled, { SurfaceControl.Transaction() })
         } else {
             SystemDragControllerStub()
         }

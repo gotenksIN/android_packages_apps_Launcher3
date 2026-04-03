@@ -124,4 +124,14 @@ class WorkspaceRepositoryImplTest {
 
         assertThat(result).containsExactly(widgetSpec)
     }
+
+    @Test
+    fun removeItem_delegatesToTransaction() = runTest {
+        // TODO b/457458301: implement
+    }
+
+    @Test
+    fun moveItem_delegatesToTransaction() = runTest {
+        // TODO b/457458301: implement
+    }
 }

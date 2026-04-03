@@ -510,7 +510,8 @@ public class DragController implements DragDriver.EventListener, TouchController
         mDragObject.dragSource.onDropCompleted(dropTarget, mDragObject, accepted);
     }
 
-    protected void exitDrag() { }
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
+    public void exitDrag() { }
 
     public void onAppsRemoved(Predicate<ItemInfo> matcher) {
         // Cancel the current drag if we are removing an app that we are dragging

@@ -124,6 +124,13 @@ object TestUtils {
                     AppWidgetProviderInfo().apply {
                         widgetCategory = category
                         provider = ComponentName.createRelative(PACKAGE_NAME, providerClassName)
+                        providerInfo =
+                            android.content.pm.ActivityInfo().apply {
+                                applicationInfo =
+                                    android.content.pm.ApplicationInfo().apply {
+                                        uid = userHandle.identifier * 100000
+                                    }
+                            }
                     }
                 ),
             sizeInfo =
