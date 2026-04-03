@@ -141,7 +141,7 @@ object PerDisplayRepositoriesModule {
         repositoryFactory.createOptional(
             "RecentsWindowManagerRepo",
             objectGetter = { it.recentsWindowManager },
-            optionalObjectGetter = { it.recentsWindowManagerHolder.value },
+            optionalObjectGetter = { it.fallbackWindowInterface.createdContainer },
         )
 
     @Provides

@@ -111,11 +111,13 @@
     <string name="app_added_to_taskbar" msgid="6348755169793615171">"టాస్క్‌బార్‌కు యాప్‌ను జోడించడం జరిగింది"</string>
     <string name="app_removed_from_taskbar" msgid="3471754847898675396">"టాస్క్‌బార్ నుండి యాప్‌ను తీసివేయడం జరిగింది"</string>
     <string name="remove_system_shortcut_label" msgid="3991201411148073972">"తీసివేయండి"</string>
+    <!-- no translation found for home_screen_files_context_menu_copy_label (8769381168712216221) -->
+    <skip />
     <string name="home_screen_files_context_menu_open_in_app_label" msgid="7930552598671791537">"తెరవండి"</string>
     <string name="home_screen_files_context_menu_rename_label" msgid="699579827537411711">"పేరు మార్చండి"</string>
     <string name="home_screen_files_context_menu_delete_permanently_label" msgid="8660443461874174185">"శాశ్వతంగా తొలగించండి"</string>
     <string name="home_screen_files_context_menu_move_to_trash_label" msgid="1145655050674479315">"ట్రాష్‌కు తరలించండి"</string>
-    <string name="home_screen_files_moved_to_trash_message" msgid="381256565590274395">"<xliff:g id="ITEM_NAME">%1$s</xliff:g>ను ట్రాష్‌కు తరలించడం జరిగింది"</string>
+    <string name="home_screen_files_moved_to_trash_message" msgid="2848141584483641247">"ఐటెమ్ ట్రాష్‌కు తరలించబడింది"</string>
     <string name="home_screen_files_move_to_trash_error_message" msgid="3836240816166417826">"ట్రాష్‌కు పంపడం సాధ్యం కాదు. ఏదో పొరపాటు జరిగింది."</string>
     <string name="home_screen_files_restore_from_trash_error_message" msgid="994941644161090497">"చర్య రద్దు చేయలేరు. రీస్టోర్ చేయడానికి Files యాప్‌నకు వెళ్లండి."</string>
     <string name="actions_popup_menu_button" msgid="2442187572711557413">"చర్యలు"</string>
@@ -265,6 +267,11 @@
     <string name="arch_shape_title" msgid="2213843822192871318">"ఆర్చ్"</string>
     <string name="create_new_folder_button_text" msgid="4037052463794735069">"కొత్త ఫోల్డర్"</string>
     <string name="default_new_folder_name" msgid="8821062664729412079">"కొత్త ఫోల్డర్"</string>
+    <string name="home_screen_files_rename_dialog_clear_button" msgid="1516608063079626727">"క్లియర్ చేయండి"</string>
+    <string name="home_screen_files_rename_dialog_neutral_button" msgid="961781261154618336">"రద్దు చేయండి"</string>
+    <string name="home_screen_files_rename_dialog_positive_button" msgid="6506701192246379747">"పేరు మార్చండి"</string>
+    <string name="home_screen_files_rename_dialog_file_title" msgid="3540941610992603887">"ఫైల్ పేరు మార్చండి"</string>
+    <string name="home_screen_files_rename_dialog_folder_title" msgid="2453152990256864379">"ఫోల్డర్ పేరు మార్చండి"</string>
     <string name="something_went_wrong" msgid="1492883246069060632">"ఏదో పొరపాటు జరిగింది"</string>
     <string name="organizer_create_screen_title" msgid="1052454457895703433">"స్క్రీన్‌ను క్రియేట్ చేయండి"</string>
     <string name="organizer_create_screen_description" msgid="3224132391919219061">"మీ ఫోన్ నుండి యాప్‌లను, విడ్జెట్‌లను జోడించడానికి ఒక కేటగిరీని ఎంచుకోండి"</string>

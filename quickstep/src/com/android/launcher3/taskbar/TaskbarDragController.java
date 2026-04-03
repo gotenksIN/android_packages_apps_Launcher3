@@ -375,6 +375,9 @@ public class TaskbarDragController extends DragController implements
         // Drag might be cancelled during the DragView animation, so check mIsPreDrag again.
         if (mIsInPreDrag) {
             callOnDragStart();
+            if (enableTaskbarDragAndDrop()) {
+                handleMoveEvent(mLastTouch.x, mLastTouch.y);
+            }
         }
     }
 
@@ -945,7 +948,8 @@ public class TaskbarDragController extends DragController implements
     }
 
     @Override
-    protected void exitDrag() {
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
+    public void exitDrag() {
         if (mDragObject != null && !mDisallowGlobalDrag) {
             mActivity.getDragLayer().removeView(mDragObject.dragView);
         }

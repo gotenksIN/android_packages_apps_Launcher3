@@ -280,7 +280,7 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
             Log.wtf(TAG, "Recents animation start has been pending for over "
                     + RECENTS_ANIMATION_START_TIMEOUT_MS + "ms");
             ActiveGestureProtoLogProxy.logRecentsAnimationStartTimedOut();
-            cleanUpRecentsAnimation(newCallbacks);
+            newCallbacks.onRecentsAnimationStartTimedOut();
         };
         mCallbacks.addListener(new RecentsAnimationCallbacks.RecentsAnimationListener() {
             @Override
@@ -356,6 +356,11 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
                     MAIN_EXECUTOR.getHandler().removeCallbacks(
                             recentsAnimationStartTimeoutCallback);
                 }
+                cleanUpRecentsAnimation(newCallbacks);
+            }
+
+            @Override
+            public void onRecentsAnimationStartTimedOut() {
                 cleanUpRecentsAnimation(newCallbacks);
             }
 
@@ -461,7 +466,7 @@ public class TaskAnimationManager implements RecentsAnimationCallbacks.RecentsAn
             mRecentsAnimationStartPending = getSystemUiProxy().startRecentsTransition(intent,
                     options, mCallbacks, gestureState.useSyntheticRecentsTransition(), null,
                     mDisplayId);
-            recentsWindowManager.showRecentsWindow(mCallbacks);
+            MAIN_EXECUTOR.execute(() -> recentsWindowManager.showRecentsWindow(mCallbacks));
         } else {
             mRecentsAnimationStartPending = getSystemUiProxy().startRecentsTransition(intent,
                     options, mCallbacks, false /* useSyntheticRecentsTransition */, null,

@@ -401,8 +401,15 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
             }
         }, this::shouldIgnoreTouchDown);
 
+        // Icon theme is only applied to workspace icons and not for all apps menu icons,
+        // so we only apply the outline color to themed workspace icons.
+        int outlineColor = ThemeManager.INSTANCE.get(context).isIconThemeEnabled()
+                && shouldUseTheme()
+                ? context.getColor(R.color.notification_dot_outline_themed) : Color.WHITE;
+
         mDotParams = new DotRenderer.DrawParams();
         mDotParams.setDotColor(Themes.getAttrColor(context, R.attr.notificationDotColor));
+        mDotParams.setOutlineColor(outlineColor);
 
         if (mDisplay == DISPLAY_ALL_APPS) {
             mDotRenderer = new DotRenderer(
@@ -641,7 +648,12 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         boolean isRecycled = getTag() != info;
         if (!isRecycled && getIcon() != null
                 && getIcon().getDelegate() instanceof AutomatedIconDelegate aid) {
-            aid.startExitAnimation(() -> setIcon(iconDrawable));
+            aid.startExitAnimation(() -> {
+                // Ensure view wasn't recycled for a different item while animation was running.
+                if (getTag() == info) {
+                    setIcon(iconDrawable);
+                }
+            });
             return;
         }
         setIcon(iconDrawable);
@@ -725,8 +737,8 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
 
     @UiThread
     public void applyLabel(ItemInfo info) {
-        applyLabel(info.title, info.contentDescription, Flags.useNewIconForArchivedApps()
-                && info instanceof ItemInfoWithIcon infoWithIcon
+        applyLabel(info.title, info.contentDescription,
+                info instanceof ItemInfoWithIcon infoWithIcon
                 && infoWithIcon.isInactiveArchive(), info.isDisabled());
     }
 
@@ -1118,8 +1130,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
                     getLineSpacingExtra());
             if (!TextUtils.equals(modifiedString, mLastModifiedText)) {
                 mLastModifiedText = modifiedString;
-                if (Flags.useNewIconForArchivedApps()
-                        && getTag() instanceof ItemInfoWithIcon infoWithIcon
+                if (getTag() instanceof ItemInfoWithIcon infoWithIcon
                         && infoWithIcon.isInactiveArchive()) {
                     setTextWithArchivingIcon(modifiedString);
                 } else {

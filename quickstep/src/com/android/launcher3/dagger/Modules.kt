@@ -22,7 +22,7 @@ import android.net.Uri
 import android.os.SystemClock
 import android.uilatencystats.UiLatencyStatsManager
 import android.view.CrossWindowBlurListeners
-import android.widget.ImageView
+import android.view.SurfaceControl
 import com.android.app.displaylib.PerDisplayRepository
 import com.android.extensions.computercontrol.ComputerControlExtensions
 import com.android.internal.R
@@ -30,31 +30,32 @@ import com.android.internal.policy.DesktopModeCompatPolicy
 import com.android.internal.util.LatencyTracker
 import com.android.launcher3.AbstractFloatingViewHelper
 import com.android.launcher3.Flags.enableSystemDrag
-import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.Launcher
 import com.android.launcher3.automation.AutomationRepository
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger
-import com.android.launcher3.concurrent.annotations.ThreadPool
 import com.android.launcher3.display.DisplayController
 import com.android.launcher3.display.DisplayControllerImpl
 import com.android.launcher3.dragndrop.SystemDragController
 import com.android.launcher3.dragndrop.SystemDragControllerImpl
 import com.android.launcher3.dragndrop.SystemDragControllerStub
-import com.android.launcher3.dragndrop.SystemDragListener
-import com.android.launcher3.homescreenfiles.EnvironmentWrapper
+import com.android.launcher3.homescreenfiles.HomeScreenFilesIconProvider
+import com.android.launcher3.homescreenfiles.HomeScreenFilesIconProviderImpl
 import com.android.launcher3.homescreenfiles.HomeScreenFilesMediaStoreProvider
 import com.android.launcher3.homescreenfiles.HomeScreenFilesNoOpProvider
 import com.android.launcher3.homescreenfiles.HomeScreenFilesProvider
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils
 import com.android.launcher3.icons.LauncherIconProvider
 import com.android.launcher3.icons.LauncherIconProviderImpl
-import com.android.launcher3.logging.StatsLogManager.StatsLogManagerFactory
+import com.android.launcher3.logging.StatsLogManager.StatsImpressionLogger
+import com.android.launcher3.logging.StatsLogManager.StatsLatencyLogger
+import com.android.launcher3.logging.StatsLogManager.StatsLogger
 import com.android.launcher3.model.WellbeingModel
 import com.android.launcher3.qsb.QsbAppWidgetHost
 import com.android.launcher3.qsb.QuickstepQsbHostImpl
 import com.android.launcher3.secondarydisplay.SecondaryDisplayDelegate
 import com.android.launcher3.secondarydisplay.SecondaryDisplayQuickstepDelegateImpl
 import com.android.launcher3.testing.TestInformationHandler
+import com.android.launcher3.uioverrides.QuickstepProvidersUpdateDispatcher
 import com.android.launcher3.uioverrides.QuickstepWidgetHolder.QuickstepWidgetHolderFactory
 import com.android.launcher3.uioverrides.SystemApiWrapper
 import com.android.launcher3.uioverrides.plugins.PluginManagerWrapperImpl
@@ -72,6 +73,7 @@ import com.android.launcher3.util.window.RefreshRateTracker
 import com.android.launcher3.util.window.WindowManagerProxy
 import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.widget.LauncherWidgetHolder.WidgetHolderFactory
+import com.android.launcher3.widget.ProvidersUpdateDispatcher
 import com.android.quickstep.AspectRatioSystemShortcut
 import com.android.quickstep.AutomationRepositoryImpl
 import com.android.quickstep.DesktopShortcut
@@ -82,7 +84,9 @@ import com.android.quickstep.QuickstepTestInformationHandler
 import com.android.quickstep.TaskShortcutFactory
 import com.android.quickstep.TaskUtils
 import com.android.quickstep.WellbeingShortcut
-import com.android.quickstep.logging.StatsLogCompatManager.StatsLogCompatManagerFactory
+import com.android.quickstep.logging.StatsLogCompatManager.StatsCompatImpressionLogger
+import com.android.quickstep.logging.StatsLogCompatManager.StatsCompatLatencyLogger
+import com.android.quickstep.logging.StatsLogCompatManager.StatsCompatLogger
 import com.android.quickstep.util.ChoreographerFrameRateTracker
 import com.android.quickstep.util.ContextualSearchStateManager
 import com.android.quickstep.util.GestureExclusionManager
@@ -95,7 +99,6 @@ import dagger.Module
 import dagger.Provides
 import dagger.multibindings.ElementsIntoSet
 import java.io.File
-import java.util.concurrent.ExecutorService
 import java.util.function.Consumer
 import javax.inject.Named
 
@@ -136,11 +139,17 @@ abstract class ActivityContextModule {
 }
 
 @Module
-abstract class ApiWrapperModule {
+abstract class StatsLoggerModule {
+    @Binds abstract fun bindStatsLogger(impl: StatsCompatLogger): StatsLogger
+
+    @Binds abstract fun bindStatsLatencyLogger(impl: StatsCompatLatencyLogger): StatsLatencyLogger
+
     @Binds
-    abstract fun bindStatsLogManagerFactory(
-        impl: StatsLogCompatManagerFactory
-    ): StatsLogManagerFactory
+    abstract fun bindStatsImpressionLogger(impl: StatsCompatImpressionLogger): StatsImpressionLogger
+}
+
+@Module
+abstract class ApiWrapperModule {
 
     @Binds abstract fun bindApiWrapper(systemApiWrapper: SystemApiWrapper): ApiWrapper
 
@@ -176,6 +185,11 @@ abstract class WidgetModule {
 
     @Binds
     abstract fun bindWidgetHolderFactory(factor: QuickstepWidgetHolderFactory): WidgetHolderFactory
+
+    @Binds
+    abstract fun bindUpdateDispatcher(
+        dispatcher: QuickstepProvidersUpdateDispatcher
+    ): ProvidersUpdateDispatcher
 }
 
 @Module
@@ -259,15 +273,11 @@ object SystemDragModule {
     @ActivityContextSingleton
     fun provideSystemDragController(
         context: ActivityContext,
-        idp: InvariantDeviceProfile,
+        factory: SystemDragControllerImpl.Factory,
     ): SystemDragController =
         // TODO(b/456787959): Fix drop targets and enable for other contexts.
         if (enableSystemDrag() && context is Launcher) {
-            SystemDragControllerImpl(
-                context,
-                { ctx, params -> SystemDragListener(ctx, idp, ::ImageView, params) },
-                HomeScreenFilesUtils.isFeatureEnabled,
-            )
+            factory.create(HomeScreenFilesUtils.isFeatureEnabled, { SurfaceControl.Transaction() })
         } else {
             SystemDragControllerStub()
         }
@@ -275,26 +285,20 @@ object SystemDragModule {
 
 /** A dagger module responsible for managing files on the home screen. */
 @Module
-object HomeScreenFilesModule {
-    @Provides
-    @LauncherAppSingleton
-    fun provideHomeScreenFilesProvider(
-        @ApplicationContext context: Context,
-        @ThreadPool executorService: ExecutorService,
-        environmentWrapper: EnvironmentWrapper,
-        tracker: DaggerSingletonTracker,
-    ): HomeScreenFilesProvider {
-        return if (HomeScreenFilesUtils.isFeatureEnabled) {
-            HomeScreenFilesMediaStoreProvider(
-                context,
-                executorService,
-                ::File,
-                environmentWrapper,
-                tracker,
-            )
-        } else {
-            HomeScreenFilesNoOpProvider()
-        }
+interface HomeScreenFilesModule {
+    @Binds
+    fun bindHomeScreenFilesIconProvider(
+        impl: HomeScreenFilesIconProviderImpl
+    ): HomeScreenFilesIconProvider
+
+    companion object {
+        @Provides
+        @LauncherAppSingleton
+        fun provideHomeScreenFilesProvider(
+            factory: HomeScreenFilesMediaStoreProvider.Factory
+        ): HomeScreenFilesProvider =
+            if (HomeScreenFilesUtils.isFeatureEnabled) factory.create(::File)
+            else HomeScreenFilesNoOpProvider()
     }
 }
 
@@ -306,8 +310,12 @@ object DesktopModule {
         DesktopModeCompatPolicy(context)
 
     @Provides
-    fun provideDesktopState(@ApplicationContext context: Context): DesktopState =
-        DesktopState.getInstance(context)
+    @LauncherAppSingleton
+    fun provideDesktopState(
+        @ApplicationContext context: Context,
+        lifecycle: DaggerSingletonTracker,
+    ): DesktopState =
+        DesktopState.fromContext(context).also { lifecycle.addCloseable { it.destroy() } }
 }
 
 @Module

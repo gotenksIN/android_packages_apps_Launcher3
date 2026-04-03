@@ -128,6 +128,7 @@ class PerDisplayTaskbarResource(
                 }
 
                 private fun onConfigurationChangedInternal(newConfig: Configuration) {
+                    if (isDestroyed) return
                     Trace.instantForTrack(
                         Trace.TRACE_TAG_APP,
                         "TaskbarManager",
@@ -191,6 +192,7 @@ class PerDisplayTaskbarResource(
     private fun removeExistingTaskbar() {
         taskbar?.onDestroy()
         taskbar = null
+        rootLayout.removeAllViews()
     }
 
     fun setCurrentTaskbar(activity: TaskbarActivityContext) {

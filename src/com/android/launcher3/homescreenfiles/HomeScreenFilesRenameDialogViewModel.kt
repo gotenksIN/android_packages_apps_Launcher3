@@ -17,29 +17,17 @@
 package com.android.launcher3.homescreenfiles
 
 import android.widget.Toast
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.TextFieldValue
 import com.android.launcher3.R
 import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.views.DialogViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-
-// Used to work around an issue where [androidx.compose.material3.OutlinedTextField] throws an
-// [android.content.res.Resources.NotFoundException] in tests due to common dependencies in both the
-// test and target apks. This should hypothetically be fixed by b/319712088 or by moving tests of
-// the [HomeScreenFilesRenameDialogView] out of the launcher process (b/450710219).
-typealias TextField =
-    @Composable (modifier: Modifier, value: String, onValueChange: (String) -> Unit) -> Unit
 
 /** Model for showing a home screen files rename dialog. */
 class HomeScreenFilesRenameDialogViewModel(
     activityContext: ActivityContext,
     file: HomeScreenFile,
     provider: HomeScreenFilesProvider,
-    val textField: TextField = { modifier, value, onValueChange ->
-        OutlinedTextField(modifier = modifier, value = value, onValueChange = onValueChange)
-    },
 ) :
     DialogViewModel<HomeScreenFilesRenameDialogViewModel>(
         title =
@@ -59,7 +47,7 @@ class HomeScreenFilesRenameDialogViewModel(
                 .asContext()
                 .getString(R.string.home_screen_files_rename_dialog_positive_button),
         onPositiveButtonClick = onPositiveButtonClick@{ viewModel ->
-                val name = viewModel.name.value.trim()
+                val name = viewModel.name.value.text.trim()
 
                 // TODO(b/489772913): Implement additional user input validation. Note that
                 //  [name] is also sanitized by the media provider downstream so this is
@@ -86,5 +74,5 @@ class HomeScreenFilesRenameDialogViewModel(
     ) {
 
     // The name which a [file] should be renamed to. Updated via user interaction with the dialog.
-    val name = MutableStateFlow(file.displayName)
+    val name = MutableStateFlow(TextFieldValue(text = file.displayName))
 }

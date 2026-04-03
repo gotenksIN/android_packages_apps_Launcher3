@@ -34,12 +34,14 @@ import com.android.internal.logging.InstanceId;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.LauncherSettings;
 import com.android.launcher3.R;
+import com.android.launcher3.Utilities;
 import com.android.launcher3.accessibility.BaseAccessibilityDelegate;
 import com.android.launcher3.logging.StatsLogManager;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.taskbar.bubbles.BubbleActivityStarter;
+import com.android.launcher3.util.IntSparseArrayMap;
 import com.android.launcher3.util.ShortcutUtil;
 import com.android.launcher3.views.BubbleTextHolder;
 import com.android.quickstep.SystemUiProxy;
@@ -56,9 +58,15 @@ import java.util.List;
 public class TaskbarShortcutMenuAccessibilityDelegate
         extends BaseAccessibilityDelegate<TaskbarActivityContext> {
 
+    /** Accessibility action for moving the window to the top or left for split-screen. */
     public static final int MOVE_TO_TOP_OR_LEFT = R.id.action_move_to_top_or_left;
+    /** Accessibility action for moving the window to the bottom or right for split-screen. */
     public static final int MOVE_TO_BOTTOM_OR_RIGHT = R.id.action_move_to_bottom_or_right;
     public static final int CREATE_APPLICATION_BUBBLE = R.id.action_create_application_bubble;
+    /** Accessibility action for moving the app icon to the left within the taskbar. */
+    public static final int MOVE_ITEM_TO_LEFT = R.id.action_move_item_left;
+    /** Accessibility action for moving the app icon to the right within the taskbar. */
+    public static final int MOVE_ITEM_TO_RIGHT = R.id.action_move_item_right;
 
     private final LauncherApps mLauncherApps;
     private final StatsLogManager mStatsLogManager;
@@ -79,6 +87,10 @@ public class TaskbarShortcutMenuAccessibilityDelegate
         mActions.put(CREATE_APPLICATION_BUBBLE, new LauncherAction(
                 CREATE_APPLICATION_BUBBLE, R.string.open_app_as_a_bubble,
                 KeyEvent.KEYCODE_L));
+        mActions.put(MOVE_ITEM_TO_LEFT, new LauncherAction(MOVE_ITEM_TO_LEFT,
+                R.string.action_move_item_left, KeyEvent.KEYCODE_L));
+        mActions.put(MOVE_ITEM_TO_RIGHT, new LauncherAction(MOVE_ITEM_TO_RIGHT,
+                R.string.action_move_item_right, KeyEvent.KEYCODE_R));
     }
 
     @Override
@@ -86,10 +98,38 @@ public class TaskbarShortcutMenuAccessibilityDelegate
         if (ShortcutUtil.supportsShortcuts(item)) {
             out.add(mActions.get(DEEP_SHORTCUTS));
         }
-        out.add(mActions.get(MOVE_TO_TOP_OR_LEFT));
-        out.add(mActions.get(MOVE_TO_BOTTOM_OR_RIGHT));
+        TaskbarControllers controllers = mContext.getControllers();
+        if (controllers.taskbarPopupController.canShowSplitScreenOptions()) {
+            boolean supportsSplitScreen = true;
+            if (item instanceof ItemInfoWithIcon info) {
+                supportsSplitScreen = !info.isNonResizeable();
+            }
+            if (supportsSplitScreen && controllers.uiController.getSplitMenuOptions()
+                    .findAny().isPresent()) {
+                // If split options are available, TalkBack supports BOTH top/left and bottom/right
+                // targets because the user initiates the split into one of these sides, and then
+                // chooses the second app.
+                out.add(mActions.get(MOVE_TO_TOP_OR_LEFT));
+                out.add(mActions.get(MOVE_TO_BOTTOM_OR_RIGHT));
+            }
+        }
+
         if (mContext.areAppBubblesSupported()) {
             out.add(mActions.get(CREATE_APPLICATION_BUBBLE));
+        }
+
+        if (item.container == LauncherSettings.Favorites.CONTAINER_HOTSEAT) {
+            TaskbarViewController taskbarViewController =
+                    controllers.taskbarViewController;
+            IntSparseArrayMap<ItemInfo> hotseatItems = taskbarViewController.getHotseatItems();
+            int index = taskbarViewController.getHotseatItemIndex(item);
+            boolean isRtl = Utilities.isRtl(mContext.getResources());
+            if (index > 0) {
+                out.add(mActions.get(isRtl ? MOVE_ITEM_TO_RIGHT : MOVE_ITEM_TO_LEFT));
+            }
+            if (index != -1 && index < hotseatItems.size() - 1) {
+                out.add(mActions.get(isRtl ? MOVE_ITEM_TO_LEFT : MOVE_ITEM_TO_RIGHT));
+            }
         }
     }
 
@@ -153,6 +193,17 @@ public class TaskbarShortcutMenuAccessibilityDelegate
                         instanceIds.first);
             }
             return true;
+        } else if (action == MOVE_ITEM_TO_LEFT || action == MOVE_ITEM_TO_RIGHT) {
+            if (item.container != LauncherSettings.Favorites.CONTAINER_HOTSEAT) {
+                return false;
+            }
+
+            boolean isRtl = Utilities.isRtl(mContext.getResources());
+            boolean moveLeft = (action == MOVE_ITEM_TO_LEFT && !isRtl)
+                    || (action == MOVE_ITEM_TO_RIGHT && isRtl);
+            TaskbarViewDragDropController dragDropController =
+                    mContext.getControllers().taskbarViewDragDropController;
+            return dragDropController.moveHotseatItem(item, moveLeft);
         }
         return false;
     }

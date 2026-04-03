@@ -66,6 +66,7 @@ import com.android.wm.shell.Flags
 import com.android.wm.shell.shared.animation.PhysicsAnimator
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation
 import com.android.wm.shell.shared.bubbles.ContextUtils.isRtl
+import java.io.PrintWriter
 import kotlin.math.max
 
 class TransientBubbleStashController
@@ -143,6 +144,9 @@ constructor(
     /** Determines whether stashing is allowed. */
     private val allowStashing: Boolean
         get() = launcherState == BubbleLauncherState.IN_APP
+
+    override val isStashingAllowed: Boolean
+        get() = allowStashing
 
     override var launcherState: BubbleLauncherState = BubbleLauncherState.IN_APP
         set(state) {
@@ -307,6 +311,7 @@ constructor(
             else -> 0
         }
 
+    // TODO (b/495910829) -- Fix up how bubble bar visibility is represented
     override fun isBubbleBarVisible(): Boolean = bubbleBarViewController.hasBubbles() && !isStashed
 
     override fun onNewBubbleAnimationInterrupted(isStashed: Boolean, bubbleBarTranslationY: Float) {
@@ -782,5 +787,10 @@ constructor(
     private fun BubbleBarLocation.isSameSideWith(anotherLocation: BubbleBarLocation): Boolean {
         val isRtl = context.isRtl
         return this.isOnLeft(isRtl) == anotherLocation.isOnLeft(isRtl)
+    }
+
+    override fun dump(pw: PrintWriter) {
+        super.dump(pw)
+        pw.println("  controllerType: transient")
     }
 }

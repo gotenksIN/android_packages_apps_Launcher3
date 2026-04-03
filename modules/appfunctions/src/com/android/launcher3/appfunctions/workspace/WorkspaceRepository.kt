@@ -38,31 +38,20 @@ interface WorkspaceRepository {
     suspend fun getInstalledApps(orderByUsageStats: Boolean): List<UnplacedAppSpec>
 
     /**
-     * Starts a new, atomic transaction for modifying the workspace.
+     * Lists all installed widgets on the device.
      *
-     * @return A [WorkspaceTransaction] handle to chain mutation operations.
+     * @param orderByUsageStats If true, orders widgets by usage; otherwise uses default order for
+     *   personalization.
+     * @return A list of [UnplacedWidgetSpec] representing the installed widgets.
      */
-    fun newTransaction(): WorkspaceTransaction
+    suspend fun getInstalledWidgets(orderByUsageStats: Boolean): List<UnplacedWidgetSpec>
 }
 
-/**
- * Represents a single, atomic "unit of work" for the workspace.
- *
- * All mutation operations are defined here and operate on the flat `Spec` types. The transaction
- * must be completed by calling [commit].
- */
 interface WorkspaceTransaction {
-
-    // Mutation methods can be added here, following a chained ("fluent") API style.
-    // For example:
-    // fun moveItem(item: WorkspaceItemSpec, newScreen: Int, newX: Int, newY: Int):
-    // WorkspaceTransaction
-    // fun addItem(item: WorkspaceItemSpec, screen: Int): WorkspaceTransaction
-
     /**
-     * Commits all the changes made in this transaction to the underlying model.
+     * Commits the changes made in this transaction to the underlying model.
      *
      * @return The new, updated [WorkspaceSpec] after the transaction is complete.
      */
-    suspend fun commit(): WorkspaceSpec
+    suspend fun execute(): WorkspaceSpec
 }

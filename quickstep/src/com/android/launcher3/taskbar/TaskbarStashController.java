@@ -27,13 +27,14 @@ import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCH
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_TRANSIENT_TASKBAR_SHOW;
 import static com.android.launcher3.statehandlers.DesktopVisibilityController.INACTIVE_DESK_ID;
 import static com.android.launcher3.taskbar.TaskbarActivityContext.ENABLE_TASKBAR_BEHIND_SHADE;
-import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.launcher3.util.FlagDebugUtils.appendFlag;
 import static com.android.launcher3.util.FlagDebugUtils.formatFlagChange;
 import static com.android.quickstep.util.SystemActionConstants.SYSTEM_ACTION_ID_TASKBAR;
 import static com.android.quickstep.util.SystemUiFlagUtils.isTaskbarHidden;
 import static com.android.systemui.shared.Flags.cueBarAceMigration;
+import static com.android.systemui.shared.Flags.selectiveDialogTaskbarStash;
+import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DIALOG_STASH_TASKBAR;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_BUBBLES_EXPANDED;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DIALOG_SHOWING;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DUAL_SHADE_ENABLED;
@@ -312,7 +313,6 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
         mAccessibilityManager = mActivity.getSystemService(AccessibilityManager.class);
         mStatePropertyHolder = new StatePropertyHolder(flags -> {
             if (!mActivity.isPrimaryDisplay()
-                    && enableAutoStashConnectedDisplayTaskbar.isTrue()
                     && (hasAnyFlag(FLAG_IN_DESKTOP_MODE_ON_CD) || hasAnyFlag(
                     FLAG_IN_SECONDARY_LAUNCHER_ON_CD))) {
                 return false;
@@ -381,7 +381,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
                 && !mTaskbarSharedState.getTaskbarWasPinned()
                 && mTaskbarSharedState.taskbarWasStashedAuto;
 
-        if (!mActivity.isPrimaryDisplay() && enableAutoStashConnectedDisplayTaskbar.isTrue()) {
+        if (!mActivity.isPrimaryDisplay()) {
             updateFlagForDesktopModeOnCD(/* fromInit= */ true);
 
             // Check if secondary launcher is currently visible (vs fullscreen app); required when
@@ -423,7 +423,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
     }
 
     void updateFlagForDesktopModeOnCD(boolean fromInit) {
-        if (mActivity.isPrimaryDisplay() || !enableAutoStashConnectedDisplayTaskbar.isTrue()) {
+        if (mActivity.isPrimaryDisplay()) {
             return;
         }
 
@@ -458,7 +458,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
             return false;
         }
         if (!mActivity.isPrimaryDisplay()) {
-            return enableAutoStashConnectedDisplayTaskbar.isTrue();
+            return true;
         }
         return !mActivity.isThreeButtonNav();
     }
@@ -753,7 +753,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
             return true;
         }
         if (!isPrimaryDisplay) {
-            return enableAutoStashConnectedDisplayTaskbar.isTrue();
+            return true;
         }
 
         final boolean isTaskbarPinningOnInDesktopMode =
@@ -788,8 +788,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
         if (shouldApplyState) {
             applyState();
         }
-        if (enableAutoStashConnectedDisplayTaskbar.isTrue()
-                && !mControllers.taskbarActivityContext.isPrimaryDisplay()) {
+        if (!mControllers.taskbarActivityContext.isPrimaryDisplay()) {
             mControllers.navbarButtonsViewController.setTaskbarStashedIfConnectedDisplay(
                     mIsStashed);
         }
@@ -886,7 +885,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
             createTransientAnimToIsStashed(mAnimator, isStashed, duration,
                     shouldDelayBackground, animationType);
         } else if (shouldAllowTaskbarToAutoStash()) {
-            if (enableAutoStashConnectedDisplayTaskbar.isTrue() && !mActivity.isPrimaryDisplay()) {
+            if (!mActivity.isPrimaryDisplay()) {
                 // Use stash to handle animation on connected displays.
                 createAnimToIsStashed(mAnimator, isStashed, duration, stashTranslation,
                         animationType);
@@ -1053,8 +1052,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
             );
 
             float newStashedTaskbarStashedHandleAlpha = 1;
-            if (enableAutoStashConnectedDisplayTaskbar.isTrue() && !mActivity.isPrimaryDisplay()
-                    && hasAnyFlag(FLAG_STASHED_DEVICE_LOCKED)) {
+            if (!mActivity.isPrimaryDisplay() && hasAnyFlag(FLAG_STASHED_DEVICE_LOCKED)) {
                 // On connected display, the Taskbar stashed handle remains hidden on lock screen.
                 newStashedTaskbarStashedHandleAlpha = 0;
             }
@@ -1419,7 +1417,8 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
                 ((systemUiStateFlags & SYSUI_STATE_DUAL_SHADE_ENABLED) != 0)
                         && mActivity.isDesktopFormFactor();
 
-        long stashMask = SYSUI_STATE_DIALOG_SHOWING;
+        long stashMask = selectiveDialogTaskbarStash()
+                ? SYSUI_STATE_DIALOG_STASH_TASKBAR : SYSUI_STATE_DIALOG_SHOWING;
         if (!ENABLE_TASKBAR_BEHIND_SHADE.isTrue() && !isDualShadeDesktop) {
             // Stash when the notification panel is visible, UNLESS:
             // 1. The "Taskbar behind shade" flag is enabled.
@@ -1514,8 +1513,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
 
         // The primary display's transient Taskbar flag isn't applicable for connected displays.
         if (hasAnyFlag(changedFlags, FLAG_STASHED_IN_APP_AUTO)
-                && (!enableAutoStashConnectedDisplayTaskbar.isTrue()
-                || mActivity.isPrimaryDisplay())) {
+                && mActivity.isPrimaryDisplay()) {
             mActivity.getStatsLogManager().logger().log(hasAnyFlag(FLAG_STASHED_IN_APP_AUTO)
                     ? LAUNCHER_TRANSIENT_TASKBAR_HIDE
                     : LAUNCHER_TRANSIENT_TASKBAR_SHOW);

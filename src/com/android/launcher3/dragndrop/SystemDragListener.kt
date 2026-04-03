@@ -29,16 +29,12 @@ import android.view.View.MeasureSpec.makeMeasureSpec
 import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.lifecycle.Lifecycle
-import com.android.launcher3.DropTarget.DragObject
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.icons.BitmapInfo
 import com.android.launcher3.views.ActivityContext
-
-/** Factory used to create listeners for system-level drag-and-drop. */
-fun interface SystemDragListenerFactory {
-
-    fun get(ctx: ActivityContext, params: SystemDragParams?): SystemDragListener
-}
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 
 /**
  * Listener for a single system-level drag-and-drop sequence.
@@ -48,28 +44,37 @@ fun interface SystemDragListenerFactory {
  * @param imageViewFactory The factory used to create image views.
  * @param params The parameters used for the sequence.
  */
-class SystemDragListener(
+class SystemDragListener
+@AssistedInject
+constructor(
     context: ActivityContext,
     private val idp: InvariantDeviceProfile,
-    private val imageViewFactory: (Context) -> ImageView,
-    private var params: SystemDragParams?,
+    @Assisted private val imageViewFactory: (Context) -> ImageView,
+    @Assisted private var params: SystemDragParams?,
 ) :
     BaseItemDragListener<ActivityContext>(
         /*previewRect=*/ Rect(),
         /*previewBitmapWidth=*/ 0,
         /*previewViewWidth*/ 0,
     ),
-    DragController.DragListener {
+    DragController.DragSessionListener {
 
     private var cleanupCallback: Runnable? = null
     private var dragImage: ImageView? = null
     private var dragView: DragView? = null
 
+    /** Callback for custom canceled drag animation. */
+    private var onDragEndedCallback: ((DragEvent, DragView?) -> Unit)? = null
+
+    fun setDragEndedCallback(callback: ((DragEvent, DragView?) -> Unit)?) {
+        onDragEndedCallback = callback
+    }
+
     init {
         val closeAllOpenViews = params?.closeAllOpenViews ?: true
         val isStarted = context.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
         initInternal(context, isStarted, closeAllOpenViews)
-        context.dragController.addDragListener(this)
+        context.dragController.addDragSessionListener(this)
     }
 
     /**
@@ -111,15 +116,23 @@ class SystemDragListener(
         }
 
     override fun onDrag(event: DragEvent): Boolean {
-        with(event) {
-            if (action == DragEvent.ACTION_DROP) {
+        when (event.action) {
+            DragEvent.ACTION_DRAG_ENDED -> {
+                onDragEndedCallback?.invoke(event, dragView)
+            }
+
+            DragEvent.ACTION_DROP -> {
+                // NOTE: The system-provided drag image will be hidden so make the launcher-provided
+                // drag image opaque. This allows the launcher to animate its own drag image back to
+                // its final position.
+                dragImage?.alpha = 1.0f
                 try {
                     (params?.dragInfo as? SystemDragItemInfo)?.apply {
                         payload =
                             SystemDragItemInfo.UriListPayload(
                                 permissions = mContext.requestDragAndDropPermissions(event),
                                 uriList =
-                                    clipData?.let { clipData ->
+                                    event.clipData?.let { clipData ->
                                         (0 until clipData.itemCount)
                                             .mapNotNull(clipData::getItemAt)
                                             .mapNotNull(ClipData.Item::getUri)
@@ -131,23 +144,13 @@ class SystemDragListener(
                     Log.e(TAG, "Unable to obtain URI permissions", e)
                 }
             }
-            // NOTE: The system-provided drag image will be hidden so make the launcher-provided
-            // drag image opaque. This allows the launcher to animate its own drag image back to its
-            // final position.
-            if (action == DragEvent.ACTION_DRAG_ENDED || action == DragEvent.ACTION_DROP) {
-                dragImage?.alpha = 1.0f
-            }
         }
         return super.onDrag(event)
     }
 
-    override fun onDragEnd() {
-        mContext.dragController.removeDragListener(this)
+    override fun onDragSessionEnd() {
+        mContext.dragController.removeDragSessionListener(this)
         postCleanup()
-    }
-
-    override fun onDragStart(dragObject: DragObject, options: DragOptions) {
-        // No-op
     }
 
     override fun startDrag(
@@ -234,5 +237,13 @@ class SystemDragListener(
 
     companion object {
         private const val TAG = "SystemDragListener"
+    }
+
+    @AssistedFactory
+    interface Factory {
+        fun create(
+            imageViewFactory: (Context) -> ImageView,
+            params: SystemDragParams?,
+        ): SystemDragListener
     }
 }

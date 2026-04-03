@@ -75,7 +75,6 @@ import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
-import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
@@ -507,6 +506,11 @@ public final class LauncherInstrumentation {
                 String.valueOf(mDisplayId));
         return bundle != null && bundle.getBoolean(
                 TestProtocol.TEST_INFO_RESPONSE_FIELD);
+    }
+
+    public boolean isDesktop() {
+        return getTestInfo(TestProtocol.REQUEST_IS_DESKTOP)
+                .getBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD);
     }
 
     public boolean isTablet() {
@@ -1620,9 +1624,17 @@ public final class LauncherInstrumentation {
     }
 
     LaunchedAppState assertAppLaunched(@NonNull String expectedPackageName) {
-        BySelector packageSelector = By.pkg(expectedPackageName);
-        assertTrue("App didn't start: (" + packageSelector + ")",
-                mDevice.wait(Until.hasObject(packageSelector),
+        return assertAppLaunched(expectedPackageName, null);
+    }
+
+    LaunchedAppState assertAppLaunched(
+            @NonNull String expectedPackageName, @Nullable String expectedVisibleText) {
+        BySelector selector = By.pkg(expectedPackageName);
+        if (expectedVisibleText != null) {
+            selector = selector.text(expectedVisibleText);
+        }
+        assertTrue("App didn't start: (" + selector + ")",
+                mDevice.wait(Until.hasObject(selector),
                         LauncherInstrumentation.WAIT_TIME_MS));
         return new LaunchedAppState(this);
     }
@@ -2024,26 +2036,6 @@ public final class LauncherInstrumentation {
         return getRealDisplaySize().x - getWindowInsets().right - 1;
     }
 
-    /**
-     * Click on the ui object right away without waiting for animation.
-     *
-     * [UiObject2.click] would wait for all animations finished before clicking. Not waiting for
-     * animations because in some scenarios there is a playing animations when the click is
-     * attempted.
-     */
-    void clickObject(UiObject2 uiObject) {
-        final long clickTime = SystemClock.uptimeMillis();
-        final Point center = uiObject.getVisibleCenter();
-        sendPointer(clickTime, clickTime, MotionEvent.ACTION_DOWN, center,
-                GestureScope.DONT_EXPECT_PILFER);
-        sendPointer(clickTime, clickTime, MotionEvent.ACTION_UP, center,
-                GestureScope.DONT_EXPECT_PILFER);
-    }
-
-    void clickLauncherObject(UiObject2 object) {
-        clickObject(object);
-    }
-
     void scrollToLastVisibleRow(
             UiObject2 container, Rect bottomVisibleIconBounds, int topPaddingInContainer,
             int appsListBottomPadding) {
@@ -2438,7 +2430,8 @@ public final class LauncherInstrumentation {
                 mTrackpadGestureType)
                 : getMotionEvent(downTime, currentTime, action, point.x, point.y, source, toolType);
         int button = isRightClick ? MotionEvent.BUTTON_SECONDARY : MotionEvent.BUTTON_PRIMARY;
-        if (action == MotionEvent.ACTION_BUTTON_PRESS) {
+        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE
+                || action == MotionEvent.ACTION_BUTTON_PRESS) {
             event.setButtonState(event.getButtonState() | button);
         }
         if (action == MotionEvent.ACTION_BUTTON_PRESS
@@ -2633,10 +2626,8 @@ public final class LauncherInstrumentation {
 
     /** Returns the bounds of the display as a Point where x is width and y is height. */
     Point getRealDisplaySize() {
-        final Rect displayBounds = getContext().getSystemService(WindowManager.class)
-                .getMaximumWindowMetrics()
-                .getBounds();
-        return new Point(displayBounds.width(), displayBounds.height());
+        return getTestInfo(TestProtocol.REQUEST_DISPLAY_BOUNDS)
+                .getParcelable(TEST_INFO_RESPONSE_FIELD, Point.class);
     }
 
     int getActionCornerPadding() {

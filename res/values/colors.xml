@@ -58,6 +58,8 @@
     <color name="notification_dot_color_light">#6DD58C</color>
     <color name="notification_dot_color_dark">#C4EED0</color>
 
+    <color name="notification_dot_outline_themed">@android:color/white</color>
+
     <color name="workspace_text_color_light">#FFF</color>
     <color name="workspace_text_color_dark">#FF000000</color>
 
@@ -278,4 +280,7 @@
 
     <color name="suw_all_set_expressive_theme_color">#ECDFE5</color>
     <color name="suw_all_set_scrim">#40000000</color>
+
+    <!-- Home screen files -->
+    <color name="home_screen_files_folder_icon_color">@color/system_primary_light</color>
 </resources>

@@ -28,6 +28,7 @@ import androidx.test.uiautomator.UiObject2;
 import com.android.launcher3.Flags;
 import com.android.launcher3.testing.shared.TestProtocol;
 
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
 /**
@@ -83,6 +84,8 @@ public abstract class AppIcon extends Launchable {
 
     protected abstract Pattern getLongClickEvent();
 
+    protected abstract Pattern getRightClickEvent();
+
     /**
      * Long-clicks the icon to open its menu.
      */
@@ -94,25 +97,28 @@ public abstract class AppIcon extends Launchable {
     }
 
     /**
-     * Long-clicks the icon to open its menu, and looks at the deep shortcuts container only.
+     * Long-clicks or right-clicks the icon to open its menu, and looks at the deep shortcuts
+     * container only.
      */
     public AppIconMenu openDeepShortcutMenu() {
+        final Function<String, UiObject2> getPopupContainer = (String resName) ->
+                mLauncher.isDesktop()
+                        ? mLauncher.rightClickAndGet(mObject, resName, getRightClickEvent())
+                        : mLauncher.clickAndGet(mObject, resName, getLongClickEvent());
+
         if (Flags.expandableLongPressMenu()) {
             try (LauncherInstrumentation.Closable e = mLauncher.eventsCheck()) {
-                final UiObject2 popupContainer = mLauncher
-                        .clickAndGet(mObject, "popup_container", getLongClickEvent());
+                final UiObject2 popupContainer = getPopupContainer.apply("popup_container");
                 final UiObject2 expandAppShortcuts = popupContainer.findObject(
                         By.text("Shortcuts"));
                 if (expandAppShortcuts != null) {
                     expandAppShortcuts.click();
                 }
-
                 return createMenu(
                         mLauncher.waitForLauncherObject(TestProtocol.DEEP_SHORTCUTS_CONTAINER));
             }
         } else {
-            return createMenu(mLauncher.clickAndGet(mObject,
-                    /* resName= */ TestProtocol.DEEP_SHORTCUTS_CONTAINER, getLongClickEvent()));
+            return createMenu(getPopupContainer.apply(TestProtocol.DEEP_SHORTCUTS_CONTAINER));
         }
     }
 

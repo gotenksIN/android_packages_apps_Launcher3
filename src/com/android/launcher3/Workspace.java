@@ -20,6 +20,7 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_FOLDER;
 import static com.android.launcher3.AbstractFloatingView.TYPE_WIDGET_RESIZE_FRAME;
 import static com.android.launcher3.BubbleTextView.DISPLAY_FOLDER;
 import static com.android.launcher3.Flags.enableCursorDrivenWorkflows;
+import static com.android.launcher3.Flags.enableDragStartEndMultiDispatch;
 import static com.android.launcher3.Flags.enableFileSystemFoldersAsDropTargets;
 import static com.android.launcher3.Flags.enableSystemDragToOtherApps;
 import static com.android.launcher3.Flags.enableTaskbarDragAndDrop;
@@ -185,8 +186,9 @@ import java.util.function.Predicate;
  */
 public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         implements DropTarget, DragSource, View.OnTouchListener, CellLayoutContainer,
-        DragController.DragListener, Insettable, StateHandler<LauncherState>,
-        WorkspaceLayoutManager, LauncherBindableItemsContainer, LauncherOverlayCallbacks {
+        DragController.DragListener, DragController.DragSessionListener, Insettable,
+        StateHandler<LauncherState>, WorkspaceLayoutManager, LauncherBindableItemsContainer,
+        LauncherOverlayCallbacks {
 
     /**
      * The value that {@link #mTransitionProgress} must be greater than for
@@ -335,18 +337,60 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
     private final MSDLPlayerWrapper mMSDLPlayerWrapper;
 
+    /**
+     * State tracking accessibility focus for items being moved.
+     * @param movedItemCell the item being moved
+     * @param deferAccessibilityFocus defers focus to the layout transition end
+     * if a screen is removed.
+     */
+    private record MoveItemA11yState(View movedItemCell, boolean deferAccessibilityFocus) {}
+
+    private MoveItemA11yState mMoveItemA11yState = new MoveItemA11yState(
+        /* movedItemCell= */ null,
+        /* deferAccessibilityFocus= */ false);
+
+    @VisibleForTesting
+    public void setMoveItemA11yState(View movedItemCell, boolean deferAccessibilityFocus) {
+        mMoveItemA11yState = new MoveItemA11yState(movedItemCell, deferAccessibilityFocus);
+    }
+
     private final StateManager.StateListener<LauncherState> mAccessibilityDropListener =
             new StateListener<>() {
                 @Override
                 public void onStateTransitionComplete(LauncherState finalState) {
                     if (finalState == NORMAL) {
-                        ViewEx.performAccessibilityActionOnViewTree(Workspace.this);
+                        if (!mMoveItemA11yState.deferAccessibilityFocus()
+                                && mMoveItemA11yState.movedItemCell() != null) {
+                            requestA11yFocusOnMovedItem();
+                            Utilities.debugLog(TAG, "Requested talkback focus after anim ends");
+                        }
+                    }
+                }
+            };
+
+    @VisibleForTesting
+    public StateManager.StateListener<LauncherState> getAccessibilityDropListener() {
+        return mAccessibilityDropListener;
+    }
+
+    private final LayoutTransition.TransitionListener mTransitionListener =
+            new LayoutTransition.TransitionListener() {
+                @Override
+                public void startTransition(LayoutTransition transition, ViewGroup container,
+                        View view, int transitionType) {
+                }
+
+                @Override
+                public void endTransition(LayoutTransition transition, ViewGroup container,
+                        View view, int transitionType) {
+                    if (!transition.isRunning()) {
+                        onLayoutTransitionEnd();
                     }
                 }
             };
 
     @Nullable
-    private DragController.DragListener mAccessibilityDragListener;
+    private DragController.DragSessionListener mAccessibilityDragListener;
 
     /**
      * Used to inflate the Workspace from XML.
@@ -518,9 +562,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     }
 
     @Override
-    public void onDragStart(DragObject dragObject, DragOptions options) {
+    public void onDragSessionStart(DragObject dragObject, DragOptions options) {
         if (ENFORCE_DRAG_EVENT_ORDER) {
-            enforceDragParity("onDragStart", 0, 0);
+            enforceDragParity("onDragSessionStart", 0, 0);
         }
 
         if (mDragInfo != null && mDragInfo.cell != null) {
@@ -561,16 +605,35 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         }
 
         if (mAccessibilityDragListener != null) {
-            mAccessibilityDragListener.onDragStart(dragObject, options);
+            mAccessibilityDragListener.onDragSessionStart(dragObject, options);
         }
-        if (!mLauncher.isInState(EDIT_MODE)) {
-            mLauncher.getStateManager().goToState(
-                    (enableCursorDrivenWorkflows() && options.isMouseDrag)
-                            ? DESKTOP_DRAG_MODE : SPRING_LOADED);
+
+        if (!enableDragStartEndMultiDispatch()) {
+            if (!mLauncher.isInState(EDIT_MODE)) {
+                mLauncher.getStateManager().goToState(
+                        (enableCursorDrivenWorkflows() && options.isMouseDrag)
+                                ? DESKTOP_DRAG_MODE : SPRING_LOADED);
+            }
         }
+
         mStatsLogManager.logger().withItemInfo(dragObject.dragInfo)
                 .withInstanceId(dragObject.logInstanceId)
                 .log(LauncherEvent.LAUNCHER_ITEM_DRAG_STARTED);
+    }
+
+    @Override
+    public void onDragStart(DragObject dragObject, DragOptions options) {
+        if (ENFORCE_DRAG_EVENT_ORDER) {
+            enforceDragParity("onDragStart", 0, 0);
+        }
+
+        if (enableDragStartEndMultiDispatch()) {
+            if (!mLauncher.isInState(EDIT_MODE)) {
+                mLauncher.getStateManager().goToState(
+                        (enableCursorDrivenWorkflows() && options.isMouseDrag)
+                                ? DESKTOP_DRAG_MODE : SPRING_LOADED);
+            }
+        }
     }
 
     private boolean isTwoPanelEnabled() {
@@ -585,6 +648,19 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     public void onDragEnd() {
         if (ENFORCE_DRAG_EVENT_ORDER) {
             enforceDragParity("onDragEnd", 0, 0);
+        }
+
+        if (enableDragStartEndMultiDispatch()) {
+            if (!mLauncher.isInState(EDIT_MODE)) {
+                mLauncher.getStateManager().goToState(NORMAL);
+            }
+        }
+    }
+
+    @Override
+    public void onDragSessionEnd() {
+        if (ENFORCE_DRAG_EVENT_ORDER) {
+            enforceDragParity("onDragSessionEnd", 0, 0);
         }
 
         updateChildrenLayersEnabled();
@@ -602,8 +678,9 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         });
 
         if (mAccessibilityDragListener != null) {
-            mAccessibilityDragListener.onDragEnd();
+            mAccessibilityDragListener.onDragSessionEnd();
         }
+
         mDragInfo = null;
         mDragSourceInternal = null;
     }
@@ -637,6 +714,27 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         mLayoutTransition.disableTransitionType(LayoutTransition.APPEARING);
         mLayoutTransition.disableTransitionType(LayoutTransition.CHANGE_APPEARING);
         setLayoutTransition(mLayoutTransition);
+    }
+
+    /**
+     * Called when the layout transition (e.g. screen removal) has finished animating.
+     */
+    @VisibleForTesting
+    public void onLayoutTransitionEnd() {
+        if (mMoveItemA11yState.deferAccessibilityFocus()
+                && mMoveItemA11yState.movedItemCell() != null) {
+            requestA11yFocusOnMovedItem();
+            Utilities.debugLog(TAG, "Requested talkback focus after layout transition ends");
+        }
+    }
+
+    private void requestA11yFocusOnMovedItem() {
+        View toFocusCell = mMoveItemA11yState.movedItemCell();
+        toFocusCell.performAccessibilityAction(
+                AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null);
+        mMoveItemA11yState = new MoveItemA11yState(
+            /* movedItemCell= */ null,
+            /* deferAccessibilityFocus= */ false);
     }
 
     void enableLayoutTransitions() {
@@ -920,6 +1018,21 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         if (onComplete != null) {
             onComplete.run();
         }
+    }
+
+    /**
+     * Returns true if the page at the given index will become empty after an item is removed.
+     */
+    private boolean willPageBeEmptyAfterItemRemoval(int pageIndex) {
+        CellLayout page = (CellLayout) getChildAt(pageIndex);
+        if (page != null) {
+            int itemsOnPage = page.getShortcutsAndWidgets().getChildCount();
+            Utilities.debugLog(TAG,
+                "willPageBeEmptyAfterItemRemoval itemsOnPage num " + itemsOnPage);
+            // If only one or less item is left, removing it will make the page empty.
+            return itemsOnPage <= 1;
+        }
+        return false;
     }
 
     public boolean hasExtraEmptyScreens() {
@@ -1495,12 +1608,16 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
         mWallpaperOffset.setWindowToken(getWindowToken());
         computeScroll();
         mLauncher.getStateManager().addStateListener(mAccessibilityDropListener);
+        mLayoutTransition.addTransitionListener(mTransitionListener);
     }
 
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         mWallpaperOffset.setWindowToken(null);
         mLauncher.getStateManager().removeStateListener(mAccessibilityDropListener);
+        if (mLayoutTransition != null) {
+            mLayoutTransition.removeTransitionListener(mTransitionListener);
+        }
     }
 
     @Override
@@ -2247,8 +2364,17 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             onDropExternal(touchXY, dropTargetLayout, d);
         } else {
             final View cell = mDragInfo.cell;
+            if (mDragInfo != null) {
+                int sourceScreenId = mDragInfo.screenId;
+                int sourcePageIndex = getPageIndexForScreenId(sourceScreenId);
+                // Now you have the source page index
+                boolean deferAccessibilityFocus = willPageBeEmptyAfterItemRemoval(sourcePageIndex);
+                View movedItemCell = cell;
+                mMoveItemA11yState = new MoveItemA11yState(
+                    /* movedItemCell= */ movedItemCell,
+                    /* deferAccessibilityFocus= */ deferAccessibilityFocus);
+            }
             boolean droppedOnOriginalCellDuringTransition = false;
-
             if (dropTargetLayout != null && !d.cancelled) {
                 // Move internally
                 boolean hasMovedLayouts = (getParentCellLayoutForView(cell) != dropTargetLayout);
@@ -2446,15 +2572,6 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             }
             mStatsLogManager.logger().withItemInfo(d.dragInfo).withInstanceId(d.logInstanceId)
                     .log(LauncherEvent.LAUNCHER_ITEM_DROP_COMPLETED);
-
-            if (mAccessibilityDragListener != null) {
-                // This code needs to be called after StateManager.cancelAnimation. Before changing
-                // the order of operations in this method related to the StateListener below, please
-                // test that accessibility moves retain focus after accessibility dropping an item.
-                // Accessibility focus must be requested after launcher is back to a normal state
-                cell.setTag(R.id.perform_a11y_action_on_launcher_state_normal_tag,
-                        AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS);
-            }
         }
 
         if (d.stateAnnouncer != null && !droppedOnOriginalCell) {

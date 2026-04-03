@@ -45,9 +45,11 @@ import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherModel;
 import com.android.launcher3.LauncherSettings;
+import com.android.launcher3.allapps.AllAppsStore;
 import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.ItemInfo;
+import com.android.launcher3.model.data.TaskItemInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.PinToTaskbarShortcut;
 import com.android.launcher3.popup.Popup;
@@ -139,9 +141,7 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
         // here will reflect in the popup
         ArrayList<SystemShortcut.Factory<BaseTaskbarContext>> shortcuts = new ArrayList<>();
         shortcuts.add(APP_INFO);
-        if (mControllers.taskbarStashController.isInOverview()
-            ||!mControllers.taskbarDesktopModeController
-                .shouldShowDesktopTasksInTaskbar(mContext.getDisplayId())) {
+        if (canShowSplitScreenOptions()) {
             shortcuts.addAll(mControllers.uiController.getSplitMenuOptions().toList());
         }
         if (mControllers.taskbarActivityContext.areAppBubblesSupported()) {
@@ -418,8 +418,15 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
             return null;
         }
         if (LauncherModel.useModelRepositoryBinding()) {
-            return mContext.getActivityComponent().getAppsStore().getApp(key);
+            AllAppsStore appsStore = mContext.getActivityComponent().getAppsStore();
+            AppInfo app = appsStore.getApp(key);
+            if (app != null) {
+                return app;
+            }
+
+            return appsStore.getApp(key, AppInfo.PACKAGE_KEY_COMPARATOR);
         }
+
         AppInfo tempInfo = new AppInfo();
         tempInfo.componentName = key.componentName;
         tempInfo.user = key.user;
@@ -523,8 +530,11 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
     private boolean shouldShowMultiInstanceOptions(ItemInfo itemInfo) {
         ComponentKey key = itemInfo.getComponentKey();
         AppInfo app = getApp(key);
+        // When a running tasks icon is associated with an item info by looking it up in appsStore,
+        // it ends up having CONTAINER_ALL_APPS item info even if it's at the unpinned running apps
+        // area. Adding a TaskItemInfo check to avoid running apps being filtered out.
         return app != null && app.supportsMultiInstance()
-                && itemInfo.container != CONTAINER_ALL_APPS;
+                && (itemInfo instanceof TaskItemInfo || itemInfo.container != CONTAINER_ALL_APPS);
     }
 
     protected static boolean canPinAppWithContextMenu(TaskbarActivityContext context) {
@@ -538,6 +548,15 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
     @AnyThread
     public static boolean canPinAppsOverflow() {
         return enableOverflowButtonForTaskbarPinnedItems();
+    }
+
+    /**
+     * Returns whether the Taskbar context menu supports showing split screen options.
+     */
+    public boolean canShowSplitScreenOptions() {
+        return mControllers.taskbarStashController.isInOverview()
+                || !mControllers.taskbarDesktopModeController
+                .shouldShowDesktopTasksInTaskbar(mContext.getDisplayId());
     }
 
     /**

@@ -67,6 +67,7 @@ public final class Workspace extends Home {
             "Key event: KeyEvent.*?action=ACTION_UP.*?keyCode=KEYCODE_W"
                     + ".*?metaState=META_CTRL_ON");
     static final Pattern LONG_CLICK_EVENT = Pattern.compile("onWorkspaceItemLongClick");
+    static final Pattern RIGHT_CLICK_EVENT = Pattern.compile("onWorkspaceItemRightClick");
     public static final int MAX_WORKSPACE_DRAG_TRIES = 100;
 
     private final UiObject2 mHotseat;
@@ -492,7 +493,7 @@ public final class Workspace extends Home {
             final UiObject2 confirm = device.findObject(By.text(Pattern.compile(
                     "OK|Uninstall", Pattern.CASE_INSENSITIVE)));
             assertNotNull("Confirm button is not shown", confirm);
-            launcher.clickObject(confirm);
+            confirm.click();
             assertTrue("Uninstall alert is not dismissed after clicking confirm button",
                     device.wait(Until.gone(installerAlert), LauncherInstrumentation.WAIT_TIME_MS));
 
@@ -862,7 +863,7 @@ public final class Workspace extends Home {
     protected String getSwipeHeightRequestName() {
         return mLauncher.isRecentsWindowEnabled()
                 ? super.getSwipeHeightRequestName()
-                : TestProtocol.REQUEST_HOME_TO_OVERVIEW_SWIPE_HEIGHT;
+                : TestProtocol.REQUEST_SWIPE_TO_OVERVIEW_HEIGHT;
     }
 
     @Override

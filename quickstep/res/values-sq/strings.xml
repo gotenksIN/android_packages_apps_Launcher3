@@ -111,6 +111,7 @@
     <string name="blocked_by_policy" msgid="2071401072261365546">"Ky veprim nuk lejohet nga aplikacioni ose organizata jote"</string>
     <string name="split_widgets_not_supported" msgid="1355743038053053866">"Miniaplikacionet nuk mbështeten për momentin. Zgjidh një aplikacion tjetër"</string>
     <string name="action_image_copy" msgid="6877540054727709339">"Kopjo"</string>
+    <string name="action_image_save" msgid="6205538612408306742">"Ruaj"</string>
     <string name="accessibility_rotate_button" msgid="4771825231336502943">"Rrotullo ekranin"</string>
     <string name="taskbar_edu_swipe_animation_description" msgid="1690727240826006218">"Animacioni që tregon se si shfaqet shiriti i detyrave nga fundi i ekranit dhe si fshihet automatikisht kur nuk është në përdorim"</string>
     <string name="taskbar_edu_pinning_animation_description" msgid="8148601093590683880">"Animacioni që tregon se si të gozhdosh shiritin e detyrave duke përdorur një çelës, në mënyrë që shiriti i detyrave të qëndrojë përgjithmonë i dukshëm në fund të ekranit"</string>
@@ -153,6 +154,8 @@
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Lëviz në krye/majtas"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Lëviz në fund/djathtas"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"Hap aplikacionin si një flluskë"</string>
+    <string name="action_move_item_left" msgid="1553114361342866236">"Zhvendose artikullin në të majtë"</string>
+    <string name="action_move_item_right" msgid="682950193875586183">"Zhvendose artikullin në të djathtë"</string>
     <string name="quick_switch_pane_title" msgid="4677158207760585812">"Aplikacionet e fundit"</string>
     <string name="quick_switch_content_description" msgid="2851244536728720005">"Lista e aplikacioneve të fundit"</string>
     <string name="quick_switch_overflow" msgid="3679780650881041632">"{count,plural, =1{aplikacion tjetër}other{aplikacione të tjera}}"</string>

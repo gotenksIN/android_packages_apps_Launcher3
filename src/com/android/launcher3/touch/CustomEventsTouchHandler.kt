@@ -27,6 +27,7 @@ import com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_LAUNCH
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_POPUP_MENU
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_START_DRAG
+import com.android.launcher3.touch.CustomActionsListener.Companion.ActionTrigger
 import com.android.launcher3.util.TouchUtil
 import kotlin.math.abs
 
@@ -68,6 +69,9 @@ class CustomEventsTouchHandler(
 
     override var customActionsListener: CustomActionsListener? = null
 
+    // Whether mouse will drag via long-press-and-drag instead of immediate click-and-drag.
+    public var enableMouseLongPressForDrag = false
+
     /**
      * Processes a touch event.
      *
@@ -95,7 +99,7 @@ class CustomEventsTouchHandler(
             return true
         }
 
-        if (shouldStartMouseDrag(event)) {
+        if (shouldStartMouseDrag(event) && !enableMouseLongPressForDrag) {
             performActions(ACTION_START_DRAG)
             return true
         }
@@ -109,7 +113,12 @@ class CustomEventsTouchHandler(
         downY = event.y
         if (TouchUtil.isMouseRightClickDownOrMove(event)) {
             isRightClickActive = true
-            performActions(ACTION_POPUP_MENU)
+            // Send a CANCEL action so that additional gestures aren't triggered (i.e. long-press).
+            val cancelEvent =
+                MotionEvent.obtain(event).apply { this.action = MotionEvent.ACTION_CANCEL }
+            gestureDetector.onTouchEvent(cancelEvent)
+            cancelEvent.recycle()
+            performActions(ACTION_POPUP_MENU, ActionTrigger.RIGHT_CLICK_EVENT)
         }
         return true
     }
@@ -117,6 +126,8 @@ class CustomEventsTouchHandler(
     override fun onLongPress(event: MotionEvent) {
         if (!isMouseEvent(event)) {
             performActions(ACTION_POPUP_MENU or ACTION_START_DRAG)
+        } else if (enableMouseLongPressForDrag) {
+            performActions(ACTION_START_DRAG)
         }
     }
 
@@ -125,8 +136,11 @@ class CustomEventsTouchHandler(
         return true
     }
 
-    private fun performActions(actionMask: Int) {
-        customActionsListener?.performActions(view, actionMask)
+    private fun performActions(
+        actionMask: Int,
+        actionTrigger: ActionTrigger = ActionTrigger.UNSPECIFIED,
+    ) {
+        customActionsListener?.performActions(view, actionMask, actionTrigger)
     }
 
     private fun shouldStartMouseDrag(event: MotionEvent): Boolean {

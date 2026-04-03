@@ -28,6 +28,7 @@ import com.android.launcher3.LauncherPrefs.Companion.TASKBAR_PINNING
 import com.android.launcher3.LauncherPrefs.Companion.TASKBAR_PINNING_IN_DESKTOP_MODE
 import com.android.launcher3.QuickstepTransitionManager.PINNED_TASKBAR_TRANSITION_DURATION
 import com.android.launcher3.R
+import com.android.launcher3.desktop.DesktopStateProvider.getDesktopState
 import com.android.launcher3.statehandlers.DesktopVisibilityController
 import com.android.launcher3.taskbar.StashedHandleViewController.ALPHA_INDEX_STASHED
 import com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_BUBBLES
@@ -62,10 +63,12 @@ import com.android.launcher3.taskbar.rules.TaskbarUnitTestRule.UserSetupMode
 import com.android.launcher3.taskbar.rules.TaskbarWindowSandboxContext
 import com.android.launcher3.util.Executors.getTaskbarUiThread
 import com.android.launcher3.util.RoboApiWrapper.convertToSpy
+import com.android.systemui.shared.Flags.FLAG_SELECTIVE_DIALOG_TASKBAR_STASH
 import com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_BUBBLES_EXPANDED
+import com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DIALOG_SHOWING
+import com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DIALOG_STASH_TASKBAR
 import com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_IME_VISIBLE
 import com.android.wm.shell.Flags.FLAG_ENABLE_BUBBLE_BAR
-import com.android.wm.shell.shared.desktopmode.DesktopState
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
@@ -778,7 +781,7 @@ class TaskbarStashControllerTest {
     @Test
     @TaskbarMode(THREE_BUTTONS)
     fun testThreeButtonsTaskbarOnHome_homeShownBehindDesktop_showsIconsAndBg() {
-        val desktopState = DesktopState.getInstance(activityContext)
+        val desktopState = activityContext.getDesktopState()
         desktopState.convertToSpy()
         doReturn(true).whenever(desktopState).shouldShowHomeBehindDesktop
         LauncherPrefs.get(context).put(TASKBAR_PINNING_IN_DESKTOP_MODE, false)
@@ -961,6 +964,32 @@ class TaskbarStashControllerTest {
             .updateViewLayout(any(), wmLayoutParamsCaptor.capture())
         assertThat(isNavBarForciblyShown(wmLayoutParamsCaptor.lastValue.forciblyShownTypes))
             .isFalse()
+    }
+
+    @Test
+    @TaskbarMode(PINNED)
+    @EnableFlags(FLAG_SELECTIVE_DIALOG_TASKBAR_STASH)
+    fun testUpdateStateForSysuiFlags_selectiveStashingEnabled_stashesOnlyOnNewFlag() {
+        runOnTaskbarUiThreadSync {
+            stashController.updateStateForFlag(FLAG_IN_APP, true)
+            stashController.applyState(0)
+        }
+        assertThat(stashController.isStashed).isFalse()
+
+        // Only SYSUI_STATE_DIALOG_SHOWING is set. Should NOT stash.
+        runOnTaskbarUiThreadSync {
+            stashController.updateStateForSysuiFlags(SYSUI_STATE_DIALOG_SHOWING.toLong(), false)
+            animatorTestRule.advanceTimeBy(TASKBAR_STASH_DURATION)
+        }
+        assertThat(stashController.isStashed).isFalse()
+
+        // SYSUI_STATE_DIALOG_STASH_TASKBAR is set. Should stash.
+        runOnTaskbarUiThreadSync {
+            stashController.updateStateForSysuiFlags(SYSUI_STATE_DIALOG_STASH_TASKBAR, false)
+
+            animatorTestRule.advanceTimeBy(TASKBAR_STASH_DURATION)
+        }
+        assertThat(stashController.isStashed).isTrue()
     }
 
     private fun isNavBarForciblyShown(forciblyShownTypes: Int): Boolean =

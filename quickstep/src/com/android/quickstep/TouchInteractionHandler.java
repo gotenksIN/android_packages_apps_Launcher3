@@ -29,7 +29,6 @@ import static com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
 import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_NAVIGATION_MODE;
 import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_NIGHT_MODE;
-import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar;
 import static com.android.launcher3.util.OnboardingPrefs.HOME_BOUNCE_SEEN;
 import static com.android.launcher3.util.window.WindowManagerProxy.MIN_TABLET_WIDTH;
 import static com.android.quickstep.GestureState.DEFAULT_STATE;
@@ -72,6 +71,8 @@ import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StatefulActivity;
 import com.android.launcher3.taskbar.TaskbarActivityContext;
 import com.android.launcher3.taskbar.TaskbarManager;
+import com.android.launcher3.taskbar.TaskbarUiState;
+import com.android.launcher3.taskbar.TaskbarUiStateMonitor;
 import com.android.launcher3.taskbar.bubbles.BubbleControllers;
 import com.android.launcher3.testing.TestLogging;
 import com.android.launcher3.testing.shared.TestProtocol;
@@ -229,6 +230,7 @@ public class TouchInteractionHandler extends ContextWrapper {
             ActiveTrackpadList activeTrackpadList,
             DisplayModel.Factory<InputResource> displayModelFactory,
             DesktopVisibilityController desktopVisibilityController,
+            DesktopState desktopState,
             @Ui Executor uiExecutor,
             @Named(CONNECTION_CLEANER) ThreadSafeRunnableList cleanupTasks
     ) {
@@ -250,7 +252,7 @@ public class TouchInteractionHandler extends ContextWrapper {
         mAllAppsActionManager = allAppsActionManager;
         mOverviewComponentObserver = overviewComponentObserver;
 
-        mDesktopState = DesktopState.getInstance(this);
+        mDesktopState = desktopState;
         mMainChoreographer = Choreographer.getInstance();
         mTaskbarManager = taskbarManager;
 
@@ -512,7 +514,6 @@ public class TouchInteractionHandler extends ContextWrapper {
         TaskbarActivityContext tac = mTaskbarManager.getTaskbarForDisplay(displayId);
         boolean shouldConnectedDisplayConsumeEvent =
                 displayId != DEFAULT_DISPLAY
-                && enableAutoStashConnectedDisplayTaskbar.isTrue()
                 && tac != null && tac.isTaskbarStashed();
         if (gestureStartNavMode != null && gestureStartNavMode != currentNavMode) {
             ActiveGestureProtoLogProxy.logOnInputEventNavModeSwitched(
@@ -760,6 +761,8 @@ public class TouchInteractionHandler extends ContextWrapper {
             gestureState.updateLastStartedTaskIds(previousGestureState.getLastStartedTaskIds());
             gestureState.updatePreviouslyAppearedTaskIds(
                     previousGestureState.getPreviouslyAppearedTaskIds());
+            gestureState.setTaskbarAlreadyOpen(previousGestureState.isTaskbarAlreadyOpen());
+            gestureState.setTaskbarAllAppsOpen(previousGestureState.isTaskbarAllAppsOpen());
         } else {
             gestureState = new GestureState(
                     mOverviewComponentObserver.get(),
@@ -767,6 +770,10 @@ public class TouchInteractionHandler extends ContextWrapper {
                     ActiveGestureLog.INSTANCE.incrementLogId());
             taskInfo = TopTaskTracker.INSTANCE.get(this).getCachedTopTask(false, displayId);
             gestureState.updateRunningTask(taskInfo);
+            TaskbarUiState uiState = TaskbarUiStateMonitor.INSTANCE.get(this)
+                    .getTaskbarUiState(displayId);
+            gestureState.setTaskbarAlreadyOpen(!uiState.isTaskbarStashed());
+            gestureState.setTaskbarAllAppsOpen(uiState.isTaskbarAllAppsOpen());
         }
         gestureState.setTrackpadGestureType(trackpadGestureType);
 

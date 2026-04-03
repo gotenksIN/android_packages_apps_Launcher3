@@ -26,7 +26,6 @@ import static com.android.launcher3.LauncherPrefs.TASKBAR_PINNING_IN_DESKTOP_MOD
 import static com.android.launcher3.LauncherPrefs.TASKBAR_PINNING_KEY;
 import static com.android.launcher3.display.LauncherDisplayInfo.getChangeFlagsString;
 import static com.android.launcher3.statehandlers.DesktopVisibilityController.INACTIVE_DESK_ID;
-import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar;
 import static com.android.launcher3.taskbar.growth.GrowthConstants.BROADCAST_SHOW_NUDGE;
 import static com.android.launcher3.taskbar.growth.GrowthConstants.GROWTH_NUDGE_PERMISSION;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
@@ -63,7 +62,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import com.android.internal.util.LatencyTracker;
 import com.android.internal.util.ToBooleanFunction;
 import com.android.launcher3.ActivityInteractor;
 import com.android.launcher3.AsyncAnimatorPlaybackController;
@@ -78,6 +76,7 @@ import com.android.launcher3.anim.AnimatorListeners;
 import com.android.launcher3.concurrent.annotations.TaskbarUi;
 import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.statehandlers.DesktopVisibilityController;
+import com.android.launcher3.statehandlers.DesktopVisibilityController.DesktopVisibilityListener;
 import com.android.launcher3.statemanager.StatefulActivity;
 import com.android.launcher3.taskbar.TaskbarNavButtonController.TaskbarNavButtonCallbacks;
 import com.android.launcher3.taskbar.unfold.NonDestroyableScopedUnfoldTransitionProgressProvider;
@@ -90,7 +89,6 @@ import com.android.launcher3.util.SafeCloseable;
 import com.android.launcher3.util.SettingsCache;
 import com.android.launcher3.util.SimpleBroadcastReceiver;
 import com.android.launcher3.util.ThreadSafeRunnableList;
-import com.android.launcher3.util.window.WindowManagerProxy;
 import com.android.quickstep.AllAppsActionManager;
 import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.DisplayModel;
@@ -168,8 +166,8 @@ public class TaskbarManagerImpl {
     private @Nullable ActivityInteractor mActivityInteractor;
     private @Nullable RecentsViewContainerInteractor mRecentsViewContainerInteractor;
 
-    private final WindowManagerProxy.DesktopVisibilityListener mDesktopVisibilityListener =
-            new WindowManagerProxy.DesktopVisibilityListener() {
+    private final DesktopVisibilityListener mDesktopVisibilityListener =
+            new DesktopVisibilityListener() {
 
                 @Override
                 public void onListenerInitializedFromShell() {
@@ -185,10 +183,6 @@ public class TaskbarManagerImpl {
                                     mPrimaryDisplayId,
                                     INACTIVE_DESK_ID,
                                     visibilityController.getActiveDeskId(mPrimaryDisplayId));
-                        }
-
-                        if (!enableAutoStashConnectedDisplayTaskbar.isTrue()) {
-                            return;
                         }
 
                         mResources.forEach(resource -> {
@@ -237,56 +231,6 @@ public class TaskbarManagerImpl {
 
     /** Not {@code null} if direct boot support is enabled and not {@link #mUserUnlocked} yet. */
     private @Nullable TaskbarBootAppContext mBootAppContext;
-
-    private final DesktopVisibilityController.TaskbarDesktopModeListener
-            mTaskbarDesktopModeListener =
-            new DesktopVisibilityController.TaskbarDesktopModeListener() {
-                @Override
-                public void onExitDesktopMode(int duration) {
-                    getTaskbarUiThread().execute(() -> onExitDesktopModeInternal(duration));
-                }
-
-                private void onExitDesktopModeInternal(int duration) {
-                    LatencyTracker.getInstance(mBaseContext).onActionStart(
-                            LatencyTracker.ACTION_DESKTOP_MODE_EXIT_MODE_ON_LAST_WINDOW_CLOSE);
-
-                    TaskbarActivityContext taskbarActivityContext = getCurrentActivityContext();
-                    if (taskbarActivityContext != null
-                            && !taskbarActivityContext.isInOverview()
-                            && !taskbarActivityContext.showDesktopTaskbarForFreeformDisplay()) {
-                        AnimatorSet animatorSet = taskbarActivityContext.onDestroyAnimation(
-                                TASKBAR_DESTROY_DURATION);
-                        animatorSet.addListener(AnimatorListeners.forEndCallback(
-                                () -> recreateTaskbarForDisplay(mPrimaryResource, duration,
-                                        "onExitDesktopMode")));
-                        animatorSet.start();
-                    }
-                }
-
-                @Override
-                public void onEnterDesktopMode(int duration) {
-                    getTaskbarUiThread().execute(() -> onEnterDesktopModeInternal(duration));
-                }
-
-                private void onEnterDesktopModeInternal(int duration) {
-                    TaskbarActivityContext taskbarActivityContext = getCurrentActivityContext();
-                    if (taskbarActivityContext != null
-                            && !taskbarActivityContext.showDesktopTaskbarForFreeformDisplay()) {
-                        AnimatorSet animatorSet = taskbarActivityContext.onDestroyAnimation(
-                                TASKBAR_DESTROY_DURATION);
-                        animatorSet.addListener(AnimatorListeners.forEndCallback(
-                                () -> recreateTaskbarForDisplay(mPrimaryResource, duration,
-                                        "onEnterDesktopMode")));
-                        animatorSet.start();
-                    }
-                }
-
-                @Override
-                public void onTaskbarCornerRoundingUpdate(
-                        boolean doesAnyTaskRequireTaskbarRounding, int displayId) {
-                    //NO-OP
-                }
-            };
 
     private boolean mUserUnlocked;
     private boolean mDeviceUnlocked;
@@ -388,14 +332,8 @@ public class TaskbarManagerImpl {
                 TASKBAR_PINNING, TASKBAR_PINNING_IN_DESKTOP_MODE));
 
         desktopVisibilityController.registerDesktopVisibilityListener(mDesktopVisibilityListener);
-        desktopVisibilityController.registerTaskbarDesktopModeListener(mTaskbarDesktopModeListener);
-
-        cleanupTasks.addTask(getTaskbarUiThread(), () -> {
-            desktopVisibilityController
-                    .unregisterDesktopVisibilityListener(mDesktopVisibilityListener);
-            desktopVisibilityController
-                    .unregisterTaskbarDesktopModeListener(mTaskbarDesktopModeListener);
-        });
+        cleanupTasks.addTask(getTaskbarUiThread(), () -> desktopVisibilityController
+                .unregisterDesktopVisibilityListener(mDesktopVisibilityListener));
 
         var userSetupCompleteSafeCloseable = settingsCache.getListenableRef(USER_SETUP_COMPLETE_URI)
                 .forEach(getTaskbarUiThread(),

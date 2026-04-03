@@ -36,17 +36,17 @@ open class AccessibleDragListenerAdapter
 (
     private val mViewGroup: ViewGroup,
     private val mDelegateFactory: Function<CellLayout, DragAndDropAccessibilityDelegate>,
-) : DragController.DragListener, ViewGroup.OnHierarchyChangeListener {
-    override fun onDragStart(dragObject: DragObject, options: DragOptions) {
+) : DragController.DragSessionListener, ViewGroup.OnHierarchyChangeListener {
+    override fun onDragSessionStart(dragObject: DragObject, options: DragOptions) {
         mViewGroup.setOnHierarchyChangeListener(this)
         enableAccessibleDrag(true, dragObject)
     }
 
-    override fun onDragEnd() {
+    override fun onDragSessionEnd() {
         mViewGroup.setOnHierarchyChangeListener(null)
         enableAccessibleDrag(false, null)
         val activityContext = ActivityContext.lookupContext(mViewGroup.context) as ActivityContext
-        activityContext.dragController?.removeDragListener(this)
+        activityContext.dragController?.removeDragSessionListener(this)
     }
 
     override fun onChildViewAdded(parent: View, child: View) {

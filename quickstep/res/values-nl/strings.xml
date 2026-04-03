@@ -111,6 +111,7 @@
     <string name="blocked_by_policy" msgid="2071401072261365546">"Deze actie wordt niet toegestaan door de app of je organisatie"</string>
     <string name="split_widgets_not_supported" msgid="1355743038053053866">"Widgets worden op dit moment niet ondersteund, selecteer een andere app"</string>
     <string name="action_image_copy" msgid="6877540054727709339">"Kopiëren"</string>
+    <string name="action_image_save" msgid="6205538612408306742">"Opslaan"</string>
     <string name="accessibility_rotate_button" msgid="4771825231336502943">"Scherm draaien"</string>
     <string name="taskbar_edu_swipe_animation_description" msgid="1690727240826006218">"Animatie die toont hoe de taakbalk onderaan het scherm verschijnt en automatisch wordt verborgen als deze niet wordt gebruikt"</string>
     <string name="taskbar_edu_pinning_animation_description" msgid="8148601093590683880">"Animatie die toont hoe je de taakbalk vastzet met een schakelaar, zodat de taakbalk altijd zichtbaar blijft onderaan het scherm"</string>
@@ -153,6 +154,8 @@
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Naar boven/links verplaatsen"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Naar beneden/rechts verplaatsen"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"App openen als ballon"</string>
+    <string name="action_move_item_left" msgid="1553114361342866236">"Item naar links verplaatsen"</string>
+    <string name="action_move_item_right" msgid="682950193875586183">"Item naar rechts verplaatsen"</string>
     <string name="quick_switch_pane_title" msgid="4677158207760585812">"Recente apps"</string>
     <string name="quick_switch_content_description" msgid="2851244536728720005">"Lijst met recente apps"</string>
     <string name="quick_switch_overflow" msgid="3679780650881041632">"{count,plural, =1{extra app}other{extra apps}}"</string>
