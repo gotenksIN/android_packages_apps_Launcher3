@@ -29,6 +29,7 @@ import androidx.appfunctions.service.AppFunction
 class WorkspaceAppFunctions(
     private val repository: WorkspaceRepository
 ) {
+    private val mutationManager = WorkspaceMutationManager(repository)
 
     /// Query functions
     /// These are exposed [AppFunction]s that can be called by any client
@@ -66,6 +67,42 @@ class WorkspaceAppFunctions(
         )
     }
 
+    /**
+     * Lists installed widgets.
+     *
+     * @param appFunctionContext App function context.
+     * @param orderByUsageStats If true, orders widgets by usage; otherwise uses default order for
+     *   personalization.
+     * @return [GetInstalledWidgetsResponse] with widgets list and proof.
+     */
+    @AppFunction(isDescribedByKDoc = true)
+    suspend fun getInstalledWidgets(
+        appFunctionContext: AppFunctionContext,
+        orderByUsageStats: Boolean,
+    ): GetInstalledWidgetsResponse {
+        val allWidgetItems = repository.getInstalledWidgets(orderByUsageStats)
+        return GetInstalledWidgetsResponse(
+            widgets = allWidgetItems,
+            proof = Proof.GET_INSTALLED_WIDGETS_PROOF,
+        )
+    }
+
+    /**
+     * Removes an item or folder from the workspace or hotseat, or an app from a folder.
+     *
+     * @param appFunctionContext App function context.
+     * @param target The specification of the item to remove.
+     * @return [WorkspaceUpdateResult] with the updated workspace state and a new proof.
+     */
+    @AppFunction(isDescribedByKDoc = true)
+    suspend fun removeItem(
+        appFunctionContext: AppFunctionContext,
+        target: RemoveItemParamsSpec,
+    ): WorkspaceUpdateResult {
+        return mutationManager.removeItem(target)
+    }
+
+
     /// Decorated responses to the AppFunction agents, the kdoc for these is used
     // as the raw documentation ingested by the agents.
 
@@ -91,6 +128,15 @@ class WorkspaceAppFunctions(
         val apps: List<UnplacedAppSpec>,
         val proof: Proof
     )
+
+    /**
+     * Response from [getInstalledWidgets].
+     *
+     * @property widgets List of [UnplacedWidgetSpec].
+     * @property proof Proof token.
+     */
+    @AppFunctionSerializable(isDescribedByKDoc = true)
+    data class GetInstalledWidgetsResponse(val widgets: List<UnplacedWidgetSpec>, val proof: Proof)
 
     /**
      * Verifies function calls are correctly chained.

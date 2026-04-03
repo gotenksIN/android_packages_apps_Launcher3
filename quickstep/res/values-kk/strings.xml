@@ -111,6 +111,7 @@
     <string name="blocked_by_policy" msgid="2071401072261365546">"Бұл әрекетке қолданба не ұйым рұқсат етпейді."</string>
     <string name="split_widgets_not_supported" msgid="1355743038053053866">"Виджеттерге қазір қолдау көрсетілмейді. Басқа қолданба таңдаңыз."</string>
     <string name="action_image_copy" msgid="6877540054727709339">"Көшіру"</string>
+    <string name="action_image_save" msgid="6205538612408306742">"Сақтау"</string>
     <string name="accessibility_rotate_button" msgid="4771825231336502943">"Экранды бұру"</string>
     <string name="taskbar_edu_swipe_animation_description" msgid="1690727240826006218">"Тапсырмалар жолағының экранның төменгі жағынан қалай көрініп, қолданылмаған кезде автоматты түрде жасырылатыны көрсетілген анимация"</string>
     <string name="taskbar_edu_pinning_animation_description" msgid="8148601093590683880">"Тапсырмалар жолағы экранның төменгі жағында үнемі көрініп тұруы үшін, оны ауыстырғышпен бекіту жолы көрсетілген анимация"</string>
@@ -153,6 +154,8 @@
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Жоғары/солға жылжыту"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Төмен/оңға жылжыту"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"Қолданбаны қалқыма терезе түрінде ашу"</string>
+    <string name="action_move_item_left" msgid="1553114361342866236">"Элементті солға жылжыту"</string>
+    <string name="action_move_item_right" msgid="682950193875586183">"Элементті оңға жылжыту"</string>
     <string name="quick_switch_pane_title" msgid="4677158207760585812">"Соңғы қолданбалар"</string>
     <string name="quick_switch_content_description" msgid="2851244536728720005">"Соңғы қолданбалар тізімі"</string>
     <string name="quick_switch_overflow" msgid="3679780650881041632">"{count,plural, =1{қосымша қолданба}other{қосымша қолданба}}"</string>

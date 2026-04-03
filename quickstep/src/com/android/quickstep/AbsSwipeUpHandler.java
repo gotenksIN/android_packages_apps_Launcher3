@@ -131,8 +131,6 @@ import com.android.launcher3.statemanager.BaseState;
 import com.android.launcher3.statemanager.StatefulContainer;
 import com.android.launcher3.taskbar.TaskbarInteractor;
 import com.android.launcher3.taskbar.TaskbarThresholdUtils;
-import com.android.launcher3.taskbar.TaskbarUiState;
-import com.android.launcher3.taskbar.TaskbarUiStateMonitor;
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
 import com.android.launcher3.util.MSDLPlayerWrapper;
@@ -457,8 +455,8 @@ public abstract class AbsSwipeUpHandler<
 
         mIsTransientTaskbar = mDp.getDeviceProperties().getTaskbarConfiguration().isTaskbarPresent()
                 && TaskbarFeatureEvaluator.INSTANCE.get(context).get(displayId).isTransient();
-        mTaskbarAlreadyOpen = !isTaskbarStashed(context);
-        mIsTaskbarAllAppsOpen = isTaskbarAllAppsOpen(context);
+        mTaskbarAlreadyOpen = mGestureState.isTaskbarAlreadyOpen();
+        mIsTaskbarAllAppsOpen = mGestureState.isTaskbarAllAppsOpen();
         mTaskbarAppWindowThreshold =
                 TaskbarThresholdUtils.getAppWindowThreshold(res, mDp);
         boolean swipeWillNotShowTaskbar = mTaskbarAlreadyOpen || mGestureState.isTrackpadGesture();
@@ -482,18 +480,6 @@ public abstract class AbsSwipeUpHandler<
             mMagneticEffectDisplacement = null;
             mMagneticEffectSpec = null;
         }
-    }
-
-    private boolean isTaskbarStashed(Context context) {
-        TaskbarUiState taskbarUiState = TaskbarUiStateMonitor.INSTANCE.get(context)
-                .getTaskbarUiState(context.getDisplayId());
-        return taskbarUiState.isTaskbarStashed();
-    }
-
-    private boolean isTaskbarAllAppsOpen(Context context) {
-        TaskbarUiState taskbarUiState = TaskbarUiStateMonitor.INSTANCE.get(context)
-                .getTaskbarUiState(context.getDisplayId());
-        return taskbarUiState.isTaskbarAllAppsOpen();
     }
 
     @Nullable
@@ -1149,7 +1135,17 @@ public abstract class AbsSwipeUpHandler<
     @Override
     public void onRecentsAnimationCanceled(HashMap<Integer, ThumbnailData> thumbnailDatas) {
         ActiveGestureProtoLogProxy.logAbsSwipeUpHandlerOnRecentsAnimationCanceled();
-        mContextInitListener.unregister("AbsSwipeUpHandler.onRecentsAnimationCanceled");
+        cleanUpOnFailedRecentsAnimation("AbsSwipeUpHandler.onRecentsAnimationCanceled");
+    }
+
+    @Override
+    public void onRecentsAnimationStartTimedOut() {
+        ActiveGestureProtoLogProxy.logAbsSwipeUpHandlerOnRecentsAnimationStartTimedOut();
+        cleanUpOnFailedRecentsAnimation("AbsSwipeUpHandler.onRecentsAnimationStartTimedOut");
+    }
+
+    private void cleanUpOnFailedRecentsAnimation(@NonNull String reason) {
+        mContextInitListener.unregister(reason);
         mStateCallback.setStateOnUiThread(STATE_GESTURE_CANCELLED | STATE_HANDLER_INVALIDATED);
         // Defer clearing the controller and the targets until after we've updated the state
         mRecentsAnimationController = null;
@@ -1158,7 +1154,7 @@ public abstract class AbsSwipeUpHandler<
             mRecentsView.setRecentsAnimationTargets(null, null);
         }
         if (!mGestureState.useSyntheticRecentsTransition()) {
-            maybeHandleUnfinishedTaskLaunch("onRecentsAnimationCanceled");
+            maybeHandleUnfinishedTaskLaunch(reason);
         }
     }
 

@@ -192,9 +192,10 @@ import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.PredictedContainerInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pm.PinRequestHelper;
-import com.android.launcher3.popup.ArrowPopup;
+import com.android.launcher3.popup.PopupContainer;
 import com.android.launcher3.popup.PopupController;
 import com.android.launcher3.popup.SystemShortcut;
+import com.android.launcher3.popup.WorkspaceLongPressOptions;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.StateHandler;
 import com.android.launcher3.statemanager.StatefulActivity;
@@ -232,7 +233,6 @@ import com.android.launcher3.util.WallpaperThemeManager;
 import com.android.launcher3.views.FloatingIconView;
 import com.android.launcher3.views.FloatingSurfaceView;
 import com.android.launcher3.views.ListenerView;
-import com.android.launcher3.views.OptionsPopupView;
 import com.android.launcher3.views.ScrimView;
 import com.android.launcher3.views.UpdateDeferrableView;
 import com.android.launcher3.widget.LauncherAppWidgetHostView;
@@ -1308,8 +1308,7 @@ public class Launcher extends StatefulActivity<LauncherState>
 
         LauncherAppWidgetInfo launcherInfo;
         launcherInfo =
-                new LauncherAppWidgetInfo(
-                        appWidgetId, appWidgetInfo.provider, appWidgetInfo, hostView);
+                new LauncherAppWidgetInfo(appWidgetId, appWidgetInfo);
         launcherInfo.spanX = itemInfo.spanX;
         launcherInfo.spanY = itemInfo.spanY;
         launcherInfo.minSpanX = itemInfo.minSpanX;
@@ -1500,7 +1499,8 @@ public class Launcher extends StatefulActivity<LauncherState>
                         public void onAnimationSuccess(Animator animator) {
                             if (focusSearch
                                     && mAppsView.getSearchUiManager().getEditText() != null) {
-                                mAppsView.getSearchUiManager().getEditText().requestFocus();
+                                mAppsView.getSearchUiManager().getEditText()
+                                    .requestFocusExplicitly();
                             }
                         }
                     });
@@ -2410,8 +2410,15 @@ public class Launcher extends StatefulActivity<LauncherState>
      * Shows the default options popup
      */
     public void showDefaultOptions(float x, float y) {
-        OptionsPopupView.show(this, getPopupTarget(x, y), OptionsPopupView.getOptions(this),
-                false);
+        Rect pos = new Rect();
+        pos.offsetTo((int) x, (int) y);
+        pos.inset(-20, -20);
+        PopupContainer.Companion.showForMenuItems(
+                this,
+                getRootView(),
+                WorkspaceLongPressOptions.getAll(this),
+                pos
+        );
     }
 
     @Override
@@ -2810,19 +2817,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         // Overridden
     }
 
-    /** Opens the widget picker UI. Returns true if opened. */
-    public boolean openWidgetPicker() {
-        if (getPackageManager().isSafeMode()) {
-            Toast.makeText(this, R.string.safemode_widget_error, Toast.LENGTH_SHORT).show();
-            return false;
-        } else {
-            Intent intent = new Intent(Intent.ACTION_PICK);
-            intent.setPackage(asContext().getPackageName());
-            asContext().startActivity(intent);
-            return true;
-        }
-    }
-
     /**
      * Returns the animation coordinator for playing one-off animations
      */
@@ -2855,8 +2849,15 @@ public class Launcher extends StatefulActivity<LauncherState>
      */
     @VisibleForTesting
     @Nullable
-    public ArrowPopup<?> getOptionsPopup() {
-        return findViewById(R.id.popup_container);
+    public AbstractFloatingView getOptionsPopup() {
+        // Try legacy ArrowPopup (which extends AbstractFloatingView)
+        View popup = findViewById(R.id.popup_container);
+        if (popup instanceof AbstractFloatingView) {
+            return (AbstractFloatingView) popup;
+        }
+
+        // Try to find the new Compose-based Dialog View
+        return AbstractFloatingView.getTopOpenView(this);
     }
 
     @Override

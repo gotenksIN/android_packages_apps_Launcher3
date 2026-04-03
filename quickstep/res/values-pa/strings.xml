@@ -111,6 +111,7 @@
     <string name="blocked_by_policy" msgid="2071401072261365546">"ਐਪ ਜਾਂ ਤੁਹਾਡੀ ਸੰਸਥਾ ਵੱਲੋਂ ਇਸ ਕਾਰਵਾਈ ਦੀ ਇਜਾਜ਼ਤ ਨਹੀਂ ਹੈ"</string>
     <string name="split_widgets_not_supported" msgid="1355743038053053866">"ਫ਼ਿਲਹਾਲ ਵਿਜੇਟ ਸਮਰਥਿਤ ਨਹੀਂ ਹਨ, ਕਿਰਪਾ ਕਰਕੇ ਕੋਈ ਹੋਰ ਐਪ ਚੁਣੋ"</string>
     <string name="action_image_copy" msgid="6877540054727709339">"ਕਾਪੀ ਕਰੋ"</string>
+    <string name="action_image_save" msgid="6205538612408306742">"ਰੱਖਿਅਤ ਕਰੋ"</string>
     <string name="accessibility_rotate_button" msgid="4771825231336502943">"ਸਕ੍ਰੀਨ ਘੁਮਾਓ"</string>
     <string name="taskbar_edu_swipe_animation_description" msgid="1690727240826006218">"ਟਾਸਕਬਾਰ ਦੇ ਸਕ੍ਰੀਨ ਦੇ ਹੇਠਾਂ ਤੋਂ ਦ੍ਰਿਸ਼ ਵਿੱਚ ਆਉਣ ਅਤੇ ਵਰਤੋਂ ਵਿੱਚ ਨਾ ਹੋਣ \'ਤੇ ਆਪਣੇ ਆਪ ਲੁਕ ਜਾਣ ਦਾ ਤਰੀਕਾ ਦਿਖਾਉਣ ਵਾਲਾ ਐਨੀਮੇਸ਼ਨ"</string>
     <string name="taskbar_edu_pinning_animation_description" msgid="8148601093590683880">"ਟੌਗਲ ਦੀ ਵਰਤੋਂ ਕਰ ਕੇ ਤੁਹਾਡੇ ਟਾਸਕਬਾਰ ਨੂੰ ਪਿੰਨ ਕਰਨ ਦਾ ਤਰੀਕਾ ਦਿਖਾਉਣ ਵਾਲਾ ਐਨੀਮੇਸ਼ਨ, ਤਾਂ ਜੋ ਟਾਸਕਬਾਰ ਪੱਕੇ ਤੌਰ \'ਤੇ ਸਕ੍ਰੀਨ ਦੇ ਹੇਠਾਂ ਦਿਖਣਯੋਗ ਰਹੇ"</string>
@@ -153,6 +154,10 @@
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"ਸਿਖਰਲੇ/ਖੱਬੇ ਪਾਸੇ ਲੈ ਕੇ ਜਾਓ"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"ਹੇਠਾਂ/ਸੱਜੇ ਪਾਸੇ ਲੈ ਕੇ ਜਾਓ"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"ਐਪ ਨੂੰ ਬਬਲ ਵਜੋਂ ਖੋਲ੍ਹੋ"</string>
+    <!-- no translation found for action_move_item_left (1553114361342866236) -->
+    <skip />
+    <!-- no translation found for action_move_item_right (682950193875586183) -->
+    <skip />
     <string name="quick_switch_pane_title" msgid="4677158207760585812">"ਹਾਲੀਆ ਐਪਾਂ"</string>
     <string name="quick_switch_content_description" msgid="2851244536728720005">"ਹਾਲੀਆ ਐਪ ਸੂਚੀ"</string>
     <string name="quick_switch_overflow" msgid="3679780650881041632">"{count,plural, =1{ਹੋਰ ਐਪ}one{ਹੋਰ ਐਪ}other{ਹੋਰ ਐਪਾਂ}}"</string>

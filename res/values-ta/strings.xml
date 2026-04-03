@@ -111,11 +111,14 @@
     <string name="app_added_to_taskbar" msgid="6348755169793615171">"செயல் பட்டியில் ஆப்ஸ் சேர்க்கப்பட்டது"</string>
     <string name="app_removed_from_taskbar" msgid="3471754847898675396">"செயல் பட்டியில் இருந்து ஆப்ஸ் அகற்றப்பட்டது"</string>
     <string name="remove_system_shortcut_label" msgid="3991201411148073972">"அகற்று"</string>
+    <!-- no translation found for home_screen_files_context_menu_copy_label (8769381168712216221) -->
+    <skip />
     <string name="home_screen_files_context_menu_open_in_app_label" msgid="7930552598671791537">"திற"</string>
     <string name="home_screen_files_context_menu_rename_label" msgid="699579827537411711">"பெயர் மாற்று"</string>
     <string name="home_screen_files_context_menu_delete_permanently_label" msgid="8660443461874174185">"நிரந்தரமாக நீக்கு"</string>
     <string name="home_screen_files_context_menu_move_to_trash_label" msgid="1145655050674479315">"நீக்கு"</string>
-    <string name="home_screen_files_moved_to_trash_message" msgid="381256565590274395">"<xliff:g id="ITEM_NAME">%1$s</xliff:g> நீக்கப்பட்டது"</string>
+    <!-- no translation found for home_screen_files_moved_to_trash_message (2848141584483641247) -->
+    <skip />
     <string name="home_screen_files_move_to_trash_error_message" msgid="3836240816166417826">"நீக்க முடியாது. ஏதோ தவறாகிவிட்டது."</string>
     <string name="home_screen_files_restore_from_trash_error_message" msgid="994941644161090497">"செயல்தவிர்க்க முடியவில்லை. மீட்டெடுக்க Files ஆப்ஸிற்குச் செல்லவும்."</string>
     <string name="actions_popup_menu_button" msgid="2442187572711557413">"செயல்கள்"</string>
@@ -205,15 +208,12 @@
     <string name="move_to_hotseat_position" msgid="6295412897075147808">"விரும்பும் நிலை <xliff:g id="NUMBER">%1$s</xliff:g>க்கு நகர்த்து"</string>
     <string name="item_moved" msgid="4606538322571412879">"உருப்படி நகர்த்தப்பட்டது"</string>
     <string name="add_to_folder" msgid="9040534766770853243">"இந்த ஃபோல்டரில் சேர்க்கும்: <xliff:g id="NAME">%1$s</xliff:g>"</string>
-    <!-- no translation found for add_to_folder_with_position (4457486890869662) -->
-    <skip />
+    <string name="add_to_folder_with_position" msgid="4457486890869662">"<xliff:g id="NAME">%1$s</xliff:g> உள்ள ஃபோல்டரில் சேர்க்கும். <xliff:g id="STRING">%4$s</xliff:g> இல் <xliff:g id="NUMBER_0">%2$s</xliff:g>வது வரிசை, <xliff:g id="NUMBER_1">%3$s</xliff:g>வது நெடுவரிசை"</string>
     <string name="add_to_folder_with_app" msgid="4534929978967147231">"<xliff:g id="NAME">%1$s</xliff:g> உள்ள ஃபோல்டரில் சேர்க்கும்"</string>
-    <!-- no translation found for add_to_folder_with_app_with_position (6670979489897093325) -->
-    <skip />
+    <string name="add_to_folder_with_app_with_position" msgid="6670979489897093325">"<xliff:g id="NAME">%1$s</xliff:g> உள்ள ஃபோல்டரில் சேர்க்கும். <xliff:g id="STRING">%4$s</xliff:g> இல் <xliff:g id="NUMBER_0">%2$s</xliff:g>வது வரிசை, <xliff:g id="NUMBER_1">%3$s</xliff:g>வது நெடுவரிசை"</string>
     <string name="added_to_folder" msgid="4793259502305558003">"ஃபோல்டரில் உருப்படி சேர்க்கப்பட்டது"</string>
     <string name="create_folder_with" msgid="4050141361160214248">"இதனுடன் ஃபோல்டரை உருவாக்கும்: <xliff:g id="NAME">%1$s</xliff:g>"</string>
-    <!-- no translation found for create_folder_with_position (3093164349445159115) -->
-    <skip />
+    <string name="create_folder_with_position" msgid="3093164349445159115">"<xliff:g id="NAME">%1$s</xliff:g> உள்ள ஃபோல்டரில் உருவாக்கும். <xliff:g id="STRING">%4$s</xliff:g> இல் <xliff:g id="NUMBER_0">%2$s</xliff:g>வது வரிசை, <xliff:g id="NUMBER_1">%3$s</xliff:g>வது நெடுவரிசை"</string>
     <string name="folder_created" msgid="6409794597405184510">"ஃபோல்டர் உருவாக்கப்பட்டது"</string>
     <string name="action_move_to_workspace" msgid="39528912300293768">"முகப்புத் திரைக்கு நகர்த்து"</string>
     <string name="action_resize" msgid="1802976324781771067">"அளவு மாற்று"</string>
@@ -268,6 +268,11 @@
     <string name="arch_shape_title" msgid="2213843822192871318">"வளைவு"</string>
     <string name="create_new_folder_button_text" msgid="4037052463794735069">"புதிய ஃபோல்டர்"</string>
     <string name="default_new_folder_name" msgid="8821062664729412079">"புதிய ஃபோல்டர்"</string>
+    <string name="home_screen_files_rename_dialog_clear_button" msgid="1516608063079626727">"அழி"</string>
+    <string name="home_screen_files_rename_dialog_neutral_button" msgid="961781261154618336">"ரத்துசெய்"</string>
+    <string name="home_screen_files_rename_dialog_positive_button" msgid="6506701192246379747">"பெயர் மாற்று"</string>
+    <string name="home_screen_files_rename_dialog_file_title" msgid="3540941610992603887">"ஃபைல் பெயரை மாற்றுதல்"</string>
+    <string name="home_screen_files_rename_dialog_folder_title" msgid="2453152990256864379">"ஃபோல்டர் பெயரை மாற்றுதல்"</string>
     <string name="something_went_wrong" msgid="1492883246069060632">"ஏதோ தவறாகிவிட்டது"</string>
     <string name="organizer_create_screen_title" msgid="1052454457895703433">"திரையை உருவாக்குதல்"</string>
     <string name="organizer_create_screen_description" msgid="3224132391919219061">"மொபைலில் இருந்து ஆப்ஸையும் விட்ஜெட்களையும் சேர்க்க ஒரு வகையைத் தேர்வுசெய்யுங்கள்"</string>

@@ -258,6 +258,8 @@
     <string name="split_widgets_not_supported">Widgets not currently supported, please select another app</string>
     <!-- Label for the sharesheet Image copy action [CHAR LIMIT=32] -->
     <string name="action_image_copy">Copy</string>
+    <!-- Label for the sharesheet Image save action [CHAR LIMIT=32] -->
+    <string name="action_image_save">Save</string>
 
 
     <!-- Accessibility label for the rotation suggestion button -->
@@ -347,6 +349,11 @@
     <string name="move_drop_target_bottom_or_right">Move to bottom&#47;right</string>
     <!-- Label for creating an application bubble (from the Taskbar only). -->
     <string name="open_app_as_a_bubble">Open app as a bubble</string>
+
+    <!-- Accessibility action to move an item to the left [CHAR LIMIT=NONE] -->
+    <string name="action_move_item_left">Move item to the left</string>
+    <!-- Accessibility action to move an item to the right [CHAR LIMIT=NONE] -->
+    <string name="action_move_item_right">Move item to the right</string>
 
     <!-- Accessibility pane title for quick switch view, which lists apps opened by the user, ordered by how recently the app was opened. -->
     <string name="quick_switch_pane_title">Recent apps</string>

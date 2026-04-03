@@ -37,6 +37,7 @@ import android.service.personalcontext.hint.PublishedContextHint
 import android.service.personalcontext.insight.ActionableInsight
 import android.service.personalcontext.insight.ContextInsight
 import android.service.personalcontext.insight.DisplayInsight
+import android.service.personalcontext.insight.HintInvalidationInsight
 import android.service.personalcontext.insight.InsightActionDetails
 import android.service.personalcontext.insight.InsightCollection
 import android.service.personalcontext.insight.InsightDisplayDetails
@@ -182,6 +183,10 @@ constructor(
 
     private var debounceTaskJob: Job? = null
 
+    // The hint ID of the current displayed conversation hint. Used to determine if a
+    // HintInvalidationInsight is for the current conversation.
+    private var currentConversationHintId: UUID? = null
+
     private val focusListener = AmbientCueFocusListener(WeakReference(this), bgExecutor)
 
     private fun launchPendingIntent(pendingIntent: PendingIntent) {
@@ -280,6 +285,14 @@ constructor(
             val actions = mapInsightToActions(insight.getInsight())
 
             if (actions.isNotEmpty()) {
+                // Update the current conversation hint ID if the action is non-empty.
+                insight.getInsight().originHints
+                    .map { it.contextHint }
+                    .filterIsInstance<ContentCaptureConversationHint>()
+                    .firstOrNull()
+                    ?.let {
+                        currentConversationHintId = it.hintId
+                    }
                 isDeactivated.dispatchValue(false)
             } else {
                 Log.i(TAG, "No actions, clear cuebar")
@@ -302,6 +315,15 @@ constructor(
         if (insight.originHints.any { it.contextHint is AutofillInlineRequestHint }) {
             // Always ignore the insight together with AutofillInlineRequestHint.
             return false
+        }
+
+        if (insight is HintInvalidationInsight) {
+            Log.d(
+                TAG,
+                "cuebar HintInvalidationInsight: $insight, " +
+                    "currentConversationHintId: $currentConversationHintId"
+            )
+            return insight.invalidatedHintId == currentConversationHintId
         }
 
         return insight.originHints.any { hintEligibleForCueBar(it.contextHint) }
@@ -355,8 +377,13 @@ constructor(
                 .firstOrNull { it.hintTypeName == ATTRIBUTION_INTENT_HINT_TYPE }
                 ?.dataBundle
                 ?.getParcelable(EXTRA_ATTRIBUTION_DIALOG_PENDING_INTENT)
+        val oneTapEnabled =
+            insight.originHints
+                .mapNotNull { it.contextHint as? BundleHint }
+                .firstOrNull { it.hintTypeName == ONE_TAP_HINT_TYPE }
+                ?.dataBundle
+                ?.getBoolean(EXTRA_ONE_TAP_ENABLED, false) ?: false
         val onPerformAction: () -> Unit
-        val extras: Bundle? // Only ActionableInsight has action/extras
         val title = display.title.toString()
         when (insight) {
             is ActionableInsight -> {
@@ -364,7 +391,6 @@ constructor(
                 val action = insight.actionDetails
                 val actionPendingIntent = action.pendingIntent
                 // TODO(b/485706132): Update due to switchover to PendingIntent
-                extras = null
 
                 onPerformAction = {
                     reportInsightEvent(insight, InsightEvent.EVENT_USER_TAP)
@@ -394,7 +420,6 @@ constructor(
             }
             is DisplayInsight -> {
                 actionType = MR_ACTION_TYPE_NAME
-                extras = null // Display insights have no action extras
                 val autofillId =
                     if (contextHint is ContentCaptureConversationHint) {
                         val conversationEvent = contextHint.conversationEvent
@@ -432,8 +457,6 @@ constructor(
                 Log.e(TAG, "Resource loading failed for ID: ${display.icon?.resId}", e)
                 null
             } ?: weakTaskbarActivityContext.get()?.getDrawable(R.drawable.ic_paste_spark)!!
-        val oneTapEnabled = extras?.getBoolean(EXTRA_ONE_TAP_ENABLED)
-        val oneTapDelayMs = extras?.getLong(EXTRA_ONE_TAP_DELAY_MS, DEFAULT_ONE_TAP_DELAY_MS)
         return listOf(
             ActionModel(
                 icon =
@@ -456,8 +479,8 @@ constructor(
                 },
                 taskId = activityId?.taskId ?: INVALID_TASK_ID,
                 actionType = actionType,
-                oneTapEnabled = oneTapEnabled == true,
-                oneTapDelayMs = oneTapDelayMs ?: DEFAULT_ONE_TAP_DELAY_MS,
+                oneTapEnabled = oneTapEnabled,
+                oneTapDelayMs = DEFAULT_ONE_TAP_DELAY_MS,
                 isEnabledWithImeVisible = isEnabledWithImeVisible,
             )
         )
@@ -516,8 +539,8 @@ constructor(
         @VisibleForTesting
         const val EXTRA_ATTRIBUTION_DIALOG_PENDING_INTENT = "attributionDialogPendingIntent"
         @VisibleForTesting const val EXTRA_ACTION_TYPE = "actionType"
+        private const val ONE_TAP_HINT_TYPE = "oneTapHint"
         private const val EXTRA_ONE_TAP_ENABLED = "oneTapEnabled"
-        private const val EXTRA_ONE_TAP_DELAY_MS = "oneTapDelayMs"
         private const val DEFAULT_ONE_TAP_DELAY_MS = 200L
         @VisibleForTesting const val EXTRA_ENABLED_WITH_IME_VISIBLE = "enabledWithImeVisible"
         const val RENDER_IN_CUE_BAR = "renderInCueBar"

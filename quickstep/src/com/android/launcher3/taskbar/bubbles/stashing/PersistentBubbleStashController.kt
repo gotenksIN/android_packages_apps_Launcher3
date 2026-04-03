@@ -37,6 +37,7 @@ import com.android.launcher3.taskbar.bubbles.stashing.BubbleStashController.Task
 import com.android.launcher3.util.MultiPropertyFactory
 import com.android.wm.shell.shared.animation.PhysicsAnimator
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation
+import java.io.PrintWriter
 
 class PersistentBubbleStashController(
     private val taskbarHotseatDimensionsProvider: TaskbarHotseatDimensionsProvider,
@@ -104,6 +105,9 @@ class PersistentBubbleStashController(
 
     /** Determines whether stashing is allowed. */
     private var allowStashing: Boolean = false
+
+    override val isStashingAllowed: Boolean
+        get() = allowStashing
 
     override val bubbleBarTranslationYForTaskbar: Float
         get() {
@@ -317,5 +321,10 @@ class PersistentBubbleStashController(
                 }
             }
         )
+    }
+
+    override fun dump(pw: PrintWriter) {
+        super.dump(pw)
+        pw.println("  controllerType: persistent")
     }
 }

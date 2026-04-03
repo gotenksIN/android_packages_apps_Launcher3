@@ -111,6 +111,7 @@
     <string name="blocked_by_policy" msgid="2071401072261365546">"Апликацијата или вашата организација не го дозволува дејствово"</string>
     <string name="split_widgets_not_supported" msgid="1355743038053053866">"Виџетите не се поддржани во моментов, изберете друга апликација"</string>
     <string name="action_image_copy" msgid="6877540054727709339">"Копирај"</string>
+    <string name="action_image_save" msgid="6205538612408306742">"Зачувај"</string>
     <string name="accessibility_rotate_button" msgid="4771825231336502943">"Ротирајте го екранот"</string>
     <string name="taskbar_edu_swipe_animation_description" msgid="1690727240826006218">"Анимација што прикажува како „Лентата со задачи“ се појавува од дното на екранот и автоматски се крие кога не се користи"</string>
     <string name="taskbar_edu_pinning_animation_description" msgid="8148601093590683880">"Анимација што прикажува како да ја закачите „Лентата со задачи“ со прекинувач за да може „Лентата со задачи“ да остане трајно видлива на дното на екранот"</string>
@@ -153,6 +154,10 @@
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Премести горе лево"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Премести долу десно"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"Отвори апликација како балонче"</string>
+    <!-- no translation found for action_move_item_left (1553114361342866236) -->
+    <skip />
+    <!-- no translation found for action_move_item_right (682950193875586183) -->
+    <skip />
     <string name="quick_switch_pane_title" msgid="4677158207760585812">"Неодамнешни апликации"</string>
     <string name="quick_switch_content_description" msgid="2851244536728720005">"Список со неодамнешни апликации"</string>
     <string name="quick_switch_overflow" msgid="3679780650881041632">"{count,plural, =1{дополнителна апликација}one{дополнителна апликација}other{дополнителни апликации}}"</string>

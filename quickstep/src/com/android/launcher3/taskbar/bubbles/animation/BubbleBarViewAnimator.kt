@@ -382,8 +382,14 @@ constructor(
         // bubble bar and shows the flyout. The second part hides the flyout and transforms the
         // bubble bar to the handle if we're in an app.
         val showAnimation = buildBubbleBarSpringInAnimation()
+        val canStash =
+            if (Flags.fixDismissFlyoutPersistentTaskbar()) {
+                bubbleStashController.isStashingAllowed
+            } else {
+                isInApp
+            }
         val hideAnimation =
-            if (isInApp && !isExpanding && !isDragging) {
+            if (canStash && !isExpanding && !isDragging) {
                 buildBubbleBarToHandleAnimation()
             } else {
                 Runnable {
@@ -399,17 +405,30 @@ constructor(
         scheduler.postDelayed(FLYOUT_DELAY_MS, hideAnimation)
     }
 
-    private fun buildBubbleBarSpringInAnimation() = Runnable {
-        moveToState(AnimatingBubble.State.ANIMATING_IN)
-        // prepare the bubble bar for the animation
-        bubbleBarView.translationY = bubbleBarView.height.toFloat()
+    private fun ensureBubbleBarIsVisible() {
         bubbleBarView.visibility = VISIBLE
-        onBubbleBarVisible.run()
         bubbleBarView.alpha = 1f
         bubbleBarView.scaleX = 1f
         bubbleBarView.scaleY = 1f
         bubbleBarView.setBackgroundScaleX(1f)
         bubbleBarView.setBackgroundScaleY(1f)
+        onBubbleBarVisible.run()
+    }
+
+    private fun buildBubbleBarSpringInAnimation() = Runnable {
+        moveToState(AnimatingBubble.State.ANIMATING_IN)
+        bubbleBarView.translationY = bubbleBarView.height.toFloat()
+        if (Flags.fixBubbleBarVisibilityUpdateDropped()) {
+            ensureBubbleBarIsVisible()
+        } else {
+            bubbleBarView.visibility = VISIBLE
+            onBubbleBarVisible.run()
+            bubbleBarView.alpha = 1f
+            bubbleBarView.scaleX = 1f
+            bubbleBarView.scaleY = 1f
+            bubbleBarView.setBackgroundScaleX(1f)
+            bubbleBarView.setBackgroundScaleY(1f)
+        }
 
         val translationTracker = TranslationTracker(bubbleBarView.translationY)
 
@@ -471,6 +490,9 @@ constructor(
      */
     private fun buildBubbleBarBounceAnimation() = Runnable {
         moveToState(AnimatingBubble.State.ANIMATING_IN)
+        if (Flags.fixBubbleBarVisibilityUpdateDropped()) {
+            ensureBubbleBarIsVisible()
+        }
         val ty = bubbleStashController.bubbleBarTranslationY
 
         val springBackAnimation = PhysicsAnimator.getInstance(bubbleBarView)

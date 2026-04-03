@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,9 +33,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import com.android.launcher3.R
 
+// TODO(b/493665827): Add test coverage.
 /** Composable which renders the view for a [Dialog<T>]. */
 @Composable
-fun <T> DialogView(viewModel: T, onDismiss: () -> Unit) where T : DialogViewModel<T> {
+fun <T> DialogScope.DialogView(viewModel: T) where T : DialogViewModel<T> {
     if (viewModel.title.isEmpty()) {
         throw IllegalStateException("Dialog must have a title.")
     }
@@ -48,15 +48,18 @@ fun <T> DialogView(viewModel: T, onDismiss: () -> Unit) where T : DialogViewMode
         throw IllegalStateException("Dialog must have a neutral or positive button.")
     }
 
-    // TODO(b/489770757): Update theme.
-    // TODO(b/489771722): Update typography.
-    MaterialTheme {
+    DialogTheme {
         Surface(
-            modifier = Modifier.testTag(DIALOG_TAG).width(dimensionResource(R.dimen.dialog_width))
+            modifier = Modifier.testTag(DIALOG_TAG).width(dimensionResource(R.dimen.dialog_width)),
+            color = DialogTheme.colorScheme.surfaceContainerHigh,
         ) {
             Column(modifier = Modifier.padding(dimensionResource(R.dimen.dialog_padding))) {
                 // Title.
-                Text(modifier = Modifier.testTag(TITLE_TAG), text = viewModel.title)
+                Text(
+                    modifier = Modifier.testTag(TITLE_TAG),
+                    text = viewModel.title,
+                    style = DialogTheme.typography.headlineSmall,
+                )
 
                 // Content.
                 Box(
@@ -67,7 +70,7 @@ fun <T> DialogView(viewModel: T, onDismiss: () -> Unit) where T : DialogViewMode
                                 bottom = dimensionResource(R.dimen.dialog_content_padding_bottom),
                             )
                 ) {
-                    viewModel.content.invoke(viewModel)
+                    viewModel.content.invoke(this@DialogView, viewModel)
                 }
 
                 // Buttons.
@@ -77,7 +80,7 @@ fun <T> DialogView(viewModel: T, onDismiss: () -> Unit) where T : DialogViewMode
                     if (hasNeutralButton) {
                         OutlinedButton(
                             modifier = Modifier.testTag(NEUTRAL_BUTTON_TAG),
-                            onClick = { onDismiss.invoke() },
+                            onClick = { dismiss(animate = true) },
                         ) {
                             Text(text = viewModel.neutralButton!!)
                         }
@@ -99,7 +102,7 @@ fun <T> DialogView(viewModel: T, onDismiss: () -> Unit) where T : DialogViewMode
                             modifier = Modifier.testTag(POSITIVE_BUTTON_TAG),
                             onClick = {
                                 if (viewModel.onPositiveButtonClick?.invoke(viewModel) == true) {
-                                    onDismiss()
+                                    dismiss(animate = true)
                                 }
                             },
                         ) {

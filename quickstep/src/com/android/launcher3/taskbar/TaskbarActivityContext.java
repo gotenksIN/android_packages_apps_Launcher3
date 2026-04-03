@@ -33,10 +33,10 @@ import static com.android.launcher3.AbstractFloatingView.TYPE_ON_BOARD_POPUP;
 import static com.android.launcher3.AbstractFloatingView.TYPE_TASKBAR_OVERLAY_PROXY;
 import static com.android.launcher3.Utilities.calculateTextHeight;
 import static com.android.launcher3.Utilities.isRunningInTestHarness;
+import static com.android.launcher3.desktop.DesktopStateProvider.getDesktopState;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_FOLDER_OPEN;
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_DRAGGING;
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_FULLSCREEN;
-import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar;
 import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_SECONDARY_LAUNCHER_ON_CD;
 import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_STASHED_IN_APP_AUTO;
 import static com.android.launcher3.taskbar.TaskbarStashController.SHOULD_BUBBLES_FOLLOW_DEFAULT_VALUE;
@@ -60,6 +60,7 @@ import android.animation.AnimatorSet;
 import android.animation.ValueAnimator;
 import android.app.ActivityOptions;
 import android.app.PendingIntent;
+import android.app.StatusBarManager;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -351,8 +352,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         SettingsCache settingsCache = SettingsCache.INSTANCE.get(this);
         mIsUserSetupComplete = settingsCache.getValue(URI_USER_SETUP_COMPLETE);
         mIsNavBarKidsMode = settingsCache.getValue(URI_NAV_BAR_KIDS_MODE);
-        mBubbleFeatureConfig = new BubbleFeatureConfigImpl(mWindowContext,
-                DesktopState.getInstance(mWindowContext));
+        mBubbleFeatureConfig =
+                new BubbleFeatureConfigImpl(mWindowContext, getDesktopState(mWindowContext));
 
         applyDeviceProfile(launcherDp);
         mTaskbarSpecsEvaluator = new TaskbarSpecsEvaluator(
@@ -597,6 +598,11 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     /** Whether app bubbles are supported on this device. */
     public boolean areAppBubblesSupported() {
         return mBubbleFeatureConfig.areAppBubblesSupported();
+    }
+
+    /** Returns {@code true} if the bubble scrim is enabled. */
+    public boolean isBubbleScrimEnabled() {
+        return mBubbleFeatureConfig.isScrimEnabled(getDisplayId());
     }
 
     /**
@@ -1118,6 +1124,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     public void onPopupVisibilityChanged(boolean isVisible) {
         boolean needsUpdate = false;
         if (isVisible) {
+            collapseSysUiPanels();
             mVisiblePopupCount++;
             needsUpdate = mVisiblePopupCount == 1;
         } else {
@@ -1290,6 +1297,25 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     }
 
     /**
+     * Returns whether the taskbar should remain touchable when the notification shade is expanded.
+     */
+    public boolean isTaskbarTouchableBehindNotificationShade() {
+        return !fixSwipeUpNotificationShadeWithBubbleBar() || isDesktopFormFactor();
+    }
+
+    /**
+     * Collapses the Quick Settings and Notification panels.
+     */
+    public void collapseSysUiPanels() {
+        if (Flags.enableCollapseSysuiPanelsOnTaskbarClick() && isNotificationShadeExpanded()) {
+            StatusBarManager statusBarManager = getSystemService(StatusBarManager.class);
+            if (statusBarManager != null) {
+                statusBarManager.collapsePanels();
+            }
+        }
+    }
+
+    /**
      * Hides the taskbar icons and background when the notification shade is expanded.
      */
     private void onNotificationShadeExpandChanged(long systemUiStateFlags,
@@ -1300,7 +1326,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mIsNotificationShadeExpanded = isExpanded;
         // Close all floating views within the Taskbar window to make sure nothing is shown over
         // the notification shade.
-        if (isExpanded) {
+        if (isExpanded && isExpandedUpdated) {
             AbstractFloatingView.closeAllOpenViewsExcept(this, TYPE_TASKBAR_OVERLAY_PROXY);
         }
 
@@ -1321,7 +1347,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             mControllers.bubbleControllers.ifPresent(controllers -> {
                 BubbleBarViewController bubbleBarViewController =
                         controllers.bubbleBarViewController;
-                if (fixSwipeUpNotificationShadeWithBubbleBar()
+                if (!isTaskbarTouchableBehindNotificationShade()
                         && bubbleBarViewController.isExpanded()) {
                     // If bubbles are expanded when the shade expansion changes, then the touchable
                     // insets need to be updated.
@@ -1467,7 +1493,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      * {@link TaskbarStashController} state flags.
      */
     void updateStashControllerLauncherStateFlag(boolean enabled) {
-        if (isPrimaryDisplay() || !enableAutoStashConnectedDisplayTaskbar.isTrue()) {
+        if (isPrimaryDisplay()) {
             return;
         }
 
@@ -1769,6 +1795,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         Object tag = view.getTag();
 
         mControllers.keyboardQuickSwitchController.closeQuickSwitchView(false);
+        collapseSysUiPanels();
 
         if (tag instanceof SingleTask singleTask) {
             RemoteTransition remoteTransition =

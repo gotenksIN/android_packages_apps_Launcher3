@@ -52,9 +52,12 @@ open class ModelWriter(
     protected val modelExecutor: Executor = Executors.MODEL_EXECUTOR,
 ) : IModelWriter {
 
+    private interface QueuedTransaction {
+        fun execute()
+    }
+
     private var isSuspended = false
-    private val transactionQueue =
-        mutableListOf<Pair<((Boolean) -> Unit)?, Consumer<TransactionContext>>>()
+    private val transactionQueue = mutableListOf<QueuedTransaction>()
 
     open fun createTransactionContext(outChangeLog: ChangeLog): TransactionContext =
         TransactionContextImpl(outChangeLog, model, modificationSource, context, bgDataModel)
@@ -192,22 +195,29 @@ open class ModelWriter(
         }
     }
 
-    override fun scheduleTransaction(
-        onComplete: ((success: Boolean) -> Unit)?,
-        block: Consumer<TransactionContext>,
+    override fun <T> scheduleTransaction(
+        onComplete: ((success: Boolean, result: T?) -> Unit)?,
+        block: (TransactionContext) -> T,
     ) {
         if (isSuspended) {
-            transactionQueue.add(onComplete to block)
+            transactionQueue.add(
+                object : QueuedTransaction {
+                    override fun execute() {
+                        scheduleTransaction(onComplete, block)
+                    }
+                }
+            )
             return
         }
 
         // TODO(b/457449059): Should this be a submit() instead?
         modelExecutor.execute {
             var success = false
+            var result: T? = null
             val outChangeLog = ChangeLog()
             try {
                 model.modelDbController.newTransaction().use { t ->
-                    block.accept(createTransactionContext(outChangeLog))
+                    result = block(createTransactionContext(outChangeLog))
                     t.commit()
                     success = true
                 }
@@ -218,7 +228,7 @@ open class ModelWriter(
             if (success) {
                 launcherStateNotifier.notifyModelChanged(outChangeLog, this.owner)
             }
-            onComplete?.invoke(success)
+            onComplete?.invoke(success, result)
         }
     }
 
@@ -233,14 +243,14 @@ open class ModelWriter(
         isSuspended = false
 
         if (pendingTransaction != null) {
-            scheduleTransaction(null, pendingTransaction)
+            scheduleTransaction(null) { pendingTransaction.accept(it) }
         }
 
         val queue = transactionQueue.toList()
         transactionQueue.clear()
 
         if (!discardPending) {
-            queue.forEach { (onComplete, block) -> scheduleTransaction(onComplete, block) }
+            queue.forEach { it.execute() }
         }
     }
 
@@ -277,7 +287,7 @@ open class ModelWriter(
 
     private fun execute(block: (TransactionContext) -> Unit) {
         if (Flags.enableTransactionalModelWriter() || isSuspended) {
-            scheduleTransaction(block = Consumer { block(it) })
+            scheduleTransaction(block = block)
         } else {
             modelExecutor.execute {
                 val changeLog = ChangeLog()
@@ -496,62 +506,7 @@ open class ModelWriter(
         }
     }
 
-    private class NoOpLauncherUiStateNotifier : LauncherUiStateNotifier {
-        override fun addCallback(callback: Callbacks) {}
-
-        override fun removeCallback(callback: Callbacks) {}
-
-        override fun notifyItemModifiedOptimistically(item: ItemInfo) {}
-
-        override fun notifyModelChanged(changeLog: ChangeLog, owner: Callbacks?) {}
-    }
-
     companion object {
         private const val TAG = "ModelWriter"
-
-        /**
-         * Creates a [ModelWriter] instance.
-         *
-         * @param context The application context.
-         * @param model The [LauncherModel] instance.
-         * @param bgDataModel The [BgDataModel] instance.
-         * @param verifyChanges Whether to verify UI consistency.
-         * @param cellPosMapper The [CellPosMapper] instance.
-         * @param modificationSource The [ModificationSource] of the changes made by this writer.
-         * @param owner The [Callbacks] instance that will be notified of changes. If null, no
-         *   callbacks will be notified.
-         * @param modelExecutor The [Executor] to use for model operations.
-         * @param uiExecutor The [Executor] to use for UI operations.
-         */
-        @JvmStatic
-        fun create(
-            context: Context,
-            model: LauncherModel,
-            bgDataModel: BgDataModel,
-            verifyChanges: Boolean,
-            cellPosMapper: CellPosMapper,
-            modificationSource: ModificationSource,
-            owner: Callbacks?,
-            modelExecutor: Executor = Executors.MODEL_EXECUTOR,
-            uiExecutor: Executor = Executors.MAIN_EXECUTOR,
-        ): IModelWriter =
-            ModelWriter(
-                context,
-                model,
-                bgDataModel,
-                cellPosMapper,
-                modificationSource,
-                launcherStateNotifier =
-                    owner?.let {
-                        DefaultLauncherUiStateNotifier(
-                            uiExecutor,
-                            bgDataModel,
-                            verifyChanges,
-                            model,
-                        )
-                    } ?: NoOpLauncherUiStateNotifier(),
-                owner,
-                modelExecutor,
-            )
     }
 }
