@@ -16,18 +16,16 @@
 package com.android.launcher3.workspacefunctions
 
 import com.android.launcher3.appfunctions.workspace.WorkspaceRepository
-import com.android.launcher3.appfunctions.workspace.WorkspaceTransactionFactory
 import dagger.Subcomponent
 
-/** Subcomponent for Dagger injection for WorkspaceFunctions. */
+/**
+ * Subcomponent for Dagger injection for WorkspaceFunctions.
+ */
 @Subcomponent(modules = [WorkspaceFunctionsModule::class])
 interface WorkspaceFunctionsComponent {
 
     /** Returns the WorkspaceRepository instance. */
     fun getWorkspaceRepository(): WorkspaceRepository
-
-    /** Returns the WorkspaceTransactionFactory instance. */
-    fun getWorkspaceTransactionFactory(): WorkspaceTransactionFactory
 
     /** Builder for WorkspaceFunctionsComponent. */
     @Subcomponent.Builder

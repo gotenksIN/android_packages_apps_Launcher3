@@ -63,13 +63,6 @@ constructor(
     private var dragImage: ImageView? = null
     private var dragView: DragView? = null
 
-    /** Callback for custom canceled drag animation. */
-    private var onDragEndedCallback: ((DragEvent, DragView?) -> Unit)? = null
-
-    fun setDragEndedCallback(callback: ((DragEvent, DragView?) -> Unit)?) {
-        onDragEndedCallback = callback
-    }
-
     init {
         val closeAllOpenViews = params?.closeAllOpenViews ?: true
         val isStarted = context.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
@@ -116,23 +109,15 @@ constructor(
         }
 
     override fun onDrag(event: DragEvent): Boolean {
-        when (event.action) {
-            DragEvent.ACTION_DRAG_ENDED -> {
-                onDragEndedCallback?.invoke(event, dragView)
-            }
-
-            DragEvent.ACTION_DROP -> {
-                // NOTE: The system-provided drag image will be hidden so make the launcher-provided
-                // drag image opaque. This allows the launcher to animate its own drag image back to
-                // its final position.
-                dragImage?.alpha = 1.0f
+        with(event) {
+            if (action == DragEvent.ACTION_DROP) {
                 try {
                     (params?.dragInfo as? SystemDragItemInfo)?.apply {
                         payload =
                             SystemDragItemInfo.UriListPayload(
                                 permissions = mContext.requestDragAndDropPermissions(event),
                                 uriList =
-                                    event.clipData?.let { clipData ->
+                                    clipData?.let { clipData ->
                                         (0 until clipData.itemCount)
                                             .mapNotNull(clipData::getItemAt)
                                             .mapNotNull(ClipData.Item::getUri)
@@ -143,6 +128,12 @@ constructor(
                 } catch (e: Exception) {
                     Log.e(TAG, "Unable to obtain URI permissions", e)
                 }
+            }
+            // NOTE: The system-provided drag image will be hidden so make the launcher-provided
+            // drag image opaque. This allows the launcher to animate its own drag image back to its
+            // final position.
+            if (action == DragEvent.ACTION_DRAG_ENDED || action == DragEvent.ACTION_DROP) {
+                dragImage?.alpha = 1.0f
             }
         }
         return super.onDrag(event)

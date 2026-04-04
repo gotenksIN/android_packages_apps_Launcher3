@@ -141,7 +141,9 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
         // here will reflect in the popup
         ArrayList<SystemShortcut.Factory<BaseTaskbarContext>> shortcuts = new ArrayList<>();
         shortcuts.add(APP_INFO);
-        if (canShowSplitScreenOptions()) {
+        if (mControllers.taskbarStashController.isInOverview()
+            ||!mControllers.taskbarDesktopModeController
+                .shouldShowDesktopTasksInTaskbar(mContext.getDisplayId())) {
             shortcuts.addAll(mControllers.uiController.getSplitMenuOptions().toList());
         }
         if (mControllers.taskbarActivityContext.areAppBubblesSupported()) {
@@ -548,15 +550,6 @@ public class TaskbarPopupController implements TaskbarControllers.LoggableTaskba
     @AnyThread
     public static boolean canPinAppsOverflow() {
         return enableOverflowButtonForTaskbarPinnedItems();
-    }
-
-    /**
-     * Returns whether the Taskbar context menu supports showing split screen options.
-     */
-    public boolean canShowSplitScreenOptions() {
-        return mControllers.taskbarStashController.isInOverview()
-                || !mControllers.taskbarDesktopModeController
-                .shouldShowDesktopTasksInTaskbar(mContext.getDisplayId());
     }
 
     /**

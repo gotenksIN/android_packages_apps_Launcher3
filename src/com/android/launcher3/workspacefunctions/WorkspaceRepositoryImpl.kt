@@ -20,6 +20,7 @@ import com.android.launcher3.appfunctions.workspace.UnplacedAppSpec
 import com.android.launcher3.appfunctions.workspace.UnplacedWidgetSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceRepository
 import com.android.launcher3.appfunctions.workspace.WorkspaceSpec
+import com.android.launcher3.appfunctions.workspace.WorkspaceTransaction
 import com.android.launcher3.appfunctions.workspace.provider.InstalledItemsProvider
 import com.android.launcher3.widget.LauncherAppWidgetProviderInfo
 import com.android.launcher3.workspacefunctions.translators.TranslatorRegistry
@@ -54,5 +55,9 @@ constructor(
     override suspend fun getInstalledWidgets(orderByUsageStats: Boolean): List<UnplacedWidgetSpec> {
         val widgets = installedWidgetsProvider.getInstalledItems(orderByUsageStats)
         return widgets.map { translators.translate(it) }
+    }
+
+    override fun newTransaction(): WorkspaceTransaction {
+        TODO("Not yet implemented")
     }
 }

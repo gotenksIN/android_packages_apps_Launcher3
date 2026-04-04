@@ -508,11 +508,6 @@ public final class LauncherInstrumentation {
                 TestProtocol.TEST_INFO_RESPONSE_FIELD);
     }
 
-    public boolean isDesktop() {
-        return getTestInfo(TestProtocol.REQUEST_IS_DESKTOP)
-                .getBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD);
-    }
-
     public boolean isTablet() {
         return getTestInfo(TestProtocol.REQUEST_IS_TABLET)
                 .getBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD);
@@ -2430,8 +2425,7 @@ public final class LauncherInstrumentation {
                 mTrackpadGestureType)
                 : getMotionEvent(downTime, currentTime, action, point.x, point.y, source, toolType);
         int button = isRightClick ? MotionEvent.BUTTON_SECONDARY : MotionEvent.BUTTON_PRIMARY;
-        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE
-                || action == MotionEvent.ACTION_BUTTON_PRESS) {
+        if (action == MotionEvent.ACTION_BUTTON_PRESS) {
             event.setButtonState(event.getButtonState() | button);
         }
         if (action == MotionEvent.ACTION_BUTTON_PRESS

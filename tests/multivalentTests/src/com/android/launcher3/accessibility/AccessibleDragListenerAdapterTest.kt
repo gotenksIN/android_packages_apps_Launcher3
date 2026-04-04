@@ -63,13 +63,13 @@ class AccessibleDragListenerAdapterTest {
     }
 
     @Test
-    fun `onDragSessionStart enables accessible drag for all view children`() {
+    fun `onDragStart enables accessible drag for all view children`() {
         // Create mock view children
         val mockDragObject = mock(DragObject::class.java)
         val mockDragOptions = mock(DragOptions::class.java)
 
         // Action
-        adapter.onDragSessionStart(mockDragObject, mockDragOptions)
+        adapter.onDragStart(mockDragObject, mockDragOptions)
 
         // Assertion
         verify(mockChildOne).setDragAndDropAccessibilityDelegate(any())
@@ -77,10 +77,10 @@ class AccessibleDragListenerAdapterTest {
     }
 
     @Test
-    fun `onDragSessionEnd removes the accessibility delegate`() {
+    fun `onDragEnd removes the accessibility delegate`() {
         // Action
         adapter = AccessibleDragListenerAdapter(mockViewGroup, mDelegateFactory)
-        adapter.onDragSessionEnd()
+        adapter.onDragEnd()
 
         // Assertion
         verify(mockChildOne).setDragAndDropAccessibilityDelegate(null)

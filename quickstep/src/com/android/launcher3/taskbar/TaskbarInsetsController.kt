@@ -65,7 +65,6 @@ import com.android.launcher3.taskbar.TaskbarInsetsController.DebugTouchableRegio
 import com.android.launcher3.taskbar.TaskbarInsetsController.DebugTouchableRegion.Companion.UI_CONTROLLER_UNTOUCHABLE
 import com.android.launcher3.testing.shared.ResourceUtils
 import com.android.launcher3.util.Executors
-import com.android.wm.shell.Flags
 import java.io.PrintWriter
 import kotlin.jvm.optionals.getOrNull
 
@@ -155,11 +154,7 @@ class TaskbarInsetsController(val context: TaskbarActivityContext) : LoggableTas
             if (bubbleControllers != null && validShadeState) {
                 val bubbleBarViewController = bubbleControllers.bubbleBarViewController
                 val isBubbleBarVisible =
-                    if (Flags.fixBubbleInsetsWhenInvisible()) {
-                        bubbleBarViewController.isBubbleBarAndContainerVisible
-                    } else {
-                        bubbleControllers.bubbleStashController.isBubbleBarVisible()
-                    }
+                    bubbleControllers.bubbleStashController.isBubbleBarVisible()
                 val isAnimatingNewBubble = bubbleBarViewController.isAnimatingNewBubble
                 // if bubble bar is visible or animating new bubble, add bar bounds to the touch
                 // region
@@ -351,14 +346,8 @@ class TaskbarInsetsController(val context: TaskbarActivityContext) : LoggableTas
         fun includeBubbleBarBounds(): Boolean {
             if (isImeVisible) return false
             val bubbleControllers = controllers.bubbleControllers.getOrNull() ?: return false
-            val bubbleBarViewController = bubbleControllers.bubbleBarViewController
-            if (bubbleBarViewController.isAnimatingNewBubble) return true
-            val bubbleBarVisible =
-                if (Flags.fixBubbleInsetsWhenInvisible()) {
-                    bubbleBarViewController.isBubbleBarAndContainerVisible
-                } else {
-                    bubbleControllers.bubbleStashController.isBubbleBarVisible()
-                }
+            if (bubbleControllers.bubbleBarViewController.isAnimatingNewBubble) return true
+            val bubbleBarVisible = bubbleControllers.bubbleStashController.isBubbleBarVisible()
             val dragging = bubbleControllers.dragToBubbleController.isDragInProgress
             return bubbleBarVisible && !dragging
         }
@@ -367,11 +356,8 @@ class TaskbarInsetsController(val context: TaskbarActivityContext) : LoggableTas
         val touchableInsets: Int
 
         // Prevents the taskbar from taking touches and conflicting with setup wizard
-        if (
-            context.isPhoneButtonNavMode &&
-                context.isUserSetupComplete &&
-                (!isImeVisible || !controllers.navbarButtonsViewController.isImeRenderingNavButtons)
-        ) {
+        if (context.isPhoneButtonNavMode && context.isUserSetupComplete &&
+            (!isImeVisible || !controllers.navbarButtonsViewController.isImeRenderingNavButtons)) {
             if (controllers.cueBarController.isVisible) {
                 // Let touches pass through us.
                 touchableInsets = TOUCHABLE_INSETS_REGION

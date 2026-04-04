@@ -22,13 +22,11 @@ import com.android.launcher3.appfunctions.workspace.ErrorCode
 sealed class ValidationResult {
     /** The request is valid and will succeed. */
     object Valid : ValidationResult()
-
     /**
-     * The request is invalid and will fail
-     *
-     * @param message: Summary of the error causing the failure.
-     * @param errorCode: The type of error.
-     * @param resolutionDetails: Details for how this error may be resolved or avoided.
+    The request is invalid and will fail
+        @param message: Summary of the error causing the failure.
+        @param errorCode: The type of error.
+        @param resolutionDetails: Details for how this error may be resolved or avoided.
      */
     data class Invalid(
         val message: String,

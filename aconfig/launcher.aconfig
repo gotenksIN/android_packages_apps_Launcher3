@@ -124,6 +124,17 @@ flag {
 }
 
 flag {
+    name: "enable_narrow_grid_restore"
+    namespace: "launcher"
+    description: "Using only the most recent workspace when restoring to avoid confusion."
+    is_fixed_read_only: true
+    bug: "325285743"
+    metadata {
+      purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "enable_fallback_overview_in_window"
     namespace: "lse_desktop_experience"
     description: "Enables fallback recents opening inside of a window instead of an activity."
@@ -459,7 +470,7 @@ flag {
   name: "blur_on_more_surfaces"
   namespace: "launcher"
   description: "Enable blur in more Launcher surfaces"
-  bug: "496223648"
+  bug: "444141641"
 }
 
 flag {

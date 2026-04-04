@@ -474,9 +474,6 @@ public class TaskbarUIController implements BubbleBarController.BubbleBarLocatio
      * Returns a stream of split screen menu options appropriate to the device.
      */
     Stream<SystemShortcut.Factory<BaseTaskbarContext>> getSplitMenuOptions() {
-        if (mControllers == null) {
-            return Stream.empty();
-        }
         return Utilities
                 .getSplitPositionOptions(mControllers.taskbarActivityContext.getDeviceProfile())
                 .stream()

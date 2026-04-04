@@ -33,8 +33,6 @@ import static com.android.launcher3.util.FlagDebugUtils.formatFlagChange;
 import static com.android.quickstep.util.SystemActionConstants.SYSTEM_ACTION_ID_TASKBAR;
 import static com.android.quickstep.util.SystemUiFlagUtils.isTaskbarHidden;
 import static com.android.systemui.shared.Flags.cueBarAceMigration;
-import static com.android.systemui.shared.Flags.selectiveDialogTaskbarStash;
-import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DIALOG_STASH_TASKBAR;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_BUBBLES_EXPANDED;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DIALOG_SHOWING;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DUAL_SHADE_ENABLED;
@@ -1417,8 +1415,7 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
                 ((systemUiStateFlags & SYSUI_STATE_DUAL_SHADE_ENABLED) != 0)
                         && mActivity.isDesktopFormFactor();
 
-        long stashMask = selectiveDialogTaskbarStash()
-                ? SYSUI_STATE_DIALOG_STASH_TASKBAR : SYSUI_STATE_DIALOG_SHOWING;
+        long stashMask = SYSUI_STATE_DIALOG_SHOWING;
         if (!ENABLE_TASKBAR_BEHIND_SHADE.isTrue() && !isDualShadeDesktop) {
             // Stash when the notification panel is visible, UNLESS:
             // 1. The "Taskbar behind shade" flag is enabled.

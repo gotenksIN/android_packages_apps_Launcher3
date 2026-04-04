@@ -16,6 +16,7 @@
 
 package com.android.launcher3.dagger
 
+import android.util.Log
 import com.android.launcher3.appfunctions.workspace.WorkspaceAppFunctions
 import com.android.launcher3.workspacefunctions.WorkspaceFunctionsComponent
 import dagger.Module
@@ -31,7 +32,6 @@ object WorkspaceFunctionsLauncherModule {
         builder: WorkspaceFunctionsComponent.Builder
     ): WorkspaceAppFunctions {
         val repository = builder.build().getWorkspaceRepository()
-        val transactionFactory = builder.build().getWorkspaceTransactionFactory()
-        return WorkspaceAppFunctions(repository, transactionFactory)
+        return WorkspaceAppFunctions(repository)
     }
 }

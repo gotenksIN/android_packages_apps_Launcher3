@@ -25,13 +25,11 @@ import androidx.appfunctions.service.AppFunction
  * changes without testing against the framework.
  *
  * @property repository The repository for querying and modifying the workspace.
- * @property transactionFactory The factory for creating workspace transactions.
  */
 class WorkspaceAppFunctions(
-    private val repository: WorkspaceRepository,
-    private val transactionFactory: WorkspaceTransactionFactory,
+    private val repository: WorkspaceRepository
 ) {
-    private val mutationManager = WorkspaceMutationManager(repository, transactionFactory)
+    private val mutationManager = WorkspaceMutationManager(repository)
 
     /// Query functions
     /// These are exposed [AppFunction]s that can be called by any client
@@ -63,7 +61,10 @@ class WorkspaceAppFunctions(
         orderByUsageStats: Boolean,
     ): GetInstalledAppsResponse {
         val allAppItems = repository.getInstalledApps(orderByUsageStats)
-        return GetInstalledAppsResponse(apps = allAppItems, proof = Proof.GET_INSTALLED_APPS_PROOF)
+        return GetInstalledAppsResponse(
+            apps = allAppItems,
+            proof = Proof.GET_INSTALLED_APPS_PROOF
+        )
     }
 
     /**
@@ -86,86 +87,21 @@ class WorkspaceAppFunctions(
         )
     }
 
-    // Action or Mutation functions
-
     /**
-     * Removes an item using a selector.
+     * Removes an item or folder from the workspace or hotseat, or an app from a folder.
      *
-     * ### Recipe
-     * *CRITICAL:** Complete all steps sequentially without pausing for confirmation or intermediate
-     * results.
-     * 1. `getCurrentWorkspace()` -> `wR`
-     * 2. If label is generic (e.g., "mail"), check `wR.workspace` for an unambiguous match (e.g.,
-     *    "Gmail"). If found, use it. If ambiguous or no match, stop and inform user.
-     * 3. `removeItem(params=RemoveItemParamsSpec(item=...), workspaceProof=wR.proof)`
-     *
-     * ### Examples
-     * - "Get rid of News":
-     *     1. `getCurrentWorkspace()` -> `wR`
-     *     2. `removeItem(params=RemoveItemParamsSpec(item=ItemSelectorSpec(label="News")),
-     *        workspaceProof=wR.proof)`
-     * - "Delete 'Social' folder":
-     *     1. `getCurrentWorkspace()` -> `wR`
-     *     2. `removeItem(params=RemoveItemParamsSpec(item=ItemSelectorSpec(label="Social")),
-     *        workspaceProof=wR.proof)`
-     * - "Remove item at 0,1 on screen 0":
-     *     1. `getCurrentWorkspace()` -> `wR`
-     *     2. `removeItem(params=RemoveItemParamsSpec(item=ItemSelectorSpec(screenIndex=0,x=0,y=1)),
-     *        workspaceProof=wR.proof)`
-     *
-     * @param params [RemoveItemParamsSpec] with item selector.
-     * @param workspaceProof Proof from `getCurrentWorkspace`.
+     * @param appFunctionContext App function context.
+     * @param target The specification of the item to remove.
+     * @return [WorkspaceUpdateResult] with the updated workspace state and a new proof.
      */
     @AppFunction(isDescribedByKDoc = true)
     suspend fun removeItem(
         appFunctionContext: AppFunctionContext,
-        params: RemoveItemParamsSpec,
-        workspaceProof: Proof,
+        target: RemoveItemParamsSpec,
     ): WorkspaceUpdateResult {
-        if (workspaceProof != Proof.GET_CURRENT_WORKSPACE_PROOF) {
-            return WorkspaceUpdateResult(
-                success = false,
-                message =
-                    "Invalid workspaceProof, make sure you called getCurrentWorkspace() first.",
-                errorCode = ErrorCode(ErrorCode.INVALID_PARAMETERS),
-                proof = Proof.NO_PROOF,
-            )
-        }
-        return mutationManager.removeItem(params)
+        return mutationManager.removeItem(target)
     }
 
-    /**
-     * Moves an item (app, folder, or widget) to a new location.
-     *
-     * ### Recipe
-     * *CRITICAL:** Complete all steps sequentially without pausing for confirmation or intermediate
-     * results.
-     * 1. `getCurrentWorkspace()` -> `wR`
-     * 2. `moveItem(params=MoveItemParamsSpec(source=..., destination=...),
-     *    workspaceProof=wR.proof)`
-     *
-     * See [MoveItemParamsSpec] for parameter examples.
-     *
-     * @param params [MoveItemParamsSpec] with source and destination.
-     * @param workspaceProof Proof from `getCurrentWorkspace`.
-     */
-    @AppFunction(isDescribedByKDoc = true)
-    suspend fun moveItem(
-        appFunctionContext: AppFunctionContext,
-        params: MoveItemParamsSpec,
-        workspaceProof: Proof,
-    ): WorkspaceUpdateResult {
-        if (workspaceProof != Proof.GET_CURRENT_WORKSPACE_PROOF) {
-            return WorkspaceUpdateResult(
-                success = false,
-                message =
-                    "Invalid workspaceProof, make sure you called getCurrentWorkspace() first.",
-                errorCode = ErrorCode(ErrorCode.INVALID_PARAMETERS),
-                proof = Proof.NO_PROOF,
-            )
-        }
-        return mutationManager.moveItem(params)
-    }
 
     /// Decorated responses to the AppFunction agents, the kdoc for these is used
     // as the raw documentation ingested by the agents.
@@ -188,7 +124,10 @@ class WorkspaceAppFunctions(
      * @property truncationDetails Why list was truncated.
      */
     @AppFunctionSerializable(isDescribedByKDoc = true)
-    data class GetInstalledAppsResponse(val apps: List<UnplacedAppSpec>, val proof: Proof)
+    data class GetInstalledAppsResponse(
+        val apps: List<UnplacedAppSpec>,
+        val proof: Proof
+    )
 
     /**
      * Response from [getInstalledWidgets].

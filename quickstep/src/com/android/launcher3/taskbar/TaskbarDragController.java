@@ -948,8 +948,7 @@ public class TaskbarDragController extends DragController implements
     }
 
     @Override
-    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
-    public void exitDrag() {
+    protected void exitDrag() {
         if (mDragObject != null && !mDisallowGlobalDrag) {
             mActivity.getDragLayer().removeView(mDragObject.dragView);
         }

@@ -443,8 +443,7 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         if (!options.isAccessibleDrag) {
             return;
         }
-        mActivityContext.getDragController().addDragSessionListener(
-                new AccessibleDragListenerAdapter(
+        mActivityContext.getDragController().addDragListener(new AccessibleDragListenerAdapter(
                 mContent, FolderAccessibilityHelper::new) {
             @Override
             protected void enableAccessibleDrag(boolean enable,

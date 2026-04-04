@@ -16,7 +16,6 @@
 
 package com.android.launcher3.organizer.creation.screen.ui.foldercreator
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,22 +24,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -50,9 +49,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.android.launcher3.R
 
 /** Composable that displays a modal bottom sheet for folder creation. */
@@ -60,128 +60,105 @@ import com.android.launcher3.R
 @Composable
 fun FolderCreator(viewModel: FolderCreatorViewModel, onDismiss: () -> Unit) {
     val state by viewModel.state.collectAsState()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val resources = LocalResources.current
 
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = colorResource(R.color.materialColorSurfaceContainerLow),
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+        Column(
+            modifier =
+                Modifier.fillMaxHeight(
+                        resources.getFloat(R.dimen.folder_creator_sheet_height_ratio)
+                    )
+                    .fillMaxWidth()
+                    .padding(
+                        bottom = dimensionResource(R.dimen.folder_creator_sheet_bottom_padding)
+                    )
+        ) {
             TitleSection()
-            FolderList(state, viewModel)
-            DuplicatesOption(state, viewModel)
+            val calculatedHeight =
+                ((dimensionResource(R.dimen.folder_creator_preview_height) +
+                    dimensionResource(R.dimen.folder_creator_list_item_spacing)) *
+                    FolderCreatorConstants.MAX_VISIBLE_ROWS) +
+                    (dimensionResource(R.dimen.folder_creator_list_vertical_padding) * 2)
+            Box(modifier = Modifier.height(calculatedHeight)) { FolderList(state, viewModel) }
             BottomActions(state, viewModel, onDismiss)
         }
     }
 }
 
 @Composable
-private fun DuplicatesOption(state: FolderCreatorState, viewModel: FolderCreatorViewModel) {
-    Row(
-        modifier =
-            Modifier.fillMaxWidth()
-                .padding(
-                    start = FolderCreatorDimens.RemoveDuplicatesContainerHorizontalPadding,
-                    end = FolderCreatorDimens.RemoveDuplicatesContainerHorizontalPadding,
-                    top = 8.dp,
-                    bottom = 4.dp,
-                )
-                .clip(RoundedCornerShape(FolderCreatorDimens.PreviewCornerRadius))
-                .background(colorResource(R.color.materialColorSurfaceContainerHigh))
-                .clickable { viewModel.toggleRemoveDuplicates() }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = stringResource(R.string.folder_creator_remove_duplicates),
-            color = colorResource(R.color.materialColorOnSurface),
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-        )
-        Checkbox(
-            checked = state.removeDuplicates,
-            onCheckedChange = { viewModel.toggleRemoveDuplicates() },
-            colors =
-                CheckboxDefaults.colors(
-                    checkedColor = colorResource(R.color.materialColorPrimary),
-                    uncheckedColor = colorResource(R.color.materialColorPrimary),
-                    checkmarkColor = colorResource(R.color.materialColorOnPrimary),
-                ),
-        )
-    }
-}
-
-@Composable
-private fun TitleSection() {
+fun TitleSection() {
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = stringResource(R.string.folder_creator_title),
             color = colorResource(R.color.materialColorOnSurface),
             style = MaterialTheme.typography.headlineSmall,
-            maxLines = 1,
         )
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.folder_creator_title_spacing)))
     }
 }
 
 @Composable
-private fun FolderList(state: FolderCreatorState, viewModel: FolderCreatorViewModel) {
-    FlowRow(
+fun FolderList(state: FolderCreatorState, viewModel: FolderCreatorViewModel) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        horizontalArrangement =
+            Arrangement.spacedBy(dimensionResource(R.dimen.folder_creator_list_item_spacing)),
+        verticalArrangement =
+            Arrangement.spacedBy(dimensionResource(R.dimen.folder_creator_list_item_spacing)),
         modifier =
-            Modifier.fillMaxWidth()
-                .padding(
-                    start = FolderCreatorDimens.ListHorizontalPadding,
-                    end = FolderCreatorDimens.ListHorizontalPadding,
-                    top = FolderCreatorDimens.ListTopPadding,
-                    bottom = FolderCreatorDimens.ListBottomPadding,
-                ),
-        maxItemsInEachRow = 2,
-        horizontalArrangement = Arrangement.spacedBy(FolderCreatorDimens.ListItemSpacing),
-        verticalArrangement = Arrangement.spacedBy(FolderCreatorDimens.ListItemSpacing),
+            Modifier.padding(
+                horizontal = dimensionResource(R.dimen.folder_creator_list_horizontal_padding),
+                vertical = dimensionResource(R.dimen.folder_creator_list_vertical_padding),
+            ),
     ) {
         state.topics.forEach { topicData ->
-            FolderPreview(
-                modifier = Modifier.weight(1f),
-                topicData,
-                isSelected = state.selectedTopics.contains(topicData.topic),
-                onFolderClick = { viewModel.toggleSelection(topicData.topic) },
-            )
+            item {
+                FolderPreview(
+                    topicData,
+                    isSelected = state.selectedTopics.contains(topicData.topic),
+                    onFolderClick = { viewModel.toggleSelection(topicData.topic) },
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun FolderPreview(
-    modifier: Modifier = Modifier,
-    topicData: FolderTopicData,
-    isSelected: Boolean,
-    onFolderClick: () -> Unit,
-) {
-    val shape = RoundedCornerShape(FolderCreatorDimens.PreviewCornerRadius)
+fun FolderPreview(topicData: FolderTopicData, isSelected: Boolean, onFolderClick: () -> Unit) {
+    val cornerRadius = dimensionResource(R.dimen.folder_creator_preview_corner_radius)
+    val shape = RoundedCornerShape(cornerRadius)
 
     Column(
         modifier =
-            modifier
-                .height(FolderCreatorDimens.PreviewHeight)
+            Modifier.width(dimensionResource(R.dimen.folder_creator_preview_width))
                 .clip(shape)
                 .background(colorResource(R.color.materialColorSurfaceContainerHigh))
                 .then(
                     if (isSelected) {
                         Modifier.border(
-                            3.dp,
+                            dimensionResource(R.dimen.folder_creator_preview_border_width),
                             colorResource(R.color.materialColorPrimaryFixed),
                             shape,
                         )
                     } else Modifier
                 )
                 .clickable { onFolderClick.invoke() }
-                .padding(vertical = 20.dp),
+                .padding(
+                    vertical = dimensionResource(R.dimen.folder_creator_preview_vertical_padding)
+                ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Box(
-            modifier = Modifier.padding(bottom = FolderCreatorDimens.ListItemSpacing),
+            modifier =
+                Modifier.padding(
+                    bottom = dimensionResource(R.dimen.folder_creator_list_item_spacing)
+                ),
             contentAlignment = Alignment.Center,
         ) {
             FolderItem(topicData)
@@ -190,122 +167,75 @@ private fun FolderPreview(
             text = topicData.topic,
             color = colorResource(R.color.materialColorOnSurface),
             style = MaterialTheme.typography.labelMedium,
-            maxLines = 1,
         )
     }
 }
 
 @Composable
-private fun FolderItem(topicData: FolderTopicData) {
+fun FolderItem(topicData: FolderTopicData) {
     Box(
         modifier =
-            Modifier.size(50.dp)
+            Modifier.size(dimensionResource(R.dimen.folder_creator_preview_icon_box_size))
                 .background(colorResource(R.color.materialColorSurfaceDim), CircleShape)
     )
     FlowRow(
         maxItemsInEachRow = 2,
-        horizontalArrangement = Arrangement.spacedBy(FolderCreatorDimens.PreviewIconInnerSpacing),
-        verticalArrangement = Arrangement.spacedBy(FolderCreatorDimens.PreviewIconInnerSpacing),
+        horizontalArrangement =
+            Arrangement.spacedBy(
+                dimensionResource(R.dimen.folder_creator_preview_icon_inner_spacing)
+            ),
+        verticalArrangement =
+            Arrangement.spacedBy(
+                dimensionResource(R.dimen.folder_creator_preview_icon_inner_spacing)
+            ),
     ) {
         topicData.icons.take(4).forEach { bitmap ->
             Image(
-                modifier = Modifier.size(20.dp).clip(CircleShape),
                 bitmap = bitmap.asImageBitmap(),
                 contentDescription = null,
+                modifier =
+                    Modifier.size(dimensionResource(R.dimen.folder_creator_preview_icon_size))
+                        .clip(CircleShape),
             )
         }
     }
 }
 
 @Composable
-private fun BottomActions(
+fun BottomActions(
     state: FolderCreatorState,
     viewModel: FolderCreatorViewModel,
     onDismiss: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+        modifier =
+            Modifier.fillMaxWidth()
+                .padding(dimensionResource(R.dimen.folder_creator_actions_padding)),
+        horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        CancelButton(onDismiss = onDismiss)
-        AddButton(state = state, viewModel = viewModel, onDismiss = onDismiss)
+        CancelButton(onDismiss)
+        AddButton(state, viewModel, onDismiss)
     }
 }
 
 @Composable
-private fun CancelButton(modifier: Modifier = Modifier, onDismiss: () -> Unit) {
-    OutlinedButton(
-        modifier = modifier,
-        onClick = onDismiss,
-        contentPadding =
-            PaddingValues(
-                horizontal = FolderCreatorDimens.ButtonHorizontalPadding,
-                vertical = FolderCreatorDimens.ButtonVerticalPadding,
-            ),
-        border = BorderStroke(1.dp, colorResource(R.color.materialColorOnPrimary)),
-        colors =
-            ButtonDefaults.outlinedButtonColors(
-                contentColor = colorResource(R.color.materialColorPrimary)
-            ),
-    ) {
-        Text(
-            text = stringResource(R.string.folder_creator_cancel),
-            style = MaterialTheme.typography.labelLarge,
-            maxLines = 1,
-        )
-    }
+fun CancelButton(onDismiss: () -> Unit) {
+    Button(onClick = onDismiss) { Text(stringResource(R.string.folder_creator_cancel)) }
 }
 
 @Composable
-private fun AddButton(
-    modifier: Modifier = Modifier,
-    state: FolderCreatorState,
-    viewModel: FolderCreatorViewModel,
-    onDismiss: () -> Unit,
-) {
+fun AddButton(state: FolderCreatorState, viewModel: FolderCreatorViewModel, onDismiss: () -> Unit) {
     Button(
-        modifier = modifier,
         onClick = {
             viewModel.generateFolders(state.selectedTopics.toList())
             onDismiss.invoke()
         },
         enabled = state.selectedTopics.isNotEmpty(),
-        contentPadding =
-            PaddingValues(
-                horizontal = FolderCreatorDimens.ButtonHorizontalPadding,
-                vertical = FolderCreatorDimens.ButtonVerticalPadding,
-            ),
-        colors =
-            ButtonDefaults.buttonColors(
-                containerColor = colorResource(R.color.materialColorPrimary),
-                contentColor = colorResource(R.color.materialColorOnPrimary),
-            ),
     ) {
-        Text(
-            text = stringResource(R.string.folder_creator_add),
-            style = MaterialTheme.typography.labelLarge,
-            maxLines = 1,
-        )
+        Text(stringResource(R.string.folder_creator_add))
     }
 }
 
-private object FolderCreatorDimens {
-    // Folder list
-    val ListItemSpacing = 8.dp
-    val ListTopPadding = 16.dp
-    val ListBottomPadding = 0.dp
-    val ListHorizontalPadding = 24.dp
-
-    // Folder preview
-    val PreviewHeight = 114.dp
-    val PreviewCornerRadius = 24.dp
-    val PreviewIconInnerSpacing = 5.dp
-
-    // Remove duplicates checkbox
-    val RemoveDuplicatesContainerHorizontalPadding = 24.dp
-
-    // Bottom bar buttons
-    val ButtonHorizontalPadding = 16.dp
-    val ButtonVerticalPadding = 10.dp
+private object FolderCreatorConstants {
+    const val MAX_VISIBLE_ROWS = 3
 }

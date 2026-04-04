@@ -226,22 +226,14 @@ public class TestInformationHandler {
                 TestProtocol.sDisableSensorRotation = true;
                 return response;
 
-            case TestProtocol.REQUEST_IS_DESKTOP:
-                response.putBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD,
-                        mPrimaryDeviceProfile.inv != null && mPrimaryDeviceProfile.inv.deviceType
-                                == InvariantDeviceProfile.TYPE_DESKTOP);
-                return response;
-
             case TestProtocol.REQUEST_IS_TABLET:
                 response.putBoolean(TestProtocol.TEST_INFO_RESPONSE_FIELD,
                         mPrimaryDeviceProfile.getDeviceProperties().isLargeScreen());
                 return response;
-
             case TestProtocol.REQUEST_IS_PREDICTIVE_BACK_SWIPE_ENABLED:
                 return getLauncherUIProperty(
                         Bundle::putBoolean, l -> l.isOnBackInvokedCallbackEnabled()
                 );
-
             case TestProtocol.REQUEST_TASKBAR_SHOWN_ON_HOME: {
                 LauncherDisplayInfo displayInfo = DisplayController.INSTANCE.get(
                         mContext).getInfoForDisplay(Integer.parseInt(arg));

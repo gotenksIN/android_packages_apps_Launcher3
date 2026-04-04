@@ -16,15 +16,12 @@
 package com.android.launcher3.workspacefunctions
 
 import com.android.launcher3.appfunctions.workspace.HotseatSpec
-import com.android.launcher3.appfunctions.workspace.MoveItemParamsSpec
-import com.android.launcher3.appfunctions.workspace.RemoveItemParamsSpec
 import com.android.launcher3.appfunctions.workspace.UnplacedAppSpec
 import com.android.launcher3.appfunctions.workspace.UnplacedWidgetSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceAppFunctions
 import com.android.launcher3.appfunctions.workspace.WorkspaceRepository
 import com.android.launcher3.appfunctions.workspace.WorkspaceSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceTransaction
-import com.android.launcher3.appfunctions.workspace.WorkspaceTransactionFactory
 import dagger.Module
 import dagger.Provides
 
@@ -37,7 +34,7 @@ class NoOpWorkspaceFunctionsModule {
 
     @Provides
     fun provideWorkspaceAppFunctions(): WorkspaceAppFunctions {
-        return WorkspaceAppFunctions(NoOpWorkspaceRepository(), NoOpWorkspaceTransactionFactory())
+        return WorkspaceAppFunctions(NoOpWorkspaceRepository())
     }
 
     private class NoOpWorkspaceRepository : WorkspaceRepository {
@@ -59,25 +56,9 @@ class NoOpWorkspaceFunctionsModule {
         ): List<UnplacedWidgetSpec> {
             return listOf()
         }
-    }
 
-    private class NoOpWorkspaceTransactionFactory : WorkspaceTransactionFactory {
-        override fun createRemoveItemTransaction(
-            params: RemoveItemParamsSpec
-        ): WorkspaceTransaction {
-            return object : WorkspaceTransaction {
-                override suspend fun execute(): WorkspaceSpec {
-                    throw UnsupportedOperationException("Not implemented")
-                }
-            }
-        }
-
-        override fun createMoveItemTransaction(params: MoveItemParamsSpec): WorkspaceTransaction {
-            return object : WorkspaceTransaction {
-                override suspend fun execute(): WorkspaceSpec {
-                    throw UnsupportedOperationException("Not implemented")
-                }
-            }
+        override fun newTransaction(): WorkspaceTransaction {
+            throw UnsupportedOperationException("Not implemented")
         }
     }
 }

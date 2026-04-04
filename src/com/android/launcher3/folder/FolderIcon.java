@@ -31,7 +31,6 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
@@ -187,15 +186,8 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         }, this::shouldIgnoreTouchDown);
         mPreviewLayoutRule = new ClippedFolderIconLayoutRule();
         mPreviewItemManager = new PreviewItemManager(this);
-
         mDotParams = new DotRenderer.DrawParams();
-
-        // Using themed outline color if icon theme is enabled.
-        int outlineColor = ThemeManager.INSTANCE.get(context).isIconThemeEnabled()
-            ? context.getColor(R.color.notification_dot_outline_themed) : Color.WHITE;
-
         mDotParams.setDotColor(Themes.getAttrColor(context, R.attr.notificationDotColor));
-        mDotParams.setOutlineColor(outlineColor);
         mDotParams.shapeInfo = ThemeManager.INSTANCE.get(context).getIconState().getIconShapeInfo();
     }
 

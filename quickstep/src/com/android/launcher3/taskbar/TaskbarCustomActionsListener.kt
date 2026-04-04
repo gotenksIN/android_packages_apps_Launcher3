@@ -21,7 +21,6 @@ import com.android.launcher3.BubbleTextView
 import com.android.launcher3.folder.FolderIcon
 import com.android.launcher3.model.data.ItemInfoWithIcon
 import com.android.launcher3.touch.BaseItemCustomActionsListener
-import com.android.launcher3.touch.CustomActionsListener.Companion.ActionTrigger
 import com.android.launcher3.touch.isNotPinnable
 
 /**
@@ -34,7 +33,7 @@ import com.android.launcher3.touch.isNotPinnable
  */
 class TaskbarCustomActionsListener(private val taskbarContext: BaseTaskbarContext) :
     BaseItemCustomActionsListener() {
-    override fun onOpenPopupMenu(target: View, btv: BubbleTextView?, actionTrigger: ActionTrigger) {
+    override fun onOpenPopupMenu(target: View, btv: BubbleTextView?) {
         // Allow the view to handle its own popup menu if it has a custom implementation.
         if (btv?.showPopup() != null) return
 

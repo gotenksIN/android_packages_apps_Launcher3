@@ -5,7 +5,6 @@ import static android.view.accessibility.AccessibilityNodeInfo.ACTION_ACCESSIBIL
 import static android.view.accessibility.AccessibilityNodeInfo.ACTION_LONG_CLICK;
 
 import static com.android.launcher3.AbstractFloatingView.TYPE_WIDGET_RESIZE_FRAME;
-import static com.android.launcher3.Flags.enableHomeScreenFilesCopyPaste;
 import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.accessibility.WidgetResizePopupDataSource.decreaseHeightAction;
 import static com.android.launcher3.accessibility.WidgetResizePopupDataSource.decreaseWidthAction;
@@ -46,8 +45,6 @@ import com.android.launcher3.dragndrop.DragOptions;
 import com.android.launcher3.dragndrop.DragView;
 import com.android.launcher3.folder.Folder;
 import com.android.launcher3.folder.FolderIcon;
-import com.android.launcher3.homescreenfiles.HomeScreenFile;
-import com.android.launcher3.homescreenfiles.HomeScreenFilesUtils;
 import com.android.launcher3.homescreenfiles.HomeScreenFilesUtilsKt;
 import com.android.launcher3.keyboard.KeyboardDragAndDropView;
 import com.android.launcher3.model.data.AppInfo;
@@ -95,7 +92,6 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
     protected static final int RESIZE = R.id.action_resize;
     public static final int DEEP_SHORTCUTS = R.id.action_deep_shortcuts;
     public static final int CLOSE = R.id.action_close;
-    public static final int COPY = R.id.action_copy;
 
     public LauncherAccessibilityDelegate(Launcher launcher) {
         super(launcher);
@@ -120,7 +116,6 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
                 R.string.action_deep_shortcut, KeyEvent.KEYCODE_S));
         mActions.put(CLOSE, new LauncherAction(CLOSE,
                 R.string.action_close, KeyEvent.KEYCODE_X));
-        mActions.put(COPY, new LauncherAction(COPY, R.string.action_copy, KeyEvent.KEYCODE_C));
     }
 
     private static boolean isNotInShortcutMenu(@Nullable View view) {
@@ -163,10 +158,6 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
 
         if (supportAddToWorkSpace(item)) {
             out.add(mActions.get(ADD_TO_WORKSPACE));
-        }
-
-        if (enableHomeScreenFilesCopyPaste() && HomeScreenFilesUtilsKt.isFileSystemItem(item)) {
-            out.add(mActions.get(COPY));
         }
     }
 
@@ -261,9 +252,6 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
                 AbstractFloatingView.closeOpenViews(mContext, /* animate= */ false,
                         TYPE_WIDGET_RESIZE_FRAME);
             }
-        } else if (action == COPY && enableHomeScreenFilesCopyPaste()) {
-            final HomeScreenFile file = HomeScreenFilesUtilsKt.getHomeScreenFile(item);
-            return file != null && HomeScreenFilesUtils.copyToClipboard(mContext, file);
         } else {
             for (ButtonDropTarget dropTarget : mContext.getDropTargetBar().getDropTargets()) {
                 int dropTargetAction = dropTarget.getSupportedAccessibilityAction(item, host);

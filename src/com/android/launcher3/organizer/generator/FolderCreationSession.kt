@@ -59,7 +59,7 @@ constructor(
                 .asSequence()
                 .filter { selectedTopics.contains(it.topic) && it.score >= 0.8f }
                 .groupBy { it.topic }
-                .filter { (_, items) -> items.size >= 2 }
+                .filter { (_, items) -> items.size >= 3 }
                 .map { (topic, items) ->
                     val folderInfo = FolderInfo()
                     folderInfo.title = topic

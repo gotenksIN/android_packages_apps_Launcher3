@@ -17,9 +17,7 @@
 package com.android.launcher3.taskbar
 
 import android.platform.test.flag.junit.SetFlagsRule
-import android.view.View
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.android.launcher3.R
 import com.android.launcher3.taskbar.NavbarButtonsViewController.ALPHA_INDEX_KEYGUARD_OR_DISABLE
 import com.android.launcher3.taskbar.TaskbarControllerTestUtil.runOnTaskbarUiThreadSync
 import com.android.launcher3.taskbar.rules.TaskbarAnimatorTestRule
@@ -51,7 +49,6 @@ class NavbarButtonsViewControllerTest {
 
     private val navbarButtonsViewController by
         taskbarUnitTestRule.delegate { it.navbarButtonsViewController }
-    private val dragLayer by taskbarUnitTestRule.delegate { it.taskbarActivityContext.dragLayer }
 
     @Test
     @TaskbarMode(THREE_BUTTONS)
@@ -115,31 +112,5 @@ class NavbarButtonsViewControllerTest {
         val alpha =
             navbarButtonsViewController.backButtonAlpha[ALPHA_INDEX_KEYGUARD_OR_DISABLE].value
         assertThat(alpha).isEqualTo(1)
-    }
-
-    @Test
-    @TaskbarMode(THREE_BUTTONS)
-    fun setCueBarVisible_hidesRecentsButton() {
-        setCueBarVisibleAndWait(true)
-
-        val recentsButton = dragLayer.findViewById<View>(R.id.recent_apps)
-        assertThat(recentsButton.alpha).isZero()
-    }
-
-    @Test
-    @TaskbarMode(THREE_BUTTONS)
-    fun setCueBarHidden_showsRecentsButton() {
-        setCueBarVisibleAndWait(true)
-        setCueBarVisibleAndWait(false)
-
-        val recentsButton = dragLayer.findViewById<View>(R.id.recent_apps)
-        assertThat(recentsButton.alpha).isEqualTo(1f)
-    }
-
-    private fun setCueBarVisibleAndWait(isVisible: Boolean) {
-        runOnTaskbarUiThreadSync {
-            navbarButtonsViewController.setCueBarVisible(isVisible)
-            animatorTestRule.advanceTimeBy(ANIMATION_DURATION)
-        }
     }
 }

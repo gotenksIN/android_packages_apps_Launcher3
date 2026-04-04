@@ -26,7 +26,6 @@ import java.util.regex.Pattern;
 final class AllAppsAppIcon extends HomeAppIcon {
 
     private static final Pattern LONG_CLICK_EVENT = Pattern.compile("onAllAppsItemLongClick");
-    private static final Pattern RIGHT_CLICK_EVENT = Pattern.compile("onAllAppsItemRightClick");
 
     AllAppsAppIcon(LauncherInstrumentation launcher, UiObject2 icon) {
         super(launcher, icon);
@@ -35,10 +34,5 @@ final class AllAppsAppIcon extends HomeAppIcon {
     @Override
     protected Pattern getLongClickEvent() {
         return LONG_CLICK_EVENT;
-    }
-
-    @Override
-    protected Pattern getRightClickEvent() {
-        return RIGHT_CLICK_EVENT;
     }
 }

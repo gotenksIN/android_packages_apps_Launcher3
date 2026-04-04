@@ -22,9 +22,13 @@ import com.android.launcher3.appfunctions.workspace.HotseatItemSpec
 import com.android.launcher3.appfunctions.workspace.HotseatSpec
 import com.android.launcher3.appfunctions.workspace.ItemSelectorSpec
 import com.android.launcher3.appfunctions.workspace.RemoveItemParamsSpec
+import com.android.launcher3.appfunctions.workspace.UnplacedAppSpec
+import com.android.launcher3.appfunctions.workspace.UnplacedWidgetSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceItemSpec
+import com.android.launcher3.appfunctions.workspace.WorkspaceRepository
 import com.android.launcher3.appfunctions.workspace.WorkspaceScreenSpec
 import com.android.launcher3.appfunctions.workspace.WorkspaceSpec
+import com.android.launcher3.appfunctions.workspace.WorkspaceTransaction
 import com.android.launcher3.workspacefunctions.testing.FakeWorkspaceRepository
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.runBlocking
@@ -38,19 +42,13 @@ class RemoveItemValidatorTest {
 
     @Test
     fun validate_hotseatItem_found_returnsValid(): Unit = runBlocking {
-        workspaceRepository.workspace =
-            createWorkspace(
-                hotseat =
-                    HotseatSpec(
-                        items =
-                            listOf(HotseatItemSpec(packageName = "com.pkg", className = "com.cls"))
-                    )
-            )
-        val validator =
-            RemoveItemValidator(
-                params = RemoveItemParamsSpec(item = createSelector(hotseatRank = 0)),
-                repository = workspaceRepository,
-            )
+        workspaceRepository.workspace = createWorkspace(
+            hotseat = HotseatSpec(items = listOf(HotseatItemSpec(packageName = "com.pkg", className = "com.cls")))
+        )
+        val validator = RemoveItemValidator(
+            params = RemoveItemParamsSpec(item = createSelector(hotseatRank = 0)),
+            repository = workspaceRepository
+        )
 
         val result = validator.validate()
 
@@ -60,31 +58,28 @@ class RemoveItemValidatorTest {
     @Test
     fun validate_hotseatItem_notFound_returnsInvalid(): Unit = runBlocking {
         workspaceRepository.workspace = createWorkspace(hotseat = HotseatSpec(items = emptyList()))
-        val validator =
-            RemoveItemValidator(
-                params = RemoveItemParamsSpec(item = createSelector(hotseatRank = 0)),
-                repository = workspaceRepository,
-            )
+        val validator = RemoveItemValidator(
+            params = RemoveItemParamsSpec(item = createSelector(hotseatRank = 0)),
+            repository = workspaceRepository
+        )
 
         val result = validator.validate()
 
         assertThat(result).isInstanceOf(ValidationResult.Invalid::class.java)
-        assertThat((result as ValidationResult.Invalid).errorCode?.code)
-            .isEqualTo(ErrorCode.ITEM_NOT_FOUND)
+        assertThat((result as ValidationResult.Invalid).errorCode?.code).isEqualTo(ErrorCode.ITEM_NOT_FOUND)
     }
 
     @Test
     fun validate_coordinateItem_found_returnsValid(): Unit = runBlocking {
-        workspaceRepository.workspace =
-            createWorkspace(
-                screens =
-                    listOf(WorkspaceScreenSpec(items = listOf(WorkspaceItemSpec(x = 1, y = 1))))
+        workspaceRepository.workspace = createWorkspace(
+            screens = listOf(
+                WorkspaceScreenSpec(items = listOf(WorkspaceItemSpec(x = 1, y = 1)))
             )
-        val validator =
-            RemoveItemValidator(
-                params = RemoveItemParamsSpec(item = createSelector(screenIndex = 0, x = 1, y = 1)),
-                repository = workspaceRepository,
-            )
+        )
+        val validator = RemoveItemValidator(
+            params = RemoveItemParamsSpec(item = createSelector(screenIndex = 0, x = 1, y = 1)),
+            repository = workspaceRepository
+        )
 
         val result = validator.validate()
 
@@ -93,13 +88,13 @@ class RemoveItemValidatorTest {
 
     @Test
     fun validate_coordinateItem_notFound_returnsInvalid(): Unit = runBlocking {
-        workspaceRepository.workspace =
-            createWorkspace(screens = listOf(WorkspaceScreenSpec(items = emptyList())))
-        val validator =
-            RemoveItemValidator(
-                params = RemoveItemParamsSpec(item = createSelector(screenIndex = 0, x = 1, y = 1)),
-                repository = workspaceRepository,
-            )
+        workspaceRepository.workspace = createWorkspace(
+            screens = listOf(WorkspaceScreenSpec(items = emptyList()))
+        )
+        val validator = RemoveItemValidator(
+            params = RemoveItemParamsSpec(item = createSelector(screenIndex = 0, x = 1, y = 1)),
+            repository = workspaceRepository
+        )
 
         val result = validator.validate()
 
@@ -108,20 +103,15 @@ class RemoveItemValidatorTest {
 
     @Test
     fun validate_labelItem_foundInScreen_returnsValid(): Unit = runBlocking {
-        workspaceRepository.workspace =
-            createWorkspace(
-                screens =
-                    listOf(
-                        WorkspaceScreenSpec(
-                            items = listOf(WorkspaceItemSpec(x = 0, y = 0, label = "Gmail"))
-                        )
-                    )
+        workspaceRepository.workspace = createWorkspace(
+            screens = listOf(
+                WorkspaceScreenSpec(items = listOf(WorkspaceItemSpec(x = 0, y = 0, label = "Gmail")))
             )
-        val validator =
-            RemoveItemValidator(
-                params = RemoveItemParamsSpec(item = createSelector(label = "gmail")),
-                repository = workspaceRepository,
-            )
+        )
+        val validator = RemoveItemValidator(
+            params = RemoveItemParamsSpec(item = createSelector(label = "gmail")),
+            repository = workspaceRepository
+        )
 
         val result = validator.validate()
 
@@ -130,13 +120,13 @@ class RemoveItemValidatorTest {
 
     @Test
     fun validate_labelItem_foundInHotseat_returnsValid(): Unit = runBlocking {
-        workspaceRepository.workspace =
-            createWorkspace(hotseat = HotseatSpec(items = listOf(HotseatItemSpec(label = "Gmail"))))
-        val validator =
-            RemoveItemValidator(
-                params = RemoveItemParamsSpec(item = createSelector(label = "Gmail")),
-                repository = workspaceRepository,
-            )
+        workspaceRepository.workspace = createWorkspace(
+            hotseat = HotseatSpec(items = listOf(HotseatItemSpec(label = "Gmail")))
+        )
+        val validator = RemoveItemValidator(
+            params = RemoveItemParamsSpec(item = createSelector(label = "Gmail")),
+            repository = workspaceRepository
+        )
 
         val result = validator.validate()
 
@@ -145,31 +135,15 @@ class RemoveItemValidatorTest {
 
     @Test
     fun validate_componentItem_foundInScreen_returnsValid(): Unit = runBlocking {
-        workspaceRepository.workspace =
-            createWorkspace(
-                screens =
-                    listOf(
-                        WorkspaceScreenSpec(
-                            items =
-                                listOf(
-                                    WorkspaceItemSpec(
-                                        x = 0,
-                                        y = 0,
-                                        packageName = "com.pkg",
-                                        className = "com.cls",
-                                    )
-                                )
-                        )
-                    )
+        workspaceRepository.workspace = createWorkspace(
+            screens = listOf(
+                WorkspaceScreenSpec(items = listOf(WorkspaceItemSpec(x = 0, y = 0, packageName = "com.pkg", className = "com.cls")))
             )
-        val validator =
-            RemoveItemValidator(
-                params =
-                    RemoveItemParamsSpec(
-                        item = createSelector(packageName = "com.pkg", className = "com.cls")
-                    ),
-                repository = workspaceRepository,
-            )
+        )
+        val validator = RemoveItemValidator(
+            params = RemoveItemParamsSpec(item = createSelector(packageName = "com.pkg", className = "com.cls")),
+            repository = workspaceRepository
+        )
 
         val result = validator.validate()
 
@@ -178,8 +152,13 @@ class RemoveItemValidatorTest {
 
     private fun createWorkspace(
         screens: List<WorkspaceScreenSpec> = emptyList(),
-        hotseat: HotseatSpec = HotseatSpec(emptyList()),
-    ) = WorkspaceSpec(screens = screens, hotseat = hotseat, rows = null, columns = null)
+        hotseat: HotseatSpec = HotseatSpec(emptyList())
+    ) = WorkspaceSpec(
+        screens = screens,
+        hotseat = hotseat,
+        rows = null,
+        columns = null
+    )
 
     private fun createSelector(
         label: String? = null,
@@ -188,15 +167,14 @@ class RemoveItemValidatorTest {
         y: Int? = null,
         hotseatRank: Int? = null,
         packageName: String? = null,
-        className: String? = null,
-    ) =
-        ItemSelectorSpec(
-            label = label,
-            screenIndex = screenIndex,
-            x = x,
-            y = y,
-            hotseatRank = hotseatRank,
-            packageName = packageName,
-            className = className,
-        )
+        className: String? = null
+    ) = ItemSelectorSpec(
+        label = label,
+        screenIndex = screenIndex,
+        x = x,
+        y = y,
+        hotseatRank = hotseatRank,
+        packageName = packageName,
+        className = className
+    )
 }

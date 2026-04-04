@@ -21,13 +21,11 @@ import android.os.PersistableBundle
 import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.SetFlagsRule
 import android.view.DragEvent
-import android.view.SurfaceControl
 import android.view.View.DRAG_FLAG_DISABLE_DEFAULT_POINTER_ICON
 import android.view.View.DRAG_FLAG_GLOBAL
 import android.view.View.DRAG_FLAG_GLOBAL_URI_READ
 import android.view.View.DRAG_FLAG_GLOBAL_URI_WRITE
 import android.view.View.DRAG_FLAG_OPAQUE
-import android.view.View.DRAG_FLAG_REQUEST_SURFACE_FOR_RETURN_ANIMATION
 import android.view.View.DragShadowBuilder
 import android.widget.ImageView
 import androidx.test.filters.SmallTest
@@ -74,7 +72,6 @@ class SystemDragControllerImplTest {
     @Mock private lateinit var mockDragEvent: DragEvent
     @Mock private lateinit var mockSystemDragListener: SystemDragListener
     @Mock private lateinit var mockSystemDragListenerFactory: SystemDragListener.Factory
-    @Mock private lateinit var mockTransactionSupplier: () -> SurfaceControl.Transaction
 
     private lateinit var controller: SystemDragControllerImpl
 
@@ -89,50 +86,7 @@ class SystemDragControllerImplTest {
                 mockContext,
                 mockSystemDragListenerFactory,
                 /* isHomeScreenFilesFeatureEnabled= */ true,
-                mockTransactionSupplier,
             )
-    }
-
-    @Test
-    fun testDragEndedCallback() {
-        val dragView = mock<DragView>()
-        val dragSurface = mock<SurfaceControl>()
-        val mockTransaction = mock<SurfaceControl.Transaction>()
-        whenever(mockTransactionSupplier.invoke()).thenReturn(mockTransaction)
-        whenever(mockTransaction.addTransactionCompletedListener(anyOrNull(), anyOrNull()))
-            .thenAnswer {
-                val consumer = it.arguments[1] as Consumer<SurfaceControl.TransactionStats?>
-                consumer.accept(null)
-                mockTransaction
-            }
-        whenever(mockTransaction.remove(anyOrNull())).thenReturn(mockTransaction)
-
-        val dragEndedCallbackCaptor = argumentCaptor<(DragEvent, DragView?) -> Unit>()
-
-        // Start drag to trigger listener creation and callback registration.
-        testDragStart()
-
-        verify(mockSystemDragListener).setDragEndedCallback(dragEndedCallbackCaptor.capture())
-
-        val mockDragEvent = mock<DragEvent>()
-        whenever(mockDragEvent.action).thenReturn(DragEvent.ACTION_DRAG_ENDED)
-        whenever(mockDragEvent.dragSurface).thenReturn(dragSurface)
-
-        // Stub the mock listener to invoke the callback when onDrag(ACTION_DRAG_ENDED) is called.
-        whenever(mockSystemDragListener.onDrag(mockDragEvent)).thenAnswer {
-            dragEndedCallbackCaptor.firstValue.invoke(mockDragEvent, dragView)
-            true
-        }
-
-        // Trigger the end of drag via the controller, which should delegate to the listener.
-        assertTrue(controller.onDrag(mockDragEvent))
-
-        assertTrue(mockContext.dragController.mDragObject.deferDragViewCleanupPostAnimation)
-        verify(mockTransaction).remove(dragSurface)
-        verify(mockTransaction).apply()
-
-        // Verify onDeferredEndDrag() is called after transaction is completed.
-        verify(mockContext.dragController).onDeferredEndDrag(dragView)
     }
 
     @Test
@@ -172,7 +126,6 @@ class SystemDragControllerImplTest {
     @Test
     fun testDragStartAfterCleanup() {
         testDragStart()
-        verify(mockSystemDragListener).setDragEndedCallback(anyOrNull())
 
         val cleanupCallbackCaptor = ArgumentCaptor.forClass(Runnable::class.java)
         verify(mockSystemDragListener).setCleanupCallback(cleanupCallbackCaptor.capture())
@@ -256,7 +209,6 @@ class SystemDragControllerImplTest {
                 mockContext,
                 mockSystemDragListenerFactory,
                 /* isHomeScreenFilesFeatureEnabled= */ false,
-                mockTransactionSupplier,
             )
 
         val clipDescription = ClipDescription("", arrayOf("mimeType"))
@@ -334,8 +286,7 @@ class SystemDragControllerImplTest {
                             DRAG_FLAG_GLOBAL or
                             DRAG_FLAG_GLOBAL_URI_READ or
                             DRAG_FLAG_GLOBAL_URI_WRITE or
-                            DRAG_FLAG_OPAQUE or
-                            DRAG_FLAG_REQUEST_SURFACE_FOR_RETURN_ANIMATION
+                            DRAG_FLAG_OPAQUE
                     ),
                 )
             )
@@ -344,7 +295,6 @@ class SystemDragControllerImplTest {
         whenever(mockSystemDragListenerFactory.create(::ImageView, params))
             .thenReturn(systemDragListener)
         whenever(systemDragListener.startDrag(screenPos)).thenReturn(dragView)
-        mockContext.dragController.mDragObject.dragView = dragView
 
         // NOTE: Drag view is returned when the sequence starts successfully.
         val expectedResult =
@@ -370,10 +320,8 @@ class SystemDragControllerImplTest {
     }
 
     private fun initMock(mockContext: ActivityContext) {
-        val mockDragController = mock<DragController>()
-        whenever(mockContext.dragController).thenReturn(mockDragController)
-        whenever(mockDragController.downPoint).thenReturn(mock())
-        mockDragController.mDragObject = mock()
+        whenever(mockContext.dragController).thenReturn(mock())
+        whenever(mockContext.dragController.downPoint).thenReturn(mock())
         whenever(mockContext.dragLayer).thenReturn(mock())
     }
 

@@ -247,7 +247,6 @@ class PersistentBubbleStashController(
             0
         }
 
-    // TODO (b/495910829) -- Fix up how bubble bar visibility is represented
     override fun isBubbleBarVisible(): Boolean = bubbleBarViewController.hasBubbles()
 
     override fun onNewBubbleAnimationInterrupted(isStashed: Boolean, bubbleBarTranslationY: Float) {

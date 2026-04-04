@@ -22,7 +22,6 @@ import com.android.launcher3.taskbar.handoff.TaskbarHandoffController
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayController
 import com.android.systemui.shared.rotation.RotationButtonController
 import java.util.Optional
-import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.mockito.Mock
@@ -115,10 +114,5 @@ abstract class TaskbarBaseTestCase {
                 taskbarHandoffController,
                 taskbarViewDragDropController,
             )
-    }
-
-    @After
-    open fun tearDown() {
-        taskbarControllers.onDestroy()
     }
 }

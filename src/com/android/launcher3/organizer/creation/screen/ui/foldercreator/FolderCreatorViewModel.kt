@@ -59,12 +59,7 @@ constructor(
                     .filter { it.itemInfo is AppInfo }
                     .groupBy({ it.topic }, { (it.itemInfo as AppInfo).bitmap.icon })
 
-            val topicDataList =
-                topics
-                    .map { FolderTopicData(it, topicIcons[it] ?: emptyList()) }
-                    .filter { it.icons.size >= 2 }
-                    .sortedByDescending { it.icons.size }
-                    .take(6)
+            val topicDataList = topics.map { FolderTopicData(it, topicIcons[it] ?: emptyList()) }
             updateState(topicDataList)
         }
     }
@@ -94,11 +89,6 @@ constructor(
         _state.value = _state.value.copy(selectedTopics = newSelected)
     }
 
-    /** Toggles the remove duplicates option. */
-    fun toggleRemoveDuplicates() {
-        _state.value = _state.value.copy(removeDuplicates = !_state.value.removeDuplicates)
-    }
-
     /**
      * Generates a list of folders based on the selected topics.
      *
@@ -118,9 +108,7 @@ constructor(
     private suspend fun persistAndBindFolders(folders: List<FolderInfo>) {
         try {
             modelWriter.scheduleTransactionSuspending { context ->
-                organizerTransactionContextFactory
-                    .create(context)
-                    .addFolders(folders, state.value.removeDuplicates)
+                organizerTransactionContextFactory.create(context).addFolders(folders)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to persist folders", e)

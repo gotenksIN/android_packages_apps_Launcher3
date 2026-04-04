@@ -268,9 +268,6 @@ public class BubbleView extends ConstraintLayout {
         }
         mDotColor = bubble.getDotColor();
         mDrawParams.setDotColor(mDotColor);
-        // The outline color will always be white since icon themes
-        // are not applied to app icons here.
-        mDrawParams.setOutlineColor(Color.WHITE);
         String contentDesc = bubble.getInfo().getTitle();
         if (TextUtils.isEmpty(contentDesc)) {
             contentDesc = getResources().getString(R.string.bubble_bar_bubble_fallback_description);

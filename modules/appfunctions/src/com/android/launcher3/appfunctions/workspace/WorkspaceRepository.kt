@@ -45,13 +45,41 @@ interface WorkspaceRepository {
      * @return A list of [UnplacedWidgetSpec] representing the installed widgets.
      */
     suspend fun getInstalledWidgets(orderByUsageStats: Boolean): List<UnplacedWidgetSpec>
+
+    /**
+     * Starts a new, atomic transaction for modifying the workspace.
+     *
+     * @return A [WorkspaceTransaction] handle to chain mutation operations.
+     */
+    fun newTransaction(): WorkspaceTransaction
 }
 
+/**
+ * Represents a single, atomic "unit of work" for the workspace.
+ *
+ * All mutation operations are defined here and operate on the flat `Spec` types. The transaction
+ * must be completed by calling [commit].
+ */
 interface WorkspaceTransaction {
+
+    // Mutation methods can be added here, following a chained ("fluent") API style.
+    // For example:
+    // fun moveItem(item: WorkspaceItemSpec, newScreen: Int, newX: Int, newY: Int):
+    // WorkspaceTransaction
+    // fun addItem(item: WorkspaceItemSpec, screen: Int): WorkspaceTransaction
+
     /**
-     * Commits the changes made in this transaction to the underlying model.
+     * Queues the removal of an item from the workspace, hotseat, or folder.
+     *
+     * @param target The specification of the item to remove.
+     * @return This [WorkspaceTransaction] instance for chaining.
+     */
+    fun removeItem(target: RemoveItemParamsSpec): WorkspaceTransaction
+
+    /**
+     * Commits all the changes made in this transaction to the underlying model.
      *
      * @return The new, updated [WorkspaceSpec] after the transaction is complete.
      */
-    suspend fun execute(): WorkspaceSpec
+    suspend fun commit(): WorkspaceSpec
 }
