@@ -17,13 +17,13 @@
 package com.android.launcher3.touch
 
 import android.os.Handler
-import android.os.Looper
 import android.view.GestureDetector
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import com.android.launcher3.Flags
+import com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_LAUNCH
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_POPUP_MENU
 import com.android.launcher3.touch.CustomActionsListener.Companion.ACTION_START_DRAG
@@ -62,7 +62,7 @@ class CustomEventsTouchHandler(
     private var downY = 0f
 
     private val gestureDetector: GestureDetector =
-        GestureDetector(view.context, this, Handler(Looper.getMainLooper()))
+        GestureDetector(view.context, this, Handler(view.context.mainLooper))
 
     private var isRightClickActive = false
 
@@ -133,7 +133,8 @@ class CustomEventsTouchHandler(
         if (
             !isMouseEvent(event) ||
                 event.action != MotionEvent.ACTION_MOVE ||
-                TouchUtil.isMouseRightClickDownOrMove(event)
+                TouchUtil.isMouseRightClickDownOrMove(event) ||
+                isTrackpadMotionEvent(event)
         ) {
             return false
         }

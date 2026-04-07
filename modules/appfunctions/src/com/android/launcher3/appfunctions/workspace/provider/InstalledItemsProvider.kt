@@ -13,26 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.android.launcher3.appfunctions.workspace.provider
 
-package com.android.launcher3.folder
+/** Provider for installed items on device displayed on the workspace, represented as [T]. */
+interface InstalledItemsProvider<T> {
 
-import android.graphics.Canvas
-import android.view.View
-import com.android.launcher3.dagger.ActivityContextSingleton
-import com.android.launcher3.graphics.PathWrapper
-import javax.inject.Inject
-
-/**
- * Helper class that creates and updates the blur drawable used for folders.
- */
-@ActivityContextSingleton
-open class FolderBlurBackgroundHelper
-@Inject
-constructor() {
-
-    open fun prepareToOpen(folder: Folder) {}
-
-    open fun drawBlur(canvas: Canvas, pathWrapper: PathWrapper?, view: View) {}
-
-    open fun folderCloseComplete() {}
+    /**
+     * Returns a list of installed items on the workspace.
+     *
+     * @param orderByUsageStats If true, orders apps by usage; otherwise uses default order for
+     *   personalization.
+     * @return A list of [T] representing the installed items.
+     */
+    suspend fun getInstalledItems(orderByUsageStats: Boolean): List<T>
 }

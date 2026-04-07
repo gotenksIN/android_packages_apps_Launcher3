@@ -62,6 +62,7 @@ import com.android.launcher3.util.SimpleBroadcastReceiver
 import com.android.launcher3.util.SimpleBroadcastReceiver.Companion.actionsFilter
 import com.android.quickstep.util.SystemActionConstants
 import com.android.quickstep.util.SystemActionConstants.SYSTEM_ACTION_ID_BUBBLE_BAR
+import com.android.wm.shell.Flags
 import com.android.wm.shell.shared.animation.PhysicsAnimator
 import com.android.wm.shell.shared.bubbles.BubbleBarLocation
 import com.android.wm.shell.shared.bubbles.ContextUtils.isRtl
@@ -95,19 +96,6 @@ constructor(
 
     // accessibility system action properties
     private var isBubbleBarSystemActionRegistered = false
-    private val bubbleBarShowRemoteAction =
-        RemoteAction(
-            Icon.createWithResource(context, R.drawable.ic_unstash_no_shadow),
-            context.getString(R.string.bubble_bar_a11y_title),
-            context.getString(R.string.bubble_bar_a11y_title),
-            PendingIntent.getBroadcast(
-                context,
-                SYSTEM_ACTION_ID_BUBBLE_BAR,
-                Intent(SystemActionConstants.ACTION_SHOW_BUBBLE_BAR)
-                    .setPackage(context.packageName),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            ),
-        )
 
     @VisibleForTesting
     val showBubbleBarReceiver =
@@ -256,6 +244,10 @@ constructor(
         } else {
             isStashed = true
             stashHandleViewAlpha?.let { animatorSet.playTogether(it.animateToValue(1f)) }
+        }
+        if (Flags.fixBubblesStashingOnHome()) {
+            cancelAnimation()
+            animator = animatorSet
         }
         animatorSet
             .updateBarVisibility(isStashed)
@@ -762,7 +754,18 @@ constructor(
     private fun registerBubbleBarSystemAction() {
         if (!isBubbleBarSystemActionRegistered) {
             accessibilityManager.registerSystemAction(
-                bubbleBarShowRemoteAction,
+                RemoteAction(
+                    Icon.createWithResource(context, R.drawable.ic_unstash_no_shadow),
+                    context.getString(R.string.bubble_bar_a11y_title),
+                    context.getString(R.string.bubble_bar_a11y_title),
+                    PendingIntent.getBroadcast(
+                        context,
+                        SYSTEM_ACTION_ID_BUBBLE_BAR,
+                        Intent(SystemActionConstants.ACTION_SHOW_BUBBLE_BAR)
+                            .setPackage(context.packageName),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                    ),
+                ),
                 SYSTEM_ACTION_ID_BUBBLE_BAR,
             )
             isBubbleBarSystemActionRegistered = true

@@ -135,12 +135,6 @@
     <!-- Text for both the tile of a popup view, which shows all available widgets installed on
          the device, and the text of a button, which opens this popup view. [CHAR LIMIT=30]-->
     <string name="widget_button_text">Widgets</string>
-    <!-- Search bar text shown in the popup view showing all available widgets installed on the
-         device. [CHAR_LIMIT=50] -->
-    <string name="widgets_full_sheet_search_bar_hint">Search</string>
-    <!-- Spoken text for screen readers. This text lets a user know that the button is used to clear
-         the text that the user entered in the search box. [CHAR_LIMIT=none] -->
-    <string name="widgets_full_sheet_cancel_button_description">Clear text from search box</string>
     <!-- Text shown when there are no widgets or shortcuts that can be added to the device.
          [CHAR_LIMIT=none] -->
     <string name="no_widgets_available">Widgets and shortcuts aren\'t available</string>
@@ -511,15 +505,18 @@
 
     <!-- Accessibility description to move item into an existing folder. -->
     <string name="add_to_folder">Add to folder: <xliff:g id="name" example="Games">%1$s</xliff:g></string>
+    <string name="add_to_folder_with_position">Add to <xliff:g id="name" example="Games">%1$s</xliff:g> folder. Row <xliff:g id="number" example="1">%2$s</xliff:g>, column <xliff:g id="number" example="1">%3$s</xliff:g> in <xliff:g id="string" example="Home screen 2 of 4">%4$s</xliff:g></string>
 
     <!-- Accessibility description to move item into an existing folder containing an app. -->
     <string name="add_to_folder_with_app">Add to folder with <xliff:g id="name" example="Messenger">%1$s</xliff:g></string>
+    <string name="add_to_folder_with_app_with_position">Add to folder with <xliff:g id="name" example="Messenger">%1$s</xliff:g>. Row <xliff:g id="number" example="1">%2$s</xliff:g>, column <xliff:g id="number" example="1">%3$s</xliff:g>, in <xliff:g id="string" example="Home screen 2 of 4">%4$s</xliff:g></string>
 
     <!-- Accessibility confirmation for item added to folder. -->
     <string name="added_to_folder">Item added to folder</string>
 
     <!-- Accessibility description to create folder with another item. -->
     <string name="create_folder_with">Create folder with: <xliff:g id="name" example="Game">%1$s</xliff:g></string>
+    <string name="create_folder_with_position">Create folder with <xliff:g id="name" example="Game">%1$s</xliff:g>. Row <xliff:g id="number" example="1">%2$s</xliff:g>, column <xliff:g id="number" example="1">%3$s</xliff:g>, in <xliff:g id="string" example="Home screen 2 of 4">%4$s</xliff:g></string>
 
     <!-- Accessibility confirmation for folder created. -->
     <string name="folder_created">Folder created</string>

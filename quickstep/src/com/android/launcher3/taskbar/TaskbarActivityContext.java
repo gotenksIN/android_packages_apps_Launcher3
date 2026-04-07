@@ -41,11 +41,11 @@ import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_SECON
 import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_STASHED_IN_APP_AUTO;
 import static com.android.launcher3.taskbar.TaskbarStashController.SHOULD_BUBBLES_FOLLOW_DEFAULT_VALUE;
 import static com.android.launcher3.testing.shared.ResourceUtils.getBoolByName;
+import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.launcher3.util.Executors.getTaskbarUiThread;
 import static com.android.quickstep.RecentsFilterState.EMPTY_FILTER;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
-import static com.android.quickstep.util.ExternalDisplaysKt.isExternalDisplay;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_DUAL_SHADE_ENABLED;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_NOTIFICATION_PANEL_VISIBLE;
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_VOICE_INTERACTION_WINDOW_SHOWING;
@@ -92,6 +92,7 @@ import android.window.DesktopModeFlags.DesktopModeFlag;
 import android.window.RemoteTransition;
 
 import androidx.annotation.AnyThread;
+import androidx.annotation.MainThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
@@ -182,6 +183,7 @@ import com.android.launcher3.util.TraceHelper;
 import com.android.launcher3.util.VibratorWrapper;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.BaseDragLayer;
+import com.android.quickstep.InputConsumer;
 import com.android.quickstep.NavHandle;
 import com.android.quickstep.RecentsModel;
 import com.android.quickstep.SystemUiProxy;
@@ -212,9 +214,12 @@ import java.io.PrintWriter;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.StringJoiner;
+import java.util.WeakHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * The {@link ActivityContext} with which we inflate Taskbar-related Views. This allows UI elements
@@ -298,7 +303,11 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     private final LauncherPrefs mLauncherPrefs;
     private final int mPrimaryDisplayId;
     private final SystemUiProxy mSysUiProxy;
+    private final ActivityManagerWrapper mActivityManagerWrapper;
+    private final DesktopState mDesktopState;
     private final Context mWindowContext;
+    private final Set<InputConsumer> mInputConsumerCleanUpSet =
+            Collections.newSetFromMap(new WeakHashMap<>());
 
     private final TaskbarFeatureEvaluator mTaskbarFeatureEvaluator;
 
@@ -323,7 +332,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             @Nullable Context navigationBarPanelContext, DeviceProfile launcherDp,
             TaskbarNavButtonController buttonController,
             ScopedUnfoldTransitionProgressProvider unfoldTransitionProgressProvider,
-            boolean isPrimaryDisplay, int primaryDisplayId, SystemUiProxy sysUiProxy) {
+            boolean isPrimaryDisplay, int primaryDisplayId, SystemUiProxy sysUiProxy,
+            ActivityManagerWrapper activityManagerWrapper, DesktopState desktopState) {
         super(windowContext, displayId, isPrimaryDisplay);
         mTaskbarFeatureEvaluator = getActivityComponent().getTaskbarFeatureEvaluator();
         mIsTransient = mTaskbarFeatureEvaluator.isTransient();
@@ -334,6 +344,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mTaskbarUiState.setIsTransient(mIsTransient);
         mNavigationBarPanelContext = navigationBarPanelContext;
         mSysUiProxy = sysUiProxy;
+        mActivityManagerWrapper = activityManagerWrapper;
+        mDesktopState = desktopState;
         mPrimaryDisplayId = primaryDisplayId;
         mWindowContext = windowContext;
         SettingsCache settingsCache = SettingsCache.INSTANCE.get(this);
@@ -515,17 +527,22 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     @Override
     public Point getScreenSize() {
-        return DisplayController.INSTANCE.get(this).getInfo().currentSize;
+        return DisplayController.getInfo(this).currentSize;
     }
 
     @Override
     public int getDisplayHeight() {
-        return DisplayController.INSTANCE.get(this).getInfo().currentSize.y;
+        return DisplayController.getInfo(this).currentSize.y;
     }
 
     public boolean isDesktopFormFactor() {
         return mWindowContext.getResources().getBoolean(
                 R.bool.desktop_form_factor);
+    }
+
+    @MainThread
+    public void addInputConsumerToCleanUp(InputConsumer inputConsumer) {
+        mInputConsumerCleanUpSet.add(inputConsumer);
     }
 
     /**
@@ -1145,7 +1162,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     private ActivityOptionsWrapper getSingleActivityLaunchOptions(@Nullable ItemInfo item) {
         return getSingleActivityLaunchOptions(item,
-                shouldLaunchInDesktop(getDisplayId(), item) ? WINDOWING_MODE_FREEFORM
+                shouldLaunchInDesktop(item) ? WINDOWING_MODE_FREEFORM
                         : WINDOWING_MODE_FULLSCREEN);
     }
 
@@ -1227,6 +1244,9 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mIsDestroyed = true;
         setUIController(TaskbarUIController.DEFAULT);
         mControllers.onDestroy();
+        MAIN_EXECUTOR.execute(() -> {
+            mInputConsumerCleanUpSet.forEach(InputConsumer::onConsumerAboutToBeSwitched);
+        });
     }
 
     public boolean isDestroyed() {
@@ -1797,7 +1817,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             }
         } else if (tag instanceof TaskItemInfo info) {
             if (recents != null && recents.isSplitSelectionActive()
-                    && (getControllers().taskbarRecentAppsController.getDesktopTaskWithId(
+                    && (getControllers().taskbarRecentAppsController.getRunningTaskWithId(
                                 info.getTaskId())) != null) {
                 taskbarUIController.triggerSecondAppForSplit(info, info.intent, view, EMPTY_FILTER);
             } else {
@@ -1906,6 +1926,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mControllers.taskbarPopupController.maybeCloseMultiInstanceMenu();
         if (shouldCloseAllOpenViews) {
             AbstractFloatingView.closeAllOpenViews(this);
+            taskbarUIController.closeOpenLauncherViews();
         }
     }
 
@@ -1971,7 +1992,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                                 makeDefaultActivityOptions(SPLASH_SCREEN_STYLE_UNDEFINED).options;
                         activityOptions.setRemoteTransition(remoteTransition);
 
-                        ActivityManagerWrapper.getInstance().startActivityFromRecents(
+                        mActivityManagerWrapper.startActivityFromRecents(
                                 singleTask.getTask().key, activityOptions);
                     });
         }
@@ -2039,10 +2060,57 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 // TODO: b/441341469 - Split screen should be handled correctly on CD.
                 recents.handleAppPairLaunchInApp((AppPairIcon) launchingIconView, itemInfos);
             }
+        } else if (showDesktopTaskbarForFreeformDisplay()) {
+            launchSingleAppFromFreeFormDisplayTaskbar(itemInfos.get(0));
         } else {
             // Tapped a single app, nothing complicated here.
             startItemInfoActivity(itemInfos.get(0), null /*foundTask*/);
         }
+    }
+
+    /**
+     * Handles launching {@link SingleTask} on freeform displays - projected / extended / desktop
+     * first.
+     */
+    private void launchSingleAppFromFreeFormDisplayTaskbar(ItemInfo info) {
+        if (!info.user.equals(Process.myUserHandle())) {
+            startItemInfoActivity(info, /* taskInRecents= */ null);
+            return;
+        }
+
+        Predicate<GroupTask> predicate = task ->
+                task instanceof SingleTask && task.containsPackage(info.getTargetPackage());
+
+        // In case of projected mode, apps should move between connected <--> primary display. In
+        // case of 2 connected displays, apps should not move between them.
+        if (mDesktopState.isProjectedMode()) {
+            predicate = predicate.and(task -> task.getDisplayId() != getPrimaryDisplayId());
+        }
+
+        // Look for recent apps so that they can be brought to top.
+        RecentsModel.INSTANCE.get(this).getTasks(predicate, groupTasks -> {
+            if (!groupTasks.isEmpty() && !groupTasks.getFirst().isEmpty()) {
+                ActivityOptionsWrapper opts = getActivityLaunchOptions(null, info);
+
+                // Use slide-in transition, no slide-in happens if app already on top.
+                opts.options.setRemoteTransition(new RemoteTransition(new SlideInRemoteTransition(
+                        Utilities.isRtl(getResources()),
+                        getDeviceProfile().getOverviewProfile().getPageSpacing(),
+                        QuickStepContract.getWindowCornerRadius(this),
+                        AnimationUtils.loadInterpolator(
+                                this, android.R.interpolator.fast_out_extra_slow_in)),
+                        "SlideInTransition"));
+
+                Task task = ((SingleTask) groupTasks.getFirst()).getTask();
+                if (mActivityManagerWrapper
+                        .startActivityFromRecents(task.key, opts.options)) {
+                    return;
+                }
+            }
+
+            // Fallback to existing implementation if app doesn't launch through recents API.
+            startItemInfoActivity(info, /* taskInRecents= */ null);
+        });
     }
 
     /**
@@ -2111,9 +2179,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
             TestLogging.recordEvent(TestProtocol.SEQUENCE_MAIN, "start: taskbarAppIcon");
-            final int displayId = getDisplayId();
             final ActivityOptionsWrapper opts = getActivityLaunchOptions(null, info);
-            opts.options.setLaunchDisplayId(displayId);
+            opts.options.setLaunchDisplayId(getDisplayId());
             if (!info.user.equals(Process.myUserHandle())) {
                 // TODO b/376819104: support Desktop launch animations for apps in managed profiles
                 getSystemService(LauncherApps.class).startMainActivity(
@@ -2124,15 +2191,15 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             // TODO(b/216683257): Use startActivityForResult for search results that require it.
             if (taskInRecents != null) {
                 // Re launch instance from recents
-                if (ActivityManagerWrapper.getInstance()
+                if (mActivityManagerWrapper
                         .startActivityFromRecents(taskInRecents.key, opts.options)) {
                     mControllers.uiController.getRecentsViewInteractor()
                             .addSideTaskLaunchCallback(opts.onEndCallback);
                     return;
                 }
             }
-            if (shouldLaunchInDesktop(displayId, info)) {
-                launchDesktopApp(intent, info, displayId);
+            if (shouldLaunchInDesktop(info)) {
+                launchDesktopApp(intent, info);
             } else {
                 startActivity(intent, getFullscreenActivityLaunchOptions(info).toBundle());
             }
@@ -2143,8 +2210,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         }
     }
 
-    private boolean shouldLaunchInDesktop(int displayId, ItemInfo info) {
-        final SingleTask singleTask = mControllers.taskbarRecentAppsController.getSingleTask(info);
+    private boolean shouldLaunchInDesktop(ItemInfo info) {
         final Task nonDesktopTask =
                 mControllers.taskbarRecentAppsController.getNonDesktopTask(info);
         if (DisplayController.getInfo(this).isInDesktopFirstMode && nonDesktopTask != null) {
@@ -2161,12 +2227,12 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
             }
         }
         // Always launch in freeform if in external display.
-        return isExternalDisplay(displayId) || isTaskbarShowingDesktopTasks();
+        return  !isPrimaryDisplay() || isTaskbarShowingDesktopTasks();
     }
 
-    private void launchDesktopApp(Intent intent, ItemInfo info, int displayId) {
+    private void launchDesktopApp(Intent intent, ItemInfo info) {
         TaskbarRecentAppsController.TaskState taskState =
-                mControllers.taskbarRecentAppsController.getDesktopItemState(info);
+                mControllers.taskbarRecentAppsController.getTaskbarItemState(info);
         RunningAppState appState = taskState.getRunningAppState();
         if (appState == RunningAppState.RUNNING || appState == RunningAppState.MINIMIZED) {
             // We only need a custom animation (a RemoteTransition) if the task is minimized - if
@@ -2189,7 +2255,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_ONE_SHOT,
                 /* options= */ null);
         mSysUiProxy.startLaunchIntentTransition(pendingIntent, opts.options.toBundle(),
-                displayId);
+                getDisplayId());
     }
 
     /** Expands a folder icon when it is clicked */

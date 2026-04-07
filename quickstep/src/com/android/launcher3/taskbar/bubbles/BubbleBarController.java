@@ -133,7 +133,6 @@ public class BubbleBarController {
     private int mLastSentBubbleBarTopToScreenBottom;
 
     private boolean mIsImeVisible = false;
-
     /**
      * Similar to {@link BubbleBarUpdate} but rather than {@link BubbleInfo}s it uses
      * {@link BubbleBarBubble}s so that it can be used to update the views.
@@ -247,9 +246,16 @@ public class BubbleBarController {
         mIsImeVisible = (flags & SYSUI_STATE_IME_VISIBLE) != 0 && isImeDocked();
 
         boolean hideBubbleBar = (flags & MASK_HIDE_BUBBLE_BAR) != 0 || mIsImeVisible;
-        mBubbleBarViewController.setHiddenForSysui(hideBubbleBar);
-
         boolean hideHandleView = (flags & MASK_HIDE_HANDLE_VIEW) != 0 || mIsImeVisible;
+        updateHiddenState(hideBubbleBar, hideHandleView);
+
+        boolean sysuiLocked = (flags & MASK_SYSUI_LOCKED) != 0;
+        mBubbleStashController.setSysuiLocked(sysuiLocked);
+        mBubbleBarViewController.setSysuiLocked(sysuiLocked);
+    }
+
+    private void updateHiddenState(boolean hideBubbleBar, boolean hideHandleView) {
+        mBubbleBarViewController.setHiddenForSysui(hideBubbleBar);
         mBubbleStashedHandleViewController.ifPresent(controller -> {
             controller.setHiddenForSysui(hideHandleView);
             MultiPropertyFactory<View>.MultiProperty handleViewAlpha =
@@ -263,15 +269,27 @@ public class BubbleBarController {
                 handleViewAlpha.setValue(1f);
             }
         });
-
-        boolean sysuiLocked = (flags & MASK_SYSUI_LOCKED) != 0;
-        mBubbleStashController.setSysuiLocked(sysuiLocked);
-        mBubbleBarViewController.setSysuiLocked(sysuiLocked);
         if (mIsImeVisible) {
             mBubbleBarViewController.onImeVisible();
         }
     }
 
+    /**
+     * Should be called when Ime inset is changed to determine if bubble bar should be hidden.
+     */
+    public void onImeInsetChanged() {
+        if (!Flags.fixBubbleBarStashingWithHardwareKeyboard()) {
+            return;
+        }
+        if (isImeDocked() && !mIsImeVisible) {
+            mIsImeVisible = true;
+            updateHiddenState(true, true);
+        }
+    }
+
+    /**
+     * Returns whether the IME is visible and docked.
+     */
     private boolean isImeDocked() {
         if (Flags.fixBubbleBarStashingWithHardwareKeyboard()
                 && mContext instanceof TaskbarActivityContext) {
@@ -292,11 +310,9 @@ public class BubbleBarController {
             Log.e(TAG, "Update info missing from bubble state change");
             return;
         }
-        if (Flags.sendBubbleRootTaskIdToLauncher()) {
-            if (update.bubbleRootTaskId != ActivityTaskManager.INVALID_TASK_ID) {
-                // Cache bubble root task id if it is set in the update
-                BubbleHelper.updateBubbleRootTaskId(update.bubbleRootTaskId);
-            }
+        if (update.bubbleRootTaskId != ActivityTaskManager.INVALID_TASK_ID) {
+            // Cache bubble root task id if it is set in the update
+            BubbleHelper.updateBubbleRootTaskId(update.bubbleRootTaskId);
         }
         BubbleBarViewUpdate viewUpdate = new BubbleBarViewUpdate(update);
         if (update.addedBubble != null

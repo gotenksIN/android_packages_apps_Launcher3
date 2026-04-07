@@ -33,6 +33,7 @@ import com.android.app.displaylib.DisplayRepository
 import com.android.app.displaylib.PerDisplayRepository
 import com.android.app.tracing.traceSection
 import com.android.internal.jank.Cuj
+import com.android.internal.util.LatencyTracker
 import com.android.launcher3.DeviceProfile
 import com.android.launcher3.anim.AnimatorListeners
 import com.android.launcher3.logger.LauncherAtom
@@ -44,6 +45,7 @@ import com.android.launcher3.taskbar.TaskbarInteractor
 import com.android.launcher3.taskbar.TaskbarManager
 import com.android.launcher3.util.OverviewCommandHelperProtoLogProxy
 import com.android.launcher3.util.RunnableList
+import com.android.launcher3.util.TraceHelper
 import com.android.launcher3.util.coroutines.DispatcherProvider
 import com.android.quickstep.GestureState.GestureEndTarget
 import com.android.quickstep.GestureState.displaySupportsHomeGesture
@@ -94,6 +96,7 @@ constructor(
     private val taskAnimationManagerRepository: PerDisplayRepository<TaskAnimationManager>,
     @ElapsedRealtimeLong private val elapsedRealtime: () -> Long,
     private val systemUiProxy: SystemUiProxy,
+    private val latencyTracker: LatencyTracker,
 ) {
     private val coroutineScope =
         CoroutineScope(SupervisorJob() + dispatcherProvider.lightweightBackground)
@@ -141,6 +144,7 @@ constructor(
                 displayId = displayId,
                 createTime = elapsedRealtime(),
                 isLastOfBatch = isLastOfBatch,
+                statusChangedCallback = this::onCommandStatusChanged,
             )
         commandQueue.add(command)
         OverviewCommandHelperProtoLogProxy.logCommandAdded(command)
@@ -713,6 +717,29 @@ constructor(
         processNextCommand()
     }
 
+    private fun onCommandStatusChanged(command: CommandInfo) {
+        when (command.type) {
+            TOGGLE,
+            TOGGLE_OVERVIEW_PREVIOUS,
+            TOGGLE_WITH_FOCUS -> {
+                if (!latencyTracker.isEnabled(LatencyTracker.ACTION_TOGGLE_RECENTS)) return
+
+                TraceHelper.INSTANCE.allowIpcs("logToggleRecents").use { _ ->
+                    when (command.status) {
+                        CommandStatus.PROCESSING ->
+                            latencyTracker.onActionStart(LatencyTracker.ACTION_TOGGLE_RECENTS)
+                        CommandStatus.COMPLETED ->
+                            latencyTracker.onActionEnd(LatencyTracker.ACTION_TOGGLE_RECENTS)
+                        CommandStatus.CANCELED ->
+                            latencyTracker.onActionCancel(LatencyTracker.ACTION_TOGGLE_RECENTS)
+                        else -> {}
+                    }
+                }
+            }
+            else -> {}
+        }
+    }
+
     private fun updateRecentsViewFocus(command: CommandInfo) {
         val recentsView: RecentsView<*, *> = getVisibleRecentsView(command.displayId) ?: return
         if (
@@ -794,12 +821,20 @@ constructor(
     @VisibleForTesting
     data class CommandInfo(
         val type: CommandType,
-        var status: CommandStatus = CommandStatus.IDLE,
         val createTime: Long,
         private var animationCallbacks: RecentsAnimationCallbacks? = null,
         val displayId: Int = DEFAULT_DISPLAY,
         val isLastOfBatch: Boolean = true,
+        val statusChangedCallback: (CommandInfo) -> Unit,
     ) {
+
+        var status: CommandStatus = CommandStatus.IDLE
+            set(value) {
+                if (field == value) return
+                field = value
+                statusChangedCallback.invoke(this)
+            }
+
         fun setAnimationCallbacks(recentsAnimationCallbacks: RecentsAnimationCallbacks) {
             this.animationCallbacks = recentsAnimationCallbacks
         }
