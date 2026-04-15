@@ -45,6 +45,7 @@ import static com.android.launcher3.LauncherState.OVERVIEW_SPLIT_SELECT;
 import static com.android.launcher3.Utilities.isRtl;
 import static com.android.launcher3.anim.AnimatorListeners.forEndCallback;
 import static com.android.launcher3.compat.AccessibilityManagerCompat.sendCustomAccessibilityEvent;
+import static com.android.launcher3.desktop.DesktopStateProvider.getDesktopState;
 import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_ACTIVE_SCREEN;
 import static com.android.launcher3.display.LauncherDisplayInfo.CHANGE_NAVIGATION_MODE;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_APP_LAUNCH_TAP;
@@ -137,9 +138,7 @@ import com.android.launcher3.anim.PendingAnimation;
 import com.android.launcher3.apppairs.AppPairIcon;
 import com.android.launcher3.appprediction.PredictionRowView;
 import com.android.launcher3.config.FeatureFlags;
-import com.android.launcher3.dagger.LauncherAppComponent;
 import com.android.launcher3.dagger.LauncherComponentProvider;
-import com.android.launcher3.dagger.PerDisplayComponent;
 import com.android.launcher3.desktop.DesktopRecentsTransitionController;
 import com.android.launcher3.display.DisplayController;
 import com.android.launcher3.display.LauncherDisplayInfo;
@@ -203,7 +202,6 @@ import com.android.quickstep.SystemUiProxy;
 import com.android.quickstep.TaskUtils;
 import com.android.quickstep.fallback.RecentsState;
 import com.android.quickstep.fallback.RecentsStateUtilsKt;
-import com.android.quickstep.recents.di.RecentsComponent;
 import com.android.quickstep.split.SplitScreenAppResolver;
 import com.android.quickstep.split.SplitSelectStateController;
 import com.android.quickstep.split.SplitToWorkspaceController;
@@ -242,7 +240,6 @@ import com.android.wm.shell.shared.bubbles.BubbleFeatureConfig;
 import com.android.wm.shell.shared.bubbles.BubbleFeatureConfigImpl;
 import com.android.wm.shell.shared.bubbles.logging.EntryPoint;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
-import com.android.wm.shell.shared.desktopmode.DesktopState;
 
 import kotlin.Unit;
 
@@ -307,8 +304,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     private boolean mIsOverlayVisible;
 
     private final OverviewChangeListener mOverviewChangeListener = this::onOverviewTargetChanged;
-
-    private RecentsComponent mRecentsComponent;
 
     private BubbleFeatureConfig mBubbleFeatureConfig;
 
@@ -385,8 +380,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         mTaskbarUiState = TaskbarUiStateMonitor.INSTANCE.get(this)
                 .getTaskbarUiState(getDisplayId());
 
-        mBubbleFeatureConfig = new BubbleFeatureConfigImpl(this,
-                DesktopState.getInstance(this));
+        mBubbleFeatureConfig = new BubbleFeatureConfigImpl(this, getDesktopState(this));
     }
 
     @Override
@@ -528,8 +522,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         int container = itemInfo.container;
         if (canPinAppWithContextMenu()
                 && DisplayController.getInfo(this).getShowDesktopTaskbarForFreeformDisplay()
-                && (container == CONTAINER_ALL_APPS
-                || container == CONTAINER_ALL_APPS_PREDICTION)) {
+                && canContainerHavePinContextMenu(container)) {
             TaskbarInteractor ti = mTaskbarInteractor;
             int maxPinnableCount = ti != null ? ti.getMaxPinnableCount() : -1;
             boolean supportPinAppsOverflow = ti != null && ti.getSupportsPinnedAppsOverflow();
@@ -562,6 +555,13 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
             shortcuts.add(APP_LOCK);
         }
         return shortcuts.stream();
+    }
+
+    private boolean canContainerHavePinContextMenu(int container) {
+        return container == CONTAINER_ALL_APPS
+                || container == CONTAINER_ALL_APPS_PREDICTION
+                || container == CONTAINER_DESKTOP
+                || container > 0; // container > 0 means the app is inside a folder.
     }
 
     private boolean canPinAppWithContextMenu() {
@@ -642,7 +642,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         mAppTransitionManager = null;
 
         if (mUnfoldTransitionProgressProvider != null) {
-            SystemUiProxy.INSTANCE.get(this).setUnfoldAnimationListener(null);
             mUnfoldTransitionProgressProvider.destroy();
         }
 
@@ -777,10 +776,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        LauncherAppComponent appComponent = LauncherComponentProvider.get(this);
-        PerDisplayComponent perDisplayComponent = Objects.requireNonNull(
-                appComponent.getPerDisplayComponentRepository().get(DEFAULT_DISPLAY));
-        mRecentsComponent = perDisplayComponent.getRecentsComponentFactory().build(this);
         super.onCreate(savedInstanceState);
         if (savedInstanceState != null) {
             mPendingSplitSelectInfo = ObjectWrapper.unwrap(
@@ -1222,8 +1217,8 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                                         + "is disabled"));
         mUnfoldTransitionProgressProvider = remoteUnfoldTransitionProgressProvider;
 
-        SystemUiProxy.INSTANCE.get(this).setUnfoldAnimationListener(
-                remoteUnfoldTransitionProgressProvider);
+        closeOnDestroy(SystemUiProxy.INSTANCE.get(this).getUnfoldAnimationListeners()
+                .register(remoteUnfoldTransitionProgressProvider));
 
         initUnfoldAnimationController(mUnfoldTransitionProgressProvider,
                 unfoldComponent.getRotationChangeProvider());
@@ -1468,7 +1463,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public boolean shouldShowHomeBehindDesktop() {
-        return DesktopState.getInstance(this).getShouldShowHomeBehindDesktop();
+        return getDesktopState(this).getShouldShowHomeBehindDesktop();
     }
 
     @Override
@@ -1694,11 +1689,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
             Animator.AnimatorListener listener) {
         getStateManager().goToState(RecentsStateUtilsKt.toLauncherState(recentsState), animated,
                 listener);
-    }
-
-    @Override
-    public RecentsComponent getRecentsComponent() {
-        return mRecentsComponent;
     }
 
     @Override

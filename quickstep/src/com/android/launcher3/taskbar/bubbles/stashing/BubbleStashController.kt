@@ -71,6 +71,9 @@ interface BubbleStashController {
     val isBubblesShowingOnHome: Boolean
         get() = launcherState == BubbleLauncherState.HOME
 
+    /** Whether the bubble bar is currently allowed to be stashed. */
+    val isStashingAllowed: Boolean
+
     /** Whether launcher enters or exits the overview page. */
     val isBubblesShowingOnOverview: Boolean
         get() = launcherState == BubbleLauncherState.OVERVIEW
@@ -230,9 +233,10 @@ interface BubbleStashController {
     fun dump(pw: PrintWriter) {
         pw.println("Bubble stash controller state:")
         pw.println("  isStashed: $isStashed")
-        pw.println("  isBubblesShowingOnOverview: $isBubblesShowingOnOverview")
-        pw.println("  isBubblesShowingOnHome: $isBubblesShowingOnHome")
+        pw.println("  launcherState: $launcherState")
         pw.println("  isSysuiLocked: $isSysuiLocked")
+        pw.println("  bubbleBarTranslationYForHotseat: $bubbleBarTranslationYForHotseat")
+        pw.println("  bubbleBarTranslationYForTaskbar: $bubbleBarTranslationYForTaskbar")
     }
 
     companion object {

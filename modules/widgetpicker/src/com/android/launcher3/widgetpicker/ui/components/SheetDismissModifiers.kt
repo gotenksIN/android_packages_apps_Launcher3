@@ -78,6 +78,7 @@ fun Modifier.dismissibleSheet(
     onDismissSheet: () -> Unit,
     maxHeight: Float,
     enableNestedScrolling: Boolean = true,
+    enableDragOnScrollToEnd: Boolean = true,
 ): Modifier = composed {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -89,23 +90,31 @@ fun Modifier.dismissibleSheet(
             animationSpec = SETTLE_ANIMATION_SPEC,
         )
 
+    val anchoredDraggableModifier =
+        if (enableDragOnScrollToEnd) {
+            Modifier.anchoredDraggable(
+                state = sheetState.anchoredDraggableState,
+                orientation = Orientation.Vertical,
+                flingBehavior = flingBehavior,
+            )
+        } else {
+            Modifier
+        }
+
     val draggableModifier =
         this.onSizeChanged { size -> sheetState.updateAnchors(size.height.toFloat()) }
             .offset {
                 IntOffset(x = 0, y = sheetState.anchoredDraggableState.requireOffset().roundToInt())
             }
-            .anchoredDraggable(
-                state = sheetState.anchoredDraggableState,
-                orientation = Orientation.Vertical,
-                flingBehavior = flingBehavior,
-            )
             .nestedScroll(
                 SheetNestedScrollConnection(
                     sheetState = sheetState,
                     flingBehavior = flingBehavior,
                     enabled = enableNestedScrolling,
+                    enableDragOnScrollToEnd = enableDragOnScrollToEnd,
                 )
             )
+            .then(anchoredDraggableModifier)
 
     LaunchedEffect(Unit) { sheetState.expand() }
 

@@ -111,11 +111,14 @@
     <string name="app_added_to_taskbar" msgid="6348755169793615171">"Appli ajoutée à la Barre des tâches"</string>
     <string name="app_removed_from_taskbar" msgid="3471754847898675396">"Appli retirée de la Barre des tâches"</string>
     <string name="remove_system_shortcut_label" msgid="3991201411148073972">"Retirer"</string>
+    <!-- no translation found for home_screen_files_context_menu_copy_label (8769381168712216221) -->
+    <skip />
     <string name="home_screen_files_context_menu_open_in_app_label" msgid="7930552598671791537">"Ouvrir"</string>
     <string name="home_screen_files_context_menu_rename_label" msgid="699579827537411711">"Renommer"</string>
     <string name="home_screen_files_context_menu_delete_permanently_label" msgid="8660443461874174185">"Supprimer définitivement"</string>
     <string name="home_screen_files_context_menu_move_to_trash_label" msgid="1145655050674479315">"Déplacer vers la corbeille"</string>
-    <string name="home_screen_files_moved_to_trash_message" msgid="381256565590274395">"<xliff:g id="ITEM_NAME">%1$s</xliff:g> déplacé dans la corbeille"</string>
+    <!-- no translation found for home_screen_files_moved_to_trash_message (2848141584483641247) -->
+    <skip />
     <string name="home_screen_files_move_to_trash_error_message" msgid="3836240816166417826">"Impossible de déplacer l\'élément dans la corbeille. Un problème est survenu."</string>
     <string name="home_screen_files_restore_from_trash_error_message" msgid="994941644161090497">"Cette action est irréversible. Accédez à l\'appli Fichiers pour restaurer l\'élément."</string>
     <string name="actions_popup_menu_button" msgid="2442187572711557413">"Actions"</string>
@@ -205,15 +208,12 @@
     <string name="move_to_hotseat_position" msgid="6295412897075147808">"Déplacer vers la position <xliff:g id="NUMBER">%1$s</xliff:g> dans les favoris"</string>
     <string name="item_moved" msgid="4606538322571412879">"Élément déplacé"</string>
     <string name="add_to_folder" msgid="9040534766770853243">"Ajouter au dossier : <xliff:g id="NAME">%1$s</xliff:g>"</string>
-    <!-- no translation found for add_to_folder_with_position (4457486890869662) -->
-    <skip />
+    <string name="add_to_folder_with_position" msgid="4457486890869662">"Ajouter au dossier <xliff:g id="NAME">%1$s</xliff:g>. Ligne <xliff:g id="NUMBER_0">%2$s</xliff:g>, colonne <xliff:g id="NUMBER_1">%3$s</xliff:g> dans <xliff:g id="STRING">%4$s</xliff:g>"</string>
     <string name="add_to_folder_with_app" msgid="4534929978967147231">"Ajouter au dossier contenant <xliff:g id="NAME">%1$s</xliff:g>"</string>
-    <!-- no translation found for add_to_folder_with_app_with_position (6670979489897093325) -->
-    <skip />
+    <string name="add_to_folder_with_app_with_position" msgid="6670979489897093325">"Ajouter au dossier avec <xliff:g id="NAME">%1$s</xliff:g>. Ligne <xliff:g id="NUMBER_0">%2$s</xliff:g>, colonne <xliff:g id="NUMBER_1">%3$s</xliff:g>, dans <xliff:g id="STRING">%4$s</xliff:g>"</string>
     <string name="added_to_folder" msgid="4793259502305558003">"Élément ajouté au dossier"</string>
     <string name="create_folder_with" msgid="4050141361160214248">"Créer un dossier avec : <xliff:g id="NAME">%1$s</xliff:g>"</string>
-    <!-- no translation found for create_folder_with_position (3093164349445159115) -->
-    <skip />
+    <string name="create_folder_with_position" msgid="3093164349445159115">"Créer un dossier avec <xliff:g id="NAME">%1$s</xliff:g>. Ligne <xliff:g id="NUMBER_0">%2$s</xliff:g>, colonne <xliff:g id="NUMBER_1">%3$s</xliff:g>, dans <xliff:g id="STRING">%4$s</xliff:g>"</string>
     <string name="folder_created" msgid="6409794597405184510">"Dossier créé"</string>
     <string name="action_move_to_workspace" msgid="39528912300293768">"Déplacer sur l\'écran d\'accueil"</string>
     <string name="action_resize" msgid="1802976324781771067">"Redimensionner"</string>
@@ -268,6 +268,11 @@
     <string name="arch_shape_title" msgid="2213843822192871318">"Arche"</string>
     <string name="create_new_folder_button_text" msgid="4037052463794735069">"Nouveau dossier"</string>
     <string name="default_new_folder_name" msgid="8821062664729412079">"Nouveau dossier"</string>
+    <string name="home_screen_files_rename_dialog_clear_button" msgid="1516608063079626727">"Effacer"</string>
+    <string name="home_screen_files_rename_dialog_neutral_button" msgid="961781261154618336">"Annuler"</string>
+    <string name="home_screen_files_rename_dialog_positive_button" msgid="6506701192246379747">"Renommer"</string>
+    <string name="home_screen_files_rename_dialog_file_title" msgid="3540941610992603887">"Renommer le fichier"</string>
+    <string name="home_screen_files_rename_dialog_folder_title" msgid="2453152990256864379">"Renommer le dossier"</string>
     <string name="something_went_wrong" msgid="1492883246069060632">"Un problème est survenu"</string>
     <string name="organizer_create_screen_title" msgid="1052454457895703433">"Créer un écran"</string>
     <string name="organizer_create_screen_description" msgid="3224132391919219061">"Choisissez une catégorie pour ajouter des applis et des widgets à partir de votre téléphone"</string>

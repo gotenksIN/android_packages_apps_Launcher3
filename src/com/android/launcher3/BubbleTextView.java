@@ -119,6 +119,7 @@ import com.android.launcher3.util.ShortcutUtil;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.FloatingIconViewCompanion;
+import com.android.launcher3.views.OptionsPopupView;
 
 import java.text.NumberFormat;
 import java.util.HashMap;
@@ -640,7 +641,12 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         boolean isRecycled = getTag() != info;
         if (!isRecycled && getIcon() != null
                 && getIcon().getDelegate() instanceof AutomatedIconDelegate aid) {
-            aid.startExitAnimation(() -> setIcon(iconDrawable));
+            aid.startExitAnimation(() -> {
+                // Ensure view wasn't recycled for a different item while animation was running.
+                if (getTag() == info) {
+                    setIcon(iconDrawable);
+                }
+            });
             return;
         }
         setIcon(iconDrawable);
@@ -668,7 +674,8 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     public int getIconCreationFlagsForInfo(ItemInfoWithIcon info) {
         // Set nonPendingIcon acts as a restart which should refresh the flag state when applicable.
         int flags = shouldUseTheme() ? FLAG_THEMED : 0;
-        // Remove badge on icons smaller than 48dp.
+        // Remove badge on icons smaller than 48dp. Except for in 2026 refresh which uses 40dp
+        // for small icon.
         if (mHideBadge || mDisplay == DISPLAY_SEARCH_RESULT_SMALL) {
             flags |= FLAG_NO_BADGE;
         }
@@ -724,8 +731,8 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
 
     @UiThread
     public void applyLabel(ItemInfo info) {
-        applyLabel(info.title, info.contentDescription, Flags.useNewIconForArchivedApps()
-                && info instanceof ItemInfoWithIcon infoWithIcon
+        applyLabel(info.title, info.contentDescription,
+                info instanceof ItemInfoWithIcon infoWithIcon
                 && infoWithIcon.isInactiveArchive(), info.isDisabled());
     }
 
@@ -1117,8 +1124,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
                     getLineSpacingExtra());
             if (!TextUtils.equals(modifiedString, mLastModifiedText)) {
                 mLastModifiedText = modifiedString;
-                if (Flags.useNewIconForArchivedApps()
-                        && getTag() instanceof ItemInfoWithIcon infoWithIcon
+                if (getTag() instanceof ItemInfoWithIcon infoWithIcon
                         && infoWithIcon.isInactiveArchive()) {
                     setTextWithArchivingIcon(modifiedString);
                 } else {
@@ -1588,6 +1594,16 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     public PreDragCondition startLongPressAction(PopupController<?> popupController) {
         Popup popup = popupController.show(this);
         return popup != null ? popup.createPreDragCondition() : null;
+    }
+
+    /**
+     * Triggers showing the options popup menu for this icon.
+     * Subclasses can override this to provide custom popup menu behavior.
+     * @return the {@link OptionsPopupView} that was shown, or null if no popup was shown.
+     */
+    @Nullable
+    public OptionsPopupView<?> showPopup() {
+        return null;
     }
 
     /**

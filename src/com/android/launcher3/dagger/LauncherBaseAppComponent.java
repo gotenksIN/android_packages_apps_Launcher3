@@ -33,6 +33,7 @@ import com.android.launcher3.automation.AutomationRepository;
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger;
 import com.android.launcher3.display.DisplayController;
 import com.android.launcher3.folder.FolderNameSuggestionLoader;
+import com.android.launcher3.graphics.GlowMaskCache;
 import com.android.launcher3.graphics.GridCustomizationsProxy;
 import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.graphics.theme.ThemePreference;
@@ -46,10 +47,12 @@ import com.android.launcher3.model.ItemInstallQueue;
 import com.android.launcher3.model.LayoutParserFactory;
 import com.android.launcher3.model.LoaderCursor.LoaderCursorFactory;
 import com.android.launcher3.model.ModelProxyProvider;
+import com.android.launcher3.model.ModelWriterFactory;
 import com.android.launcher3.model.TestableModelState;
 import com.android.launcher3.model.repository.HomeScreenRepository;
 import com.android.launcher3.model.repository.StringCacheRepository;
 import com.android.launcher3.notification.NotificationRepository;
+import com.android.launcher3.organizer.dagger.OrganizerComponent;
 import com.android.launcher3.pm.InstallSessionHelper;
 import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.popup.PopupDataRepository;
@@ -141,6 +144,8 @@ public interface LauncherBaseAppComponent {
     LayoutImportExportHelper getLayoutImportExportHelper();
     /** Returns the layout parser factory for default layout parsing */
     LayoutParserFactory getLayoutParserFactory();
+    /** Returns the model writer factory */
+    ModelWriterFactory getModelWriterFactory();
     /** Returns new [ModelProxyProvider] */
     ModelProxyProvider getModelProxyProvider();
 
@@ -149,7 +154,9 @@ public interface LauncherBaseAppComponent {
     /** Returns reference to various model objects used for test verification */
     TestableModelState getTestableModelState();
 
+    /** Popup data mapping for [ItemInfo] */
     PopupDataRepository getPopupDataRepository();
+
     NotificationRepository getNotificationRepository();
     HomeScreenFilesProvider getHomeScreenFilesProvider();
 
@@ -179,6 +186,12 @@ public interface LauncherBaseAppComponent {
 
     /** Provider for default values */
     DefaultsValueProvider getDefaultsValueProvider();
+
+    /** Builder for organizer component */
+    OrganizerComponent.Builder getOrganizerComponentBuilder();
+
+    /** Caches BitmapShaders for glow effects */
+    GlowMaskCache getGlowMaskCache();
 
     /** Builder for LauncherBaseAppComponent. */
     interface Builder {

@@ -38,6 +38,15 @@ interface WorkspaceRepository {
     suspend fun getInstalledApps(orderByUsageStats: Boolean): List<UnplacedAppSpec>
 
     /**
+     * Lists all installed widgets on the device.
+     *
+     * @param orderByUsageStats If true, orders widgets by usage; otherwise uses default order for
+     *   personalization.
+     * @return A list of [UnplacedWidgetSpec] representing the installed widgets.
+     */
+    suspend fun getInstalledWidgets(orderByUsageStats: Boolean): List<UnplacedWidgetSpec>
+
+    /**
      * Starts a new, atomic transaction for modifying the workspace.
      *
      * @return A [WorkspaceTransaction] handle to chain mutation operations.
@@ -58,6 +67,14 @@ interface WorkspaceTransaction {
     // fun moveItem(item: WorkspaceItemSpec, newScreen: Int, newX: Int, newY: Int):
     // WorkspaceTransaction
     // fun addItem(item: WorkspaceItemSpec, screen: Int): WorkspaceTransaction
+
+    /**
+     * Queues the removal of an item from the workspace, hotseat, or folder.
+     *
+     * @param target The specification of the item to remove.
+     * @return This [WorkspaceTransaction] instance for chaining.
+     */
+    fun removeItem(target: RemoveItemParamsSpec): WorkspaceTransaction
 
     /**
      * Commits all the changes made in this transaction to the underlying model.

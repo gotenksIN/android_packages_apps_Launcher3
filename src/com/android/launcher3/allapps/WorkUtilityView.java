@@ -132,7 +132,6 @@ public class WorkUtilityView extends LinearLayout implements Insettable,
         mWorkFAB = findViewById(R.id.work_mode_toggle);
         mSchedulerButton = findViewById(R.id.work_scheduler);
         mWorkUtilityView = findViewById(R.id.work_utility_view);
-        setSelected(true);
         KeyboardInsetAnimationCallback keyboardInsetAnimationCallback =
                 new KeyboardInsetAnimationCallback(this);
         setWindowInsetsAnimationCallback(keyboardInsetAnimationCallback);
@@ -160,7 +159,8 @@ public class WorkUtilityView extends LinearLayout implements Insettable,
         if (lp != null) {
             int bottomMargin = getResources().getDimensionPixelSize(R.dimen.work_fab_margin_bottom);
             DeviceProfile dp = ActivityContext.lookupContext(getContext()).getDeviceProfile();
-            if (mActivityContext.getAppsView().isSearchBarFloating()) {
+            if (mActivityContext.getAppsView() != null
+                    && mActivityContext.getAppsView().isSearchBarFloating()) {
                 bottomMargin += dp.getHotseatProfile().getQsbHeight();
             }
 

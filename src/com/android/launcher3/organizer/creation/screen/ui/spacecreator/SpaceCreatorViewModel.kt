@@ -16,32 +16,41 @@
 
 package com.android.launcher3.organizer.creation.screen.ui.spacecreator
 
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.android.launcher3.LauncherApplication
+import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.concurrent.annotations.LightweightBackgroundContext
 import com.android.launcher3.concurrent.annotations.LightweightBackgroundPriority.UI
+import com.android.launcher3.model.IModelWriter
+import com.android.launcher3.model.data.AppInfo
+import com.android.launcher3.model.data.ItemInfo
+import com.android.launcher3.model.scheduleTransactionSuspending
+import com.android.launcher3.organizer.OrganizerTransactionContext
+import com.android.launcher3.organizer.creation.screen.ui.spacecreator.chooselayout.ChooseLayoutGridSize
 import com.android.launcher3.organizer.creation.screen.ui.spacecreator.chooselayout.ChooseLayoutState
-import com.android.launcher3.organizer.creation.screen.ui.workspaceorganizer.WorkspaceOrganizerViewModel
+import com.android.launcher3.organizer.dagger.OrganizerScope
+import com.android.launcher3.organizer.generator.CreationSession
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
+@OrganizerScope
 class SpaceCreatorViewModel
 @Inject
 constructor(
+    idp: InvariantDeviceProfile,
+    creationSessionFactory: CreationSession.Factory,
     @LightweightBackgroundContext(priority = UI)
-    private val lightweightBackgroundContext: CoroutineContext
+    private val lightweightBackgroundContext: CoroutineContext,
+    private val modelWriter: IModelWriter,
+    private val organizerTransactionContextFactory: OrganizerTransactionContext.Factory,
 ) : ViewModel() {
     var chooseLayoutState: ChooseLayoutState by mutableStateOf(ChooseLayoutState())
         private set
@@ -49,30 +58,44 @@ constructor(
     private val _createScreenState = MutableStateFlow(CreateScreenState())
     val createScreenState: StateFlow<CreateScreenState> = _createScreenState.asStateFlow()
 
+    private val screenCreationSession =
+        creationSessionFactory.createSession(CreationSession.SessionType.SCREEN)
+
     init {
-        viewModelScope.launch {
-            updateTopics(
-                listOf(
-                    "Most used",
-                    "Games",
-                    "Health & Fitness",
-                    "Productivity",
-                    "Travel",
-                    "Social",
-                    "Entertainment",
-                )
-            )
+        viewModelScope.launch(lightweightBackgroundContext) {
+            updateGridSize(ChooseLayoutGridSize(idp.numColumns, idp.numRows))
+            val allClassifiedItems = screenCreationSession.startClassification()
+            val topics = allClassifiedItems.map { it.topic }.distinct()
+            val topicIcons =
+                allClassifiedItems
+                    .filter { it.itemInfo is AppInfo }
+                    .groupBy({ it.topic }, { (it.itemInfo as AppInfo).bitmap.icon })
+
+            val topicDataList = topics.map { TopicData(it, topicIcons[it] ?: emptyList()) }
+            updateState(topicDataList)
         }
     }
 
     /**
-     * Update the topics list.
+     * Update the state with new topics and icons.
      *
      * @param topics The new list of topics.
      */
-    private suspend fun updateTopics(topics: List<String>) {
-        withContext(lightweightBackgroundContext) {
-            _createScreenState.value = _createScreenState.value.copy(topics = topics)
+    private fun updateState(topics: List<TopicData>) {
+        _createScreenState.value = _createScreenState.value.copy(topics = topics)
+    }
+
+    /**
+     * Generates layouts for the selected topic and updates the state.
+     *
+     * @param topic The selected topic.
+     */
+    fun prepareLayoutsForTopic(topic: String) {
+        viewModelScope.launch(lightweightBackgroundContext) {
+            val result = screenCreationSession.startGeneration(listOf(topic))
+            if (result is CreationSession.GenerationResult.Screens) {
+                updateLayouts(result.pages)
+            }
         }
     }
 
@@ -85,25 +108,33 @@ constructor(
         chooseLayoutState = chooseLayoutState.copy(selectedLayout = index)
     }
 
-    /** TODO(): Add a real implementation to update the Layouts. */
-    fun updateLayouts(n: Int) {
-        chooseLayoutState =
-            chooseLayoutState.copy(layouts = (0 until n).toList(), selectedLayout = 0)
+    /** Update the Layouts to be shown. Each list is a different page. */
+    fun updateLayouts(items: List<List<ItemInfo>>) {
+        chooseLayoutState = chooseLayoutState.copy(layouts = items)
+    }
+
+    /** Update the [ChooseLayoutGridSize] for the chooseLayoutState. */
+    fun updateGridSize(chooseLayoutGridSize: ChooseLayoutGridSize) {
+        chooseLayoutState = chooseLayoutState.copy(chooseLayoutGridSize = chooseLayoutGridSize)
+    }
+
+    /** Persists the currently selected layout to the workspace database. */
+    fun addSelectedLayoutToWorkspace() {
+        viewModelScope.launch(lightweightBackgroundContext) {
+            try {
+                val selectedLayoutIndex = chooseLayoutState.selectedLayout
+                val itemsInScreen =
+                    chooseLayoutState.layouts.getOrNull(selectedLayoutIndex) ?: return@launch
+                modelWriter.scheduleTransactionSuspending { context ->
+                    organizerTransactionContextFactory.create(context).addScreen(itemsInScreen)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to persist screen")
+            }
+        }
     }
 
     companion object {
-        /** Returns a [ViewModelProvider.Factory] for [WorkspaceOrganizerViewModel]. */
-        val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val application =
-                    this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
-                        as LauncherApplication
-                val appComponent = application.appComponent
-                SpaceCreatorViewModel(
-                    lightweightBackgroundContext =
-                        appComponent.productionDispatchers.lightweightBackgroundUiDispatcher,
-                )
-            }
-        }
+        private const val TAG = "SpaceCreatorViewModel"
     }
 }

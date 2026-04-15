@@ -19,11 +19,10 @@ package com.android.launcher3.dagger
 import android.content.Context
 import android.view.Display
 import com.android.launcher3.taskbar.customization.TaskbarFeatureEvaluator
+import com.android.quickstep.FallbackWindowInterface
 import com.android.quickstep.RecentsAnimationDeviceState
 import com.android.quickstep.RotationTouchHelper
 import com.android.quickstep.TaskAnimationManager
-import com.android.quickstep.recents.di.RecentsComponent
-import com.android.quickstep.util.PerDisplayHolder
 import com.android.quickstep.window.RecentsWindowManager
 import com.android.quickstep.window.RecentsWindowTracker
 import dagger.BindsInstance
@@ -37,13 +36,9 @@ import dagger.Subcomponent
 @PerDisplayScope
 @Subcomponent(modules = [PerDisplayObjectsModule::class])
 interface PerDisplayComponent {
-    // Factories for components like RecentsComponent that is bound to a specific display.
-    val recentsComponentFactory: RecentsComponent.Factory
-
     // Factories for container objects that create components bound to a specific display.
     // e.g. RecentsWindowManager for creating RecentsComponent.
     val recentsWindowManager: RecentsWindowManager
-    val recentsWindowManagerHolder: PerDisplayHolder<RecentsWindowManager>
 
     // Shared components between multiple components like Recents and Gesture Nav.
     // Ideally only interfaces should be provided.
@@ -51,6 +46,7 @@ interface PerDisplayComponent {
     val taskAnimationManager: TaskAnimationManager
     val rotationTouchHelper: RotationTouchHelper
     val recentsWindowTracker: RecentsWindowTracker
+    val fallbackWindowInterface: FallbackWindowInterface
 
     @WindowContext fun getWindowContext(): Context
 

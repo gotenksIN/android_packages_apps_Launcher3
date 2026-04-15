@@ -26,7 +26,6 @@ import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Process
 import android.os.UserHandle
-import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.SetFlagsRule
 import android.util.LongSparseArray
@@ -152,7 +151,7 @@ class WorkspaceItemProcessorTest {
                 `package` = "pkg"
                 putExtra(ShortcutKey.EXTRA_SHORTCUT_ID, "")
             }
-        whenever(mockIconCache.getShortcutIcon(any(), any(), any())).then {}
+        whenever(mockIconCache.getShortcutIcon(any(), any(), any(), any())).then {}
         whenever(mockPmHelper.getAppLaunchIntent(mComponentName.packageName, mUserHandle))
             .thenReturn(mIntent)
 
@@ -376,9 +375,11 @@ class WorkspaceItemProcessorTest {
             whenever(isPackageEnabled("package", mUserHandle)).thenReturn(true)
             whenever(isActivityEnabled(mComponentName, mUserHandle)).thenReturn(false)
         }
-        mockPmHelper = mock<PackageManagerHelper>().apply {
-            whenever(getAppLaunchIntent(mComponentName.packageName, mUserHandle)).thenReturn(null)
-        }
+        mockPmHelper =
+            mock<PackageManagerHelper>().apply {
+                whenever(getAppLaunchIntent(mComponentName.packageName, mUserHandle))
+                    .thenReturn(null)
+            }
         val packageUserKey = PackageUserKey("package", mUserHandle)
         mInstallingPkgs[packageUserKey] = mock<PackageInstaller.SessionInfo>()
 
@@ -430,7 +431,6 @@ class WorkspaceItemProcessorTest {
     }
 
     @Test
-    @EnableFlags(Flags.FLAG_RESTORE_ARCHIVED_SHORTCUTS)
     fun `When Archived Deep Shortcut with flag on then mark restored`() {
         // Given
         val mockAppInfo: ApplicationInfo =
@@ -453,30 +453,6 @@ class WorkspaceItemProcessorTest {
         assertThat(mAllDeepShortcuts).isEmpty()
         verify(mockContentWriter).put(RESTORED, expectedRestoreFlag)
         verify(mockCursor).checkAndAddItem(any(), any(), eq(null))
-    }
-
-    @Test
-    @DisableFlags(Flags.FLAG_RESTORE_ARCHIVED_SHORTCUTS)
-    fun `When Archived Deep Shortcut with flag off then remove`() {
-        // Given
-        realCursorRow.add(ITEM_TYPE, ITEM_TYPE_DEEP_SHORTCUT)
-        mIconRequestInfos = mutableListOf()
-
-        // When
-        itemProcessorUnderTest = createWorkspaceItemProcessorUnderTest()
-        itemProcessorUnderTest.processItem()
-
-        // Then
-        assertWithMessage("item restoreFlag should be set to 0")
-            .that(mockCursor.restoreFlag)
-            .isEqualTo(0)
-        assertThat(mIconRequestInfos).isEmpty()
-        assertThat(mAllDeepShortcuts).isEmpty()
-        verify(mockCursor)
-            .markDeleted(
-                "Pinned shortcut not found from request. package=pkg, user=$mUserHandle",
-                "shortcut_not_found",
-            )
     }
 
     @Test

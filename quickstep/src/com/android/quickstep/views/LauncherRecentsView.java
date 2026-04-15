@@ -21,6 +21,7 @@ import static com.android.launcher3.LauncherState.CLEAR_ALL_BUTTON;
 import static com.android.launcher3.LauncherState.OVERVIEW;
 import static com.android.launcher3.LauncherState.OVERVIEW_MODAL_TASK;
 import static com.android.launcher3.LauncherState.OVERVIEW_SPLIT_SELECT;
+import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 
 import android.annotation.TargetApi;
 import android.content.Context;
@@ -29,7 +30,6 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.ViewGroup;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.Launcher;
@@ -46,7 +46,6 @@ import com.android.launcher3.util.SplitConfigurationOptions;
 import com.android.launcher3.util.SplitConfigurationOptions.SplitSelectSource;
 import com.android.quickstep.GestureState;
 import com.android.quickstep.SystemUiProxy;
-import com.android.quickstep.recents.di.RecentsComponent;
 import com.android.quickstep.split.SplitSelectStateController;
 import com.android.quickstep.util.SurfaceTransactionApplier;
 import com.android.wm.shell.shared.GroupedTaskInfo;
@@ -75,8 +74,8 @@ public class LauncherRecentsView extends RecentsView<QuickstepLauncher, Launcher
     }
 
     @Override
-    protected void initialiseInjectables(@NonNull RecentsComponent recentsComponent) {
-        recentsComponent.inject(this);
+    protected void initialiseInjectables() {
+        mContainer.getActivityComponent().inject(this);
     }
 
     @Override
@@ -121,11 +120,13 @@ public class LauncherRecentsView extends RecentsView<QuickstepLauncher, Launcher
             TaskContainer taskContainer;
             if (recoveryData != null && recoveryData.getStagedTaskId() == taskId && (taskContainer =
                     mUtils.getTaskContainerById(taskId)) != null) {
-                initiateSplitSelect(
-                        taskContainer,
-                        recoveryData.getStagePosition(), recoveryData.getSource()
-                );
-                mContainer.finishSplitSelectRecovery();
+                MAIN_EXECUTOR.execute(() -> {
+                    initiateSplitSelect(
+                            taskContainer,
+                            recoveryData.getStagePosition(), recoveryData.getSource()
+                    );
+                    mContainer.finishSplitSelectRecovery();
+                });
             }
         }
     }

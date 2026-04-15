@@ -24,10 +24,10 @@ import androidx.test.filters.SmallTest
 import androidx.test.platform.app.InstrumentationRegistry.getInstrumentation
 import com.android.launcher3.Flags.FLAG_ENABLE_TASKBAR_UI_THREAD
 import com.android.launcher3.LauncherState
-import com.android.launcher3.statehandlers.DesktopVisibilityController.TaskbarDesktopModeListener
+import com.android.launcher3.statehandlers.DesktopVisibilityController.DesktopVisibilityListener
 import com.android.launcher3.util.DaggerSingletonTracker
-import com.android.launcher3.util.window.WindowManagerProxy.DesktopVisibilityListener
 import com.android.quickstep.SystemUiProxy
+import com.android.quickstep.util.binder.OneWayBinderList
 import com.android.wm.shell.desktopmode.DisplayDeskState
 import com.android.wm.shell.desktopmode.IDesktopTaskListener
 import com.google.common.truth.Truth.assertThat
@@ -39,9 +39,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
-import org.mockito.kotlin.nullableArgumentCaptor
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
@@ -57,16 +58,20 @@ class DesktopVisibilityControllerTest {
 
     private val context = mock<Context>()
     private val systemUiProxy = mock<SystemUiProxy>()
+    private val desktopTaskListeners = mock<OneWayBinderList<IDesktopTaskListener>>()
+
     private val lifeCycleTracker = mock<DaggerSingletonTracker>()
     private lateinit var desktopVisibilityController: DesktopVisibilityController
-    private val listenerCaptor = nullableArgumentCaptor<IDesktopTaskListener>()
+    private val listenerCaptor = argumentCaptor<IDesktopTaskListener>()
 
     @Before
     fun setUp() {
         whenever(context.resources).thenReturn(mock())
+        doReturn(desktopTaskListeners).whenever(systemUiProxy).desktopTaskListeners
+
         desktopVisibilityController =
             DesktopVisibilityController(context, systemUiProxy, lifeCycleTracker)
-        verify(systemUiProxy).setDesktopTaskListener(listenerCaptor.capture())
+        verify(desktopTaskListeners).register(listenerCaptor.capture())
     }
 
     @Test
@@ -186,8 +191,8 @@ class DesktopVisibilityControllerTest {
 
     fun taskbarCornerRoundingListener_isNotifiedWithCorrectDisplayId() {
         // Arrange
-        val taskbarListener = mock<TaskbarDesktopModeListener>()
-        desktopVisibilityController.registerTaskbarDesktopModeListener(taskbarListener)
+        val taskbarListener = mock<DesktopVisibilityListener>()
+        desktopVisibilityController.registerDesktopVisibilityListener(taskbarListener)
         val desktopTaskListener = listenerCaptor.lastValue!!
         val displayId1 = 10
         val displayId2 = 20
@@ -205,9 +210,9 @@ class DesktopVisibilityControllerTest {
     @Test
     fun taskbarCornerRoundingListener_isNotCalledAfterUnregister() {
         // Arrange
-        val taskbarListener = mock<TaskbarDesktopModeListener>()
-        desktopVisibilityController.registerTaskbarDesktopModeListener(taskbarListener)
-        desktopVisibilityController.unregisterTaskbarDesktopModeListener(taskbarListener)
+        val taskbarListener = mock<DesktopVisibilityListener>()
+        desktopVisibilityController.registerDesktopVisibilityListener(taskbarListener)
+        desktopVisibilityController.unregisterDesktopVisibilityListener(taskbarListener)
         val desktopTaskListener = listenerCaptor.lastValue!!
         val displayId = 10
 
@@ -256,7 +261,7 @@ class DesktopVisibilityControllerTest {
         assertThat(listener).isNotNull()
         listener!!.onListenerConnected(states, /* canCreateDesks= */ true)
         getInstrumentation().waitForIdleSync()
-        assertThat(desktopVisibilityController.canCreateDesks).isTrue()
+        assertThat(desktopVisibilityController.canCreateDesks.value).isTrue()
     }
 
     companion object {

@@ -2,6 +2,20 @@ package: "com.android.launcher3"
 container: "system_ext"
 
 flag {
+    name: "enable_widgets_section_in_options_menu"
+    namespace: "launcher"
+    description: "Enable the Widgets section in the options popup menu dialog."
+    bug: "494308318"
+}
+
+flag {
+    name: "enable_compose_for_options_popup_menu_dialog"
+    namespace: "launcher"
+    description: "Gate the refactor of OptionsPopupDialog to compose."
+    bug: "494308318"
+}
+
+flag {
     name: "enable_expanding_pause_work_button"
     namespace: "launcher"
     description: "Expand and collapse pause work button while scrolling."
@@ -65,6 +79,13 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
+}
+
+flag {
+  name: "enable_taskbar_icon_desktop_clicks"
+  namespace: "lse_desktop_experience"
+  description: "Enables desktop style tasakbar icon clicks, including click-to-minimize and multi-window picking."
+  bug: "433770976"
 }
 
 flag {
@@ -159,16 +180,6 @@ flag {
 }
 
 flag {
-    name: "use_new_icon_for_archived_apps"
-    namespace: "launcher"
-    description: "Archived apps will use new cloud icon in app title instead of overlay"
-    bug: "350758155"
-    metadata {
-      purpose: PURPOSE_BUGFIX
-    }
-}
-
-flag {
     name: "letter_fast_scroller"
     namespace: "launcher"
     description: "Change fast scroller to a lettered list"
@@ -190,16 +201,6 @@ flag {
     namespace: "launcher"
     description: "New landscape approach for the workspace using different rows and columns in landscape and portrait"
     bug: "364711814"
-}
-
-flag {
-    name: "accessibility_scroll_on_allapps"
-    namespace: "launcher"
-    description: "Scroll to item position if accessibility focused"
-    bug: "265392261"
-    metadata {
-      purpose: PURPOSE_BUGFIX
-    }
 }
 
 flag {
@@ -256,16 +257,6 @@ flag {
   namespace: "launcher"
   description: "Enable launcher icon shape customizations"
   bug: "348708061"
-}
-
-flag {
-  name: "restore_archived_shortcuts"
-  namespace: "launcher"
-  description: "Makes sure pre-archived pinned shortcuts also get restored"
-  bug: "375414891"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
 }
 
 flag {
@@ -386,6 +377,13 @@ flag {
 }
 
 flag {
+  name: "enable_taskbar_drag_to_remove"
+  namespace: "launcher"
+  description: "Enable dragging to remove pinned apps on the taskbar."
+  bug: "495823552"
+}
+
+flag {
     name: "show_files_on_home_screen"
     namespace: "launcher"
     description: "Enables file and folder items on the home screen"
@@ -425,16 +423,6 @@ flag {
        purpose: PURPOSE_BUGFIX
      }
  }
-
-flag {
-  name: "enable_auto_stash_connected_display_taskbar"
-  namespace: "launcher"
-  description: "Enables auto stashing of connected display taskbar when in full or split screen"
-  bug: "394486228"
-  metadata {
-    purpose: PURPOSE_BUGFIX
-  }
-}
 
 flag {
     name: "expandable_long_press_menu"
@@ -589,6 +577,13 @@ flag {
 }
 
 flag {
+    name: "enable_restoredbtask_modelwriter_refactor"
+    namespace: "launcher"
+    description: "Enables the refactored RestoreDbTask using ModelWriter."
+    bug: "489010281"
+}
+
+flag {
   name: "enable_transactional_model_writer"
   namespace: "launcher"
   description: "Enables the new transactional model writer for Launcher persistence."
@@ -651,9 +646,9 @@ flag {
 }
 
 flag {
-    name: "kondo_planner"
+    name: "condo_planner"
     namespace: "launcher"
-    description: "Enables the kondo planner experience."
+    description: "Enables the condo planner experience."
     bug: "450695990"
 }
 
@@ -713,6 +708,40 @@ flag {
   namespace: "launcher"
   description: "Enables taking a new snapshot for the running task when invoking KQS"
   bug: "490433482"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "enable_fixed_qsb_at_bottom"
+  namespace: "launcher"
+  description: "Enables fixed QSB at the bottom of hotseat"
+  bug: "489141317"
+}
+
+flag {
+  name: "translate_imeswitcher_3buttons_with_bubble"
+  namespace: "launcher"
+  description: "Translate the IME Switcher when 3-buttons Navigation with Bubble Icon"
+  bug: "494111189"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "enable_home_screen_files_copy_paste"
+  namespace: "launcher"
+  description: "Enables support for copy/paste of home screen files."
+  bug: "482073141"
+}
+
+flag {
+  name: "enable_collapse_sysui_panels_on_taskbar_click"
+  namespace: "launcher"
+  description: "Collapses system UI panels in response to user actions in taskbar"
+  bug: "492177154"
   metadata {
     purpose: PURPOSE_BUGFIX
   }

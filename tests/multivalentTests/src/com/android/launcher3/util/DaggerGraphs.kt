@@ -25,15 +25,17 @@ import com.android.launcher3.dagger.AutomationModule
 import com.android.launcher3.dagger.DesktopModule
 import com.android.launcher3.dagger.HomeScreenFilesModule
 import com.android.launcher3.dagger.LauncherModelModule
+import com.android.launcher3.dagger.OrganizerLauncherModule
 import com.android.launcher3.dagger.PerDisplayModule
 import com.android.launcher3.dagger.SettingsModule
 import com.android.launcher3.dagger.StaticObjectModule
+import com.android.launcher3.dagger.StatsLoggerModule
 import com.android.launcher3.dagger.TaskOverlayModule
 import com.android.launcher3.dagger.WidgetModule
 import com.android.launcher3.dagger.WindowManagerProxyModule
+import com.android.launcher3.dagger.WorkspaceFunctionsLauncherModule
 import com.android.launcher3.util.dagger.LauncherExecutorsModule
 import com.android.launcher3.widgetpicker.NoOpWidgetPickerModule
-import com.android.launcher3.workspacefunctions.WorkspaceFunctionsModule
 import dagger.Binds
 import dagger.Module
 
@@ -60,7 +62,9 @@ abstract class FakePrefsModule {
             SettingsModule::class,
             AutomationModule::class,
             TaskOverlayModule::class,
-            WorkspaceFunctionsModule::class,
+            WorkspaceFunctionsLauncherModule::class,
+            StatsLoggerModule::class,
+            OrganizerLauncherModule::class,
         ]
 )
 class CommonModulesForTest

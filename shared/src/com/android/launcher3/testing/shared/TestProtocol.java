@@ -85,10 +85,8 @@ public final class TestProtocol {
     public static final String TEST_INFO_PARAM_INDEX = "index";
     public static final String TEST_INFO_PARAM_CELL_SPAN = "cell-span";
 
-    public static final String REQUEST_HOME_TO_OVERVIEW_SWIPE_HEIGHT =
-            "home-to-overview-swipe-height";
-    public static final String REQUEST_BACKGROUND_TO_OVERVIEW_SWIPE_HEIGHT =
-            "background-to-overview-swipe-height";
+    public static final String REQUEST_SWIPE_TO_OVERVIEW_HEIGHT =
+            "swipe-to-overview-height";
     public static final String REQUEST_HOME_TO_ALL_APPS_SWIPE_HEIGHT =
             "home-to-all-apps-swipe-height";
     public static final String REQUEST_ICON_HEIGHT =
@@ -222,6 +220,7 @@ public final class TestProtocol {
     public static final String REQUEST_ENABLE_REGISTER_EVENT_NOT_FROM_TEST =
             "enable_register_event_not_from_test";
 
+    public static final String REQUEST_DISPLAY_BOUNDS = "display_bounds";
     public static final String REQUEST_INFO_DISPLAY_ID = "display_id";
 
     public static final String REQUEST_MARK_OVERVIEW_SELECT_TIP_SEEN =

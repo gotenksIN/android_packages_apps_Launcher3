@@ -16,11 +16,13 @@
 
 package com.android.launcher3.widget;
 
+import static com.android.launcher3.anim.AnimatorListeners.forEndCallback;
 import static com.android.launcher3.graphics.PreloadIconDelegate.newPendingIcon;
 import static com.android.launcher3.model.data.LauncherAppWidgetInfo.FLAG_PROVIDER_NOT_READY;
 import static com.android.launcher3.icons.cache.CacheLookupFlag.DEFAULT_LOOKUP_FLAG;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 
+import android.animation.ObjectAnimator;
 import android.appwidget.AppWidgetProviderInfo;
 import android.content.Context;
 import android.graphics.Canvas;
@@ -59,6 +61,7 @@ import com.android.launcher3.model.data.PackageItemInfo;
 import com.android.launcher3.util.RunnableList;
 import com.android.launcher3.util.SafeCloseable;
 import com.android.launcher3.util.Themes;
+import com.android.launcher3.util.ViewEx;
 import com.android.launcher3.widget.ListenableAppWidgetHost.ProviderChangedListener;
 
 import java.util.List;
@@ -73,7 +76,7 @@ public class PendingAppWidgetHostView extends LauncherAppWidgetHostView
     private static final int FLAG_DRAW_LABEL = 4;
 
     private static final int DEFERRED_ALPHA = 0x77;
-
+    private static final long PENDING_WIDGET_FADE_OUT_MS = 200L;
     private final Rect mRect = new Rect();
 
     private final Handler mHandler = new Handler(Looper.getMainLooper());
@@ -130,7 +133,7 @@ public class PendingAppWidgetHostView extends LauncherAppWidgetHostView
     public PendingAppWidgetHostView(
             Context context, LauncherWidgetHolder widgetHolder,
             int appWidgetId, @NonNull LauncherAppWidgetProviderInfo appWidget) {
-        this(context, widgetHolder, new LauncherAppWidgetInfo(appWidgetId, appWidget.provider),
+        this(context, widgetHolder, new LauncherAppWidgetInfo(appWidgetId, appWidget),
                 appWidget, appWidget.label, null);
         getBackground().mutate().setAlpha(DEFERRED_ALPHA);
 
@@ -244,6 +247,23 @@ public class PendingAppWidgetHostView extends LauncherAppWidgetHostView
             launcher.removeItem(this, info, false  /* deleteFromDb */,
                     "widget removed because of configuration change");
             launcher.bindAppWidget(info);
+            animateShowReinflatedWidget(
+                    launcher.getWorkspace().getWidgetForAppWidgetId(info.appWidgetId));
+
+        }
+    }
+
+    private void animateShowReinflatedWidget(View reInflatedWidget) {
+        if (reInflatedWidget != null) {
+            Drawable snapshot = ViewEx.captureSnapshotAsDrawable(
+                    this, "PendingWidgetFadeOut", getWidth(), getHeight());
+            snapshot.setBounds(0, 0, getWidth(), getHeight());
+            reInflatedWidget.getOverlay().add(snapshot);
+
+            ObjectAnimator anim = ObjectAnimator.ofInt(snapshot, "alpha", 255, 0);
+            anim.setDuration(PENDING_WIDGET_FADE_OUT_MS).addListener(forEndCallback(
+                    () -> reInflatedWidget.getOverlay().remove(snapshot)));
+            anim.start();
         }
     }
 
