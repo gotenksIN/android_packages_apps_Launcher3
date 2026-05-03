@@ -35,7 +35,7 @@
     <string name="shorter_duration_less_than_one_minute" msgid="4722015666335015336">"&lt;1 min"</string>
     <string name="time_left_for_app" msgid="3111996412933644358">"Tempo restante hoxe <xliff:g id="TIME">%1$s</xliff:g>"</string>
     <string name="title_app_suggestions" msgid="4185902664111965088">"Suxestións de aplicacións"</string>
-    <string name="all_apps_prediction_tip" msgid="2672336544844936186">"Previsión das túas aplicacións"</string>
+    <string name="all_apps_prediction_tip" msgid="2672336544844936186">"Aplicacións previstas"</string>
     <string name="hotseat_prediction_settings" msgid="6246554993566070818">"Configuración"</string>
     <string name="hotseat_auto_enrolled" msgid="522100018967146807">"As aplicacións máis usadas aparecen aquí e van cambiando en función das túas rutinas"</string>
     <string name="hotseat_tip_no_empty_slots" msgid="1325212677738179185">"Arrastra aplicacións desde a fila inferior para recibir suxestións de aplicacións"</string>
@@ -154,10 +154,8 @@
     <string name="move_drop_target_top_or_left" msgid="2988702185049595807">"Mover á parte superior ou á esquerda"</string>
     <string name="move_drop_target_bottom_or_right" msgid="5431393418797620162">"Mover á parte inferior ou á dereita"</string>
     <string name="open_app_as_a_bubble" msgid="6642626287247807473">"Abrir aplicación como unha burbulla"</string>
-    <!-- no translation found for action_move_item_left (1553114361342866236) -->
-    <skip />
-    <!-- no translation found for action_move_item_right (682950193875586183) -->
-    <skip />
+    <string name="action_move_item_left" msgid="1553114361342866236">"Mover o elemento cara á esquerda"</string>
+    <string name="action_move_item_right" msgid="682950193875586183">"Mover o elemento cara á dereita"</string>
     <string name="quick_switch_pane_title" msgid="4677158207760585812">"Aplicacións recentes"</string>
     <string name="quick_switch_content_description" msgid="2851244536728720005">"Lista de aplicacións recentes"</string>
     <string name="quick_switch_overflow" msgid="3679780650881041632">"{count,plural, =1{aplicación máis}other{aplicacións máis}}"</string>
